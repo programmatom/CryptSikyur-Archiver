@@ -1,0 +1,343 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module basic
+
+test empty directories
+date 2014-01-01
+mkdir a
+mkdir b
+call backup compare a b
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D b\
+endlist
+
+test add file
+date + 1
+create a\foo
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Missing file: foo
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\foo [1]
+.                                         -----D b\
+endlist
+
+test propagate file
+copy a\foo b\foo
+date + 1
+touch b\foo
+call backup compare a b
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\foo [1]
+.                                         -----D b\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+endlist
+
+test add second file
+date + 1
+create a\qux
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Missing file: qux
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+endlist
+
+test propagate file
+copy a\qux b\qux
+date + 1
+touch b\qux -created
+call backup compare a b
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test remove file
+delete a\foo
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Added file: foo
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test differing first file
+create a\foo
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Different: foo
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-05          2014-01-05 -A---- a\foo [3]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test subdirectory file
+delete a\foo
+copy b\foo a\foo
+mkdir a\baz
+create a\baz\deep -size 0
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Missing nonempty directory: baz
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\baz\
+.          2014-01-05          2014-01-05 -A--Z- a\baz\deep [0]
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test subdirectory empty
+delete a\baz\deep
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Missing empty directory: baz
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\baz\
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test propagate directory
+mkdir b\baz
+call backup compare a b
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\a\baz
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\baz\
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.                                         -----D b\baz\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test file in directory
+create a\baz\eep
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\a\baz
+.%WORKSPACE%\b\baz
+.  Missing file: eep
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\baz\
+.          2014-01-05          2014-01-05 -A---- a\baz\eep [4]
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.                                         -----D b\baz\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test propagate directory
+copy a\baz\eep b\baz\eep
+call backup compare a b
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\a\baz
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\baz\
+.          2014-01-05          2014-01-05 -A---- a\baz\eep [4]
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.                                         -----D b\baz\
+.          2014-01-05          2014-01-05 -A---- b\baz\eep [4]
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test remove nested file
+delete a\baz\eep
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\a\baz
+.%WORKSPACE%\b\baz
+.  Added file: eep
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\baz\
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.                                         -----D b\baz\
+.          2014-01-05          2014-01-05 -A---- b\baz\eep [4]
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test remove directory
+rmdir a\baz
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Added nonempty directory: baz
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.                                         -----D b\baz\
+.          2014-01-05          2014-01-05 -A---- b\baz\eep [4]
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+test now empty directory
+delete b\baz\eep
+call backup compare a b
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\b
+.  Added empty directory: baz
+endoutput
+list-verify .
+.                                         -----D a\
+.          2014-01-02          2014-01-03 -A---- a\foo [1]
+.          2014-01-04          2014-01-04 -A---- a\qux [2]
+.                                         -----D b\
+.                                         -----D b\baz\
+.          2014-01-02          2014-01-03 -A---- b\foo [1]
+.          2014-01-05          2014-01-04 -A---- b\qux [2]
+endlist
+
+
+module encryption and compression propagation
+
+test create
+date 2014-01-01
+mkdir a\qux
+create a\qux\bar
+create a\qux\foo
+mkdir b\qux
+call backup -compress -encrypt aes128 sW0rDF1sh copy a\qux\bar b\qux\bar
+exitcode-verify 0
+call backup -compress -encrypt aes128 sW0rDF1sh copy a\qux\foo b\qux\foo
+exitcode-verify 0
+call backup -compress -encrypt aes128 sW0rDF1sh compare a b
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\a
+.%WORKSPACE%\a\qux
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\qux\
+.          2014-01-01          2014-01-01 -A---- a\qux\bar [1]
+.          2014-01-01          2014-01-01 -A---- a\qux\foo [2]
+.                                         -----D b\
+.                                         -----D b\qux\
+.          2014-01-01          2014-01-01 -A---- b\qux\bar [3]
+.          2014-01-01          2014-01-01 -A---- b\qux\foo [4]
+endlist
+
+test detect difference
+date + 1
+edit a\qux\foo
+call backup -decompress -decrypt aes128 sW0rDF1sh compare b a
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\b
+.%WORKSPACE%\b\qux
+.%WORKSPACE%\a\qux
+.  Different: foo
+endoutput
+list-verify .
+.                                         -----D a\
+.                                         -----D a\qux\
+.          2014-01-01          2014-01-01 -A---- a\qux\bar [1]
+.          2014-01-01          2014-01-02 -A---- a\qux\foo [5]
+.                                         -----D b\
+.                                         -----D b\qux\
+.          2014-01-01          2014-01-01 -A---- b\qux\bar [3]
+.          2014-01-01          2014-01-01 -A---- b\qux\foo [4]
+endlist

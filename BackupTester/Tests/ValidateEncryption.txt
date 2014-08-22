@@ -1,0 +1,525 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module MAC prevalidation on copied files
+
+test set up scenario
+date 2014-01-01
+create file1 -size 50000
+date + 1
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd copy file1 file1.e
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- file1 [1]
+.          2014-01-01          2014-01-01 -A---- file1.e [2]
+endlist
+
+test prevalidation with undamaged file
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd copy file1.e file1.u1
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u2
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- file1 [1]
+.          2014-01-01          2014-01-01 -A---- file1.e [2]
+.          2014-01-01          2014-01-01 -A---- file1.u1 [1]
+.          2014-01-01          2014-01-01 -A---- file1.u2 [1]
+endlist
+delete file1.u1
+delete file1.u2
+
+test prevalidation with damaged file
+copy file1.e file1.e.backup
+invert-range file1.e 25000 1
+call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd copy file1.e file1.u3
+.r
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+endoutput
+call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u4
+.r
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- file1 [1]
+.          2014-01-01          2014-01-02 -A---- file1.e [3]
+.          2014-01-01          2014-01-01 -A---- file1.e.backup [2]
+# with prevalidation, no work will be done (no file created) when MAC is discovered to be invalid
+#.          2014-01-01          2014-01-02 -A---- file1.u3 [4]
+# with no prevalidation, file will be partially decrypted and written before MAC is discovered invalid
+.          2014-01-01          2014-01-02 -A---- file1.u4 [4]
+endlist
+delete file1.u4
+
+test prevalidation with only MAC damage
+delete file1.e
+copy file1.e.backup file1.e
+# magic: corrupt last byte of file (part of sha256 HMAC check value)
+invert-range file1.e -1 1
+call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd copy file1.e file1.u5
+.r
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+endoutput
+call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u6
+.r
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents! (%WORKSPACE%\file1.e)
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- file1 [1]
+.          2014-01-01          2014-01-02 -A---- file1.e [5]
+.          2014-01-01          2014-01-01 -A---- file1.e.backup [2]
+# with prevalidation, no work will be done (no file created) when MAC is discovered to be invalid
+#.          2014-01-01          2014-01-02 -A---- file1.u5 [4]
+# with no prevalidation, file will be partially decrypted and written before MAC is discovered invalid
+.          2014-01-01          2014-01-02 -A---- file1.u6 [1]
+endlist
+delete file1.u6
+
+
+module MAC prevalidation on packed files
+
+test set up scenario
+date 2014-01-01
+mkdir source
+create source\file1 -size 50000
+date + 1
+create source\file2 -size 50000
+date + 1
+create source\file3 -size 50000
+date + 1
+qlist .
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd pack source archive.pack
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-04 -A---- archive.pack [4]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file1 [1]
+.          2014-01-02          2014-01-02 -A---- source\file2 [2]
+.          2014-01-03          2014-01-03 -A---- source\file3 [3]
+endlist
+
+test prevalidation with undamaged file
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd unpack archive.pack target1
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate unpack archive.pack target2
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-04 -A---- archive.pack [4]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file1 [1]
+.          2014-01-02          2014-01-02 -A---- source\file2 [2]
+.          2014-01-03          2014-01-03 -A---- source\file3 [3]
+.                                         -----D target1\
+.          2014-01-01          2014-01-01 -A---- target1\file1 [1]
+.          2014-01-02          2014-01-02 -A---- target1\file2 [2]
+.          2014-01-03          2014-01-03 -A---- target1\file3 [3]
+.                                         -----D target2\
+.          2014-01-01          2014-01-01 -A---- target2\file1 [1]
+.          2014-01-02          2014-01-02 -A---- target2\file2 [2]
+.          2014-01-03          2014-01-03 -A---- target2\file3 [3]
+endlist
+rmdir target1
+rmdir target2
+
+test prevalidation with damaged file
+copy archive.pack archive.pack.backup
+# magic: damage 2nd file
+invert-range archive.pack 60000 1
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd unpack archive.pack target3
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
+endoutput
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate unpack archive.pack target4
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Individual archived file data check values do not match
+endoutput
+list-verify .
+.          2014-01-04          2014-01-04 -A---- archive.pack [5]
+.          2014-01-04          2014-01-04 -A---- archive.pack.backup [4]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file1 [1]
+.          2014-01-02          2014-01-02 -A---- source\file2 [2]
+.          2014-01-03          2014-01-03 -A---- source\file3 [3]
+# target3 will not be created at all because file will be rejected before any action taken
+# target4 will be partially created, with some invalid file data, because unpack will occur before MAC is validated
+.                                         -----D target4\
+.          2014-01-01          2014-01-01 -A---- target4\file1 [1]
+.          2014-01-02          2014-01-02 -A---- target4\file2 [6]
+endlist
+rmdir target4
+
+test prevalidation with only MAC damage
+delete archive.pack
+copy archive.pack.backup archive.pack
+# magic: damage 2nd file - last byte (part of sha256 HMAC check value)
+invert-range archive.pack -1 1
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd unpack archive.pack target5
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
+endoutput
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate unpack archive.pack target6
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
+endoutput
+list-verify .
+.          2014-01-04          2014-01-04 -A---- archive.pack [7]
+.          2014-01-04          2014-01-04 -A---- archive.pack.backup [4]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file1 [1]
+.          2014-01-02          2014-01-02 -A---- source\file2 [2]
+.          2014-01-03          2014-01-03 -A---- source\file3 [3]
+# target5 will not be created at all because file will be rejected before any action taken
+# target6 will be fully created because unpack will occur before MAC is validated
+.                                         -----D target6\
+.          2014-01-01          2014-01-01 -A---- target6\file1 [1]
+.          2014-01-02          2014-01-02 -A---- target6\file2 [2]
+.          2014-01-03          2014-01-03 -A---- target6\file3 [3]
+endlist
+rmdir target6
+
+
+module MAC prevalidation on dynamic packed files
+
+test set up scenario
+date 2014-01-01
+mkdir source
+create source\a -size 50000
+date + 1
+create source\b -size 50000
+date + 1
+create source\c -size 50000
+date + 1
+create source\d -size 50000
+date + 1
+create source\e -size 50000
+date + 1
+create source\f -size 50000
+date + 1
+create source\g -size 50000
+date + 1
+create source\h -size 50000
+date + 1
+create source\i -size 50000
+date + 1
+qlist .
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
+exitcode-verify 0
+list-verify .
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack [10]
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack.html [11]
+.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [12]
+.          2014-01-10          2014-01-10 -A---- archive.m.dynpack [13]
+.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [14]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-02          2014-01-02 -A---- source\b [2]
+.          2014-01-03          2014-01-03 -A---- source\c [3]
+.          2014-01-04          2014-01-04 -A---- source\d [4]
+.          2014-01-05          2014-01-05 -A---- source\e [5]
+.          2014-01-06          2014-01-06 -A---- source\f [6]
+.          2014-01-07          2014-01-07 -A---- source\g [7]
+.          2014-01-08          2014-01-08 -A---- source\h [8]
+.          2014-01-09          2014-01-09 -A---- source\i [9]
+endlist
+
+test unpack valid data
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd dynunpack archive target1
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate dynunpack archive target2
+exitcode-verify 0
+list-verify target1
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-02          2014-01-02 -A---- b [2]
+.          2014-01-03          2014-01-03 -A---- c [3]
+.          2014-01-04          2014-01-04 -A---- d [4]
+.          2014-01-05          2014-01-05 -A---- e [5]
+.          2014-01-06          2014-01-06 -A---- f [6]
+.          2014-01-07          2014-01-07 -A---- g [7]
+.          2014-01-08          2014-01-08 -A---- h [8]
+.          2014-01-09          2014-01-09 -A---- i [9]
+endlist
+list-verify target2
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-02          2014-01-02 -A---- b [2]
+.          2014-01-03          2014-01-03 -A---- c [3]
+.          2014-01-04          2014-01-04 -A---- d [4]
+.          2014-01-05          2014-01-05 -A---- e [5]
+.          2014-01-06          2014-01-06 -A---- f [6]
+.          2014-01-07          2014-01-07 -A---- g [7]
+.          2014-01-08          2014-01-08 -A---- h [8]
+.          2014-01-09          2014-01-09 -A---- i [9]
+endlist
+rmdir target1
+rmdir target2
+
+test unpack with invalidated files
+# magic: damage 2nd file of 2nd pack
+invert-range archive.m.dynpack 60000 1
+mkdir target3
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd dynunpack archive target3
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment m: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
+.Segment m: missing segment (referenced in manifest, serial number 2)
+endoutput
+list-verify target3
+# nothing should be created
+endlist
+call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate dynunpack archive target4
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Unpacking %WORKSPACE%\archive.a.dynpack:
+.Unpacking %WORKSPACE%\archive.m.dynpack:
+.Individual archived file data check values do not match
+endoutput
+list-verify target4
+# first archive file was extracted
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-02          2014-01-02 -A---- b [2]
+.          2014-01-03          2014-01-03 -A---- c [3]
+# part of second archive file was extracted, including a file with invalid data
+.          2014-01-04          2014-01-04 -A---- d [4]
+.          2014-01-05          2014-01-05 -A---- e [15]
+endlist
+rmdir target3
+rmdir target4
+delete archive.m.dynpack
+
+test update pack with invalid manifest
+# magic: substantially damage manifest
+invert-range archive.0.dynpack 300 300
+date + 1
+create source\j -size 50000
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+# update involves reading manifest first - operation is aborted with MAC error before anything else
+.%WORKSPACE%\source
+.File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
+endoutput
+list-verify .
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack [16]
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack.html [11]
+.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [12]
+.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [14]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-02          2014-01-02 -A---- source\b [2]
+.          2014-01-03          2014-01-03 -A---- source\c [3]
+.          2014-01-04          2014-01-04 -A---- source\d [4]
+.          2014-01-05          2014-01-05 -A---- source\e [5]
+.          2014-01-06          2014-01-06 -A---- source\f [6]
+.          2014-01-07          2014-01-07 -A---- source\g [7]
+.          2014-01-08          2014-01-08 -A---- source\h [8]
+.          2014-01-09          2014-01-09 -A---- source\i [9]
+.          2014-01-11          2014-01-11 -A---- source\j [17]
+endlist
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd -nomacprevalidate dynpack source archive 160000
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack -ignoreextralines
+# in this case, manifest data is parsed until some internal header integrity error is generated
+.%WORKSPACE%\source
+.
+.Error:
+.Arithmetic operation resulted in an overflow.
+*   at Backup\.Program\.BinaryReadUtils\.ReadVariableLengthQuantity.*\(Stream stream\) in .*$
+endoutput
+list-verify .
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack [16]
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack.html [11]
+.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [12]
+.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [14]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-02          2014-01-02 -A---- source\b [2]
+.          2014-01-03          2014-01-03 -A---- source\c [3]
+.          2014-01-04          2014-01-04 -A---- source\d [4]
+.          2014-01-05          2014-01-05 -A---- source\e [5]
+.          2014-01-06          2014-01-06 -A---- source\f [6]
+.          2014-01-07          2014-01-07 -A---- source\g [7]
+.          2014-01-08          2014-01-08 -A---- source\h [8]
+.          2014-01-09          2014-01-09 -A---- source\i [9]
+.          2014-01-11          2014-01-11 -A---- source\j [17]
+endlist
+
+
+module do not create valid output file if error aborts program
+
+test do not create valid output file if error aborts program - pack
+date 2014-01-01
+mkdir source
+date + 1
+create source\a
+date + 1
+create source\b
+date + 1
+create source\c
+date + 1
+open source\b wx
+date + 1
+call-with-input backup -date %DATE% -encrypt aes128 5woRdf1sH pack source archive.pack
+.q
+endinput
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack -ignoreextralines
+.%WORKSPACE%\source
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.
+.Error:
+.The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process.
+endoutput
+date + 1
+call backup -date %DATE% -decrypt aes128 5woRdf1sH validate archive.pack
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.INVALID %WORKSPACE%\archive.pack
+endoutput
+date + 1
+call backup -date %DATE% -decrypt aes128 5woRdf1sH unpack archive.pack copy
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
+endoutput
+close-all
+list-verify .
+*          .*          .* \-A\-\-\-\- archive\.pack \[1\]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+
+
+module forced rekeying validation
+
+test create file collection
+date 2014-01-01
+mkdir source
+date + 1
+create source\one -size 9900
+create source\two -size 9950
+create source\three -size 9872
+create source\four -size 9901
+create source\five -size 9899
+date + 1
+qlist .
+
+test copy files with forced rekeying
+call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys copy source copy1.e
+exitcode-verify 0
+call-with-input backup -date %DATE% -decrypt aes128 Ba55w1rD copy copy1.e copy2
+.q
+endinput
+exitcode-verify 0
+dirs-equal-verify source copy2
+rmdir copy1.e
+rmdir copy2
+
+test pack files with forced rekeying
+mkdir archive2
+call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys pack source archive2\a.pack
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 Ba55w1rD unpack archive2\a.pack copy4
+exitcode-verify 0
+dirs-equal-verify source copy4
+rmdir copy4
+rmdir archive2
+
+test dynpack files with forced rekeying
+mkdir archive
+call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys dynpack source archive\a 35000
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 Ba55w1rD dynunpack archive\a copy3
+exitcode-verify 0
+dirs-equal-verify source copy3
+rmdir copy3
+rmdir archive
+
+test backup files with forced rekeying
+mkdir archive3
+call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys backup source archive3
+exitcode-verify 0
+call-with-input backup -date %DATE% -decrypt aes128 Ba55w1rD restore archive3 2014-01-03T00+00+00 copy5
+.q
+endinput
+exitcode-verify 0
+dirs-equal-verify source copy5
+rmdir copy5
+rmdir archive3
+
+
+module master key cache flush (code coverage)
+
+test create file collection
+date 2014-01-01
+mkdir source
+mkdir source\a
+date + 1
+create source\a\one
+create source\a\two
+create source\a\three
+create source\a\four
+create source\a\five
+create source\a\six
+create source\a\seven
+create source\a\eight
+create source\a\nine
+create source\a\ten
+qlist .
+copy source\a source\b
+copy source\a source\c
+copy source\a source\d
+copy source\a source\e
+date + 1
+
+test encrypt files with forced rekeying
+call backup -date %DATE% -encrypt 3des pA55w1rD -forcenewkeys copy source copy1.e
+exitcode-verify 0
+call backup -date %DATE% -decrypt 3des pA55w1rD copy copy1.e copy2
+exitcode-verify 0
+dirs-equal-verify source copy2

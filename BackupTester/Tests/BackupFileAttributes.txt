@@ -1,0 +1,55 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module file attributes
+
+mkdir source
+mkdir archive
+
+test setup
+date 2014-01-01
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D source\
+endlist
+
+# at this time attributes are stripped during archiving
+
+test create files with attributes
+date + 1
+create source\a
+attrib source\a +r
+date + 1
+create source\b
+attrib source\b +s
+date + 1
+create source\c
+attrib source\c +h
+date + 1
+create source\d
+attrib source\d +a
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D archive\2014-01-06T00+00+00\
+.          2014-01-02          2014-01-02 -A---- archive\2014-01-06T00+00+00\a [1]
+.          2014-01-03          2014-01-03 -A---- archive\2014-01-06T00+00+00\b [2]
+.          2014-01-04          2014-01-04 -A---- archive\2014-01-06T00+00+00\c [3]
+.          2014-01-05          2014-01-05 -A---- archive\2014-01-06T00+00+00\d [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 RA---- source\a [1]
+.          2014-01-03          2014-01-03 -A-S-- source\b [2]
+.          2014-01-04          2014-01-04 -AH--- source\c [3]
+.          2014-01-05          2014-01-05 -A---- source\d [4]
+endlist

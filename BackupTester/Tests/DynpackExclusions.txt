@@ -1,0 +1,443 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module basic
+
+test create content, pack all
+date 2014-01-01
+mkdir source
+date + 1
+create source\one.txt
+create source\two.foo
+create source\three.bar
+mkdir source\m
+date + 1
+create source\m\four.txt
+create source\m\five.foo
+create source\m\six.bar
+mkdir source\n
+date + 1
+create source\n\seven.txt
+create source\n\eight.foo
+create source\n\nine.bar
+mkdir source\n\t
+date + 1
+create source\n\t\ten.txt
+create source\n\t\eleven.foo
+create source\n\t\twelve.bar
+mkdir source\o
+date + 1
+create source\o\thirteen.txt
+create source\o\fourteen.foo
+create source\o\fifteen.bar
+qlist .
+date + 1
+call backup -date %DATE% dynpack source archive 1000000 -verify
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-07          2014-01-07 -A---- archive.0.dynpack [16]
+.          2014-01-07          2014-01-07 -A---- archive.0.dynpack.html [17]
+.          2014-01-07          2014-01-07 -A---- archive.a.dynpack [18]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-03          2014-01-03 -A---- source\m\five.foo [1]
+.          2014-01-03          2014-01-03 -A---- source\m\four.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\m\six.bar [3]
+.                                         -----D source\n\
+.          2014-01-04          2014-01-04 -A---- source\n\eight.foo [4]
+.          2014-01-04          2014-01-04 -A---- source\n\nine.bar [5]
+.          2014-01-04          2014-01-04 -A---- source\n\seven.txt [6]
+.                                         -----D source\n\t\
+.          2014-01-05          2014-01-05 -A---- source\n\t\eleven.foo [7]
+.          2014-01-05          2014-01-05 -A---- source\n\t\ten.txt [8]
+.          2014-01-05          2014-01-05 -A---- source\n\t\twelve.bar [9]
+.                                         -----D source\o\
+.          2014-01-06          2014-01-06 -A---- source\o\fifteen.bar [10]
+.          2014-01-06          2014-01-06 -A---- source\o\fourteen.foo [11]
+.          2014-01-06          2014-01-06 -A---- source\o\thirteen.txt [12]
+.          2014-01-02          2014-01-02 -A---- source\one.txt [13]
+.          2014-01-02          2014-01-02 -A---- source\three.bar [14]
+.          2014-01-02          2014-01-02 -A---- source\two.foo [15]
+endlist
+date + 1
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D m\
+.          2014-01-03          2014-01-03 -A---- m\five.foo [1]
+.          2014-01-03          2014-01-03 -A---- m\four.txt [2]
+.          2014-01-03          2014-01-03 -A---- m\six.bar [3]
+.                                         -----D n\
+.          2014-01-04          2014-01-04 -A---- n\eight.foo [4]
+.          2014-01-04          2014-01-04 -A---- n\nine.bar [5]
+.          2014-01-04          2014-01-04 -A---- n\seven.txt [6]
+.                                         -----D n\t\
+.          2014-01-05          2014-01-05 -A---- n\t\eleven.foo [7]
+.          2014-01-05          2014-01-05 -A---- n\t\ten.txt [8]
+.          2014-01-05          2014-01-05 -A---- n\t\twelve.bar [9]
+.                                         -----D o\
+.          2014-01-06          2014-01-06 -A---- o\fifteen.bar [10]
+.          2014-01-06          2014-01-06 -A---- o\fourteen.foo [11]
+.          2014-01-06          2014-01-06 -A---- o\thirteen.txt [12]
+.          2014-01-02          2014-01-02 -A---- one.txt [13]
+.          2014-01-02          2014-01-02 -A---- three.bar [14]
+.          2014-01-02          2014-01-02 -A---- two.foo [15]
+endlist
+rmdir target
+
+test update content, exclude directories
+date + 1
+edit source\one.txt
+date + 1
+edit source\two.foo
+date + 1
+edit source\three.bar
+date + 1
+edit source\m\four.txt
+date + 1
+edit source\m\five.foo
+date + 1
+edit source\m\six.bar
+date + 1
+edit source\n\seven.txt
+date + 1
+edit source\n\eight.foo
+date + 1
+edit source\n\nine.bar
+date + 1
+edit source\n\t\ten.txt
+date + 1
+edit source\n\t\eleven.foo
+date + 1
+edit source\n\t\twelve.bar
+date + 1
+edit source\o\thirteen.txt
+date + 1
+edit source\o\fourteen.foo
+date + 1
+edit source\o\fifteen.bar
+date + 1
+call backup -date %DATE% dynpack source archive 1000000 -verify -exclude source\n\t -exclude source\m
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-07          2014-01-25 -A---- archive.0.dynpack [19]
+.          2014-01-07          2014-01-25 -A---- archive.0.dynpack.html [17]
+.          2014-01-07          2014-01-25 -A---- archive.a.dynpack [20]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-03          2014-01-14 -A---- source\m\five.foo [21]
+.          2014-01-03          2014-01-13 -A---- source\m\four.txt [22]
+.          2014-01-03          2014-01-15 -A---- source\m\six.bar [23]
+.                                         -----D source\n\
+.          2014-01-04          2014-01-17 -A---- source\n\eight.foo [24]
+.          2014-01-04          2014-01-18 -A---- source\n\nine.bar [25]
+.          2014-01-04          2014-01-16 -A---- source\n\seven.txt [26]
+.                                         -----D source\n\t\
+.          2014-01-05          2014-01-20 -A---- source\n\t\eleven.foo [27]
+.          2014-01-05          2014-01-19 -A---- source\n\t\ten.txt [28]
+.          2014-01-05          2014-01-21 -A---- source\n\t\twelve.bar [29]
+.                                         -----D source\o\
+.          2014-01-06          2014-01-24 -A---- source\o\fifteen.bar [30]
+.          2014-01-06          2014-01-23 -A---- source\o\fourteen.foo [31]
+.          2014-01-06          2014-01-22 -A---- source\o\thirteen.txt [32]
+.          2014-01-02          2014-01-10 -A---- source\one.txt [33]
+.          2014-01-02          2014-01-12 -A---- source\three.bar [34]
+.          2014-01-02          2014-01-11 -A---- source\two.foo [35]
+endlist
+date + 1
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D n\
+.          2014-01-04          2014-01-17 -A---- n\eight.foo [24]
+.          2014-01-04          2014-01-18 -A---- n\nine.bar [25]
+.          2014-01-04          2014-01-16 -A---- n\seven.txt [26]
+.                                         -----D o\
+.          2014-01-06          2014-01-24 -A---- o\fifteen.bar [30]
+.          2014-01-06          2014-01-23 -A---- o\fourteen.foo [31]
+.          2014-01-06          2014-01-22 -A---- o\thirteen.txt [32]
+.          2014-01-02          2014-01-10 -A---- one.txt [33]
+.          2014-01-02          2014-01-12 -A---- three.bar [34]
+.          2014-01-02          2014-01-11 -A---- two.foo [35]
+endlist
+rmdir target
+
+test update content, exclude extensions
+date + 1
+edit source\one.txt
+date + 1
+edit source\two.foo
+date + 1
+edit source\three.bar
+date + 1
+edit source\m\four.txt
+date + 1
+edit source\m\five.foo
+date + 1
+edit source\m\six.bar
+date + 1
+edit source\n\seven.txt
+date + 1
+edit source\n\eight.foo
+date + 1
+edit source\n\nine.bar
+date + 1
+edit source\n\t\ten.txt
+date + 1
+edit source\n\t\eleven.foo
+date + 1
+edit source\n\t\twelve.bar
+date + 1
+edit source\o\thirteen.txt
+date + 1
+edit source\o\fourteen.foo
+date + 1
+edit source\o\fifteen.bar
+date + 1
+call backup -date %DATE% dynpack source archive 1000000 -verify -skip .foo -skip .bar
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-07          2014-02-12 -A---- archive.0.dynpack [36]
+.          2014-01-07          2014-02-12 -A---- archive.0.dynpack.html [17]
+.          2014-01-07          2014-02-12 -A---- archive.a.dynpack [37]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-03          2014-02-01 -A---- source\m\five.foo [38]
+.          2014-01-03          2014-01-31 -A---- source\m\four.txt [39]
+.          2014-01-03          2014-02-02 -A---- source\m\six.bar [40]
+.                                         -----D source\n\
+.          2014-01-04          2014-02-04 -A---- source\n\eight.foo [41]
+.          2014-01-04          2014-02-05 -A---- source\n\nine.bar [42]
+.          2014-01-04          2014-02-03 -A---- source\n\seven.txt [43]
+.                                         -----D source\n\t\
+.          2014-01-05          2014-02-07 -A---- source\n\t\eleven.foo [44]
+.          2014-01-05          2014-02-06 -A---- source\n\t\ten.txt [45]
+.          2014-01-05          2014-02-08 -A---- source\n\t\twelve.bar [46]
+.                                         -----D source\o\
+.          2014-01-06          2014-02-11 -A---- source\o\fifteen.bar [47]
+.          2014-01-06          2014-02-10 -A---- source\o\fourteen.foo [48]
+.          2014-01-06          2014-02-09 -A---- source\o\thirteen.txt [49]
+.          2014-01-02          2014-01-28 -A---- source\one.txt [50]
+.          2014-01-02          2014-01-30 -A---- source\three.bar [51]
+.          2014-01-02          2014-01-29 -A---- source\two.foo [52]
+endlist
+date + 1
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D m\
+.          2014-01-03          2014-01-31 -A---- m\four.txt [39]
+.                                         -----D n\
+.          2014-01-04          2014-02-03 -A---- n\seven.txt [43]
+.                                         -----D n\t\
+.          2014-01-05          2014-02-06 -A---- n\t\ten.txt [45]
+.                                         -----D o\
+.          2014-01-06          2014-02-09 -A---- o\thirteen.txt [49]
+.          2014-01-02          2014-01-28 -A---- one.txt [50]
+endlist
+rmdir target
+
+test update content, exclude both
+date + 1
+edit source\one.txt
+date + 1
+edit source\two.foo
+date + 1
+edit source\three.bar
+date + 1
+edit source\m\four.txt
+date + 1
+edit source\m\five.foo
+date + 1
+edit source\m\six.bar
+date + 1
+edit source\n\seven.txt
+date + 1
+edit source\n\eight.foo
+date + 1
+edit source\n\nine.bar
+date + 1
+edit source\n\t\ten.txt
+date + 1
+edit source\n\t\eleven.foo
+date + 1
+edit source\n\t\twelve.bar
+date + 1
+edit source\o\thirteen.txt
+date + 1
+edit source\o\fourteen.foo
+date + 1
+edit source\o\fifteen.bar
+date + 1
+call backup -date %DATE% dynpack source archive 1000000 -verify -skip .foo -skip .txt -exclude source\m
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-07          2014-03-02 -A---- archive.0.dynpack [53]
+.          2014-01-07          2014-03-02 -A---- archive.0.dynpack.html [17]
+.          2014-01-07          2014-03-02 -A---- archive.a.dynpack [54]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-03          2014-02-19 -A---- source\m\five.foo [55]
+.          2014-01-03          2014-02-18 -A---- source\m\four.txt [56]
+.          2014-01-03          2014-02-20 -A---- source\m\six.bar [57]
+.                                         -----D source\n\
+.          2014-01-04          2014-02-22 -A---- source\n\eight.foo [58]
+.          2014-01-04          2014-02-23 -A---- source\n\nine.bar [59]
+.          2014-01-04          2014-02-21 -A---- source\n\seven.txt [60]
+.                                         -----D source\n\t\
+.          2014-01-05          2014-02-25 -A---- source\n\t\eleven.foo [61]
+.          2014-01-05          2014-02-24 -A---- source\n\t\ten.txt [62]
+.          2014-01-05          2014-02-26 -A---- source\n\t\twelve.bar [63]
+.                                         -----D source\o\
+.          2014-01-06          2014-03-01 -A---- source\o\fifteen.bar [64]
+.          2014-01-06          2014-02-28 -A---- source\o\fourteen.foo [65]
+.          2014-01-06          2014-02-27 -A---- source\o\thirteen.txt [66]
+.          2014-01-02          2014-02-15 -A---- source\one.txt [67]
+.          2014-01-02          2014-02-17 -A---- source\three.bar [68]
+.          2014-01-02          2014-02-16 -A---- source\two.foo [69]
+endlist
+date + 1
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D n\
+.          2014-01-04          2014-02-23 -A---- n\nine.bar [59]
+.                                         -----D n\t\
+.          2014-01-05          2014-02-26 -A---- n\t\twelve.bar [63]
+.                                         -----D o\
+.          2014-01-06          2014-03-01 -A---- o\fifteen.bar [64]
+.          2014-01-02          2014-02-17 -A---- three.bar [68]
+endlist
+rmdir target
+
+test reinclude all
+date + 1
+call backup -date %DATE% dynpack source archive 1000000 -verify
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-07          2014-03-05 -A---- archive.0.dynpack [70]
+.          2014-01-07          2014-03-05 -A---- archive.0.dynpack.html [17]
+.          2014-01-07          2014-03-05 -A---- archive.a.dynpack [71]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-03          2014-02-19 -A---- source\m\five.foo [55]
+.          2014-01-03          2014-02-18 -A---- source\m\four.txt [56]
+.          2014-01-03          2014-02-20 -A---- source\m\six.bar [57]
+.                                         -----D source\n\
+.          2014-01-04          2014-02-22 -A---- source\n\eight.foo [58]
+.          2014-01-04          2014-02-23 -A---- source\n\nine.bar [59]
+.          2014-01-04          2014-02-21 -A---- source\n\seven.txt [60]
+.                                         -----D source\n\t\
+.          2014-01-05          2014-02-25 -A---- source\n\t\eleven.foo [61]
+.          2014-01-05          2014-02-24 -A---- source\n\t\ten.txt [62]
+.          2014-01-05          2014-02-26 -A---- source\n\t\twelve.bar [63]
+.                                         -----D source\o\
+.          2014-01-06          2014-03-01 -A---- source\o\fifteen.bar [64]
+.          2014-01-06          2014-02-28 -A---- source\o\fourteen.foo [65]
+.          2014-01-06          2014-02-27 -A---- source\o\thirteen.txt [66]
+.          2014-01-02          2014-02-15 -A---- source\one.txt [67]
+.          2014-01-02          2014-02-17 -A---- source\three.bar [68]
+.          2014-01-02          2014-02-16 -A---- source\two.foo [69]
+endlist
+date + 1
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D m\
+.          2014-01-03          2014-02-19 -A---- m\five.foo [55]
+.          2014-01-03          2014-02-18 -A---- m\four.txt [56]
+.          2014-01-03          2014-02-20 -A---- m\six.bar [57]
+.                                         -----D n\
+.          2014-01-04          2014-02-22 -A---- n\eight.foo [58]
+.          2014-01-04          2014-02-23 -A---- n\nine.bar [59]
+.          2014-01-04          2014-02-21 -A---- n\seven.txt [60]
+.                                         -----D n\t\
+.          2014-01-05          2014-02-25 -A---- n\t\eleven.foo [61]
+.          2014-01-05          2014-02-24 -A---- n\t\ten.txt [62]
+.          2014-01-05          2014-02-26 -A---- n\t\twelve.bar [63]
+.                                         -----D o\
+.          2014-01-06          2014-03-01 -A---- o\fifteen.bar [64]
+.          2014-01-06          2014-02-28 -A---- o\fourteen.foo [65]
+.          2014-01-06          2014-02-27 -A---- o\thirteen.txt [66]
+.          2014-01-02          2014-02-15 -A---- one.txt [67]
+.          2014-01-02          2014-02-17 -A---- three.bar [68]
+.          2014-01-02          2014-02-16 -A---- two.foo [69]
+endlist
+rmdir target
+
+
+module skipped extensions not applied to directory names
+
+test create content and backup, excluding .foo
+mkdir source
+date + 1
+create source\m.txt
+date + 1
+create source\n.foo
+date + 1
+mkdir source\C.foo
+date + 1
+create source\C.foo\q.txt
+date + 1
+create source\C.foo\r.foo
+date + 1
+qlist .
+call backup -date %DATE% dynpack source archive 1000000 -skip .foo
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2010-01-07          2010-01-07 -A---- archive.0.dynpack [5]
+.          2010-01-07          2010-01-07 -A---- archive.0.dynpack.html [6]
+.          2010-01-07          2010-01-07 -A---- archive.a.dynpack [7]
+.                                         -----D source\
+.                                         -----D source\C.foo\
+.          2010-01-05          2010-01-05 -A---- source\C.foo\q.txt [1]
+.          2010-01-06          2010-01-06 -A---- source\C.foo\r.foo [2]
+.          2010-01-02          2010-01-02 -A---- source\m.txt [3]
+.          2010-01-03          2010-01-03 -A---- source\n.foo [4]
+.                                         -----D target\
+.                                         -----D target\C.foo\
+.          2010-01-05          2010-01-05 -A---- target\C.foo\q.txt [1]
+.          2010-01-02          2010-01-02 -A---- target\m.txt [3]
+endlist
+
+
+module excluded file (not directory) item
+
+test excluded file (not directory) item
+date 2014-01-01
+mkdir source
+date + 1
+create source\m.txt
+date + 1
+create source\n.foo
+date + 1
+create source\o.bar
+date + 1
+qlist .
+call backup -date %DATE% dynpack source archive 1000000 -exclude source\n.foo
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.0.dynpack [4]
+.          2014-01-05          2014-01-05 -A---- archive.0.dynpack.html [5]
+.          2014-01-05          2014-01-05 -A---- archive.a.dynpack [6]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\m.txt [1]
+.          2014-01-03          2014-01-03 -A---- source\n.foo [2]
+.          2014-01-04          2014-01-04 -A---- source\o.bar [3]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\m.txt [1]
+.          2014-01-04          2014-01-04 -A---- target\o.bar [3]
+endlist

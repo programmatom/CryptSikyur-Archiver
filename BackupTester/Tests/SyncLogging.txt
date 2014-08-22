@@ -1,0 +1,606 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module logging
+
+test initial setup
+date 2014-01-01
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+date + 1
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.
+.Finished
+endfile
+
+test create left
+create a\x\file.txt
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\file.txt [1]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\file.txt [1]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "file.txt" [codePath=101]
+.  copy     to  "%WORKSPACE%\a\y\file.txt"
+.
+.Finished
+endfile
+
+test edit left
+edit a\x\file.txt
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-03 -A---- x\file.txt [2]
+.                                         -----D y\
+.          2014-01-02          2014-01-03 -A---- y\file.txt [2]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+*\%WORKSPACE\%\\a\\x\=\=\>\%WORKSPACE\%\\a\\y \"file\.txt\" .* \[codePath\=301\]$
+.  del          "%WORKSPACE%\a\y\file.txt"
+.  copy     to  "%WORKSPACE%\a\y\file.txt"
+.
+.Finished
+endfile
+
+test edit right
+edit a\y\file.txt
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-04 -A---- x\file.txt [3]
+.                                         -----D y\
+.          2014-01-02          2014-01-04 -A---- y\file.txt [3]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+*\%WORKSPACE\%\\a\\x\<\=\=\%WORKSPACE\%\\a\\y \"file\.txt\" .* \[codePath\=302\]$
+.  del          "%WORKSPACE%\a\x\file.txt"
+.  copy     to  "%WORKSPACE%\a\x\file.txt"
+.
+.Finished
+endfile
+
+test create right
+create a\y\morefile.txt
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-04 -A---- x\file.txt [3]
+.          2014-01-05          2014-01-05 -A---- x\morefile.txt [4]
+.                                         -----D y\
+.          2014-01-02          2014-01-04 -A---- y\file.txt [3]
+.          2014-01-05          2014-01-05 -A---- y\morefile.txt [4]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x<==%WORKSPACE%\a\y "morefile.txt" [codePath=202]
+.  copy     to  "%WORKSPACE%\a\x\morefile.txt"
+.
+.Finished
+endfile
+
+test delete left
+delete a\x\file.txt
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-05 -A---- x\morefile.txt [4]
+.                                         -----D y\
+.          2014-01-05          2014-01-05 -A---- y\morefile.txt [4]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "file.txt" [codePath=201]
+.  del          "%WORKSPACE%\a\y\file.txt"
+.
+.Finished
+endfile
+
+test delete right
+delete a\y\morefile.txt
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x<==%WORKSPACE%\a\y "morefile.txt" [codePath=102]
+.  del          "%WORKSPACE%\a\x\morefile.txt"
+.
+.Finished
+endfile
+
+test create directory left
+mkdir a\x\m
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "m" [codePath=101]
+.  mkdir        "%WORKSPACE%\a\y\m"
+.
+.Finished
+endfile
+
+test create directory right
+mkdir a\y\n
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\n\
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\n\
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x<==%WORKSPACE%\a\y "n" [codePath=202]
+.  mkdir        "%WORKSPACE%\a\x\n"
+.
+.Finished
+endfile
+
+test delete directory left
+rmdir a\x\n
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "n" [codePath=201]
+.  rmdir /s     "%WORKSPACE%\a\y\n"
+.
+.Finished
+endfile
+
+test delete directory right
+rmdir a\y\m
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x<==%WORKSPACE%\a\y "m" [codePath=102]
+.  rmdir /s     "%WORKSPACE%\a\x\m"
+.
+.Finished
+endfile
+
+test create both - merge conflict
+create a\x\q
+create a\y\q
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-12          2014-01-12 -A---- x\q [5]
+.                                         -----D y\
+.          2014-01-12          2014-01-12 -A---- y\q [6]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y -logpath sync.log
+.l
+endinput
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-12          2014-01-12 -A---- x\q [5]
+.                                         -----D y\
+.          2014-01-12          2014-01-12 -A---- y\q [5]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+*CONFLICT \'q\' .* \[codePath\=300\]$
+.  USER KEEPS L '%WORKSPACE%\a\x\q' [codePath=321]
+*\%WORKSPACE\%\\a\\x\=\=\>\%WORKSPACE\%\\a\\y \"q\" .* \[codePath\=321\]$
+.  del          "%WORKSPACE%\a\y\q"
+.  copy     to  "%WORKSPACE%\a\y\q"
+.
+.Finished
+endfile
+
+test edit both - merge conflict
+edit a\x\q
+edit a\y\q
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-12          2014-01-13 -A---- x\q [7]
+.                                         -----D y\
+.          2014-01-12          2014-01-13 -A---- y\q [8]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y -logpath sync.log
+.r
+endinput
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-12          2014-01-13 -A---- x\q [8]
+.                                         -----D y\
+.          2014-01-12          2014-01-13 -A---- y\q [8]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+*CONFLICT \'q\' .* \[codePath\=300\]$
+.  USER KEEPS R '%WORKSPACE%\a\y\q' [codePath=322]
+*\%WORKSPACE\%\\a\\x\<\=\=\%WORKSPACE\%\\a\\y \"q\" .* \[codePath\=322\]$
+.  del          "%WORKSPACE%\a\x\q"
+.  copy     to  "%WORKSPACE%\a\x\q"
+.
+.Finished
+endfile
+
+
+module rounded file size logging with units
+
+test setup
+date 2014-01-01
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+date + 1
+create a\x\tiny -size 0
+create a\x\bytes -size 0
+create a\x\thousands -size 0
+create a\x\millions -size 0
+create a\x\specialcase -size 0
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+
+test files of different sizes
+edit a\x\tiny -size 9
+edit a\x\bytes -size 900
+edit a\x\thousands -size 900000
+edit a\x\millions -size 2000000
+edit a\x\specialcase -size 1038090
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y -logpath sync.log
+.r
+endinput
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "bytes" 900B, 0B [codePath=301]
+.  del          "%WORKSPACE%\a\y\bytes"
+.  copy     to  "%WORKSPACE%\a\y\bytes"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "millions" 1.91MB, 0B [codePath=301]
+.  del          "%WORKSPACE%\a\y\millions"
+.  copy     to  "%WORKSPACE%\a\y\millions"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "specialcase" 0.99MB, 0B [codePath=301]
+.  del          "%WORKSPACE%\a\y\specialcase"
+.  copy     to  "%WORKSPACE%\a\y\specialcase"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "thousands" 879KB, 0B [codePath=301]
+.  del          "%WORKSPACE%\a\y\thousands"
+.  copy     to  "%WORKSPACE%\a\y\thousands"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "tiny" 9B, 0B [codePath=301]
+.  del          "%WORKSPACE%\a\y\tiny"
+.  copy     to  "%WORKSPACE%\a\y\tiny"
+.
+.Finished
+endfile
+
+
+module skipped extensions logging
+
+test initial setup
+date 2014-01-01
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test test skipped extension logging (l2r)
+date + 1
+create a\x\one.txt
+date + 1
+create a\x\two.foo
+date + 1
+create a\x\three.bar
+date + 1
+qlist .
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log -skip .foo
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\one.txt [1]
+.          2014-01-04          2014-01-04 -A---- x\three.bar [2]
+.          2014-01-03          2014-01-03 -A---- x\two.foo [3]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\one.txt [1]
+.          2014-01-04          2014-01-04 -A---- y\three.bar [2]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "one.txt" [codePath=101]
+.  copy     to  "%WORKSPACE%\a\y\one.txt"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "three.bar" [codePath=101]
+.  copy     to  "%WORKSPACE%\a\y\three.bar"
+.SKIP "two.foo"
+.
+.Finished
+endfile
+
+test reset
+reset
+date 2014-01-01
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test test skipped extension logging (r2l)
+date + 1
+create a\y\one.txt
+date + 1
+create a\y\four.foo
+date + 1
+create a\y\three.bar
+date + 1
+qlist .
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log -skip .foo
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\one.txt [2]
+.          2014-01-04          2014-01-04 -A---- x\three.bar [3]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\four.foo [1]
+.          2014-01-02          2014-01-02 -A---- y\one.txt [2]
+.          2014-01-04          2014-01-04 -A---- y\three.bar [3]
+endlist
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.SKIP "four.foo"
+.%WORKSPACE%\a\x<==%WORKSPACE%\a\y "one.txt" [codePath=202]
+.  copy     to  "%WORKSPACE%\a\x\one.txt"
+.%WORKSPACE%\a\x<==%WORKSPACE%\a\y "three.bar" [codePath=202]
+.  copy     to  "%WORKSPACE%\a\x\three.bar"
+.
+.Finished
+endfile
+
+
+module log only explicitly excluded items (roots or extensions)
+
+test initial setup
+date 2014-01-01
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+date + 1
+call backup -date %DATE% sync a\x a\y -logpath sync.log
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test create content
+date + 1
+mkdir a\x\a
+mkdir a\x\a\b
+mkdir a\x\c
+create a\x\a\one.txt
+date + 1
+create a\x\a\two.foo
+date + 1
+create a\x\a\b\three.txt
+date + 1
+create a\x\a\b\four.foo
+date + 1
+create a\x\c\five.txt
+date + 1
+create a\x\c\six.foo
+date + 1
+create a\x\seven.txt
+date + 1
+create a\x\eight.foo
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\b\
+.          2014-01-06          2014-01-06 -A---- x\a\b\four.foo [1]
+.          2014-01-05          2014-01-05 -A---- x\a\b\three.txt [2]
+.          2014-01-03          2014-01-03 -A---- x\a\one.txt [3]
+.          2014-01-04          2014-01-04 -A---- x\a\two.foo [4]
+.                                         -----D x\c\
+.          2014-01-07          2014-01-07 -A---- x\c\five.txt [5]
+.          2014-01-08          2014-01-08 -A---- x\c\six.foo [6]
+.          2014-01-10          2014-01-10 -A---- x\eight.foo [7]
+.          2014-01-09          2014-01-09 -A---- x\seven.txt [8]
+.                                         -----D y\
+endlist
+
+test check excluded item logging
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -logpath sync.log -skip .foo -exclude a
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+file-verify sync.log -workspacepathhack
+.Sync log
+.
+.SKIP "a\"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "c" [codePath=101]
+.  mkdir        "%WORKSPACE%\a\y\c"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "c\five.txt" [codePath=101]
+.  copy     to  "%WORKSPACE%\a\y\c\five.txt"
+.SKIP "c\six.foo"
+.SKIP "eight.foo"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "seven.txt" [codePath=101]
+.  copy     to  "%WORKSPACE%\a\y\seven.txt"
+.
+.Finished
+endfile
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\b\
+.          2014-01-06          2014-01-06 -A---- x\a\b\four.foo [1]
+.          2014-01-05          2014-01-05 -A---- x\a\b\three.txt [2]
+.          2014-01-03          2014-01-03 -A---- x\a\one.txt [3]
+.          2014-01-04          2014-01-04 -A---- x\a\two.foo [4]
+.                                         -----D x\c\
+.          2014-01-07          2014-01-07 -A---- x\c\five.txt [5]
+.          2014-01-08          2014-01-08 -A---- x\c\six.foo [6]
+.          2014-01-10          2014-01-10 -A---- x\eight.foo [7]
+.          2014-01-09          2014-01-09 -A---- x\seven.txt [8]
+.                                         -----D y\
+.                                         -----D y\c\
+.          2014-01-07          2014-01-07 -A---- y\c\five.txt [5]
+.          2014-01-09          2014-01-09 -A---- y\seven.txt [8]
+endlist

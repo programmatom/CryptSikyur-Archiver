@@ -1,0 +1,355 @@
+{\rtf1\ansi\ansicpg1252\deff0\deflang1033{\fonttbl{\f0\fswiss\fcharset0 Arial;}{\f1\fmodern\fprq1\fcharset0 Lucida Console;}}
+{\*\generator Msftedit 5.41.15.1515;}\viewkind4\uc1\pard\b\f0\fs20 Security Analysis and Audit - Backup Tool\b0\par
+\par
+Written by Thomas R. Lawrence\par
+4 August 2014\par
+\par
+\par
+\b I. Introduction\b0\par
+\par
+\i Backup\i0  (in this document, generally referred to as "the tool") is a simple archiving tool with with features designed to provide secure encryption of data sufficient for use with online storage systems (e.g. Google Drive, Dropbox, and others), wherein files may be archived with encryption to ensure that any adversaries cannot access the data (adversaries being one of: the cloud storage provider itself, attackers who compromise the cloud storage service, or attackers who interfere with the commuications between the user's computer and the cloud storage service).\par
+\par
+The program provides several loosely related functions:\par
+1. A decremental archiving mode which maintains checkpoints of stored data. Each new checkpoint involves copying new or modified files. The most recent checkpoint is always a copy of the source file hierarchy. Earlier checkpoints contain differences.\par
+2. A facility for bidirectionally synchronizing two file hierarchies.\par
+3. A tar-like mode that packages a file hierarchy into a single file archive\par
+4. A tar-like mode, called "dynamic pack", which maintains an archive as a set of segments. The archive can be updated, wherein new or modified files are incorporated into the aggregate archive and old files are removed. Only segments affected by changes are modified, allowing only a subset of the segment files to be synchronized with the online storage system. The segment size target is configurable, allowing granularity of online synchronization (efficiency) to be balanced against the number of individual segments.\par
+\par
+The program provides both data compression and encryption. Both are implemented as independent file container formats which are uniform across the application and can be selected independently. In particular, the encrypted container is the same for individual files or segments of an archive, and can be removed or added independently by a command line option.\par
+\par
+The program is intended to be operated as a command line tool (possibly in conjunction with shell scripts) on an individual user's computer.\par
+\par
+\par
+\b II. Security Model\par
+\b0\par
+The security model of the use of this application can be modeled as a protocol in which the user "sends to the future" messages that must be confidential and authenticated.\par
+\par
+\f1  Bob    --------------->    "The Cloud" online storage    --------------->    Bob\par
+            Eve                        Eve                     Eve\par
+(Eve)                                                                        (Eve)\par
+\f0\par
+The security "protocol" has the following necessities:\par
+1. Bob wishes to store data in an online storage service for an undetermined amount of time.\par
+2. Bob may lose all his original copies of data except his secret (key)\par
+3. Bob does not want any attacker to capture his data (i.e. confidentiality requirement)\par
+4. Bob wants to be sure the data he gets back is the data he uploaded (i.e. authentication requirement)\par
+\par
+Opportunities from the attacker's point of view:\par
+1. Eve can monitor the upload or download link, or modify/insert/delete data in transit, without being detected.\par
+2. Eve can read the contents of Bob's online storage without being detected.\par
+3. Eve can even change the contents of Bob's online storage without being detected.\par
+\par
+The protocol must provide confidentiality. As there is no key negotiation, the attack on the key consists in the transmitted data leaking information about the key, attempting chosen plaintext attacks to guess the key (advantageous if part of the key has leaked), or trying to coerce Bob into decrypting ciphertexts that may cause damage, even if Eve does not have the key.\par
+\par
+The protocol must provide authentication. Bob must be able to verify that the data he downloads is in fact the same data as he uploaded (without having access to the originals, as he may have lost or deleted them). Bob must be able to detect changes Eve makes to data made without knowing the secret, with certain caveats:\par
+- If Bob can retain \i some\i0  local information, specifically the archive manifest, he can detect all changes made to data outside of his local computer.\par
+- If Bob can't retain \i any\i0  local information except his secret, he can detect inconsistencies in stored archives, but not total version rollback or deletion.\par
+- The protocol cannot protect Bob against data destruction. If Eve or the online storage service destroy all of Bob's files, they are lost. He can only detect this with additional local information (specifically, some record or memory of which files existed).\par
+\par
+In practice, Eve may also have varying degrees of access to Bob's local computer. This is generally outside the purview of protocol design, as it implies it is possible to directly steal Bob's secret. Mitigation is difficult, but the possibility is realistic and will be discussed at length in the subsequent sections.\par
+\par
+The following realms are not addressed at all by the tool or by this analysis:\par
+1. Plausible deniability. The presence of archive files is a pretty good indication that something was stored there. The tool does not provide any features for disguising or embedding the archived data in a plausibly-deniable form. There may exist tools that are capable of doing so, to varying degress. However, it should be noted that the encrypted file content is designed to be indistinguisable from randomness, so the problem is reduced to concealing the naming scheme and lengths of files.\par
+2. Anonymity. Online storage accounts coupled with network access logs may make it possible to identify who uploaded or accessed the archive files. It is outside the scope of the tool to address such user identification. Anonymity may be available to varying degrees via other services (e.g. Tor: http://www.torproject.org/ or I2P: http://geti2p.net/ or Freenet: https://freenetproject.org/).\par
+\par
+\par
+\b III. Operational Environment\par
+\b0\par
+As the program is intended to be used on an individual user's computer, there are a number of concerns that arise.\par
+\par
+\b III-1. Local Machine Data Access Security\par
+\b0\par
+Some attacks described below assume that malware has compromised a user's machine. As security on a typical user's machine may be low, it should be noted that once the machine is compromised, the attacker generally has direct access to the user's files and documents, meaning mitigation of tool-specific weaknesses is of limited use - it is unlikely the tool will be attacked if data files can be obtained directly. In a more secure environment, such as one where the user does not run as administrator and local file collections have more restrictive permissions-sets, an attacker may be more hindered, and protections in the tool may be more helpful.\par
+\par
+\b III-2. Entry of Password\par
+\b0\par
+The security of the system hinges on the secrecy of the password/passphrase used to protect files. As this is on an individual user's computer, the security is limited by that of the computer, which may be low. Several attacks are available:\par
+1. Compromise of the computer by malware, allowing keystroke monitoring\par
+2. Compromise of the computer by malware, allowing memory of the program to be raided\par
+3. Compromise of the computer by malware, allowing screen image capture\par
+4. Side-channel attacks including:\par
+4.a. Accoustic recovery of keystrokes for password entry\par
+4.b. RF analysis of computer devices or links (such as the wire connecting the computer and keyboard)\par
+4.c. Optical, digital, or RF capture of the computer display (a risk if the password is displayed at some point).\par
+\par
+It should be noted that the program provides the option of supplying the password as a command line argument, potentially exposing it in the display (attack 4.c) or in the memory (attack 2) of the command shell that launches the program.\par
+\par
+The program provides a mitigation for password in the form of a randomized, randomly-located grid (within the console window) of characters, wherein the user selects each character of the password by entering the row and then column index. This protects against some attacks, in particular 1 and 4a or 4b by themselves. It does not protect against 1, 4a, or 4b in conjunction with 3 or 4c, which would provide the randomized grid along with the keystroke sequence to an attacker.\par
+\par
+In addition, the current implementation of the randomized grid for password entry is cumbersome to use, so it is unlikely a user will use it. A mouse-based entry scheme (such as that found in Password Safe [Bruce Schneier - https://www.schneier.com/passsafe.html] or on certain tablet computers) would work much better.\par
+\par
+In the absence of the randomized grid, display-only attacks can be mitigated by the availability of prompting for password entry without displaying it in the console.\par
+\par
+In general, 2 cannot be mitigated by any practical means, if the computer's security is lax enough to permit malware to be potentially installed. This includes:\par
+1. Malware picked up through web-browsing or other zero-day vulnerabilities\par
+2. Malware picked up by poor online hygene on the part of the user (i.e. running downloaded programs or programs attached to email messages)\par
+3. Physical access, including pre-boot attacks, auto-run attacks by means of USB drives, etc.\par
+\par
+A variant of 2 above (poor hygene) is that the tool itself can be used against the user. An attacker could craft archives containing malware, send them to the user (via various means, even complete with password), and attempt to socially engineer the user into unpacking the archive and installing/running the contents. The tool can provide no protection against such an attack.\par
+\par
+Another variant is if the attacker can place malicious archives in the user's online storage, such that the user downloads them, extracts them, and runs the contents. This is mitigated if 1) the attacker does not know the password, and by the fact that 2) files and archives are validated as authentic by a MAC requiring the correct password.\par
+\par
+Mention should also be made of the option of supplying the password as a command line argument. This is potentially dangerous, beyond causing the password to be displayed in the command shell. In particular, it may encourage users to put the password plaintext in shell script files, making it easy to recover simply by searching the content of files.\par
+\par
+A final option is the use of keyfiles (possibly themselves protected by password), as is done by some other backup/archiving applications. This provides higher security, conditionally:\par
+1. The password-protected keyfile is still vulnerable to attack, especially if the password is weak.\par
+2. The keyfile represents another piece of data, which complicates the process of backup - since it must be stored somewhere and backed-up too (but not to the online storage service!); if the keyfile is lost, the archive files are useless.\par
+\par
+(Discussion of specific operational considerations of keyfiles will be omitted until such time as the tool supports keyfiles.)\par
+\par
+\par
+\b IV. Password/Passphrase and Key Derivation\b0\par
+\par
+The program relies entirely on a password/passphrase for security. The design of the program means it generally cannot rely on any persistent storage from one run to another. In a backup-restore scenario, after a total loss of the local computer, all that is remains is the saved archive in the online storage system, which must be sufficient (coupled with the password) to restore data. Therefore, it is important that passwords/phrases with sufficient entropy be used. An absolute minimum of 20 characters is recommended.\par
+\par
+Master key derivation is done by expanding the passphrase and password salt into a master key of 1024 bits by means of the RFC 2898 algorithm. The current set of ciphersuites select 20,000 iterations. A master key of 1024 bits is considered more than adequate because a user password/passphrase is unlikely to approach that degree of entropy, so 1024 bits will sufficiently capture the entropy available in the passworld/phrase. The use of the master key will be discussed in section VI-2-A.\par
+\par
+Password salt (512 bits) is used to randomize the master keys generated by archives. The password salt is stored in each file of a multi-file archive, but the same value is used across all files of the archive. This does not provide any additional security in the master key, but would foil attacks using precomputed master keys, because it is unlikely that an attacker will have precomputed the master key dictionary with the particular salt being used in a particular archive fileset.\par
+\par
+The tool supports an option to force unique password salt in each file, at the cost of incurring significant overhead (due to use of RFC 2898) for each file decrypted. This would be a significant cost, for example when decrypting a segmented archive with a large number of small segments. But it can make the program much more resiliant against dictionary (precomputed key) attacks and thereby reduce the required entropy in the password. Although it is supported, due to the cost it is expected that users will not use the option and therefore not receive an benefits from this mode of operation.\par
+\par
+The master key derivation algorithm is required to be computationally expensive to foil password-guessing attacks. The most significant risk associated with the particular choice in this tool (RFC 2898, which uses SHA-1) is the use of hardware-acceleration in password-guessing. It should be considered to use a more future-resistant derivation scheme, one potential being \i scrypt\i0  (http://www.tarsnap.com/scrypt.html), although as of this writing \i scrypt\i0  may be too new to be fully vetted by the security community.\par
+\par
+\par
+\b V. Supported Ciphersuites\b0\par
+\par
+\b V-1. Block Ciphers\b0\par
+\par
+The tool currently supports the following ciphersuites:\par
+- AES-128 (Rijndael), plus HMAC-SHA-256 for authentication\par
+- Serpent-256 (128 bit block size), plus HMAC-SHA-256 for authentication\par
+- ThreeFish-1024 (1024 bit block size), plus HMAC-Skein-1024 (1024-bit block size) for authentication\par
+\par
+The set of ciphersuites was chosen to be small but functional. In particular, the program designer regarded it as risky to provide too many options because of the increase in size of test matrix and because it is difficult for a user to know how to choose an option. The three options are considered individually here:\par
+\par
+\ul AES-128\ulnone\par
+\par
+The AES standard is showing it's age. A number of attacks have been mounted compromising most of the rounds. Some cryptographers are suggesting that new uses of AES should increase the number of rounds, but there is no agreement. The risk is that AES may become vulnerable in a relatively short amount of time.\par
+\par
+In addition, AES-128 with a 128 bit key only provides a marginal security margin against brute-force attacks these days. Unfortunately, the version of AES with 192 or 256 bit keys is seen as weak due to a weak key schedule, and therefore not buying anything over AES-128 (see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html).\par
+\par
+In more detail, because of the birthday bound problem (which says, given a key of 2^(n) length, key-reuse collisions can be expected after observing only approx. 2^(n/2) messages), a 128-bit key in general only provides a 64-bit level of security against brute-force attacks. This is a theoretical argument, but a number of real attacks are based on it. It is generally accepted that computing power is reaching the point where 64-bit security is not sufficient.\par
+\par
+The implementation of AES (Rijndael) used is provided by the .NET Framework (minimum 2.0), which wraps the Windows CryptoAPI library.\par
+\par
+\ul Serpent-256\ulnone\par
+\par
+Serpent has a higher margin of security, but at a cost to performance (which is the most likely reason why it didn't win the AES competition). Performance may be an issue for large amounts of file data, but as the tool is meant to be used offline this may be acceptable to users. The provision of an option with a 256-bit key helps give a reasonable option for obtaining a 128-bit level of security.\par
+\par
+The implementation of Serpent was taken directly from the designers (see http://www.cl.cam.ac.uk/~rja14/serpent.html and http://www.cs.technion.ac.il/~biham/Reports/Serpent/). In particular, this is a straight-forward transliteration of the "bitsliced" variant, in java, from the submission archive (http://www.cl.cam.ac.uk/~rja14/Papers/serpent.tar.gz). The original java version was created by Cryptix. There is a very small risk that the implementation got broken in a subtle way during porting, but it is highly unlikely. There is a suite of test vectors available in the application source, which passed. Also, a short selection of test vectors are checked every time the application runs, and any problem introduced (most likely it would be due to arithmetic differences between java and C# syntax) would be caught.\par
+\par
+\ul ThreeFish-1024\ulnone\par
+\par
+ThreeFish was chosen to provide a very long key length and cipher block length, as well as a very long hash length, in it's incarnation as Skein. In this application, 1024-bit keys and block lengths are used for all these. Since Skein was an entry in the NIST SHA-3 competition, it underwent some analytical scrutiny. However, it was not selected for the standard and so draws only modest analytical attention vs. standardized algorithms. Therefore, any weaknesses may go undetected for a long time.\par
+\line The ThreeFish implementation was created by Alberto Fajardo and is publicly available (here: http://code.google.com/p/skeinfish/, see also: https://www.schneier.com/skein.html, https://www.schneier.com/threefish.html, and https://www.schneier.com/code/skein.zip). As the implementation is already in C#, it was incorporated into the tool with no changes. There is very little risk that it was broken in the process of incorporating.\par
+\par
+\b V-2. Hash and HMAC\b0\par
+\par
+The HMAC-SHA-256 construction used for authentication (validation of key and data) has so far withstood attacks well. This one is used in the AES and Serpent ciphersuites.\par
+\par
+The generic HMAC primitive is implemented in the source code of the tool. The implementation of SHA-256 used is provided by the .NET Framework (minimum 2.0), which wraps the Windows CryptoAPI library.\par
+\par
+The HMAC-Skein-1024 construction (used in the ThreeFish ciphersuite) has not been validated due to a lack of publicly available test vectors, other than a very brief self-test in the Skein module. In fact, the HMAC-Skein-1024 construction has some risk to it, mainly due to it's novelty. HMAC is well-respected at this point. Skein was designed to be strong, and underwent scrutiny as part of the NIST SHA-3 competition (it was not selected). Since Skein is not a standard, it draws only modest analytical attention vs. standardized algorithms. Therefore, any weaknesses may go undetected for a long time.\par
+\par
+\b V-3. Cryptographic Random Number Generation\b0\par
+\par
+The random number generator used by the tool is the default random number generator provided by the .NET Framework (minimum 2.0) which wraps the Windows CryptoAPI library, via the RNGCryptoServiceProvider class, with the default constructor. Nothing is known about this random number generator and no attempt is made to validate it's proper functioning. This could pose a risk if the system's underlying random number generator turns out to be weak (either by implementation flaw or by being weak or outdated).\par
+\par
+The risk posed by a bad system-provided random number generator could be mitigated by implementing a separate random number generator (with validation), (for example, Fortuna: https://www.schneier.com/fortuna.html), and periodically incorporating input from the system-provided random number generator into it's seed to take advantage of any real-time entropy being accumulated by the system's implementation.\par
+\b\par
+V-4. General Comments on Correctness\b0\par
+\par
+The tool runs a small set of test vectors for each cryptographic primitive every time it starts. If, for some reason, an implementation becomes broken, the tool will fail to start with an error message indicating which primitive failed it's self-test. It is remotely possible but highly unlikely for a systematic change (e.g. .NET version change, compiler change, machine architecture change, etc) to break a primitive in a way that it still passes it's self-test.\par
+\par
+\ul The following primitives self-test every launch:\ulnone\par
+HKDF-SHA-256 (key expansion and extraction)\par
+HMAC-SHA-256\par
+AES\par
+Serpent\par
+Skein (in a very basic way)\par
+ThreeFish (in a very basic way, by virtue of it underlying Skein)\par
+CTR-mode block cipher composition (see section VI-2-B)\par
+\par
+\ul The following primitives do not self-test:\ulnone\par
+SHA-256 (mitigated by the fact that HMAC-SHA-256 does self-test)\par
+Default cryptographic random number generator (.NET system-provided)\par
+HMAC-Skein-1024 (due to a lack of publicly confirmed test vectors)\par
+\par
+\ul Notes:\par
+\ulnone ThreeFish and Skein in their 1024-bit configurations are only tested in a very limited way\par
+\par
+\b\i TODO: verify this section's claim via code coverage report\par
+\b0\i0\par
+One final implementation risk at this level is that the cryptographic primitives are being used improperly by the tool.\par
+\par
+\b\i TODO: *how to gain confidence, or mitigate the potential of misuse\par
+\b0\i0\par
+See section VII for further discussion of implementation correctness.\par
+\par
+\par
+\b VI. Implementation of Encryption Over Program Functionality\b0\par
+\par
+\b VI-1. Decremental Checkpoint Mode\b0\par
+\par
+Encryption is available for the decremental checkpoint mode (making fast backups). In this scenario, each individual file is encrypted. In addition, there is a magic file (check.bin or checkc.bin) located in the archive root with a known content that is used to validate the password.\par
+\par
+The encrypted portion of the check file contains a salt value (same size as the per-file salt value) before the fixed bytes that are checked, to foil attacks against the known plaintext. This salt is in addition to a per-file salt that ensures (probabilistically, see section VI-2-A) that the file does not share a key with other files.\par
+\par
+The cipher key and signing key differ for each file, but they are derived from the master key (derived from the password), so if an attacker can gain the password or master key, he can gain \i all \i0 of the files in an archive.\par
+\par
+The primary weakness of this mode of operation for the tool is that all individual files are stored separately, so an attacker has full access to 1) the names of files, 2) the directory hierarchy of the archive, 3) the lengths of files, and 4) what changed from one checkpoint to the next. This is considered a large amount of information, with the following attacks:\par
+1. The file naming and size directly leaks information about what domain the user's data files apply to, and may include detailed specific information within that domain that could meet the definition of a successful attack (e.g. in an industrial espionage scenario, it may be possible to know quite a lot about specific implementation decisions being made in engineering a product, such as selected algorithms known from source code file names).\par
+2. By knowing the file names and hierarchy, it is easy to identify known plaintexts. For example, if the C:\\ drive of a Windows computer is backed up, many of the files in the archive will be system files with well known content. In some uses, there could be a simply massive amount of this known-plaintext data available to an attacker. This could facilitate attempts to gain the key by comparing plaintext and ciphertext versions of a file.\par
+3. Full integrity is not provided for this archive mode (see section VI-2-C).\par
+\par
+In general, it is not recommended to use encryption with the decremental checkpoint backup usage of the tool, because it leads to a false sense of security. The mode should be disabled in the tool. A much safer solution for this particular problem is to use a disk-level encryption utility to encrypt the entire volume containing the archive.\par
+\par
+Note that the per-file encryption scheme used in the decremental checkpoint backup facility is reminiscent of Windows NTFS encrypted file system (EFS, see http://technet.microsoft.com/en-us/library/cc700811.aspx). However, the tool's scenario is weaker than EFS because all files use the same key and there are no system-provided permissions-based access limitations on the files.\par
+\par
+\b VI-2. Encrypted File Container Structure\b0\par
+\par
+\b VI-2-A. Per-File Key Derivation\b0\par
+\par
+Recall from section IV that the password/passphrase is used to derive a 1024-bit master key, via RFC 2898 and 20,000 rounds, and password salt (shared across files of an archive). The master key is not used directly, but seeds a further key derivation process to derive a unique key for each file being encrypted, even if the same password is used for multiple files. This decouples the password and file key. The process has the following properties:\par
+1. The derivation of the master key not is susceptible to dictionary attacks where RFC 2898 has been precomputed, due to the password salt.\par
+2. The derivation of the file key from the master key is not compute-intensive, therefore given a master key, it is fast to determine a file key and see whether it is decrypts the file.\par
+3. If a file key is compromised by a known-plaintext attack (for example, see section VI-1), it is \i difficult\i0  to to discover the master key or password.\par
+\par
+In fact, two keys are derived for each file: a cipher key and a signing key for use with the MAC function (and a third value is derived, the initial counter value; see VI-2-B). The size of the cipher key depends on the ciphersuite used:\par
+- 128 bits for AES-128\par
+- 256 bits for Serpent-256\par
+- 1024 bits for ThreeFish-1024\par
+The size of the signing key depends on the MAC function used:\par
+- 256 bits for HMAC-SHA-256\par
+- 1024 bits for HMAC-Skein-1024\par
+\par
+See section V-1 for a discussion of key lengths and security.\par
+\par
+The keys are derived using HKDF-SHA-256, which provides an extract function for turning the pseudorandom master key into a (practically) arbitrary number of bits for derived key material. The HKDF extract function requires random salt, which exists on a per-file basis. That file salt is stored at the beginning of each file (after the shared password salt), and is a 1024-bit string of random bits, generated by the random number generator (see section V-3). This amount of salt should more than enough randomness for all foreseeable applications and revisions of this tool.\par
+\par
+HKDF-SHA-256 is considered secure at this time, and therefore should be adequate for the foreseeable future.\par
+\par
+\b VI-2-B. Cipher Mode of Operation\b0\par
+\par
+The stream encryption is achieved by operating the underlying block cipher in CTR (counter) mode. Conceptually, CTR mode creates a one-time-pad (OTP) from a key and an initial counter value. An important requirement of CTR mode is that for any given key, no counter value is ever reused, \i forever without restriction\i0 . In typical online secure protocols, the counter can be derived from a nonce (e.g. message sequence number), and the session key derived randomly anew for each session, for security up to the birthday bound on the key length, 2^(n/2). This implementation uses the standard incrementing function for each subsequent OTP block.\par
+\par
+Since no nonce is available, the initial counter is randomly selected. Theoretically, the possibility of collision becomes realistic at the birthday bound. However, the key is also randomly derived, which has theoretical security to the birthday bound as well. Therefore, the composition of pseudorandom key and pseudorandom initial counter should have theoretical security to at least the birthday bound. It is unclear to me at this time whether there is any advantage beyond the birthday bound of this scheme vs. simply starting all streams with the canonical initial counter value of 1.\par
+\par
+A risk of using CTR mode is that it needs to be implemented and used properly. We have referred to the best-known issue, that of selecting the initial counter value. In principle, CTR mode is actually the simplest mode to implement (other than ECB), but it is relatively uncommon, which makes it harder to check implementation by examining successful precedents (vs. CBC, which seems to be ubiquitous). However, CTR-mode test vectors are available at least for AES (Rijndael), and the implementation conducts a self-test each time it is booted by running a few CTR-mode test vectors.\par
+\par
+The use of CTR mode eliminates the need for any padding scheme, so no padding is used. This eliminates any chance of padding attacks.\par
+\par
+\b VI-2-C. Protecting File Authenticity\b0\par
+\par
+File authenticity is protected using the HMAC construction, using SHA-256 or Skein-1024, depending on the selected ciphersuite, and keyed with a per-file signing key that is HKDF-SHA-256-derived from the master key and the per-file salt. The MAC thus computed is appended after the stream of ciphertext. The program uses an Encrypt-then-MAC scheme. The MAC is computed over the entire preceding data stream, including the password salt and per-file random salt and the entire ciphertext.\par
+\par
+One theoretical advantage of using the Encrypt-then-MAC scheme is that it allows streams to be validated (and rejected if invalid) before any encryption is done. This is safest, in particular if there is a possibility of defects existing in the underlying archive management code. Consider the case of a buffer-overrun-with-code-execution defect in the underlying archive parsing code. Assume an attacker figured out how to create a malicious archive that triggers the buffer overrun, without having discovered the keys. If the attacker can convince the user to extract a maliciously prepared archive, he could take advantage of such a defect. If the MAC is validated first before any decryption occurs, this avenue of attack is closed off. Note that in the past, just random data has been enough to trigger some buffer-overruns with code execution. As an example, random ciphertext could produce corrupt archive metadata, causing a buffer overflow. Somewhere else in the ciphertext could be malicious code that ends up residing in a buffer, where it could potentially be invoked as a result of the buffer-overrun-with-code-execution. Since the tool is written in a memory-managed environment with full-time strict data structure bounds checking, it is not expected to be vulnerable to this particular attack. Nonetheless, non-code-execution defects might still exist, such as program crashes or the insertion of files in destructive filesystem locations, such as by corrupting the target file path of an extracted file, if the program's checks to prevent escaping the extract target directory do not work function properly.\par
+\par
+In practice, validating the MAC requires reading the file twice, once to validate the MAC, and again to decrypt and extract. The default mode of the tool does this, and rejects invalid files without decrypting. However, because of the possibility of a performance penalty, the tool provides (as seems to be typical in today's software) the perhaps ill-advised option to disable MAC pre-check. In this case, the MAC is still checked, but it is computed as the file is decrypted and validated only when the end of the file is reached, after the entire contents of the archive have been decrypted and processed in some way. It should be considered to remove this option.\par
+\par
+\b VI-3. Special Concerns Around Archives with Multiple Segments\b0\par
+\par
+\b VI-3A. Authentication and Decremental Backup Archives\b0\par
+\par
+One attack that the MAC does \i not\i0  protect against is the file-storage analogue of roll-back, replay and re-ordering attacks. In the case of a decremental backup, there is no provision for determining that the right set of files is in fact what is contained in the archive. This permits an attacker with access to the archive storage to:\par
+1) overwrite new versions of files with old versions\par
+2) swap files around\par
+3) overwrite files with the content of other files\par
+4) delete files or create new files with content copied from other files\par
+5) generally rename, rearrange, or otherwise tamper with the directory hierarchy\par
+\line All of this can be done without knowing any keys or passwords. The tool provides no provision for detecting this.\par
+\par
+\b VI-3B. Authentication and Multi-Segment Archives\b0\par
+\par
+In the case of multi-segment archives, the tool has features to mitigate this problem. In particular, for any archive, the manifest file contains a nonce used to assign serial numbers to all archive files, including the manifest itself, as well as a randomly chosen 256-bit archive unique identifier. After the MAC is validated on any member of a multi-segment archive, the file can be decrypted to inspect it's segment number. The code implements the following constraints:\par
+1. All files in an archive (segments and manifest) must share the same value for the 256-bit archive unique identifier.\par
+1. The manifest records the name and serial number of all segments, as well as the current sequence number\par
+2. Every segment file must correspond to exactly one entry in the manifest segment table, and it's serial number must match.\par
+\par
+Every time a segment is rebuilt, it is assigned a new serial number, and the manifest is updated accordingly. No serial number is ever used for more than one value of segment content that existed at any time during the life of the archive.\par
+\par
+From this, it is possible to detect:\par
+1. Segment rollback - the segment's internal serial number will be less than that recorded by the manifest\par
+[2. Segment substitution]\par
+3. Manifest rollback - the serial numbers in the manifest won't match some of the segments\par
+4. Segment deletion - there will be an entry in the manifest for which the file is missing\par
+5. Extra segment insertion - there will be a file for which there is no entry in the manifest.\par
+\par
+The MAC prevents the serial numbers from being tampered with, so the checks above are reliable.\par
+\par
+In typical usage, users are likely use the same password for multiple archives. Although password reuse is not recommended, it is typical user behavior. In fact, it might seem quite reasonable to a user, after all, it's all his own data, he just wants to archive some subsets of files independently, so why not reuse the password? This gives rise to an attack where an attacker tries to substitute a segment from one archive collection into a different archive collection that had been encrypted with the same password. The attack proceeds as follows:\par
+1. The algorithm for assigning serial numbers is public knowledge and predictable. It is likely that the serial numbers of archive segments can be determined if an attacker observes the creation and update sequence of the archive segments, which in some cases is available simply by observing only the communications link or only the sequence of changes made to the online storage service.\par
+2. If a second archive exists protected by the same password and with known segment serial numbers numbers, the attacker can substitute a segment from the second archive with serial number \i i\i0  into the first archive for some segment \i i\i0 , and the serial number consistency structure remains undisturbed.\par
+This attack is mitigated because the 256-bit archive unique identifier for the foreign segment will not match the unique identifier in the other files.\par
+\par
+One weakness of the above scheme is that the user can defeat it. In particular, decrypting each segment of an archive individually (without extracting the segment) will expose the plaintext of the segments to modification. The user could then re-encrypt each segment individually, producing a new set of archive files equivalent to the first. This scenario might be realistic if the user wished to change the password of the archive. If an attacker can modify the unencrypted segments before re-encryption, he has full reign to fake the segment serial numbers or the 256-bit archive unique identifier. The resulting segments will validate, giving the appearance that the archive's still has integrity. \i This attack is not mitigated\i0 . It would not be terribly difficult to modify the program to be unable to produce a valid archive by re-encrypting individual the segments. However, if the segments are being stored in plaintext at some point (as required by this attack) and the user's local machine is compromised such that an attacker can then modify those files, there is far more wide-ranging damage that can be done by such an attacker. Therefore, it is not considered useful to mitigate this particular weakness.\par
+\par
+If the user does not have a local storage option (e.g. in the scenario of total computer failure, with only online storage surviving), then there is a total-archive rollback attack (rollback of manifest and all segments to some previous self-consistent version) that cannot be detected by the user. If the user is able to store most recent manifest offline, then total-archive rollback can be detected by downloading all segments from the online storage and using the offline-saved manifest. Validation will fail because the serial numbers of old (subsequently replaced) segments will not match those stored in the the most recent manifest.\par
+\par
+A variant of the above attack is an attacker than can delete the user's entire online storage. This can be detected with some saved offline knowledge - if only the knowledge in the user's head that he had something in the online storage which is observed to no longer be there.\par
+\par
+A final general weakness is that although the "dynunpack" command checks the validity across the collection of archive member files, it is possible to use the "unpack" command on each individual archive (or all, with command line wildcards) which cannot provide any cross-segment checks.\par
+\par
+\b VI-3C. Leakage in Multi-Segment Archives\b0\par
+\par
+It has already been determined in section VI-1 and VI-3A that decremental archiving mode leaks an unacceptable amount of information and is not adequately authenticable. This section discusses leaks in multi-segment archive mode.\par
+\par
+The segmentation algorithm is based on two things: the order of files in the file hierarchy, and the target size of an archive. Two phases need to be examined, initial segmented archive creation and updating an existing segmented archive.\par
+\par
+Also note from the previous section that users may unpack the archive one file at a time, avoiding cross-file archive integrity checks. It may be difficult to convince a user of the merit of using the safer "dynunpack" vs. the risky "unpack" on each file, especially if performance of the former is worse.\par
+\par
+\ul Initial segmented archive creation:\ulnone\par
+\par
+During initial archive creation, the file hierarchy to be archived is scanned and sorted into a canonical order (specifically, culture-invariant alphanumeric sorting). Files are sequentially assigned to segments: a segment is filled with as many consecutive files as will fit while remaining under the target size. If a file would push the segment over the target size, a new segment is started and the file is assigned to the new segment. If an individual file is larger than the target size, it is still assigned to a segment, but the next file gets a new segment, so each "large" file gets it's own segment. In this version of the tool, large individual files are not split across multiple segments.\par
+\par
+From this we can conclude that it leaks the following information:\par
+1. The target segment size can be determined by statistical analysis of the segment sizes. In particular, for an underlying hierarchy of randomly-sized files (with sizes distributed by a power law), there will be an asymmetry in the distribution, with a large number of segments clustering just under the segment size, and a power-law tail of segments exceeding the segment size. The use of data compression would make the data series noiser, but does not diminish the theoretical result.\par
+2. Large files will leak their existence by creating a segment larger than the target size. If the attacker knows something about the underlying file hierarchy being processed, the size of the file and the position in the canonical order will make it pretty easy to determine which segment contains the file. Segment assignment is done before the data compression layer; in case data compression is in use, a singleton large file segment may end up compressing smaller than the target segment size, but no additional files are assigned to the segment. Since the compression encoding is public knowledge and could be precomputed by an attacker on the user's underlying fileset, it is still easy to pinpoint the segment containing a particular large file.\par
+\par
+The foregoing assumes the attacker knows the underlying file structure. If he does not, less information is leaked. However, if the attacker has partial information about the structure of the underlying file, it may or may not be sufficient to determine the identities of some files stored in some segments.\par
+\par
+All of the foregoing would be useful in mounting chosen-plaintext attacks to attempt key recovery by exploiting weaknesses in the encryption scheme, including cipher weaknesses, key collisions, poorly constructed random salt, improper use or implementation of cryptographic constructions by the tool's author, and so on. In addition, it could be useful in mounting other kinds of attacks, such as segment substitution, in the event a particular segment is known to contain a particular file and the attacker wishes to interfere with the version of the file the user retrieves.\par
+\par
+\ul Segment updating:\ulnone\par
+\par
+Periodically, the user will run the tool to incrementally update the segments and resynchronize with the cloud storage (uploading new and changed segments and removing deleted segments). The update algorithm is predictable. The algorithm is summarized as follows. The current file hierarchy is put in canonical order. New files are added to new segments as they occur. Any modified files cause the segment they contain to be updated. Segments that become too large are split. Adjacent segments that can be folded together and still be under the target segment size are folded together. Ranges of moved files are treated as a deletion at the old location and an creation at the new location, with the expected impact on the segment structure.\par
+\par
+If an attacker has some knowledge of what the underlying file hierarchy is, the pattern of incremental changes to the segments may divulge which files are in which segments. Conversely, by observing the pattern of incremental changes to the segments, it may be possible to deduce things about what is stored in the underlying file structure (such as, is it a collection of email folders, a source repository, a collection if images, etc).\par
+\par
+There is probably no theoretical way to make precise what specific information is leaked because it depends specifically on the nature of what is being stored in the underlying file hierarchy. However, we can derive a probabalistic relationship: fewer, larger segments will reduce the rate of information leakage to an attacker, but at the cost of more segment rewriting and upload bandwith usage every time an update is made to the archive. More, smaller segments will improve the efficiency of updating the archive and online storage, but at the cost of leaking information about the underlying hierarchy at a faster rate. It is probably an asymptotic relationship, i.e. crudely, R = F/S where R = rate of leakage, S = segment target size, and F = frequency of updates. In the simplest case, an archive that is always a single segment will leak the least amount of information over time, specifically, only the changes in total length of the underlying file collection plus archive metadata.\par
+\par
+One known attack on large encrypted data stores is based on observing over time what has changed. This attack applies on the segment level, in that an attacker observing the network link or online storage service can determine which segments are being changed and which have remained the same. The attack does not apply \i within\i0  the segment. Each time a segment is regenerated, a new random per-file salt is selected, which changes the cipher key and initial counter. Therefore, the data of the entire file appears to change, even for sections where the plaintext did not change.\par
+\par
+Overall, it is not known how much damage these forms of leakage might cause, nor how to fully mitigate it. In general, preventing leakage from the pattern of updates to an online storage service is an ongoing research problem (e.g., see: \i The Melbourne Shuffle: Improving Oblivious Storage in the Cloud\i0 , Olga Ohrimenko, Michael T. Goodrich, Roberto Tamassia, Eli Upfal, 2014, http://arxiv.org/abs/1402.5524v1, and references therein).\par
+\par
+\par
+\b VII. Cryptography Suite Implementation\b0\par
+\par
+\b VII-1. Memory Scrubbing\b0\par
+\par
+The program as written makes no attempt to scrub or protect memory used to store passwords or keys. The following risks are associated with this:\par
+1). Keys or passwords may persist in program memory for a long time. In particular, the garbage collector may leave copies of sensitive data around in areas of memory that end up not being erased/reused, thereby persisting for long periods of time. If there is an attack on the program memory (by malware that can attach as a debugger), these values are at risk of capture.\par
+2). Keys or passwords may be paged out to disk if the machine is memory-constrained. An attacker with local execution could force this by overloading the memory system. Malware with reduced privileges (i.e. unable to read user files or access program memory) could still mount such an attack. An attacker without local execution privileges may still be able to coerce system services into excessive memory usage. If, subsequently, the attacker has physical access to the hardware, or there is a system security hole that allows raw disk data to be read from the swap partition, it may be possible to recover keys.\par
+3). Keys or passwords persisting in memory may be recoverable if an attacker steals the computer and freezes the memory chips and then accesses them using various well-known forensic techniques.\par
+\par
+On a typical individual user machine, these attacks are not considered substantial, due to generally wide-ranging damage an attacker can do if the local machine is compromised. The tool was not intended for use in online server applications, but if it is nonetheless put to use in such a scenario, these attack vectors could potentially be more destructive.\par
+\par
+\b VII-2. Code Quality\b0\par
+\par
+The following code quality issues have been identified:\par
+\par
+In a number of places, byte-vectors are used to store and manipulate keys and random salts. In general, arguments that set or query such properties on cryptographic objects pass the byte-vector objects directly without cloning. It is possible that an object implementing such properties or a caller using such properties could modify the contents of the byte-vector, essentially damaging the reference stored elsewhere, resulting in incorrect operation. A typical failure would result in use of the wrong value for key or salt, producing either an unreadable encrypted file container or failing to decrypt a file given the correct key. These scenarios are programmatically catastrophic (produce unusable output files) but are not security sensitive. No specific instances of this problem have been found. (Note that the .NET Framework cryptographic classes \i do\i0  clone byte-vector arguments and properties.)\par
+\par
+\par
+\b VIII. Summary\b0\par
+\par
+The tool probably provides adequate security in a single user scenario where it is run securely on an individual's computer and the archive files are moved to an online storage service. Other than the weakness of relying on a password, the encryption scheme provides adequate cryptographic security options now and for the foreseeable future.\par
+\par
+The tool does not provide high security for individual or online-server applications because of:\par
+- the lack of a keyfile option,\par
+- the lack of hardening around in-memory keys and passwords\par
+\par
+End of report.\par
+\par
+}
+ 

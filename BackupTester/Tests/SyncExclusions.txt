@@ -1,0 +1,1042 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module excluded directories
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test sync with exclusions 1 (l2r create)
+date + 1
+create a\x\one.txt
+mkdir a\x\m
+date + 1
+create a\x\m\two.txt
+mkdir a\x\m\t
+date + 1
+create a\x\m\t\three.txt
+mkdir a\x\m\u
+date + 1
+create a\x\m\u\four.txt
+mkdir a\x\n
+date + 1
+create a\x\n\five.txt
+mkdir a\x\o
+date + 1
+create a\x\o\six.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-04 -A---- x\m\t\three.txt [1]
+.          2014-01-03          2014-01-03 -A---- x\m\two.txt [2]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-05 -A---- x\m\u\four.txt [3]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-06 -A---- x\n\five.txt [4]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-07 -A---- x\o\six.txt [5]
+.          2014-01-02          2014-01-02 -A---- x\one.txt [6]
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -exclude m -exclude n
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-04 -A---- x\m\t\three.txt [1]
+.          2014-01-03          2014-01-03 -A---- x\m\two.txt [2]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-05 -A---- x\m\u\four.txt [3]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-06 -A---- x\n\five.txt [4]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-07 -A---- x\o\six.txt [5]
+.          2014-01-02          2014-01-02 -A---- x\one.txt [6]
+.                                         -----D y\
+.                                         -----D y\o\
+.          2014-01-07          2014-01-07 -A---- y\o\six.txt [5]
+.          2014-01-02          2014-01-02 -A---- y\one.txt [6]
+endlist
+
+test sync with exclusions 2 (l2r edit)
+date + 1
+edit a\x\one.txt
+date + 1
+edit a\x\m\two.txt
+date + 1
+edit a\x\m\t\three.txt
+date + 1
+edit a\x\m\u\four.txt
+date + 1
+edit a\x\n\five.txt
+date + 1
+edit a\x\o\six.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-12 -A---- x\m\t\three.txt [7]
+.          2014-01-03          2014-01-11 -A---- x\m\two.txt [8]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-13 -A---- x\m\u\four.txt [9]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-14 -A---- x\n\five.txt [10]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-15 -A---- x\o\six.txt [11]
+.          2014-01-02          2014-01-10 -A---- x\one.txt [12]
+.                                         -----D y\
+.                                         -----D y\o\
+.          2014-01-07          2014-01-07 -A---- y\o\six.txt [5]
+.          2014-01-02          2014-01-02 -A---- y\one.txt [6]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -exclude m\t -exclude n
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-12 -A---- x\m\t\three.txt [7]
+.          2014-01-03          2014-01-11 -A---- x\m\two.txt [8]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-13 -A---- x\m\u\four.txt [9]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-14 -A---- x\n\five.txt [10]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-15 -A---- x\o\six.txt [11]
+.          2014-01-02          2014-01-10 -A---- x\one.txt [12]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-03          2014-01-11 -A---- y\m\two.txt [8]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-13 -A---- y\m\u\four.txt [9]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-15 -A---- y\o\six.txt [11]
+.          2014-01-02          2014-01-10 -A---- y\one.txt [12]
+endlist
+
+test sync all
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-12 -A---- x\m\t\three.txt [7]
+.          2014-01-03          2014-01-11 -A---- x\m\two.txt [8]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-13 -A---- x\m\u\four.txt [9]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-14 -A---- x\n\five.txt [10]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-15 -A---- x\o\six.txt [11]
+.          2014-01-02          2014-01-10 -A---- x\one.txt [12]
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\t\
+.          2014-01-04          2014-01-12 -A---- y\m\t\three.txt [7]
+.          2014-01-03          2014-01-11 -A---- y\m\two.txt [8]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-13 -A---- y\m\u\four.txt [9]
+.                                         -----D y\n\
+.          2014-01-06          2014-01-14 -A---- y\n\five.txt [10]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-15 -A---- y\o\six.txt [11]
+.          2014-01-02          2014-01-10 -A---- y\one.txt [12]
+endlist
+
+test sync with exclusions 3 (l2r edit)
+date + 1
+edit a\x\one.txt
+date + 1
+edit a\x\m\two.txt
+date + 1
+edit a\x\m\t\three.txt
+date + 1
+edit a\x\m\u\four.txt
+date + 1
+edit a\x\n\five.txt
+date + 1
+edit a\x\o\six.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-20 -A---- x\m\t\three.txt [13]
+.          2014-01-03          2014-01-19 -A---- x\m\two.txt [14]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-21 -A---- x\m\u\four.txt [15]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-22 -A---- x\n\five.txt [16]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-23 -A---- x\o\six.txt [17]
+.          2014-01-02          2014-01-18 -A---- x\one.txt [18]
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\t\
+.          2014-01-04          2014-01-12 -A---- y\m\t\three.txt [7]
+.          2014-01-03          2014-01-11 -A---- y\m\two.txt [8]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-13 -A---- y\m\u\four.txt [9]
+.                                         -----D y\n\
+.          2014-01-06          2014-01-14 -A---- y\n\five.txt [10]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-15 -A---- y\o\six.txt [11]
+.          2014-01-02          2014-01-10 -A---- y\one.txt [12]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -exclude m\t -exclude n
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-20 -A---- x\m\t\three.txt [13]
+.          2014-01-03          2014-01-19 -A---- x\m\two.txt [14]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-21 -A---- x\m\u\four.txt [15]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-22 -A---- x\n\five.txt [16]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-23 -A---- x\o\six.txt [17]
+.          2014-01-02          2014-01-18 -A---- x\one.txt [18]
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\t\
+.          2014-01-04          2014-01-12 -A---- y\m\t\three.txt [7]
+.          2014-01-03          2014-01-19 -A---- y\m\two.txt [14]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-21 -A---- y\m\u\four.txt [15]
+.                                         -----D y\n\
+.          2014-01-06          2014-01-14 -A---- y\n\five.txt [10]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-23 -A---- y\o\six.txt [17]
+.          2014-01-02          2014-01-18 -A---- y\one.txt [18]
+endlist
+
+test sync with exclusions 4 (r2l edit)
+date + 1
+edit a\y\one.txt
+date + 1
+edit a\y\m\two.txt
+date + 1
+edit a\y\m\t\three.txt
+date + 1
+edit a\y\m\u\four.txt
+date + 1
+edit a\y\n\five.txt
+date + 1
+edit a\y\o\six.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-20 -A---- x\m\t\three.txt [13]
+.          2014-01-03          2014-01-19 -A---- x\m\two.txt [14]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-21 -A---- x\m\u\four.txt [15]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-22 -A---- x\n\five.txt [16]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-23 -A---- x\o\six.txt [17]
+.          2014-01-02          2014-01-18 -A---- x\one.txt [18]
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\t\
+.          2014-01-04          2014-01-27 -A---- y\m\t\three.txt [19]
+.          2014-01-03          2014-01-26 -A---- y\m\two.txt [20]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-28 -A---- y\m\u\four.txt [21]
+.                                         -----D y\n\
+.          2014-01-06          2014-01-29 -A---- y\n\five.txt [22]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-30 -A---- y\o\six.txt [23]
+.          2014-01-02          2014-01-25 -A---- y\one.txt [24]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -exclude m\t -exclude n
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-20 -A---- x\m\t\three.txt [13]
+.          2014-01-03          2014-01-26 -A---- x\m\two.txt [20]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-28 -A---- x\m\u\four.txt [21]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-22 -A---- x\n\five.txt [16]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-30 -A---- x\o\six.txt [23]
+.          2014-01-02          2014-01-25 -A---- x\one.txt [24]
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\t\
+.          2014-01-04          2014-01-27 -A---- y\m\t\three.txt [19]
+.          2014-01-03          2014-01-26 -A---- y\m\two.txt [20]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-28 -A---- y\m\u\four.txt [21]
+.                                         -----D y\n\
+.          2014-01-06          2014-01-29 -A---- y\n\five.txt [22]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-30 -A---- y\o\six.txt [23]
+.          2014-01-02          2014-01-25 -A---- y\one.txt [24]
+endlist
+
+test sync all
+rmdir a\x\m\t
+rmdir a\x\n
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.          2014-01-03          2014-01-26 -A---- x\m\two.txt [20]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-28 -A---- x\m\u\four.txt [21]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-30 -A---- x\o\six.txt [23]
+.          2014-01-02          2014-01-25 -A---- x\one.txt [24]
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\t\
+.          2014-01-04          2014-01-27 -A---- y\m\t\three.txt [19]
+.          2014-01-03          2014-01-26 -A---- y\m\two.txt [20]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-28 -A---- y\m\u\four.txt [21]
+.                                         -----D y\n\
+.          2014-01-06          2014-01-29 -A---- y\n\five.txt [22]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-30 -A---- y\o\six.txt [23]
+.          2014-01-02          2014-01-25 -A---- y\one.txt [24]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\t\
+.          2014-01-04          2014-01-27 -A---- x\m\t\three.txt [19]
+.          2014-01-03          2014-01-26 -A---- x\m\two.txt [20]
+.                                         -----D x\m\u\
+.          2014-01-05          2014-01-28 -A---- x\m\u\four.txt [21]
+.                                         -----D x\n\
+.          2014-01-06          2014-01-29 -A---- x\n\five.txt [22]
+.                                         -----D x\o\
+.          2014-01-07          2014-01-30 -A---- x\o\six.txt [23]
+.          2014-01-02          2014-01-25 -A---- x\one.txt [24]
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\t\
+.          2014-01-04          2014-01-27 -A---- y\m\t\three.txt [19]
+.          2014-01-03          2014-01-26 -A---- y\m\two.txt [20]
+.                                         -----D y\m\u\
+.          2014-01-05          2014-01-28 -A---- y\m\u\four.txt [21]
+.                                         -----D y\n\
+.          2014-01-06          2014-01-29 -A---- y\n\five.txt [22]
+.                                         -----D y\o\
+.          2014-01-07          2014-01-30 -A---- y\o\six.txt [23]
+.          2014-01-02          2014-01-25 -A---- y\one.txt [24]
+endlist
+
+
+module skipped extensions
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test create data
+mkdir a\x\a
+mkdir a\x\a\l
+mkdir a\x\b
+date + 1
+create a\x\a\one.txt
+date + 1
+create a\x\a\two.foo
+date + 1
+create a\x\a\three.bar
+date + 1
+create a\x\a\l\four.txt
+date + 1
+create a\x\a\l\five.foo
+date + 1
+create a\x\a\l\six.bar
+date + 1
+create a\x\b\seven.txt
+date + 1
+create a\x\b\eight.foo
+date + 1
+create a\x\b\nine.bar
+date + 1
+create a\x\ten.txt
+date + 1
+create a\x\eleven.foo
+date + 1
+create a\x\twelve.bar
+date + 1
+qlist .
+
+test sync, excluding all actual (l2r)
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .foo -skip .bar -skip .txt
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l\
+.          2014-01-06          2014-01-06 -A---- x\a\l\five.foo [1]
+.          2014-01-05          2014-01-05 -A---- x\a\l\four.txt [2]
+.          2014-01-07          2014-01-07 -A---- x\a\l\six.bar [3]
+.          2014-01-02          2014-01-02 -A---- x\a\one.txt [4]
+.          2014-01-04          2014-01-04 -A---- x\a\three.bar [5]
+.          2014-01-03          2014-01-03 -A---- x\a\two.foo [6]
+.                                         -----D x\b\
+.          2014-01-09          2014-01-09 -A---- x\b\eight.foo [7]
+.          2014-01-10          2014-01-10 -A---- x\b\nine.bar [8]
+.          2014-01-08          2014-01-08 -A---- x\b\seven.txt [9]
+.          2014-01-12          2014-01-12 -A---- x\eleven.foo [10]
+.          2014-01-11          2014-01-11 -A---- x\ten.txt [11]
+.          2014-01-13          2014-01-13 -A---- x\twelve.bar [12]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l\
+.                                         -----D y\b\
+endlist
+
+test sync, enabling .txt (l2r)
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .foo -skip .bar
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l\
+.          2014-01-06          2014-01-06 -A---- x\a\l\five.foo [1]
+.          2014-01-05          2014-01-05 -A---- x\a\l\four.txt [2]
+.          2014-01-07          2014-01-07 -A---- x\a\l\six.bar [3]
+.          2014-01-02          2014-01-02 -A---- x\a\one.txt [4]
+.          2014-01-04          2014-01-04 -A---- x\a\three.bar [5]
+.          2014-01-03          2014-01-03 -A---- x\a\two.foo [6]
+.                                         -----D x\b\
+.          2014-01-09          2014-01-09 -A---- x\b\eight.foo [7]
+.          2014-01-10          2014-01-10 -A---- x\b\nine.bar [8]
+.          2014-01-08          2014-01-08 -A---- x\b\seven.txt [9]
+.          2014-01-12          2014-01-12 -A---- x\eleven.foo [10]
+.          2014-01-11          2014-01-11 -A---- x\ten.txt [11]
+.          2014-01-13          2014-01-13 -A---- x\twelve.bar [12]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l\
+.          2014-01-05          2014-01-05 -A---- y\a\l\four.txt [2]
+.          2014-01-02          2014-01-02 -A---- y\a\one.txt [4]
+.                                         -----D y\b\
+.          2014-01-08          2014-01-08 -A---- y\b\seven.txt [9]
+.          2014-01-11          2014-01-11 -A---- y\ten.txt [11]
+endlist
+
+test update content, sync, excluding only .foo (l2r)
+date + 1
+edit a\x\a\one.txt
+date + 1
+edit a\x\a\two.foo
+date + 1
+edit a\x\a\three.bar
+date + 1
+edit a\x\a\l\four.txt
+date + 1
+edit a\x\a\l\five.foo
+date + 1
+edit a\x\a\l\six.bar
+date + 1
+edit a\x\b\seven.txt
+date + 1
+edit a\x\b\eight.foo
+date + 1
+edit a\x\b\nine.bar
+date + 1
+edit a\x\ten.txt
+date + 1
+edit a\x\eleven.foo
+date + 1
+edit a\x\twelve.bar
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .foo
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l\
+.          2014-01-06          2014-01-19 -A---- x\a\l\five.foo [14]
+.          2014-01-05          2014-01-18 -A---- x\a\l\four.txt [15]
+.          2014-01-07          2014-01-20 -A---- x\a\l\six.bar [16]
+.          2014-01-02          2014-01-15 -A---- x\a\one.txt [17]
+.          2014-01-04          2014-01-17 -A---- x\a\three.bar [18]
+.          2014-01-03          2014-01-16 -A---- x\a\two.foo [19]
+.                                         -----D x\b\
+.          2014-01-09          2014-01-22 -A---- x\b\eight.foo [20]
+.          2014-01-10          2014-01-23 -A---- x\b\nine.bar [21]
+.          2014-01-08          2014-01-21 -A---- x\b\seven.txt [22]
+.          2014-01-12          2014-01-25 -A---- x\eleven.foo [23]
+.          2014-01-11          2014-01-24 -A---- x\ten.txt [24]
+.          2014-01-13          2014-01-26 -A---- x\twelve.bar [25]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l\
+.          2014-01-05          2014-01-18 -A---- y\a\l\four.txt [15]
+.          2014-01-07          2014-01-20 -A---- y\a\l\six.bar [16]
+.          2014-01-02          2014-01-15 -A---- y\a\one.txt [17]
+.          2014-01-04          2014-01-17 -A---- y\a\three.bar [18]
+.                                         -----D y\b\
+.          2014-01-10          2014-01-23 -A---- y\b\nine.bar [21]
+.          2014-01-08          2014-01-21 -A---- y\b\seven.txt [22]
+.          2014-01-11          2014-01-24 -A---- y\ten.txt [24]
+.          2014-01-13          2014-01-26 -A---- y\twelve.bar [25]
+endlist
+
+test update, delete .txt content, sync, excluding .bar & .txt (l2r)
+date + 1
+edit a\x\a\one.txt
+date + 1
+edit a\x\a\two.foo
+date + 1
+edit a\x\a\three.bar
+date + 1
+edit a\x\a\l\four.txt
+date + 1
+edit a\x\a\l\five.foo
+date + 1
+edit a\x\a\l\six.bar
+date + 1
+edit a\x\b\seven.txt
+date + 1
+edit a\x\b\eight.foo
+date + 1
+edit a\x\b\nine.bar
+date + 1
+edit a\x\ten.txt
+date + 1
+edit a\x\eleven.foo
+date + 1
+edit a\x\twelve.bar
+date + 1
+delete a\x\a\one.txt
+delete a\x\a\l\four.txt
+delete a\x\b\seven.txt
+delete a\x\ten.txt
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .foo -skip .txt
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l\
+.          2014-01-06          2014-02-01 -A---- x\a\l\five.foo [26]
+.          2014-01-07          2014-02-02 -A---- x\a\l\six.bar [27]
+.          2014-01-04          2014-01-30 -A---- x\a\three.bar [28]
+.          2014-01-03          2014-01-29 -A---- x\a\two.foo [29]
+.                                         -----D x\b\
+.          2014-01-09          2014-02-04 -A---- x\b\eight.foo [30]
+.          2014-01-10          2014-02-05 -A---- x\b\nine.bar [31]
+.          2014-01-12          2014-02-07 -A---- x\eleven.foo [32]
+.          2014-01-13          2014-02-08 -A---- x\twelve.bar [33]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l\
+.          2014-01-05          2014-01-18 -A---- y\a\l\four.txt [15]
+.          2014-01-07          2014-02-02 -A---- y\a\l\six.bar [27]
+.          2014-01-02          2014-01-15 -A---- y\a\one.txt [17]
+.          2014-01-04          2014-01-30 -A---- y\a\three.bar [28]
+.                                         -----D y\b\
+.          2014-01-10          2014-02-05 -A---- y\b\nine.bar [31]
+.          2014-01-08          2014-01-21 -A---- y\b\seven.txt [22]
+.          2014-01-11          2014-01-24 -A---- y\ten.txt [24]
+.          2014-01-13          2014-02-08 -A---- y\twelve.bar [33]
+endlist
+
+test reinclude .foo (l2r add), update .bar (r2l edit), update .txt (excluded)
+date + 1
+edit a\y\a\one.txt
+date + 1
+edit a\y\a\three.bar
+date + 1
+edit a\y\a\l\four.txt
+date + 1
+edit a\y\a\l\six.bar
+date + 1
+edit a\y\b\seven.txt
+date + 1
+edit a\y\b\nine.bar
+date + 1
+edit a\y\ten.txt
+date + 1
+edit a\y\twelve.bar
+date + 1
+list-verify a\y
+.                                         -----D a\
+.                                         -----D a\l\
+.          2014-01-05          2014-02-12 -A---- a\l\four.txt [34]
+.          2014-01-07          2014-02-13 -A---- a\l\six.bar [35]
+.          2014-01-02          2014-02-10 -A---- a\one.txt [36]
+.          2014-01-04          2014-02-11 -A---- a\three.bar [37]
+.                                         -----D b\
+.          2014-01-10          2014-02-15 -A---- b\nine.bar [38]
+.          2014-01-08          2014-02-14 -A---- b\seven.txt [39]
+.          2014-01-11          2014-02-16 -A---- ten.txt [40]
+.          2014-01-13          2014-02-17 -A---- twelve.bar [41]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .txt
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l\
+.          2014-01-06          2014-02-01 -A---- x\a\l\five.foo [26]
+.          2014-01-07          2014-02-13 -A---- x\a\l\six.bar [35]
+.          2014-01-04          2014-02-11 -A---- x\a\three.bar [37]
+.          2014-01-03          2014-01-29 -A---- x\a\two.foo [29]
+.                                         -----D x\b\
+.          2014-01-09          2014-02-04 -A---- x\b\eight.foo [30]
+.          2014-01-10          2014-02-15 -A---- x\b\nine.bar [38]
+.          2014-01-12          2014-02-07 -A---- x\eleven.foo [32]
+.          2014-01-13          2014-02-17 -A---- x\twelve.bar [41]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l\
+.          2014-01-06          2014-02-01 -A---- y\a\l\five.foo [26]
+.          2014-01-05          2014-02-12 -A---- y\a\l\four.txt [34]
+.          2014-01-07          2014-02-13 -A---- y\a\l\six.bar [35]
+.          2014-01-02          2014-02-10 -A---- y\a\one.txt [36]
+.          2014-01-04          2014-02-11 -A---- y\a\three.bar [37]
+.          2014-01-03          2014-01-29 -A---- y\a\two.foo [29]
+.                                         -----D y\b\
+.          2014-01-09          2014-02-04 -A---- y\b\eight.foo [30]
+.          2014-01-10          2014-02-15 -A---- y\b\nine.bar [38]
+.          2014-01-08          2014-02-14 -A---- y\b\seven.txt [39]
+.          2014-01-12          2014-02-07 -A---- y\eleven.foo [32]
+.          2014-01-11          2014-02-16 -A---- y\ten.txt [40]
+.          2014-01-13          2014-02-17 -A---- y\twelve.bar [41]
+endlist
+
+test delete but exclude right .bar (leave left), delete .foo (r2l), .txt remains excluded
+delete a\y\a\l\five.foo
+delete a\y\a\l\six.bar
+delete a\y\a\three.bar
+delete a\y\a\two.foo
+delete a\y\b\nine.bar
+delete a\y\b\eight.foo
+delete a\y\eleven.foo
+delete a\y\twelve.bar
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .txt -skip .bar
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l\
+.          2014-01-07          2014-02-13 -A---- x\a\l\six.bar [35]
+.          2014-01-04          2014-02-11 -A---- x\a\three.bar [37]
+.                                         -----D x\b\
+.          2014-01-10          2014-02-15 -A---- x\b\nine.bar [38]
+.          2014-01-13          2014-02-17 -A---- x\twelve.bar [41]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l\
+.          2014-01-05          2014-02-12 -A---- y\a\l\four.txt [34]
+.          2014-01-02          2014-02-10 -A---- y\a\one.txt [36]
+.                                         -----D y\b\
+.          2014-01-08          2014-02-14 -A---- y\b\seven.txt [39]
+.          2014-01-11          2014-02-16 -A---- y\ten.txt [40]
+endlist
+
+test reinclude all (.foo and .bar cross-propagated)
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l\
+.          2014-01-05          2014-02-12 -A---- x\a\l\four.txt [34]
+.          2014-01-07          2014-02-13 -A---- x\a\l\six.bar [35]
+.          2014-01-02          2014-02-10 -A---- x\a\one.txt [36]
+.          2014-01-04          2014-02-11 -A---- x\a\three.bar [37]
+.                                         -----D x\b\
+.          2014-01-10          2014-02-15 -A---- x\b\nine.bar [38]
+.          2014-01-08          2014-02-14 -A---- x\b\seven.txt [39]
+.          2014-01-11          2014-02-16 -A---- x\ten.txt [40]
+.          2014-01-13          2014-02-17 -A---- x\twelve.bar [41]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l\
+.          2014-01-05          2014-02-12 -A---- y\a\l\four.txt [34]
+.          2014-01-07          2014-02-13 -A---- y\a\l\six.bar [35]
+.          2014-01-02          2014-02-10 -A---- y\a\one.txt [36]
+.          2014-01-04          2014-02-11 -A---- y\a\three.bar [37]
+.                                         -----D y\b\
+.          2014-01-10          2014-02-15 -A---- y\b\nine.bar [38]
+.          2014-01-08          2014-02-14 -A---- y\b\seven.txt [39]
+.          2014-01-11          2014-02-16 -A---- y\ten.txt [40]
+.          2014-01-13          2014-02-17 -A---- y\twelve.bar [41]
+endlist
+
+
+module skipped extensions not applied to directory names
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test create data
+mkdir a\x\a
+mkdir a\x\a\l.foo
+date + 1
+create a\x\a\one.txt
+date + 1
+create a\x\a\two.foo
+date + 1
+create a\x\a\three.bar
+date + 1
+create a\x\a\l.foo\four.txt
+date + 1
+create a\x\a\l.foo\five.foo
+date + 1
+create a\x\a\l.foo\six.bar
+date + 1
+qlist .
+
+test sync, excluding all actual (l2r)
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .foo -skip .bar -skip .txt
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l.foo\
+.          2014-01-06          2014-01-06 -A---- x\a\l.foo\five.foo [1]
+.          2014-01-05          2014-01-05 -A---- x\a\l.foo\four.txt [2]
+.          2014-01-07          2014-01-07 -A---- x\a\l.foo\six.bar [3]
+.          2014-01-02          2014-01-02 -A---- x\a\one.txt [4]
+.          2014-01-04          2014-01-04 -A---- x\a\three.bar [5]
+.          2014-01-03          2014-01-03 -A---- x\a\two.foo [6]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l.foo\
+endlist
+
+test sync, exclude .foo
+create a\y\a\seven.baz
+date + 1
+create a\y\a\l.foo\eight.baz
+date + 1
+mkdir a\y\b.foo
+create a\y\b.foo\nine.baz
+date + 1
+create a\y\b.foo\ten.foo
+date + 1
+create a\y\eleven.foo
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .foo
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D x\a\l.foo\
+.          2014-01-09          2014-01-09 -A---- x\a\l.foo\eight.baz [8]
+.          2014-01-06          2014-01-06 -A---- x\a\l.foo\five.foo [1]
+.          2014-01-05          2014-01-05 -A---- x\a\l.foo\four.txt [2]
+.          2014-01-07          2014-01-07 -A---- x\a\l.foo\six.bar [3]
+.          2014-01-02          2014-01-02 -A---- x\a\one.txt [4]
+.          2014-01-08          2014-01-08 -A---- x\a\seven.baz [9]
+.          2014-01-04          2014-01-04 -A---- x\a\three.bar [5]
+.          2014-01-03          2014-01-03 -A---- x\a\two.foo [6]
+.                                         -----D x\b.foo\
+.          2014-01-10          2014-01-10 -A---- x\b.foo\nine.baz [10]
+.                                         -----D y\
+.                                         -----D y\a\
+.                                         -----D y\a\l.foo\
+.          2014-01-09          2014-01-09 -A---- y\a\l.foo\eight.baz [8]
+.          2014-01-05          2014-01-05 -A---- y\a\l.foo\four.txt [2]
+.          2014-01-07          2014-01-07 -A---- y\a\l.foo\six.bar [3]
+.          2014-01-02          2014-01-02 -A---- y\a\one.txt [4]
+.          2014-01-08          2014-01-08 -A---- y\a\seven.baz [9]
+.          2014-01-04          2014-01-04 -A---- y\a\three.bar [5]
+.                                         -----D y\b.foo\
+.          2014-01-10          2014-01-10 -A---- y\b.foo\nine.baz [10]
+.          2014-01-11          2014-01-11 -A---- y\b.foo\ten.foo [11]
+.          2014-01-12          2014-01-12 -A---- y\eleven.foo [12]
+endlist
+
+
+module excluded file (not directory) item
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test excluded file (not directory) item (bidir)
+mkdir source
+date + 1
+create a\x\m.txt
+date + 1
+create a\x\n.foo
+date + 1
+create a\x\o.bar
+date + 1
+create a\y\p.txt
+date + 1
+create a\y\q.foo
+date + 1
+create a\y\r.bar
+date + 1
+qlist .
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .foo
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\m.txt [1]
+.          2014-01-03          2014-01-03 -A---- x\n.foo [2]
+.          2014-01-04          2014-01-04 -A---- x\o.bar [3]
+.          2014-01-05          2014-01-05 -A---- x\p.txt [4]
+# no lhs q.foo
+.          2014-01-07          2014-01-07 -A---- x\r.bar [6]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\m.txt [1]
+# no rhs n.foo
+.          2014-01-04          2014-01-04 -A---- y\o.bar [3]
+.          2014-01-05          2014-01-05 -A---- y\p.txt [4]
+.          2014-01-06          2014-01-06 -A---- y\q.foo [5]
+.          2014-01-07          2014-01-07 -A---- y\r.bar [6]
+endlist
+
+
+module modified excluded files (subdirs or extensions) in deleted directories are lost
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+mkdir a\x\m
+mkdir a\x\m\w
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D x\m\w\
+.                                         -----D y\
+.                                         -----D y\m\
+.                                         -----D y\m\w\
+endlist
+
+test create content
+date + 1
+create a\x\m\n.foo
+date + 1
+create a\x\m\o.bar
+date + 1
+create a\y\m\o.bar
+date + 1
+create a\x\m\p.txt
+date + 1
+rmdir a\x\m\w
+create a\y\m\w\x.txt
+date + 1
+create a\x\q.foo
+date + 1
+create a\x\r.bar
+date + 1
+create a\x\s.txt
+date + 1
+qlist a\x
+qlist .
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .bar -exclude m\w
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.          2014-01-02          2014-01-02 -A---- x\m\n.foo [1]
+.          2014-01-03          2014-01-03 -A---- x\m\o.bar [2]
+.          2014-01-05          2014-01-05 -A---- x\m\p.txt [3]
+.          2014-01-07          2014-01-07 -A---- x\q.foo [4]
+.          2014-01-08          2014-01-08 -A---- x\r.bar [5]
+.          2014-01-09          2014-01-09 -A---- x\s.txt [6]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-02          2014-01-02 -A---- y\m\n.foo [1]
+.          2014-01-04          2014-01-04 -A---- y\m\o.bar [7]
+.          2014-01-05          2014-01-05 -A---- y\m\p.txt [3]
+.                                         -----D y\m\w\
+.          2014-01-06          2014-01-06 -A---- y\m\w\x.txt [8]
+.          2014-01-07          2014-01-07 -A---- y\q.foo [4]
+.          2014-01-09          2014-01-09 -A---- y\s.txt [6]
+endlist
+
+test delete left directory, modify right excluded files
+rmdir a\x\m
+date + 1
+edit a\y\m\o.bar
+date + 1
+edit a\y\m\w\x.txt
+date + 1
+edit a\x\q.foo
+date + 1
+edit a\x\r.bar
+date + 1
+edit a\y\s.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-07          2014-01-13 -A---- x\q.foo [10]
+.          2014-01-08          2014-01-14 -A---- x\r.bar [11]
+.          2014-01-09          2014-01-09 -A---- x\s.txt [6]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-02          2014-01-02 -A---- y\m\n.foo [1]
+.          2014-01-04          2014-01-11 -A---- y\m\o.bar [12]
+.          2014-01-05          2014-01-05 -A---- y\m\p.txt [3]
+.                                         -----D y\m\w\
+.          2014-01-06          2014-01-12 -A---- y\m\w\x.txt [13]
+.          2014-01-07          2014-01-07 -A---- y\q.foo [4]
+.          2014-01-09          2014-01-15 -A---- y\s.txt [14]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y -skip .bar -exclude m\w
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-07          2014-01-13 -A---- x\q.foo [10]
+.          2014-01-08          2014-01-14 -A---- x\r.bar [11]
+.          2014-01-09          2014-01-15 -A---- x\s.txt [14]
+.                                         -----D y\
+.          2014-01-07          2014-01-13 -A---- y\q.foo [10]
+.          2014-01-09          2014-01-15 -A---- y\s.txt [14]
+endlist

@@ -1,0 +1,449 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module valdynpack empty test
+
+test empty test
+date 2014-01-01
+mkdir source
+date + 1
+list-verify .
+.                                         -----D source\
+endlist
+call backup -date %DATE% -encrypt aes128 pAs5W0rD dynpack source archive 1000000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [1]
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack.html [2]
+.                                         -----D source\
+endlist
+call backup -date %DATE% -decrypt aes128 pAs5W0rD valdynpack archive
+exitcode-verify 0
+# fake segment file - should fail cryptographic authentication
+create archive.a.dynpack -size 10000
+call backup -date %DATE% -decrypt aes128 pAs5W0rD valdynpack archive
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment a: Unrecognized encrypted file header - wrong ciphersuite specified?
+endoutput
+# valid extra segment file - should fail serial number validation
+delete archive.a.dynpack
+call backup -date %DATE% -encrypt aes128 pAs5W0rD pack source archive.a.dynpack
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 pAs5W0rD valdynpack archive
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment a: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!
+.Segment a: serial number 1 is invalid
+.Segment a: segment is extraneous (not referenced from manifest)
+endoutput
+
+
+module valdynpack replay tests
+
+test set up old version of archive
+date 2014-01-01
+mkdir source
+date + 1
+create source\a -size 9900
+create source\b -size 9900
+create source\c -size 9900
+create source\d -size 9900
+create source\e -size 9900
+create source\f -size 9900
+create source\g -size 9900
+create source\h -size 9900
+create source\i -size 9900
+create source\j -size 9900
+create source\k -size 9900
+create source\l -size 9900
+date + 1
+qlist .
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive 35000 -verify
+exitcode-verify 0
+# save old copy
+mkdir old
+copy archive.0.dynpack old\archive.0.dynpack
+copy archive.0.dynpack.html old\archive.0.dynpack.html
+copy archive.a.dynpack old\archive.a.dynpack
+copy archive.g.dynpack old\archive.g.dynpack
+copy archive.m.dynpack old\archive.m.dynpack
+copy archive.s.dynpack old\archive.s.dynpack
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack [13]
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack.html [14]
+.          2014-01-03          2014-01-03 -A---- archive.a.dynpack [15]
+.          2014-01-03          2014-01-03 -A---- archive.g.dynpack [16]
+.          2014-01-03          2014-01-03 -A---- archive.m.dynpack [17]
+.          2014-01-03          2014-01-03 -A---- archive.s.dynpack [18]
+.                                         -----D old\
+.          2014-01-03          2014-01-03 -A---- old\archive.0.dynpack [13]
+.          2014-01-03          2014-01-03 -A---- old\archive.0.dynpack.html [14]
+.          2014-01-03          2014-01-03 -A---- old\archive.a.dynpack [15]
+.          2014-01-03          2014-01-03 -A---- old\archive.g.dynpack [16]
+.          2014-01-03          2014-01-03 -A---- old\archive.m.dynpack [17]
+.          2014-01-03          2014-01-03 -A---- old\archive.s.dynpack [18]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-02          2014-01-02 -A---- source\b [2]
+.          2014-01-02          2014-01-02 -A---- source\c [3]
+.          2014-01-02          2014-01-02 -A---- source\d [4]
+.          2014-01-02          2014-01-02 -A---- source\e [5]
+.          2014-01-02          2014-01-02 -A---- source\f [6]
+.          2014-01-02          2014-01-02 -A---- source\g [7]
+.          2014-01-02          2014-01-02 -A---- source\h [8]
+.          2014-01-02          2014-01-02 -A---- source\i [9]
+.          2014-01-02          2014-01-02 -A---- source\j [10]
+.          2014-01-02          2014-01-02 -A---- source\k [11]
+.          2014-01-02          2014-01-02 -A---- source\l [12]
+endlist
+
+test successful validation of basic multisegment archive
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify 0
+
+test validate old with missing file
+delete archive.m.dynpack
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment m: missing segment (referenced in manifest, serial number 3)
+endoutput
+copy old\archive.m.dynpack archive.m.dynpack
+# sanity check - successful validation
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify 0
+
+test create updated version of archive
+date + 1
+edit source\a -size 9900
+edit source\b -size 9900
+edit source\c -size 9900
+edit source\d -size 9900
+edit source\e -size 9900
+edit source\f -size 9900
+edit source\g -size 9900
+edit source\h -size 9900
+edit source\i -size 9900
+edit source\j -size 9900
+edit source\k -size 9900
+edit source\l -size 9900
+date + 1
+qlist .
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive 35000 -verify
+exitcode-verify 0
+# save new copy
+mkdir new
+copy archive.0.dynpack new\archive.0.dynpack
+copy archive.0.dynpack.html new\archive.0.dynpack.html
+copy archive.a.dynpack new\archive.a.dynpack
+copy archive.g.dynpack new\archive.g.dynpack
+copy archive.m.dynpack new\archive.m.dynpack
+copy archive.s.dynpack new\archive.s.dynpack
+list-verify .
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack [31]
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack.html [14]
+.          2014-01-03          2014-01-05 -A---- archive.a.dynpack [32]
+.          2014-01-03          2014-01-05 -A---- archive.g.dynpack [33]
+.          2014-01-03          2014-01-05 -A---- archive.m.dynpack [34]
+.          2014-01-03          2014-01-05 -A---- archive.s.dynpack [35]
+.                                         -----D new\
+.          2014-01-03          2014-01-05 -A---- new\archive.0.dynpack [31]
+.          2014-01-03          2014-01-05 -A---- new\archive.0.dynpack.html [14]
+.          2014-01-03          2014-01-05 -A---- new\archive.a.dynpack [32]
+.          2014-01-03          2014-01-05 -A---- new\archive.g.dynpack [33]
+.          2014-01-03          2014-01-05 -A---- new\archive.m.dynpack [34]
+.          2014-01-03          2014-01-05 -A---- new\archive.s.dynpack [35]
+.                                         -----D old\
+.          2014-01-03          2014-01-03 -A---- old\archive.0.dynpack [13]
+.          2014-01-03          2014-01-03 -A---- old\archive.0.dynpack.html [14]
+.          2014-01-03          2014-01-03 -A---- old\archive.a.dynpack [15]
+.          2014-01-03          2014-01-03 -A---- old\archive.g.dynpack [16]
+.          2014-01-03          2014-01-03 -A---- old\archive.m.dynpack [17]
+.          2014-01-03          2014-01-03 -A---- old\archive.s.dynpack [18]
+.                                         -----D source\
+.          2014-01-02          2014-01-04 -A---- source\a [19]
+.          2014-01-02          2014-01-04 -A---- source\b [20]
+.          2014-01-02          2014-01-04 -A---- source\c [21]
+.          2014-01-02          2014-01-04 -A---- source\d [22]
+.          2014-01-02          2014-01-04 -A---- source\e [23]
+.          2014-01-02          2014-01-04 -A---- source\f [24]
+.          2014-01-02          2014-01-04 -A---- source\g [25]
+.          2014-01-02          2014-01-04 -A---- source\h [26]
+.          2014-01-02          2014-01-04 -A---- source\i [27]
+.          2014-01-02          2014-01-04 -A---- source\j [28]
+.          2014-01-02          2014-01-04 -A---- source\k [29]
+.          2014-01-02          2014-01-04 -A---- source\l [30]
+endlist
+
+test successful validation of updated archive
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify 0
+
+test validate detect rollback of file
+delete archive.g.dynpack
+copy old\archive.g.dynpack archive.g.dynpack
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify not 0
+# not exactly an elegant way of reporting the error
+lastoutput-verify -workspacepathhack
+.Segment g: wrong serial number (is 2, should be 7)
+.Segment g: missing segment (referenced in manifest, serial number 7)
+endoutput
+delete archive.g.dynpack
+copy new\archive.g.dynpack archive.g.dynpack
+
+test validate detect rollback of manifest
+delete archive.0.dynpack
+copy old\archive.0.dynpack archive.0.dynpack
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment a: serial number 6 is invalid
+.Segment a: wrong serial number (is 6, should be 1)
+.Segment g: serial number 7 is invalid
+.Segment g: wrong serial number (is 7, should be 2)
+.Segment m: serial number 8 is invalid
+.Segment m: wrong serial number (is 8, should be 3)
+.Segment s: serial number 9 is invalid
+.Segment s: wrong serial number (is 9, should be 4)
+.Segment a: missing segment (referenced in manifest, serial number 1)
+.Segment g: missing segment (referenced in manifest, serial number 2)
+.Segment m: missing segment (referenced in manifest, serial number 3)
+.Segment s: missing segment (referenced in manifest, serial number 4)
+endoutput
+delete archive.0.dynpack
+copy new\archive.0.dynpack archive.0.dynpack
+
+test validate roll-forward of old file
+delete archive.0.dynpack
+delete archive.0.dynpack.html
+delete archive.a.dynpack
+delete archive.g.dynpack
+delete archive.m.dynpack
+delete archive.s.dynpack
+copy old\archive.0.dynpack archive.0.dynpack
+copy old\archive.0.dynpack.html archive.0.dynpack.html
+copy old\archive.a.dynpack archive.a.dynpack
+copy old\archive.g.dynpack archive.g.dynpack
+copy old\archive.m.dynpack archive.m.dynpack
+copy old\archive.s.dynpack archive.s.dynpack
+# sanity check - successful validation
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify 0
+delete archive.a.dynpack
+copy new\archive.a.dynpack archive.a.dynpack
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment a: serial number 6 is invalid
+.Segment a: wrong serial number (is 6, should be 1)
+.Segment a: missing segment (referenced in manifest, serial number 1)
+endoutput
+delete archive.a.dynpack
+copy old\archive.a.dynpack archive.a.dynpack
+
+test validate roll-forward of manifest file
+# sanity check - successful validation
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify 0
+delete archive.0.dynpack
+copy new\archive.0.dynpack archive.0.dynpack
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment a: wrong serial number (is 1, should be 6)
+.Segment g: wrong serial number (is 2, should be 7)
+.Segment m: wrong serial number (is 3, should be 8)
+.Segment s: wrong serial number (is 4, should be 9)
+.Segment a: missing segment (referenced in manifest, serial number 6)
+.Segment g: missing segment (referenced in manifest, serial number 7)
+.Segment m: missing segment (referenced in manifest, serial number 8)
+.Segment s: missing segment (referenced in manifest, serial number 9)
+endoutput
+
+
+module valdynpack roll-back to from foreign archive test
+
+test set up first archive
+date 2014-01-01
+mkdir source
+date + 1
+create source\a -size 9900
+create source\b -size 9900
+create source\c -size 9900
+create source\d -size 9900
+create source\e -size 9900
+create source\f -size 9900
+create source\g -size 9900
+create source\h -size 9900
+create source\i -size 9900
+date + 1
+qlist .
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive1 35000 -verify
+exitcode-verify 0
+# sanity check - successful validation
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive1
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack.html [11]
+.          2014-01-03          2014-01-03 -A---- archive1.a.dynpack [12]
+.          2014-01-03          2014-01-03 -A---- archive1.m.dynpack [13]
+.          2014-01-03          2014-01-03 -A---- archive1.s.dynpack [14]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-02          2014-01-02 -A---- source\b [2]
+.          2014-01-02          2014-01-02 -A---- source\c [3]
+.          2014-01-02          2014-01-02 -A---- source\d [4]
+.          2014-01-02          2014-01-02 -A---- source\e [5]
+.          2014-01-02          2014-01-02 -A---- source\f [6]
+.          2014-01-02          2014-01-02 -A---- source\g [7]
+.          2014-01-02          2014-01-02 -A---- source\h [8]
+.          2014-01-02          2014-01-02 -A---- source\i [9]
+endlist
+
+test set up second archive
+date + 1
+rmdir source
+mkdir source
+create source\a -size 9900
+create source\b -size 9900
+create source\c -size 9900
+create source\d -size 9900
+create source\e -size 9900
+create source\f -size 9900
+create source\g -size 9900
+create source\h -size 9900
+create source\i -size 9900
+date + 1
+qlist .
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive2 35000 -verify
+exitcode-verify 0
+# sanity check - successful validation
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive1
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack.html [11]
+.          2014-01-03          2014-01-03 -A---- archive1.a.dynpack [12]
+.          2014-01-03          2014-01-03 -A---- archive1.m.dynpack [13]
+.          2014-01-03          2014-01-03 -A---- archive1.s.dynpack [14]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack [24]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack.html [25]
+.          2014-01-05          2014-01-05 -A---- archive2.a.dynpack [26]
+.          2014-01-05          2014-01-05 -A---- archive2.m.dynpack [27]
+.          2014-01-05          2014-01-05 -A---- archive2.s.dynpack [28]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\a [15]
+.          2014-01-04          2014-01-04 -A---- source\b [16]
+.          2014-01-04          2014-01-04 -A---- source\c [17]
+.          2014-01-04          2014-01-04 -A---- source\d [18]
+.          2014-01-04          2014-01-04 -A---- source\e [19]
+.          2014-01-04          2014-01-04 -A---- source\f [20]
+.          2014-01-04          2014-01-04 -A---- source\g [21]
+.          2014-01-04          2014-01-04 -A---- source\h [22]
+.          2014-01-04          2014-01-04 -A---- source\i [23]
+endlist
+
+test cross-substitution
+# these two files have the same serial number but come from different archives
+delete archive1.m.dynpack
+copy archive2.m.dynpack archive1.m.dynpack
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack.html [11]
+.          2014-01-03          2014-01-03 -A---- archive1.a.dynpack [12]
+.          2014-01-05          2014-01-05 -A---- archive1.m.dynpack [27]
+.          2014-01-03          2014-01-03 -A---- archive1.s.dynpack [14]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack [24]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack.html [25]
+.          2014-01-05          2014-01-05 -A---- archive2.a.dynpack [26]
+.          2014-01-05          2014-01-05 -A---- archive2.m.dynpack [27]
+.          2014-01-05          2014-01-05 -A---- archive2.s.dynpack [28]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\a [15]
+.          2014-01-04          2014-01-04 -A---- source\b [16]
+.          2014-01-04          2014-01-04 -A---- source\c [17]
+.          2014-01-04          2014-01-04 -A---- source\d [18]
+.          2014-01-04          2014-01-04 -A---- source\e [19]
+.          2014-01-04          2014-01-04 -A---- source\f [20]
+.          2014-01-04          2014-01-04 -A---- source\g [21]
+.          2014-01-04          2014-01-04 -A---- source\h [22]
+.          2014-01-04          2014-01-04 -A---- source\i [23]
+endlist
+# this validation should reject the cross-substituted file
+call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive1
+exitcode-verify not 0
+lastoutput-verify
+.Segment m: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!
+endoutput
+call backup -date %DATE% -decrypt aes128 pASsw0Rd dynunpack archive1 target
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Segment m: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!
+endoutput
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack.html [11]
+.          2014-01-03          2014-01-03 -A---- archive1.a.dynpack [12]
+.          2014-01-05          2014-01-05 -A---- archive1.m.dynpack [27]
+.          2014-01-03          2014-01-03 -A---- archive1.s.dynpack [14]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack [24]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack.html [25]
+.          2014-01-05          2014-01-05 -A---- archive2.a.dynpack [26]
+.          2014-01-05          2014-01-05 -A---- archive2.m.dynpack [27]
+.          2014-01-05          2014-01-05 -A---- archive2.s.dynpack [28]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\a [15]
+.          2014-01-04          2014-01-04 -A---- source\b [16]
+.          2014-01-04          2014-01-04 -A---- source\c [17]
+.          2014-01-04          2014-01-04 -A---- source\d [18]
+.          2014-01-04          2014-01-04 -A---- source\e [19]
+.          2014-01-04          2014-01-04 -A---- source\f [20]
+.          2014-01-04          2014-01-04 -A---- source\g [21]
+.          2014-01-04          2014-01-04 -A---- source\h [22]
+.          2014-01-04          2014-01-04 -A---- source\i [23]
+endlist
+call backup -date %DATE% -decrypt aes128 pASsw0Rd -nomacprevalidate dynunpack archive1 target
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Unpacking %WORKSPACE%\archive1.a.dynpack:
+.Unpacking %WORKSPACE%\archive1.m.dynpack:
+.Segment m: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!
+endoutput
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- archive1.0.dynpack.html [11]
+.          2014-01-03          2014-01-03 -A---- archive1.a.dynpack [12]
+.          2014-01-05          2014-01-05 -A---- archive1.m.dynpack [27]
+.          2014-01-03          2014-01-03 -A---- archive1.s.dynpack [14]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack [24]
+.          2014-01-05          2014-01-05 -A---- archive2.0.dynpack.html [25]
+.          2014-01-05          2014-01-05 -A---- archive2.a.dynpack [26]
+.          2014-01-05          2014-01-05 -A---- archive2.m.dynpack [27]
+.          2014-01-05          2014-01-05 -A---- archive2.s.dynpack [28]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\a [15]
+.          2014-01-04          2014-01-04 -A---- source\b [16]
+.          2014-01-04          2014-01-04 -A---- source\c [17]
+.          2014-01-04          2014-01-04 -A---- source\d [18]
+.          2014-01-04          2014-01-04 -A---- source\e [19]
+.          2014-01-04          2014-01-04 -A---- source\f [20]
+.          2014-01-04          2014-01-04 -A---- source\g [21]
+.          2014-01-04          2014-01-04 -A---- source\h [22]
+.          2014-01-04          2014-01-04 -A---- source\i [23]
+# with -nomacprevalidate, it will unpack until it finds an error, so here it has unpacked files from the invalid archive
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+.          2014-01-02          2014-01-02 -A---- target\b [2]
+.          2014-01-02          2014-01-02 -A---- target\c [3]
+.          2014-01-04          2014-01-04 -A---- target\d [18]
+.          2014-01-04          2014-01-04 -A---- target\e [19]
+.          2014-01-04          2014-01-04 -A---- target\f [20]
+endlist

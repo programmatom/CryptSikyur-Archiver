@@ -1,0 +1,2639 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module one file
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test add file left
+date + 1
+create a\x\a
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a [1]
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a [1]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\a [1]
+endlist
+
+test update file left
+date + 1
+edit a\x\a
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-04 -A---- x\a [2]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\a [1]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-04 -A---- x\a [2]
+.                                         -----D y\
+.          2014-01-02          2014-01-04 -A---- y\a [2]
+endlist
+
+test delete file left
+date + 1
+delete a\x\a
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.          2014-01-02          2014-01-04 -A---- y\a [2]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test add file right
+date + 1
+create a\y\b
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.          2014-01-08          2014-01-08 -A---- y\b [3]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-08          2014-01-08 -A---- x\b [3]
+.                                         -----D y\
+.          2014-01-08          2014-01-08 -A---- y\b [3]
+endlist
+
+test update file right
+date + 1
+edit a\y\b
+list-verify a
+.                                         -----D x\
+.          2014-01-08          2014-01-08 -A---- x\b [3]
+.                                         -----D y\
+.          2014-01-08          2014-01-10 -A---- y\b [4]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-08          2014-01-10 -A---- x\b [4]
+.                                         -----D y\
+.          2014-01-08          2014-01-10 -A---- y\b [4]
+endlist
+
+test delete file right
+date + 1
+delete a\y\b
+list-verify a
+.                                         -----D x\
+.          2014-01-08          2014-01-10 -A---- x\b [4]
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+
+module one directory
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test create left empty directory
+date + 1
+mkdir a\x\m
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+
+test remove left empty directory
+date + 1
+rmdir a\x\m
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test create right empty directory
+date + 1
+mkdir a\y\n
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.                                         -----D y\n\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\n\
+.                                         -----D y\
+.                                         -----D y\n\
+endlist
+
+test remove right empty directory
+date + 1
+rmdir a\y\n
+list-verify a
+.                                         -----D x\
+.                                         -----D x\n\
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+
+module file/directory disambiguation - left
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test add file left
+date + 1
+create a\x\a
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a [1]
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a [1]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\a [1]
+endlist
+
+test replace file with directory of same name left
+date + 1
+delete a\x\a
+mkdir a\x\a
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\a [1]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D y\
+.                                         -----D y\a\
+endlist
+
+test add item
+create a\x\a\foo
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.          2014-01-05          2014-01-05 -A---- x\a\foo [2]
+.                                         -----D y\
+.                                         -----D y\a\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.          2014-01-05          2014-01-05 -A---- x\a\foo [2]
+.                                         -----D y\
+.                                         -----D y\a\
+.          2014-01-05          2014-01-05 -A---- y\a\foo [2]
+endlist
+
+test replace directory with file of same name left
+date + 1
+rmdir a\x\a
+create a\x\a
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\a [3]
+.                                         -----D y\
+.                                         -----D y\a\
+.          2014-01-05          2014-01-05 -A---- y\a\foo [2]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\a [3]
+.                                         -----D y\
+.          2014-01-06          2014-01-06 -A---- y\a [3]
+endlist
+
+
+module file/directory disambiguation - right
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test add file right
+date + 1
+create a\y\a
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\a [1]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a [1]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\a [1]
+endlist
+
+test replace file with directory of same name right
+date + 1
+delete a\y\a
+mkdir a\y\a
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a [1]
+.                                         -----D y\
+.                                         -----D y\a\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D y\
+.                                         -----D y\a\
+endlist
+
+test add item
+create a\y\a\foo
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.                                         -----D y\
+.                                         -----D y\a\
+.          2014-01-05          2014-01-05 -A---- y\a\foo [2]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.          2014-01-05          2014-01-05 -A---- x\a\foo [2]
+.                                         -----D y\
+.                                         -----D y\a\
+.          2014-01-05          2014-01-05 -A---- y\a\foo [2]
+endlist
+
+test replace directory with file of same name right
+date + 1
+rmdir a\y\a
+create a\y\a
+list-verify a
+.                                         -----D x\
+.                                         -----D x\a\
+.          2014-01-05          2014-01-05 -A---- x\a\foo [2]
+.                                         -----D y\
+.          2014-01-06          2014-01-06 -A---- y\a [3]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\a [3]
+.                                         -----D y\
+.          2014-01-06          2014-01-06 -A---- y\a [3]
+endlist
+
+
+module multiple files
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test add files left
+date + 1
+create a\x\c
+date + 1
+create a\x\f
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\c [1]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\c [1]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\c [1]
+.          2014-01-03          2014-01-03 -A---- y\f [2]
+endlist
+
+test add interleaved files left
+date + 1
+create a\x\b
+date + 1
+create a\x\d
+date + 1
+create a\x\g
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-05 -A---- x\b [3]
+.          2014-01-02          2014-01-02 -A---- x\c [1]
+.          2014-01-06          2014-01-06 -A---- x\d [4]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.          2014-01-07          2014-01-07 -A---- x\g [5]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\c [1]
+.          2014-01-03          2014-01-03 -A---- y\f [2]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-05 -A---- x\b [3]
+.          2014-01-02          2014-01-02 -A---- x\c [1]
+.          2014-01-06          2014-01-06 -A---- x\d [4]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.          2014-01-07          2014-01-07 -A---- x\g [5]
+.                                         -----D y\
+.          2014-01-05          2014-01-05 -A---- y\b [3]
+.          2014-01-02          2014-01-02 -A---- y\c [1]
+.          2014-01-06          2014-01-06 -A---- y\d [4]
+.          2014-01-03          2014-01-03 -A---- y\f [2]
+.          2014-01-07          2014-01-07 -A---- y\g [5]
+endlist
+
+test interleaved add and delete 1
+date + 1
+create a\y\a
+date + 1
+create a\y\e
+date + 1
+create a\y\h
+date + 1
+delete a\x\b
+delete a\x\d
+delete a\x\g
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\c [1]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.                                         -----D y\
+.          2014-01-10          2014-01-10 -A---- y\a [6]
+.          2014-01-05          2014-01-05 -A---- y\b [3]
+.          2014-01-02          2014-01-02 -A---- y\c [1]
+.          2014-01-06          2014-01-06 -A---- y\d [4]
+.          2014-01-11          2014-01-11 -A---- y\e [7]
+.          2014-01-03          2014-01-03 -A---- y\f [2]
+.          2014-01-07          2014-01-07 -A---- y\g [5]
+.          2014-01-12          2014-01-12 -A---- y\h [8]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-10          2014-01-10 -A---- x\a [6]
+.          2014-01-02          2014-01-02 -A---- x\c [1]
+.          2014-01-11          2014-01-11 -A---- x\e [7]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.          2014-01-12          2014-01-12 -A---- x\h [8]
+.                                         -----D y\
+.          2014-01-10          2014-01-10 -A---- y\a [6]
+.          2014-01-02          2014-01-02 -A---- y\c [1]
+.          2014-01-11          2014-01-11 -A---- y\e [7]
+.          2014-01-03          2014-01-03 -A---- y\f [2]
+.          2014-01-12          2014-01-12 -A---- y\h [8]
+endlist
+
+test interleaved add and delete 2
+date + 1
+create a\x\b
+date + 1
+create a\x\d
+date + 1
+create a\x\i
+date + 1
+delete a\y\a
+delete a\y\c
+delete a\y\e
+list-verify a
+.                                         -----D x\
+.          2014-01-10          2014-01-10 -A---- x\a [6]
+.          2014-01-15          2014-01-15 -A---- x\b [9]
+.          2014-01-02          2014-01-02 -A---- x\c [1]
+.          2014-01-16          2014-01-16 -A---- x\d [10]
+.          2014-01-11          2014-01-11 -A---- x\e [7]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.          2014-01-12          2014-01-12 -A---- x\h [8]
+.          2014-01-17          2014-01-17 -A---- x\i [11]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\f [2]
+.          2014-01-12          2014-01-12 -A---- y\h [8]
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-15          2014-01-15 -A---- x\b [9]
+.          2014-01-16          2014-01-16 -A---- x\d [10]
+.          2014-01-03          2014-01-03 -A---- x\f [2]
+.          2014-01-12          2014-01-12 -A---- x\h [8]
+.          2014-01-17          2014-01-17 -A---- x\i [11]
+.                                         -----D y\
+.          2014-01-15          2014-01-15 -A---- y\b [9]
+.          2014-01-16          2014-01-16 -A---- y\d [10]
+.          2014-01-03          2014-01-03 -A---- y\f [2]
+.          2014-01-12          2014-01-12 -A---- y\h [8]
+.          2014-01-17          2014-01-17 -A---- y\i [11]
+endlist
+
+
+module merge conflicts
+
+
+module merge conflicts - create both sides
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\m
+date + 1
+create a\y\m
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\m [2]
+endlist
+
+test ignore
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, different
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: keep "%WORKSPACE%\a\y\m" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\m [2]
+endlist
+date + 1
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, different
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: keep "%WORKSPACE%\a\y\m" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.L: keep "%WORKSPACE%\a\x\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\m [1]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\m [1]
+endlist
+
+test resetup
+delete a\x\m
+delete a\y\m
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\m
+date + 1
+create a\y\m
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-07          2014-01-07 -A---- x\m [3]
+.                                         -----D y\
+.          2014-01-08          2014-01-08 -A---- y\m [4]
+endlist
+
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, different
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: keep "%WORKSPACE%\a\y\m" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.R: keep "%WORKSPACE%\a\y\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-08          2014-01-08 -A---- x\m [4]
+.                                         -----D y\
+.          2014-01-08          2014-01-08 -A---- y\m [4]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-08          2014-01-08 -A---- x\m [4]
+.                                         -----D y\
+.          2014-01-08          2014-01-08 -A---- y\m [4]
+endlist
+
+
+module merge conflict - modify both sides
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+create a\x\m
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-01 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-01          2014-01-01 -A---- y\m [1]
+endlist
+
+test ignore
+edit a\y\m
+date + 1
+edit a\x\m
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-03 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [3]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, different
+.  L: keep "%WORKSPACE%\a\x\m" [more recent]
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-03 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [3]
+endlist
+date + 1
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, different
+.  L: keep "%WORKSPACE%\a\x\m" [more recent]
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.L: keep "%WORKSPACE%\a\x\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-03 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-03 -A---- y\m [2]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-03 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-03 -A---- y\m [2]
+endlist
+
+test resetup
+delete a\x\m
+delete a\y\m
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\m
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\m [4]
+.                                         -----D y\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\m [4]
+.                                         -----D y\
+.          2014-01-06          2014-01-06 -A---- y\m [4]
+endlist
+date + 1
+edit a\y\m
+date + 1
+edit a\x\m
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-09 -A---- x\m [5]
+.                                         -----D y\
+.          2014-01-06          2014-01-08 -A---- y\m [6]
+endlist
+
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, different
+.  L: keep "%WORKSPACE%\a\x\m" [more recent]
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.R: keep "%WORKSPACE%\a\y\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-08 -A---- x\m [6]
+.                                         -----D y\
+.          2014-01-06          2014-01-08 -A---- y\m [6]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-08 -A---- x\m [6]
+.                                         -----D y\
+.          2014-01-06          2014-01-08 -A---- y\m [6]
+endlist
+
+
+module merge conflict - modify left, delete right
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+create a\x\m
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-01 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-01          2014-01-01 -A---- y\m [1]
+endlist
+
+test ignore
+edit a\x\m
+date + 1
+delete a\y\m
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+endlist
+# BUGBUG - ignore does not keep conflict
+#move s\x\sync.txt a\x\sync.txt
+#move s\y\sync.txt a\y\sync.txt
+#call-with-input backup -date %DATE% sync a\x a\y
+#.i
+#endinput
+#exitcode-verify 0
+#lastoutput-verify -workspacepathhack
+#.
+#.CONFLICT 'm' modified '%WORKSPACE%\a\x', deleted '%WORKSPACE%\a\y'
+#.  L: keep "%WORKSPACE%\a\x\m"
+#.  R: delete "%WORKSPACE%\a\x\m"
+#.  I: ignore
+#.  N: ignore all
+#.  W: windiff
+#.
+#endoutput
+#move a\x\sync.txt s\x\sync.txt
+#move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+endlist
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified '%WORKSPACE%\a\x', deleted '%WORKSPACE%\a\y'
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: delete "%WORKSPACE%\a\x\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff
+.L: keep "%WORKSPACE%\a\x\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+
+test resetup
+delete a\x\m
+delete a\y\m
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\m
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+.          2014-01-04          2014-01-04 -A---- y\m [3]
+endlist
+date + 1
+edit a\x\m
+delete a\y\m
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-05 -A---- x\m [4]
+.                                         -----D y\
+endlist
+
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified '%WORKSPACE%\a\x', deleted '%WORKSPACE%\a\y'
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: delete "%WORKSPACE%\a\x\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff
+.R: delete "%WORKSPACE%\a\x\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+
+module merge conflict - delete left, modify right
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+create a\x\m
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-01 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-01          2014-01-01 -A---- y\m [1]
+endlist
+
+test ignore
+edit a\y\m
+date + 1
+delete a\x\m
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+# BUGBUG - ignore does not keep conflict
+#move s\x\sync.txt a\x\sync.txt
+#move s\y\sync.txt a\y\sync.txt
+#call-with-input backup -date %DATE% sync a\x a\y
+#.i
+#endinput
+#exitcode-verify 0
+#lastoutput-verify -workspacepathhack
+#.
+#.CONFLICT 'm' deleted '%WORKSPACE%\a\x', modified '%WORKSPACE%\a\y'
+#.  L: delete "%WORKSPACE%\a\y\m"
+#.  R: keep "%WORKSPACE%\a\y\m"
+#.  I: ignore
+#.  N: ignore all
+#.  W: windiff
+#.
+#endoutput
+#move a\x\sync.txt s\x\sync.txt
+#move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' deleted '%WORKSPACE%\a\x', modified '%WORKSPACE%\a\y'
+.  L: delete "%WORKSPACE%\a\y\m"
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff
+.L: delete "%WORKSPACE%\a\y\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test resetup
+delete a\x\m
+delete a\y\m
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\m
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+.          2014-01-04          2014-01-04 -A---- y\m [3]
+endlist
+date + 1
+edit a\y\m
+delete a\x\m
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+.          2014-01-04          2014-01-05 -A---- y\m [4]
+endlist
+
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' deleted '%WORKSPACE%\a\x', modified '%WORKSPACE%\a\y'
+.  L: delete "%WORKSPACE%\a\y\m"
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff
+.R: keep "%WORKSPACE%\a\y\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-05 -A---- x\m [4]
+.                                         -----D y\
+.          2014-01-04          2014-01-05 -A---- y\m [4]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-05 -A---- x\m [4]
+.                                         -----D y\
+.          2014-01-04          2014-01-05 -A---- y\m [4]
+endlist
+
+
+module merge conflict - modify left, replace with directory right
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+create a\x\m
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-01 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-01          2014-01-01 -A---- y\m [1]
+endlist
+
+test ignore
+edit a\x\m
+date + 1
+delete a\y\m
+mkdir a\y\m
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: keep "%WORKSPACE%\a\y\m" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: keep "%WORKSPACE%\a\y\m" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.L: keep "%WORKSPACE%\a\x\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-02 -A---- x\m [2]
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+
+test resetup
+delete a\x\m
+delete a\y\m
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\m
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+.          2014-01-04          2014-01-04 -A---- y\m [3]
+endlist
+date + 1
+edit a\x\m
+delete a\y\m
+mkdir a\y\m
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-05 -A---- x\m [4]
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'm' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\m"
+.  R: keep "%WORKSPACE%\a\y\m" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.R: keep "%WORKSPACE%\a\y\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.m
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+
+
+module merge conflict - replace with directory left, modify right
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+create a\x\m
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-01          2014-01-01 -A---- x\m [1]
+.                                         -----D y\
+.          2014-01-01          2014-01-01 -A---- y\m [1]
+endlist
+
+test ignore
+edit a\y\m
+date + 1
+delete a\x\m
+mkdir a\x\m
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.m
+.
+.CONFLICT 'm' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\m" [more recent]
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.          2014-01-01          2014-01-02 -A---- y\m [2]
+endlist
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.m
+.
+.CONFLICT 'm' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\m" [more recent]
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.L: keep "%WORKSPACE%\a\x\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.m
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.                                         -----D y\m\
+endlist
+
+test resetup
+rmdir a\x\m
+rmdir a\y\m
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\m
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-04 -A---- x\m [3]
+.                                         -----D y\
+.          2014-01-04          2014-01-04 -A---- y\m [3]
+endlist
+date + 1
+edit a\y\m
+delete a\x\m
+mkdir a\x\m
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.                                         -----D y\
+.          2014-01-04          2014-01-05 -A---- y\m [4]
+endlist
+
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.m
+.
+.CONFLICT 'm' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\m" [more recent]
+.  R: keep "%WORKSPACE%\a\y\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.R: keep "%WORKSPACE%\a\y\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-05 -A---- x\m [4]
+.                                         -----D y\
+.          2014-01-04          2014-01-05 -A---- y\m [4]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-04          2014-01-05 -A---- x\m [4]
+.                                         -----D y\
+.          2014-01-04          2014-01-05 -A---- y\m [4]
+endlist
+
+
+module merge conflict - replace left directory with file, modify right directory content
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+mkdir a\x\d
+create a\x\d\m
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-01          2014-01-01 -A---- x\d\m [1]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-01          2014-01-01 -A---- y\d\m [1]
+endlist
+
+test ignore
+edit a\y\d\m
+date + 1
+rmdir a\x\d
+create a\x\d
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-03          2014-01-03 -A---- x\d [2]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-01          2014-01-02 -A---- y\d\m [3]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'd' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\d"
+.  R: keep "%WORKSPACE%\a\y\d" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-03          2014-01-03 -A---- x\d [2]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-01          2014-01-02 -A---- y\d\m [3]
+endlist
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'd' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\d"
+.  R: keep "%WORKSPACE%\a\y\d" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.L: keep "%WORKSPACE%\a\x\d"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-03          2014-01-03 -A---- x\d [2]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\d [2]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-03          2014-01-03 -A---- x\d [2]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\d [2]
+endlist
+
+test resetup
+delete a\x\d
+delete a\y\d
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+mkdir a\x\d
+create a\x\d\m
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-04          2014-01-04 -A---- x\d\m [4]
+.                                         -----D y\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-04          2014-01-04 -A---- x\d\m [4]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-04          2014-01-04 -A---- y\d\m [4]
+endlist
+edit a\y\d\m
+date + 1
+rmdir a\x\d
+create a\x\d
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\d [5]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-04          2014-01-05 -A---- y\d\m [6]
+endlist
+
+# BUGBUG - shouldn't have to resolve items in subdirectory after top-level decision
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+.CONFLICT 'd' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\d"
+.  R: keep "%WORKSPACE%\a\y\d" [more recent]
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.R: keep "%WORKSPACE%\a\y\d"
+.
+.CONFLICT 'd\m' deleted '%WORKSPACE%\a\x', modified '%WORKSPACE%\a\y'
+.  L: delete "%WORKSPACE%\a\y\d\m"
+.  R: keep "%WORKSPACE%\a\y\d\m"
+.  I: ignore
+.  N: ignore all
+.  W: windiff
+.R: keep "%WORKSPACE%\a\y\d\m"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-04          2014-01-05 -A---- x\d\m [6]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-04          2014-01-05 -A---- y\d\m [6]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.d
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-04          2014-01-05 -A---- x\d\m [6]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-04          2014-01-05 -A---- y\d\m [6]
+endlist
+
+
+module merge conflict - modify left directory content, replace right directory with file
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+mkdir a\x\d
+create a\x\d\m
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-01          2014-01-01 -A---- x\d\m [1]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-01          2014-01-01 -A---- y\d\m [1]
+endlist
+
+test ignore
+edit a\x\d\m
+date + 1
+rmdir a\y\d
+create a\y\d
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-01          2014-01-02 -A---- x\d\m [2]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\d [3]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.d
+.
+.CONFLICT 'd' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\d" [more recent]
+.  R: keep "%WORKSPACE%\a\y\d"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-01          2014-01-02 -A---- x\d\m [2]
+.                                         -----D y\
+.          2014-01-03          2014-01-03 -A---- y\d [3]
+endlist
+
+test select left
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.l
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.d
+.
+.CONFLICT 'd' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\d" [more recent]
+.  R: keep "%WORKSPACE%\a\y\d"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.L: keep "%WORKSPACE%\a\x\d"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-01          2014-01-02 -A---- x\d\m [2]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-01          2014-01-02 -A---- y\d\m [2]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.d
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-01          2014-01-02 -A---- x\d\m [2]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-01          2014-01-02 -A---- y\d\m [2]
+endlist
+
+test resetup
+rmdir a\x\d
+rmdir a\y\d
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+mkdir a\x\d
+create a\x\d\m
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-04          2014-01-04 -A---- x\d\m [4]
+.                                         -----D y\
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-04          2014-01-04 -A---- x\d\m [4]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-04          2014-01-04 -A---- y\d\m [4]
+endlist
+edit a\x\d\m
+date + 1
+rmdir a\y\d
+create a\y\d
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-04          2014-01-05 -A---- x\d\m [5]
+.                                         -----D y\
+.          2014-01-06          2014-01-06 -A---- y\d [6]
+endlist
+
+# BUGBUG - shouldn't have to resolve items in subdirectory after top-level decision
+test select right
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.d
+.
+.CONFLICT 'd' modified both, unreadable
+.  L: keep "%WORKSPACE%\a\x\d" [more recent]
+.  R: keep "%WORKSPACE%\a\y\d"
+.  I: ignore
+.  N: ignore all
+.  W: windiff (Shift-W to reverse)
+.R: keep "%WORKSPACE%\a\y\d"
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\d [6]
+.                                         -----D y\
+.          2014-01-06          2014-01-06 -A---- y\d [6]
+endlist
+
+test verify conflict cleared
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+timeout 30
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.
+endoutput
+timeout none
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-06          2014-01-06 -A---- x\d [6]
+.                                         -----D y\
+.          2014-01-06          2014-01-06 -A---- y\d [6]
+endlist
+
+
+module merge conflict - modify left directory content, delete right directory
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+mkdir a\x\d
+date + 1
+create a\x\d\e.txt
+date + 1
+mkdir a\x\d\f
+create a\x\d\f\g.txt
+date + 1
+create a\x\d\h.txt
+date + 1
+create a\x\i.txt
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-02          2014-01-02 -A---- x\d\e.txt [1]
+.                                         -----D x\d\f\
+.          2014-01-03          2014-01-03 -A---- x\d\f\g.txt [2]
+.          2014-01-04          2014-01-04 -A---- x\d\h.txt [3]
+.          2014-01-05          2014-01-05 -A---- x\i.txt [4]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-02          2014-01-02 -A---- y\d\e.txt [1]
+.                                         -----D y\d\f\
+.          2014-01-03          2014-01-03 -A---- y\d\f\g.txt [2]
+.          2014-01-04          2014-01-04 -A---- y\d\h.txt [3]
+.          2014-01-05          2014-01-05 -A---- y\i.txt [4]
+endlist
+
+test make modification and sync with skip
+date + 1
+edit a\x\d\e.txt
+date + 1
+edit a\x\d\f\g.txt
+date + 1
+edit a\x\d\h.txt
+date + 1
+edit a\x\i.txt
+date + 1
+rmdir a\y\d
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-02          2014-01-07 -A---- x\d\e.txt [5]
+.                                         -----D x\d\f\
+.          2014-01-03          2014-01-08 -A---- x\d\f\g.txt [6]
+.          2014-01-04          2014-01-09 -A---- x\d\h.txt [7]
+.          2014-01-05          2014-01-10 -A---- x\i.txt [8]
+.                                         -----D y\
+.          2014-01-05          2014-01-05 -A---- y\i.txt [4]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.d
+.
+.CONFLICT 'd' modified '%WORKSPACE%\a\x', deleted '%WORKSPACE%\a\y'
+.  L: keep "%WORKSPACE%\a\x\d"
+.  R: delete "%WORKSPACE%\a\x\d"
+.  I: ignore
+.  N: ignore all
+.  W: windiff
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-02          2014-01-07 -A---- x\d\e.txt [5]
+.                                         -----D x\d\f\
+.          2014-01-03          2014-01-08 -A---- x\d\f\g.txt [6]
+.          2014-01-04          2014-01-09 -A---- x\d\h.txt [7]
+.          2014-01-05          2014-01-10 -A---- x\i.txt [8]
+.                                         -----D y\
+.          2014-01-05          2014-01-10 -A---- y\i.txt [8]
+endlist
+
+
+module merge conflict - delete left directory, modify right directory content
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+mkdir a\x\d
+date + 1
+create a\x\d\e.txt
+date + 1
+mkdir a\x\d\f
+create a\x\d\f\g.txt
+date + 1
+create a\x\d\h.txt
+date + 1
+create a\x\i.txt
+date + 1
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\d\
+.          2014-01-02          2014-01-02 -A---- x\d\e.txt [1]
+.                                         -----D x\d\f\
+.          2014-01-03          2014-01-03 -A---- x\d\f\g.txt [2]
+.          2014-01-04          2014-01-04 -A---- x\d\h.txt [3]
+.          2014-01-05          2014-01-05 -A---- x\i.txt [4]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-02          2014-01-02 -A---- y\d\e.txt [1]
+.                                         -----D y\d\f\
+.          2014-01-03          2014-01-03 -A---- y\d\f\g.txt [2]
+.          2014-01-04          2014-01-04 -A---- y\d\h.txt [3]
+.          2014-01-05          2014-01-05 -A---- y\i.txt [4]
+endlist
+
+test make modification and sync with skip
+date + 1
+edit a\y\d\e.txt
+date + 1
+edit a\y\d\f\g.txt
+date + 1
+edit a\y\d\h.txt
+date + 1
+edit a\y\i.txt
+date + 1
+rmdir a\x\d
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-05 -A---- x\i.txt [4]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-02          2014-01-07 -A---- y\d\e.txt [5]
+.                                         -----D y\d\f\
+.          2014-01-03          2014-01-08 -A---- y\d\f\g.txt [6]
+.          2014-01-04          2014-01-09 -A---- y\d\h.txt [7]
+.          2014-01-05          2014-01-10 -A---- y\i.txt [8]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.i
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.d
+.
+.CONFLICT 'd' deleted '%WORKSPACE%\a\x', modified '%WORKSPACE%\a\y'
+.  L: delete "%WORKSPACE%\a\y\d"
+.  R: keep "%WORKSPACE%\a\y\d"
+.  I: ignore
+.  N: ignore all
+.  W: windiff
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-10 -A---- x\i.txt [8]
+.                                         -----D y\
+.                                         -----D y\d\
+.          2014-01-02          2014-01-07 -A---- y\d\e.txt [5]
+.                                         -----D y\d\f\
+.          2014-01-03          2014-01-08 -A---- y\d\f\g.txt [6]
+.          2014-01-04          2014-01-09 -A---- y\d\h.txt [7]
+.          2014-01-05          2014-01-10 -A---- y\i.txt [8]
+endlist
+
+
+module directory delete failure due to file read-only
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test add content and sync
+mkdir a\x\m
+date + 1
+create a\x\m\a.txt
+date + 1
+create a\x\m\b.txt
+attrib a\x\m\b.txt +r
+date + 1
+create a\x\m\c.txt
+date + 1
+create a\x\n.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.          2014-01-02          2014-01-02 -A---- x\m\a.txt [1]
+.          2014-01-03          2014-01-03 RA---- x\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- x\m\c.txt [3]
+.          2014-01-05          2014-01-05 -A---- x\n.txt [4]
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.          2014-01-02          2014-01-02 -A---- x\m\a.txt [1]
+.          2014-01-03          2014-01-03 RA---- x\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- x\m\c.txt [3]
+.          2014-01-05          2014-01-05 -A---- x\n.txt [4]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-02          2014-01-02 -A---- y\m\a.txt [1]
+.          2014-01-03          2014-01-03 RA---- y\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- y\m\c.txt [3]
+.          2014-01-05          2014-01-05 -A---- y\n.txt [4]
+endlist
+
+test fail delete on read-only file
+rmdir a\x\m
+date + 1
+edit a\y\n.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-05 -A---- x\n.txt [4]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-02          2014-01-02 -A---- y\m\a.txt [1]
+.          2014-01-03          2014-01-03 RA---- y\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- y\m\c.txt [3]
+.          2014-01-05          2014-01-08 -A---- y\n.txt [5]
+endlist
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-08 -A---- x\n.txt [5]
+.                                         -----D y\
+.          2014-01-05          2014-01-08 -A---- y\n.txt [5]
+endlist
+
+
+module directory delete failure due to file in use
+
+mkdir a\x
+mkdir a\y
+mkdir s\x
+mkdir s\y
+
+test initial setup
+date 2014-01-01
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test add content and sync
+mkdir a\x\m
+date + 1
+create a\x\m\a.txt
+date + 1
+create a\x\m\b.txt
+date + 1
+create a\x\m\c.txt
+date + 1
+create a\x\n.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.          2014-01-02          2014-01-02 -A---- x\m\a.txt [1]
+.          2014-01-03          2014-01-03 -A---- x\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- x\m\c.txt [3]
+.          2014-01-05          2014-01-05 -A---- x\n.txt [4]
+.                                         -----D y\
+endlist
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call backup -date %DATE% sync a\x a\y
+exitcode-verify 0
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+list-verify a
+.                                         -----D x\
+.                                         -----D x\m\
+.          2014-01-02          2014-01-02 -A---- x\m\a.txt [1]
+.          2014-01-03          2014-01-03 -A---- x\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- x\m\c.txt [3]
+.          2014-01-05          2014-01-05 -A---- x\n.txt [4]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-02          2014-01-02 -A---- y\m\a.txt [1]
+.          2014-01-03          2014-01-03 -A---- y\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- y\m\c.txt [3]
+.          2014-01-05          2014-01-05 -A---- y\n.txt [4]
+endlist
+
+test fail delete on in use file
+rmdir a\x\m
+date + 1
+edit a\y\n.txt
+date + 1
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-05 -A---- x\n.txt [4]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-02          2014-01-02 -A---- y\m\a.txt [1]
+.          2014-01-03          2014-01-03 -A---- y\m\b.txt [2]
+.          2014-01-04          2014-01-04 -A---- y\m\c.txt [3]
+.          2014-01-05          2014-01-08 -A---- y\n.txt [5]
+endlist
+open a\y\m\b.txt wx
+date + 1
+move s\x\sync.txt a\x\sync.txt
+move s\y\sync.txt a\y\sync.txt
+call-with-input backup -date %DATE% sync a\x a\y
+.r
+.c
+.c
+endinput
+exitcode-verify 0
+# the third error is by design but awkward
+lastoutput-verify -workspacepathhack
+.m
+.EXCEPTION at "m": The process cannot access the file 'b.txt' because it is being used by another process.
+.EXCEPTION: The process cannot access the file 'b.txt' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION at "m": The process cannot access the file 'b.txt' because it is being used by another process.
+.EXCEPTION: The process cannot access the file 'b.txt' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+.EXCEPTION at "m\b.txt": The process cannot access the file '%WORKSPACE%\a\y\m\b.txt' because it is being used by another process.
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\a\y\m\b.txt' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+.
+endoutput
+move a\x\sync.txt s\x\sync.txt
+move a\y\sync.txt s\y\sync.txt
+close-all
+list-verify a
+.                                         -----D x\
+.          2014-01-05          2014-01-08 -A---- x\n.txt [5]
+.                                         -----D y\
+.                                         -----D y\m\
+.          2014-01-03          2014-01-03 -A---- y\m\b.txt [2]
+.          2014-01-05          2014-01-08 -A---- y\n.txt [5]
+endlist

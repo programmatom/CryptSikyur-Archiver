@@ -1,0 +1,553 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module degenerate test
+
+mkdir source
+
+test null test
+date 2014-01-01
+mkdir source
+date + 1
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+call backup unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.pack [1]
+.                                         -----D copy\
+.                                         -----D source\
+endlist
+
+
+module packed file archive tests
+
+mkdir source
+
+test one file
+date 2014-01-01
+mkdir source
+date + 3
+create source\a
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+# target dir not removed - permitted to target existing hierarchy
+call backup unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [1]
+.                                         -----D copy\
+.          2014-01-04          2014-01-04 -A---- copy\a [2]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\a [2]
+endlist
+
+test two files
+date + 1
+edit source\a
+date + 1
+create source\b
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+rmdir copy
+call backup unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-09          2014-01-09 -A---- archive.pack [3]
+.                                         -----D copy\
+.          2014-01-04          2014-01-07 -A---- copy\a [4]
+.          2014-01-08          2014-01-08 -A---- copy\b [5]
+.                                         -----D source\
+.          2014-01-04          2014-01-07 -A---- source\a [4]
+.          2014-01-08          2014-01-08 -A---- source\b [5]
+endlist
+
+test add directory
+date + 1
+edit source\a
+date + 1
+edit source\b
+date + 1
+mkdir source\c
+date + 1
+create source\c\d
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+rmdir copy
+call backup unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-15          2014-01-15 -A---- archive.pack [6]
+.                                         -----D copy\
+.          2014-01-04          2014-01-11 -A---- copy\a [7]
+.          2014-01-08          2014-01-12 -A---- copy\b [8]
+.                                         -----D copy\c\
+.          2014-01-14          2014-01-14 -A---- copy\c\d [9]
+.                                         -----D source\
+.          2014-01-04          2014-01-11 -A---- source\a [7]
+.          2014-01-08          2014-01-12 -A---- source\b [8]
+.                                         -----D source\c\
+.          2014-01-14          2014-01-14 -A---- source\c\d [9]
+endlist
+
+test second directory and nexted directory
+date + 1
+edit source\a
+date + 1
+edit source\b
+date + 1
+mkdir source\c
+date + 1
+edit source\c\d
+date + 1
+mkdir source\c\e
+date + 1
+create source\c\e\f
+date + 1
+mkdir source\g
+date + 1
+create source\g\h
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+rmdir copy
+call backup unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-25          2014-01-25 -A---- archive.pack [10]
+.                                         -----D copy\
+.          2014-01-04          2014-01-17 -A---- copy\a [11]
+.          2014-01-08          2014-01-18 -A---- copy\b [12]
+.                                         -----D copy\c\
+.          2014-01-14          2014-01-20 -A---- copy\c\d [13]
+.                                         -----D copy\c\e\
+.          2014-01-22          2014-01-22 -A---- copy\c\e\f [14]
+.                                         -----D copy\g\
+.          2014-01-24          2014-01-24 -A---- copy\g\h [15]
+.                                         -----D source\
+.          2014-01-04          2014-01-17 -A---- source\a [11]
+.          2014-01-08          2014-01-18 -A---- source\b [12]
+.                                         -----D source\c\
+.          2014-01-14          2014-01-20 -A---- source\c\d [13]
+.                                         -----D source\c\e\
+.          2014-01-22          2014-01-22 -A---- source\c\e\f [14]
+.                                         -----D source\g\
+.          2014-01-24          2014-01-24 -A---- source\g\h [15]
+endlist
+
+test remove some files
+date + 1
+delete source\a
+delete source\b
+rmdir source\g
+date + 1
+edit source\c\d
+date + 1
+edit source\c\e\f
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+rmdir copy
+call backup unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-30          2014-01-30 -A---- archive.pack [16]
+.                                         -----D copy\
+.                                         -----D copy\c\
+.          2014-01-14          2014-01-28 -A---- copy\c\d [17]
+.                                         -----D copy\c\e\
+.          2014-01-22          2014-01-29 -A---- copy\c\e\f [18]
+.                                         -----D source\
+.                                         -----D source\c\
+.          2014-01-14          2014-01-28 -A---- source\c\d [17]
+.                                         -----D source\c\e\
+.          2014-01-22          2014-01-29 -A---- source\c\e\f [18]
+endlist
+
+
+module empty directory test
+
+mkdir source
+
+test basic
+date 2014-01-01
+mkdir source
+date + 1
+mkdir source\a
+date + 1
+create source\a\b
+date + 1
+mkdir source\c
+date + 1
+mkdir source\d
+mkdir source\d\e
+create source\d\e\f
+date + 1
+mkdir source\g
+mkdir source\g\h
+mkdir source\g\i
+mkdir source\j
+create source\j\k
+date + 1
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-03          2014-01-03 -A---- source\a\b [1]
+.                                         -----D source\c\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-05          2014-01-05 -A---- source\d\e\f [2]
+.                                         -----D source\g\
+.                                         -----D source\g\h\
+.                                         -----D source\g\i\
+.                                         -----D source\j\
+.          2014-01-06          2014-01-06 -A---- source\j\k [3]
+endlist
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+call backup unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-07          2014-01-07 -A---- archive.pack [4]
+.                                         -----D copy\
+.                                         -----D copy\a\
+.          2014-01-03          2014-01-03 -A---- copy\a\b [1]
+.                                         -----D copy\c\
+.                                         -----D copy\d\
+.                                         -----D copy\d\e\
+.          2014-01-05          2014-01-05 -A---- copy\d\e\f [2]
+.                                         -----D copy\g\
+.                                         -----D copy\g\h\
+.                                         -----D copy\g\i\
+.                                         -----D copy\j\
+.          2014-01-06          2014-01-06 -A---- copy\j\k [3]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-03          2014-01-03 -A---- source\a\b [1]
+.                                         -----D source\c\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-05          2014-01-05 -A---- source\d\e\f [2]
+.                                         -----D source\g\
+.                                         -----D source\g\h\
+.                                         -----D source\g\i\
+.                                         -----D source\j\
+.          2014-01-06          2014-01-06 -A---- source\j\k [3]
+endlist
+call backup dumppack archive.pack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL: 1; SIGNATURE: .*$
+# .\a\ is not stored explicitly
+*        1 .* \-\- \.\\a\\b$
+*        2 0B .* \-d \.\\c$
+# .\d\ is not stored explicitly
+# .\d\e\ is not stored explicitly
+*        3 .* \-\- \.\\d\\e\\f$
+# .\g\ is not stored explicitly
+*        4 0B .* \-d \.\\g\\h$
+*        5 0B .* \-d \.\\g\\i$
+# .\j\ is not stored explicitly
+*        6 .* \-\- \.\\j\\k$
+endoutput
+
+
+module compressed
+
+test basic
+date 2014-01-01
+mkdir source
+date + 1
+create source\m
+date + 1
+call backup -compress -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+call backup -decompress unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.pack [1]
+.                                         -----D copy\
+.          2014-01-02          2014-01-02 -A---- copy\m [2]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\m [2]
+endlist
+
+
+module encrypted
+
+test basic
+date 2014-01-01
+mkdir source
+date + 1
+create source\n
+date + 1
+call backup -encrypt aes128 pasSsw0Rd -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+call backup -decrypt aes128 pasSsw0Rd unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.pack [1]
+.                                         -----D copy\
+.          2014-01-02          2014-01-02 -A---- copy\n [2]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\n [2]
+endlist
+
+
+module compressed and encrypted
+
+test basic
+date 2014-01-01
+mkdir source
+date + 1
+create source\p
+date + 1
+call backup -compress -encrypt aes128 pasSsw0Rd -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+call backup -decompress -decrypt aes128 pasSsw0Rd unpack archive.pack copy
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.pack [1]
+.                                         -----D copy\
+.          2014-01-02          2014-01-02 -A---- copy\p [2]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\p [2]
+endlist
+
+
+module file in use test
+
+mkdir source
+
+test file in use
+date 2014-01-01
+mkdir source
+date + 1
+create source\a
+date + 1
+create source\b
+date + 1
+create source\c
+date + 1
+open source\b wx
+date + 1
+call-with-input backup -date %DATE% pack source archive.pack
+.c
+endinput
+exitcode-verify 0
+date + 1
+call backup unpack archive.pack copy
+exitcode-verify 0
+close-all
+list-verify .
+.          2014-01-06          2014-01-06 -A---- archive.pack [1]
+.                                         -----D copy\
+.          2014-01-02          2014-01-02 -A---- copy\a [2]
+.          2014-01-04          2014-01-04 -A---- copy\c [3]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [4]
+.          2014-01-04          2014-01-04 -A---- source\c [3]
+endlist
+
+
+module archive individual file data integrity checking
+
+mkdir source
+
+test create initial files
+date 2014-01-01
+mkdir source
+date + 1
+create source\a -size 1000
+date + 1
+create source\b -size 10000
+date + 1
+create source\c -size 1000
+date + 1
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [1]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+date + 1
+# magic: corrupt in middle of contained file stream
+invert-range archive.pack 5000 1
+date + 1
+call backup unpack archive.pack copy
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Individual archived file data check values do not match
+endoutput
+list-verify .
+.          2014-01-05          2014-01-06 -A---- archive.pack [5]
+.                                         -----D copy\
+.          2014-01-02          2014-01-02 -A---- copy\a [2]
+.          2014-01-03          2014-01-03 -A---- copy\b [6]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+
+
+module archive individual file header integrity checking
+
+mkdir source
+
+test create initial files
+date 2014-01-01
+mkdir source
+date + 1
+create source\a -size 1000
+date + 1
+create source\b -size 10000
+date + 1
+create source\c -size 1000
+date + 1
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [1]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+date + 1
+# magic: corrupt header field data
+invert-range archive.pack 47 1
+date + 1
+call backup unpack archive.pack copy
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Individual archived file header check values do not match
+endoutput
+list-verify .
+.          2014-01-05          2014-01-06 -A---- archive.pack [5]
+.                                         -----D copy\
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+
+
+module archive total integrity checking - not encrypted
+
+test create initial files
+date 2014-01-01
+mkdir source
+date + 1
+create source\a -size 1000
+date + 1
+create source\b -size 10000
+date + 1
+create source\c -size 1000
+date + 1
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [1]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+
+test corrupt last byte (CRC32) of file
+copy archive.pack archive2.pack
+date + 1
+# magic: corrupt last byte of file (part of trailing total-file CRC32)
+invert-range archive2.pack -1 1
+date + 1
+call backup unpack archive2.pack copy
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.File check values do not match - file is damaged
+endoutput
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [1]
+.          2014-01-05          2014-01-06 -A---- archive2.pack [5]
+.                                         -----D copy\
+.          2014-01-02          2014-01-02 -A---- copy\a [2]
+.          2014-01-03          2014-01-03 -A---- copy\b [3]
+.          2014-01-04          2014-01-04 -A---- copy\c [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+delete archive2.pack
+
+
+module archive total integrity checking - encrypted
+
+test create initial files
+date 2014-01-01
+mkdir source
+date + 1
+create source\a -size 1000
+date + 1
+create source\b -size 10000
+date + 1
+create source\c -size 1000
+date + 1
+call backup -date %DATE% -encrypt aes128 P1s5M0Rb pack source archive.pack
+exitcode-verify 0
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [1]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+
+test corrupt last byte (MAC) of file
+copy archive.pack archive2.pack
+date + 1
+# magic: corrupt last byte of file (part of sha256 HMAC check value)
+invert-range archive2.pack -1 1
+date + 1
+call backup -decrypt aes128 P1s5M0Rb unpack archive2.pack copy
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
+endoutput
+# files should not have been created
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [1]
+.          2014-01-05          2014-01-06 -A---- archive2.pack [5]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [2]
+.          2014-01-03          2014-01-03 -A---- source\b [3]
+.          2014-01-04          2014-01-04 -A---- source\c [4]
+endlist
+delete archive2.pack

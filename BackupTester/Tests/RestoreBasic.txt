@@ -1,0 +1,975 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module restore
+
+test setup
+date 2014-01-01
+mkdir source
+mkdir source\a
+mkdir source\b
+create source\a\x.txt
+date + 1
+create source\a\y.txt
+date + 1
+create source\b\m.txt
+date + 1
+create source\b\zero-len.txt -size 0
+mkdir archive
+list-verify .
+.                                         -----D archive\
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\y.txt [2]
+.                                         -----D source\b\
+.          2014-01-03          2014-01-03 -A---- source\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- source\b\zero-len.txt [0]
+endlist
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-05T00+00+00\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- archive\2014-01-05T00+00+00\a\y.txt [2]
+.                                         -----D archive\2014-01-05T00+00+00\b\
+.          2014-01-03          2014-01-03 -A---- archive\2014-01-05T00+00+00\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-05T00+00+00\b\zero-len.txt [0]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\y.txt [2]
+.                                         -----D source\b\
+.          2014-01-03          2014-01-03 -A---- source\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- source\b\zero-len.txt [0]
+endlist
+
+
+test restore invalid archive name 1
+mkdir target
+call backup -date %DATE% restore archive 2014-03-03T00+00+00 target
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-03-03T00+00+00" does not exist
+endoutput
+rmdir target
+
+test restore invalid archive name 2
+mkdir target
+call backup -date %DATE% restore archive invalid-date-string target
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Invalid archive point 'invalid-date-string'
+endoutput
+rmdir target
+
+
+test degenerate restore - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-01 -A---- t\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- t\a\y.txt [2]
+.                                         -----D t\b\
+.          2014-01-03          2014-01-03 -A---- t\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- t\b\zero-len.txt [0]
+endlist
+rmdir target
+
+test degenerate restore - subdirectory
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\a target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.          2014-01-01          2014-01-01 -A---- t\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- t\y.txt [2]
+endlist
+rmdir target
+
+test degenerate restore - individual file
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\a\y.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-02          2014-01-02 -A---- t [2]
+endlist
+rmdir target
+
+test degenerate restore - individual file, zero length
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-04          2014-01-04 -A--Z- t [0]
+endlist
+rmdir target
+
+
+test first modification
+date + 1
+edit source\a\x.txt
+date + 1
+create source\a\z.txt
+date + 1
+delete source\b\m.txt
+date + 1
+mkdir source\c
+create source\c\zero-len2.txt -size 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-05T00+00+00\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- archive\2014-01-05T00+00+00\a\y.txt [2]
+.                                         -----D archive\2014-01-05T00+00+00\b\
+.          2014-01-03          2014-01-03 -A---- archive\2014-01-05T00+00+00\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-05T00+00+00\b\zero-len.txt [0]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-10 -A---- source\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- source\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- source\a\z.txt [5]
+.                                         -----D source\b\
+.          2014-01-04          2014-01-04 -A--Z- source\b\zero-len.txt [0]
+.                                         -----D source\c\
+.          2014-01-13          2014-01-13 -A--Z- source\c\zero-len2.txt [0]
+endlist
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-05T00+00+00\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A--Z- archive\2014-01-05T00+00+00\a\y.txt [0]
+.                                         -----D archive\2014-01-05T00+00+00\b\
+.          2014-01-03          2014-01-03 -A---- archive\2014-01-05T00+00+00\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-05T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\
+.                                         -----D archive\2014-01-14T00+00+00\a\
+.          2014-01-01          2014-01-10 -A---- archive\2014-01-14T00+00+00\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- archive\2014-01-14T00+00+00\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- archive\2014-01-14T00+00+00\a\z.txt [5]
+.                                         -----D archive\2014-01-14T00+00+00\b\
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-14T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\c\
+.          2014-01-13          2014-01-13 -A--Z- archive\2014-01-14T00+00+00\c\zero-len2.txt [0]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-10 -A---- source\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- source\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- source\a\z.txt [5]
+.                                         -----D source\b\
+.          2014-01-04          2014-01-04 -A--Z- source\b\zero-len.txt [0]
+.                                         -----D source\c\
+.          2014-01-13          2014-01-13 -A--Z- source\c\zero-len2.txt [0]
+endlist
+
+test restore old - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-01 -A---- t\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- t\a\y.txt [2]
+.                                         -----D t\b\
+.          2014-01-03          2014-01-03 -A---- t\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- t\b\zero-len.txt [0]
+endlist
+rmdir target
+
+test restore old - subdirectory
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\a target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.          2014-01-01          2014-01-01 -A---- t\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- t\y.txt [2]
+endlist
+rmdir target
+
+test restore old - individual file
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\a\y.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-02          2014-01-02 -A---- t [2]
+endlist
+rmdir target
+
+test restore old - individual file, zero length
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-04          2014-01-04 -A--Z- t [0]
+endlist
+rmdir target
+
+test restore current - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-10 -A---- t\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- t\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- t\a\z.txt [5]
+.                                         -----D t\b\
+.          2014-01-04          2014-01-04 -A--Z- t\b\zero-len.txt [0]
+.                                         -----D t\c\
+.          2014-01-13          2014-01-13 -A--Z- t\c\zero-len2.txt [0]
+endlist
+rmdir target
+
+test restore current - subdirectory
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\a target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.          2014-01-01          2014-01-10 -A---- t\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- t\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- t\z.txt [5]
+endlist
+rmdir target
+
+test restore current - individual file (unchanged)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\y.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-02          2014-01-02 -A---- t [2]
+endlist
+rmdir target
+
+test restore current - individual file (new)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\z.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-11          2014-01-11 -A---- t [5]
+endlist
+rmdir target
+
+test restore current - individual file, zero length (old)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\zero-len.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-04          2014-01-04 -A--Z- t [0]
+endlist
+rmdir target
+
+test restore current - individual file, zero length (new)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\c\zero-len2.txt target\u
+exitcode-verify 0
+list-verify target
+.          2014-01-13          2014-01-13 -A--Z- u [0]
+endlist
+rmdir target
+
+test restore old - deleted file
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\m.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-03          2014-01-03 -A---- t [3]
+endlist
+rmdir target
+
+test restore current - deleted file (should fail)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\m.txt target\t
+exitcode-verify not 0
+list-verify target
+endlist
+rmdir target
+
+test second modification
+delete source\b\zero-len.txt
+delete source\a\y.txt
+delete source\a\z.txt
+date + 1
+edit source\a\x.txt
+date + 1
+create source\b\m.txt
+date + 1
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-05T00+00+00\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A--Z- archive\2014-01-05T00+00+00\a\y.txt [0]
+.                                         -----D archive\2014-01-05T00+00+00\b\
+.          2014-01-03          2014-01-03 -A---- archive\2014-01-05T00+00+00\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-05T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\
+.                                         -----D archive\2014-01-14T00+00+00\a\
+.          2014-01-01          2014-01-10 -A---- archive\2014-01-14T00+00+00\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- archive\2014-01-14T00+00+00\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- archive\2014-01-14T00+00+00\a\z.txt [5]
+.                                         -----D archive\2014-01-14T00+00+00\b\
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-14T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\c\
+.          2014-01-13          2014-01-13 -A--Z- archive\2014-01-14T00+00+00\c\zero-len2.txt [0]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-27 -A---- source\a\x.txt [6]
+.                                         -----D source\b\
+.          2014-01-28          2014-01-28 -A---- source\b\m.txt [7]
+.                                         -----D source\c\
+.          2014-01-13          2014-01-13 -A--Z- source\c\zero-len2.txt [0]
+endlist
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-05T00+00+00\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A--Z- archive\2014-01-05T00+00+00\a\y.txt [0]
+.                                         -----D archive\2014-01-05T00+00+00\b\
+.          2014-01-03          2014-01-03 -A---- archive\2014-01-05T00+00+00\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-05T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\
+.                                         -----D archive\2014-01-14T00+00+00\a\
+.          2014-01-01          2014-01-10 -A---- archive\2014-01-14T00+00+00\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- archive\2014-01-14T00+00+00\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- archive\2014-01-14T00+00+00\a\z.txt [5]
+.                                         -----D archive\2014-01-14T00+00+00\b\
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-14T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\c\
+.          2014-01-13          2014-01-13 -A--Z- archive\2014-01-14T00+00+00\c\zero-len2.txt [0]
+.                                         -----D archive\2014-01-29T00+00+00\
+.                                         -----D archive\2014-01-29T00+00+00\a\
+.          2014-01-01          2014-01-27 -A---- archive\2014-01-29T00+00+00\a\x.txt [6]
+.                                         -----D archive\2014-01-29T00+00+00\b\
+.          2014-01-28          2014-01-28 -A---- archive\2014-01-29T00+00+00\b\m.txt [7]
+.                                         -----D archive\2014-01-29T00+00+00\c\
+.          2014-01-13          2014-01-13 -A--Z- archive\2014-01-29T00+00+00\c\zero-len2.txt [0]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-27 -A---- source\a\x.txt [6]
+.                                         -----D source\b\
+.          2014-01-28          2014-01-28 -A---- source\b\m.txt [7]
+.                                         -----D source\c\
+.          2014-01-13          2014-01-13 -A--Z- source\c\zero-len2.txt [0]
+endlist
+
+test restore old - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-01 -A---- t\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- t\a\y.txt [2]
+.                                         -----D t\b\
+.          2014-01-03          2014-01-03 -A---- t\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- t\b\zero-len.txt [0]
+endlist
+rmdir target
+
+test restore old - subdirectory
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\a target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.          2014-01-01          2014-01-01 -A---- t\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- t\y.txt [2]
+endlist
+rmdir target
+
+test restore old - individual file
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\a\y.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-02          2014-01-02 -A---- t [2]
+endlist
+rmdir target
+
+test restore old - individual file, zero length
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-04          2014-01-04 -A--Z- t [0]
+endlist
+rmdir target
+
+test restore intermediate - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-10 -A---- t\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- t\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- t\a\z.txt [5]
+.                                         -----D t\b\
+.          2014-01-04          2014-01-04 -A--Z- t\b\zero-len.txt [0]
+.                                         -----D t\c\
+.          2014-01-13          2014-01-13 -A--Z- t\c\zero-len2.txt [0]
+endlist
+rmdir target
+
+test restore intermediate - subdirectory
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\a target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.          2014-01-01          2014-01-10 -A---- t\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- t\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- t\z.txt [5]
+endlist
+rmdir target
+
+test restore intermediate - individual file (unchanged)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\y.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-02          2014-01-02 -A---- t [2]
+endlist
+rmdir target
+
+test restore intermediate - individual file (new)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\z.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-11          2014-01-11 -A---- t [5]
+endlist
+rmdir target
+
+test restore intermediate - individual file, zero length (old)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\zero-len.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-04          2014-01-04 -A--Z- t [0]
+endlist
+rmdir target
+
+test restore intermediate - individual file, zero length (new)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\c\zero-len2.txt target\u
+exitcode-verify 0
+list-verify target
+.          2014-01-13          2014-01-13 -A--Z- u [0]
+endlist
+rmdir target
+
+test restore old - deleted file
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\m.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-03          2014-01-03 -A---- t [3]
+endlist
+rmdir target
+
+test restore intermediate - deleted file (should fail)
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\m.txt target\t
+exitcode-verify not 0
+list-verify target
+endlist
+rmdir target
+
+test restore current - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-29T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-27 -A---- t\a\x.txt [6]
+.                                         -----D t\b\
+.          2014-01-28          2014-01-28 -A---- t\b\m.txt [7]
+.                                         -----D t\c\
+.          2014-01-13          2014-01-13 -A--Z- t\c\zero-len2.txt [0]
+endlist
+rmdir target
+
+test restore current - subdirectory
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-29T00+00+00\a target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.          2014-01-01          2014-01-27 -A---- t\x.txt [6]
+endlist
+rmdir target
+
+test restore current - individual file
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-29T00+00+00\b\m.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-28          2014-01-28 -A---- t [7]
+endlist
+rmdir target
+
+test restore current - individual file, zero length
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-29T00+00+00\c\zero-len2.txt target\t
+exitcode-verify 0
+list-verify target
+.          2014-01-13          2014-01-13 -A--Z- t [0]
+endlist
+rmdir target
+
+
+# to expose zero length file design flaw
+
+test changes to zero length files
+date + 1
+#edit non zero length to zero length
+edit source\a\x.txt -size 0
+date + 1
+#edit zero length to non zero length
+edit source\c\zero-len2.txt
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-05T00+00+00\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A--Z- archive\2014-01-05T00+00+00\a\y.txt [0]
+.                                         -----D archive\2014-01-05T00+00+00\b\
+.          2014-01-03          2014-01-03 -A---- archive\2014-01-05T00+00+00\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-05T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\
+.                                         -----D archive\2014-01-14T00+00+00\a\
+.          2014-01-01          2014-01-10 -A---- archive\2014-01-14T00+00+00\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- archive\2014-01-14T00+00+00\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- archive\2014-01-14T00+00+00\a\z.txt [5]
+.                                         -----D archive\2014-01-14T00+00+00\b\
+.          2014-01-04          2014-01-04 -A--Z- archive\2014-01-14T00+00+00\b\zero-len.txt [0]
+.                                         -----D archive\2014-01-14T00+00+00\c\
+.          2014-01-13          2014-01-13 -A--Z- archive\2014-01-14T00+00+00\c\zero-len2.txt [0]
+.                                         -----D archive\2014-01-29T00+00+00\
+.                                         -----D archive\2014-01-29T00+00+00\a\
+.          2014-01-01          2014-01-27 -A---- archive\2014-01-29T00+00+00\a\x.txt [6]
+.                                         -----D archive\2014-01-29T00+00+00\b\
+.          2014-01-28          2014-01-28 -A--Z- archive\2014-01-29T00+00+00\b\m.txt [0]
+.                                         -----D archive\2014-01-29T00+00+00\c\
+.          2014-01-13          2014-01-13 -A--Z- archive\2014-01-29T00+00+00\c\zero-len2.txt [0]
+.                                         -----D archive\2014-02-17T00+00+00\
+.                                         -----D archive\2014-02-17T00+00+00\a\
+.          2014-01-01          2014-02-15 -A--Z- archive\2014-02-17T00+00+00\a\x.txt [0]
+.                                         -----D archive\2014-02-17T00+00+00\b\
+.          2014-01-28          2014-01-28 -A---- archive\2014-02-17T00+00+00\b\m.txt [7]
+.                                         -----D archive\2014-02-17T00+00+00\c\
+.          2014-01-13          2014-02-16 -A---- archive\2014-02-17T00+00+00\c\zero-len2.txt [8]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-02-15 -A--Z- source\a\x.txt [0]
+.                                         -----D source\b\
+.          2014-01-28          2014-01-28 -A---- source\b\m.txt [7]
+.                                         -----D source\c\
+.          2014-01-13          2014-02-16 -A---- source\c\zero-len2.txt [8]
+endlist
+
+test restore current - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-02-17T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-02-15 -A--Z- t\a\x.txt [0]
+.                                         -----D t\b\
+.          2014-01-28          2014-01-28 -A---- t\b\m.txt [7]
+.                                         -----D t\c\
+.          2014-01-13          2014-02-16 -A---- t\c\zero-len2.txt [8]
+endlist
+rmdir target
+
+test restore previous - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-29T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-27 -A---- t\a\x.txt [6]
+.                                         -----D t\b\
+.          2014-01-28          2014-01-28 -A---- t\b\m.txt [7]
+.                                         -----D t\c\
+# BUGBUG this was an actual zero length file, but restore treats it as a continuation to the next (current) archive point
+# result should be:
+#.          2014-01-13          2014-01-13 -A--Z- t\c\zero-len2.txt [0]
+# result actually is:
+.          2014-01-13          2014-02-16 -A---- t\c\zero-len2.txt [8]
+endlist
+rmdir target
+
+test restore next previous - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-10 -A---- t\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- t\a\y.txt [2]
+.          2014-01-11          2014-01-11 -A---- t\a\z.txt [5]
+.                                         -----D t\b\
+.          2014-01-04          2014-01-04 -A--Z- t\b\zero-len.txt [0]
+.                                         -----D t\c\
+# BUGBUG this was an actual zero length file, but restore treats it as a continuation to the next archive point
+# result should be:
+#.          2014-01-13          2014-01-13 -A--Z- t\c\zero-len2.txt [0]
+# result actually is:
+.          2014-01-13          2014-02-16 -A---- t\c\zero-len2.txt [8]
+endlist
+rmdir target
+
+test restore oldest - full
+mkdir target
+date + 1
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+exitcode-verify 0
+list-verify target
+.                                         -----D t\
+.                                         -----D t\a\
+.          2014-01-01          2014-01-01 -A---- t\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- t\a\y.txt [2]
+.                                         -----D t\b\
+.          2014-01-03          2014-01-03 -A---- t\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- t\b\zero-len.txt [0]
+endlist
+rmdir target
+
+
+module zero length file test
+
+test setup
+date 2014-01-01
+mkdir source
+mkdir archive
+create source\zlen
+date + 1
+edit source\zlen -size 0
+date + 1
+list-verify .
+.                                         -----D archive\
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+endlist
+
+test zero length file copy
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-04T00+00+00\
+.          2014-01-01          2014-01-02 -A--Z- archive\2014-01-04T00+00+00\zlen [0]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+endlist
+call backup -date %DATE% restore archive 2014-01-04T00+00+00 target
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-04T00+00+00\
+.          2014-01-01          2014-01-02 -A--Z- archive\2014-01-04T00+00+00\zlen [0]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+.                                         -----D target\
+.          2014-01-01          2014-01-02 -A--Z- target\zlen [0]
+endlist
+rmdir archive
+mkdir archive
+rmdir target
+
+test zero length file copy - compressed
+date + 1
+call backup -date %DATE% -compress backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.          2014-01-01          2014-01-02 -A--Z- archive\2014-01-05T00+00+00\zlen [0]
+.          2014-01-05          2014-01-05 -A--Z- archive\nocheckc.bin [0]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+endlist
+call backup -date %DATE% -decompress restore archive 2014-01-05T00+00+00 target
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-05T00+00+00\
+.          2014-01-01          2014-01-02 -A--Z- archive\2014-01-05T00+00+00\zlen [0]
+.          2014-01-05          2014-01-05 -A--Z- archive\nocheckc.bin [0]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+.                                         -----D target\
+.          2014-01-01          2014-01-02 -A--Z- target\zlen [0]
+endlist
+rmdir archive
+mkdir archive
+rmdir target
+
+test zero length file copy - encrypted
+date + 1
+call backup -date %DATE% -encrypt aes128 p0sswArd backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-06T00+00+00\
+.          2014-01-01          2014-01-02 -A---- archive\2014-01-06T00+00+00\zlen [1]
+.          2014-01-06          2014-01-06 -A---- archive\check.bin [2]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+endlist
+call backup -date %DATE% -decrypt aes128 p0sswArd restore archive 2014-01-06T00+00+00 target
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-06T00+00+00\
+.          2014-01-01          2014-01-02 -A---- archive\2014-01-06T00+00+00\zlen [1]
+.          2014-01-06          2014-01-06 -A---- archive\check.bin [2]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+.                                         -----D target\
+.          2014-01-01          2014-01-02 -A--Z- target\zlen [0]
+endlist
+rmdir archive
+mkdir archive
+rmdir target
+
+test zero length file copy - encrypted and compressed
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 p0sswArd backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-07T00+00+00\
+.          2014-01-01          2014-01-02 -A---- archive\2014-01-07T00+00+00\zlen [3]
+.          2014-01-07          2014-01-07 -A---- archive\checkc.bin [4]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+endlist
+call backup -date %DATE% -decompress -decrypt aes128 p0sswArd restore archive 2014-01-07T00+00+00 target
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-07T00+00+00\
+.          2014-01-01          2014-01-02 -A---- archive\2014-01-07T00+00+00\zlen [3]
+.          2014-01-07          2014-01-07 -A---- archive\checkc.bin [4]
+.                                         -----D source\
+.          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
+.                                         -----D target\
+.          2014-01-01          2014-01-02 -A--Z- target\zlen [0]
+endlist
+rmdir archive
+mkdir archive
+rmdir target
+
+
+module directory discontinuity zero length file bleed-through
+
+# bug documented in code:
+# note: if a directory existed in checkpoint 1, then was removed in checkpoint 2,
+# and a new one created of same name in checkpoint 3, when checkpoint 2 is purged
+# that information is lost. if checkpoint 3 is subsequently purged, any zero-length
+# items in checkpoint 1 will erroneously receive propagation from checkpoint 3.
+
+test setup
+date 2014-01-01
+mkdir source
+mkdir source\a
+create source\a\zlen.txt -size 0
+date + 1
+mkdir archive
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.                                         -----D archive\2014-01-02T00+00+00\a\
+.          2014-01-01          2014-01-01 -A--Z- archive\2014-01-02T00+00+00\a\zlen.txt [0]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A--Z- source\a\zlen.txt [0]
+endlist
+
+test remove directory
+rmdir source\a
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.                                         -----D archive\2014-01-02T00+00+00\a\
+.          2014-01-01          2014-01-01 -A--Z- archive\2014-01-02T00+00+00\a\zlen.txt [0]
+.                                         -----D archive\2014-01-03T00+00+00\
+.                                         -----D source\
+endlist
+
+test recreate directory
+mkdir source\a
+date + 1
+create source\a\zlen.txt
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.                                         -----D archive\2014-01-02T00+00+00\a\
+.          2014-01-01          2014-01-01 -A--Z- archive\2014-01-02T00+00+00\a\zlen.txt [0]
+.                                         -----D archive\2014-01-03T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-04          2014-01-04 -A---- archive\2014-01-05T00+00+00\a\zlen.txt [1]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-04          2014-01-04 -A---- source\a\zlen.txt [1]
+endlist
+
+test final removal
+rmdir source\a
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.                                         -----D archive\2014-01-02T00+00+00\a\
+.          2014-01-01          2014-01-01 -A--Z- archive\2014-01-02T00+00+00\a\zlen.txt [0]
+.                                         -----D archive\2014-01-03T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\a\
+.          2014-01-04          2014-01-04 -A---- archive\2014-01-05T00+00+00\a\zlen.txt [1]
+.                                         -----D archive\2014-01-06T00+00+00\
+.                                         -----D source\
+endlist
+
+test verify checkpoints 1 and 3 before purge
+date + 1
+call backup -date %DATE% restore archive 2014-01-02T00+00+00 target1
+exitcode-verify 0
+list-verify target1
+.                                         -----D a\
+.          2014-01-01          2014-01-01 -A--Z- a\zlen.txt [0]
+endlist
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target2
+exitcode-verify 0
+list-verify target2
+.                                         -----D a\
+.          2014-01-04          2014-01-04 -A---- a\zlen.txt [1]
+endlist
+rmdir target1
+rmdir target2
+
+test purge 2 and re-verify
+date + 1
+call backup -date %DATE% purge archive 2014-01-02T00+00+00 2014-01-05T00+00+00
+exitcode-verify 0
+date + 1
+call backup -date %DATE% restore archive 2014-01-02T00+00+00 target3
+exitcode-verify 0
+list-verify target3
+.                                         -----D a\
+# bug begins to show here
+# expected:
+#.          2014-01-01          2014-01-01 -A--Z- a\zlen.txt [0]
+# actual:
+.          2014-01-04          2014-01-04 -A---- a\zlen.txt [1]
+endlist
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target4
+exitcode-verify 0
+list-verify target4
+.                                         -----D a\
+.          2014-01-04          2014-01-04 -A---- a\zlen.txt [1]
+endlist
+rmdir target3
+rmdir target4
+
+test purge 3
+date + 1
+call backup -date %DATE% purge archive 2014-01-02T00+00+00 2014-01-06T00+00+00
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.                                         -----D archive\2014-01-02T00+00+00\a\
+# bug shows here
+# expected:
+#.          2014-01-01          2014-01-01 -A--Z- archive\2014-01-02T00+00+00\a\zlen.txt [0]
+# actual:
+.          2014-01-01          2014-01-04 -A---- archive\2014-01-02T00+00+00\a\zlen.txt [1]
+.                                         -----D archive\2014-01-06T00+00+00\
+.                                         -----D source\
+endlist

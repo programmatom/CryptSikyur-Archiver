@@ -1,0 +1,197 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module encryption roundtrip
+
+test setup
+date 2014-01-01
+mkdir source
+create source\file -size 50000
+date + 1
+list-verify .
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+endlist
+
+test aes128
+mkdir archive
+call backup -date %DATE% -encrypt aes128 PvssM01d backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [2]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [3]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+endlist
+call backup -date %DATE% -encrypt aes128 PvssM01d verify source archive
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 PvssM01d restore archive 2014-01-02T00+00+00 target1
+exitcode-verify 0
+dirs-equal-verify source target1
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [2]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [3]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+.                                         -----D target1\
+.          2014-01-01          2014-01-01 -A---- target1\file [1]
+endlist
+rmdir archive
+rmdir target1
+
+test 3des
+mkdir archive
+call backup -date %DATE% -encrypt 3des pA55w0Rd backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [4]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [5]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+endlist
+call backup -date %DATE% -encrypt 3des pA55w0Rd verify source archive
+exitcode-verify 0
+call backup -date %DATE% -decrypt 3des pA55w0Rd restore archive 2014-01-02T00+00+00 target2
+exitcode-verify 0
+dirs-equal-verify source target2
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [4]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [5]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+.                                         -----D target2\
+.          2014-01-01          2014-01-01 -A---- target2\file [1]
+endlist
+rmdir archive
+rmdir target2
+
+test 3fish
+mkdir archive
+call backup -date %DATE% -encrypt 3fish1024 5w01df15H backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [6]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+endlist
+call backup -date %DATE% -encrypt 3fish1024 5w01df15H verify source archive
+exitcode-verify 0
+call backup -date %DATE% -decrypt 3fish1024 5w01df15H restore archive 2014-01-02T00+00+00 target3
+exitcode-verify 0
+dirs-equal-verify source target3
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [6]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+.                                         -----D target3\
+.          2014-01-01          2014-01-01 -A---- target3\file [1]
+endlist
+rmdir archive
+rmdir target3
+
+test serpent
+mkdir archive
+call backup -date %DATE% -encrypt serpent256 PA5sW1rD backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [8]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [9]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+endlist
+call backup -date %DATE% -encrypt serpent256 PA5sW1rD verify source archive
+exitcode-verify 0
+call backup -date %DATE% -decrypt serpent256 PA5sW1rD restore archive 2014-01-02T00+00+00 target4
+exitcode-verify 0
+dirs-equal-verify source target4
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-02T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [8]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [9]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+.                                         -----D target4\
+.          2014-01-01          2014-01-01 -A---- target4\file [1]
+endlist
+rmdir archive
+rmdir target4
+
+
+module encryption key interactive mode
+
+test setup
+date 2014-01-01
+create input -size 50000
+date + 1
+list-verify .
+.          2014-01-01          2014-01-01 -A---- input [1]
+endlist
+
+test encrypt password prompt
+call-with-input backup -date %DATE% -encrypt aes128 \"\" copy input input1.e
+.PvssM01d
+endinput
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 PvssM01d copy input1.e output1
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- input [1]
+.          2014-01-01          2014-01-01 -A---- input1.e [2]
+.          2014-01-01          2014-01-01 -A---- output1 [1]
+endlist
+delete input1.e
+delete output1
+
+test decrypt password prompt
+call backup -date %DATE% -encrypt aes128 pA55w0Rd copy input input2.e
+exitcode-verify 0
+call-with-input backup -date %DATE% -decrypt aes128 \"\" copy input2.e output2
+.pA55w0Rd
+endinput
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- input [1]
+.          2014-01-01          2014-01-01 -A---- input2.e [3]
+.          2014-01-01          2014-01-01 -A---- output2 [1]
+endlist
+delete input2.e
+delete output2
+
+test recrypt password prompt
+call backup -date %DATE% -encrypt aes128 pA55w0Rd copy input input3.e
+exitcode-verify 0
+call-with-input backup -date %DATE% -recrypt aes128 \"\" aes128 \"\" copy input3.e input4.e
+.pA55w0Rd
+.5w01df15H
+endinput
+exitcode-verify 0
+call backup -date %DATE% -decrypt aes128 5w01df15H copy input4.e output3
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- input [1]
+.          2014-01-01          2014-01-01 -A---- input3.e [4]
+.          2014-01-01          2014-01-01 -A---- input4.e [5]
+.          2014-01-01          2014-01-01 -A---- output3 [1]
+endlist

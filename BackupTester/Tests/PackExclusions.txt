@@ -1,0 +1,280 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module degenerate test
+
+mkdir source
+
+test null test
+date 2014-01-01
+mkdir source
+date + 1
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+call backup unpack archive.pack target
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.pack [1]
+.                                         -----D source\
+.                                         -----D target\
+endlist
+rmdir target
+
+test create content, pack all
+date + 1
+create source\one.txt
+create source\two.foo
+create source\three.bar
+mkdir source\m
+date + 1
+create source\m\four.txt
+create source\m\five.foo
+create source\m\six.bar
+mkdir source\n
+date + 1
+create source\n\seven.txt
+create source\n\eight.foo
+create source\n\nine.bar
+mkdir source\o
+date + 1
+create source\o\ten.txt
+create source\o\eleven.foo
+create source\o\twelve.bar
+qlist .
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-08          2014-01-08 -A---- archive.pack [14]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-05          2014-01-05 -A---- source\m\five.foo [2]
+.          2014-01-05          2014-01-05 -A---- source\m\four.txt [3]
+.          2014-01-05          2014-01-05 -A---- source\m\six.bar [4]
+.                                         -----D source\n\
+.          2014-01-06          2014-01-06 -A---- source\n\eight.foo [5]
+.          2014-01-06          2014-01-06 -A---- source\n\nine.bar [6]
+.          2014-01-06          2014-01-06 -A---- source\n\seven.txt [7]
+.                                         -----D source\o\
+.          2014-01-07          2014-01-07 -A---- source\o\eleven.foo [8]
+.          2014-01-07          2014-01-07 -A---- source\o\ten.txt [9]
+.          2014-01-07          2014-01-07 -A---- source\o\twelve.bar [10]
+.          2014-01-04          2014-01-04 -A---- source\one.txt [11]
+.          2014-01-04          2014-01-04 -A---- source\three.bar [12]
+.          2014-01-04          2014-01-04 -A---- source\two.foo [13]
+endlist
+date + 1
+call backup unpack archive.pack target
+exitcode-verify 0
+list-verify target
+.                                         -----D m\
+.          2014-01-05          2014-01-05 -A---- m\five.foo [2]
+.          2014-01-05          2014-01-05 -A---- m\four.txt [3]
+.          2014-01-05          2014-01-05 -A---- m\six.bar [4]
+.                                         -----D n\
+.          2014-01-06          2014-01-06 -A---- n\eight.foo [5]
+.          2014-01-06          2014-01-06 -A---- n\nine.bar [6]
+.          2014-01-06          2014-01-06 -A---- n\seven.txt [7]
+.                                         -----D o\
+.          2014-01-07          2014-01-07 -A---- o\eleven.foo [8]
+.          2014-01-07          2014-01-07 -A---- o\ten.txt [9]
+.          2014-01-07          2014-01-07 -A---- o\twelve.bar [10]
+.          2014-01-04          2014-01-04 -A---- one.txt [11]
+.          2014-01-04          2014-01-04 -A---- three.bar [12]
+.          2014-01-04          2014-01-04 -A---- two.foo [13]
+endlist
+rmdir target
+
+test pack exclusions 1
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack -exclude source\n
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-11          2014-01-11 -A---- archive.pack [15]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-05          2014-01-05 -A---- source\m\five.foo [2]
+.          2014-01-05          2014-01-05 -A---- source\m\four.txt [3]
+.          2014-01-05          2014-01-05 -A---- source\m\six.bar [4]
+.                                         -----D source\n\
+.          2014-01-06          2014-01-06 -A---- source\n\eight.foo [5]
+.          2014-01-06          2014-01-06 -A---- source\n\nine.bar [6]
+.          2014-01-06          2014-01-06 -A---- source\n\seven.txt [7]
+.                                         -----D source\o\
+.          2014-01-07          2014-01-07 -A---- source\o\eleven.foo [8]
+.          2014-01-07          2014-01-07 -A---- source\o\ten.txt [9]
+.          2014-01-07          2014-01-07 -A---- source\o\twelve.bar [10]
+.          2014-01-04          2014-01-04 -A---- source\one.txt [11]
+.          2014-01-04          2014-01-04 -A---- source\three.bar [12]
+.          2014-01-04          2014-01-04 -A---- source\two.foo [13]
+endlist
+date + 1
+call backup unpack archive.pack target
+exitcode-verify 0
+list-verify target
+.                                         -----D m\
+.          2014-01-05          2014-01-05 -A---- m\five.foo [2]
+.          2014-01-05          2014-01-05 -A---- m\four.txt [3]
+.          2014-01-05          2014-01-05 -A---- m\six.bar [4]
+.                                         -----D o\
+.          2014-01-07          2014-01-07 -A---- o\eleven.foo [8]
+.          2014-01-07          2014-01-07 -A---- o\ten.txt [9]
+.          2014-01-07          2014-01-07 -A---- o\twelve.bar [10]
+.          2014-01-04          2014-01-04 -A---- one.txt [11]
+.          2014-01-04          2014-01-04 -A---- three.bar [12]
+.          2014-01-04          2014-01-04 -A---- two.foo [13]
+endlist
+rmdir target
+
+test pack exclusions 2
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack -skip .foo
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-14          2014-01-14 -A---- archive.pack [16]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-05          2014-01-05 -A---- source\m\five.foo [2]
+.          2014-01-05          2014-01-05 -A---- source\m\four.txt [3]
+.          2014-01-05          2014-01-05 -A---- source\m\six.bar [4]
+.                                         -----D source\n\
+.          2014-01-06          2014-01-06 -A---- source\n\eight.foo [5]
+.          2014-01-06          2014-01-06 -A---- source\n\nine.bar [6]
+.          2014-01-06          2014-01-06 -A---- source\n\seven.txt [7]
+.                                         -----D source\o\
+.          2014-01-07          2014-01-07 -A---- source\o\eleven.foo [8]
+.          2014-01-07          2014-01-07 -A---- source\o\ten.txt [9]
+.          2014-01-07          2014-01-07 -A---- source\o\twelve.bar [10]
+.          2014-01-04          2014-01-04 -A---- source\one.txt [11]
+.          2014-01-04          2014-01-04 -A---- source\three.bar [12]
+.          2014-01-04          2014-01-04 -A---- source\two.foo [13]
+endlist
+date + 1
+call backup unpack archive.pack target
+exitcode-verify 0
+list-verify target
+.                                         -----D m\
+.          2014-01-05          2014-01-05 -A---- m\four.txt [3]
+.          2014-01-05          2014-01-05 -A---- m\six.bar [4]
+.                                         -----D n\
+.          2014-01-06          2014-01-06 -A---- n\nine.bar [6]
+.          2014-01-06          2014-01-06 -A---- n\seven.txt [7]
+.                                         -----D o\
+.          2014-01-07          2014-01-07 -A---- o\ten.txt [9]
+.          2014-01-07          2014-01-07 -A---- o\twelve.bar [10]
+.          2014-01-04          2014-01-04 -A---- one.txt [11]
+.          2014-01-04          2014-01-04 -A---- three.bar [12]
+endlist
+rmdir target
+
+test pack exclusions 3
+date + 1
+delete archive.pack
+call backup -date %DATE% pack source archive.pack -exclude source\n -skip .foo -exclude source\m -skip .bar
+exitcode-verify 0
+date + 1
+list-verify .
+.          2014-01-17          2014-01-17 -A---- archive.pack [17]
+.                                         -----D source\
+.                                         -----D source\m\
+.          2014-01-05          2014-01-05 -A---- source\m\five.foo [2]
+.          2014-01-05          2014-01-05 -A---- source\m\four.txt [3]
+.          2014-01-05          2014-01-05 -A---- source\m\six.bar [4]
+.                                         -----D source\n\
+.          2014-01-06          2014-01-06 -A---- source\n\eight.foo [5]
+.          2014-01-06          2014-01-06 -A---- source\n\nine.bar [6]
+.          2014-01-06          2014-01-06 -A---- source\n\seven.txt [7]
+.                                         -----D source\o\
+.          2014-01-07          2014-01-07 -A---- source\o\eleven.foo [8]
+.          2014-01-07          2014-01-07 -A---- source\o\ten.txt [9]
+.          2014-01-07          2014-01-07 -A---- source\o\twelve.bar [10]
+.          2014-01-04          2014-01-04 -A---- source\one.txt [11]
+.          2014-01-04          2014-01-04 -A---- source\three.bar [12]
+.          2014-01-04          2014-01-04 -A---- source\two.foo [13]
+endlist
+date + 1
+call backup unpack archive.pack target
+exitcode-verify 0
+list-verify target
+.                                         -----D o\
+.          2014-01-07          2014-01-07 -A---- o\ten.txt [9]
+.          2014-01-04          2014-01-04 -A---- one.txt [11]
+endlist
+rmdir target
+
+
+module skipped extensions not applied to directory names
+
+test create content and backup, excluding .foo
+date 2010-01-01
+mkdir source
+date + 1
+create source\m.txt
+date + 1
+create source\n.foo
+date + 1
+mkdir source\C.foo
+date + 1
+create source\C.foo\q.txt
+date + 1
+create source\C.foo\r.foo
+date + 1
+qlist .
+call backup -date %DATE% pack source archive.pack -skip .foo
+exitcode-verify 0
+call backup -date %DATE% unpack archive.pack target
+exitcode-verify 0
+list-verify .
+.          2010-01-07          2010-01-07 -A---- archive.pack [5]
+.                                         -----D source\
+.                                         -----D source\C.foo\
+.          2010-01-05          2010-01-05 -A---- source\C.foo\q.txt [1]
+.          2010-01-06          2010-01-06 -A---- source\C.foo\r.foo [2]
+.          2010-01-02          2010-01-02 -A---- source\m.txt [3]
+.          2010-01-03          2010-01-03 -A---- source\n.foo [4]
+.                                         -----D target\
+.                                         -----D target\C.foo\
+.          2010-01-05          2010-01-05 -A---- target\C.foo\q.txt [1]
+.          2010-01-02          2010-01-02 -A---- target\m.txt [3]
+endlist
+
+
+module excluded file (not directory) item
+
+test excluded file (not directory) item
+date 2014-01-01
+mkdir source
+date + 1
+create source\m.txt
+date + 1
+create source\n.foo
+date + 1
+create source\o.bar
+date + 1
+qlist .
+call backup -date %DATE% pack source archive.pack -exclude source\n.foo
+exitcode-verify 0
+call backup -date %DATE% unpack archive.pack target
+exitcode-verify 0
+list-verify .
+.          2014-01-05          2014-01-05 -A---- archive.pack [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\m.txt [1]
+.          2014-01-03          2014-01-03 -A---- source\n.foo [2]
+.          2014-01-04          2014-01-04 -A---- source\o.bar [3]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\m.txt [1]
+.          2014-01-04          2014-01-04 -A---- target\o.bar [3]
+endlist

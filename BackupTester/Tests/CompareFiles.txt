@@ -1,0 +1,338 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module one file tests
+
+test unity file test
+date 2014-01-01
+create foo
+call backup compare foo foo
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [1]
+endlist
+
+test same file test
+copy foo bar
+call backup compare foo bar
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [1]
+.          2014-01-01          2014-01-01 -A---- foo [1]
+endlist
+
+test different file test
+create baz
+call backup compare foo baz
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [1]
+.          2014-01-01          2014-01-01 -A---- baz [2]
+.          2014-01-01          2014-01-01 -A---- foo [1]
+endlist
+
+
+module compression tests
+
+test compressed file test - same
+date 2014-01-01
+create foo -size 1048576
+call backup -compress copy foo foo.z
+exitcode-verify 0
+call backup -compress compare foo foo.z
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.z [2]
+endlist
+
+test decompressed file test - same
+create bar
+call backup -decompress compare foo.z foo
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [3]
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.z [2]
+endlist
+
+test compressed file test - different
+delete bar
+invert-range foo 1000000 1
+call backup -compress compare foo foo.z
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.z [2]
+endlist
+
+test decompressed file test - different
+create bar
+call backup -decompress compare foo.z foo
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [5]
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.z [2]
+endlist
+
+
+module encryption tests
+
+test encrypted file test - same
+date 2014-01-01
+create foo -size 1048576
+call backup -encrypt aes128 PAsSw0rD copy foo foo.e
+exitcode-verify 0
+call backup -encrypt aes128 PAsSw0rD compare foo foo.e
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.e [2]
+endlist
+
+test decrypted file test - same
+create bar
+call backup -decrypt aes128 PAsSw0rD compare foo.e foo
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [3]
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.e [2]
+endlist
+
+test encrypted file test - different
+delete bar
+invert-range foo 1000000 1
+call backup -encrypt aes128 PAsSw0rD compare foo foo.e
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.e [2]
+endlist
+
+test decrypted file test - different
+create bar
+call backup -decrypt aes128 PAsSw0rD compare foo.e foo
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [5]
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.e [2]
+endlist
+
+test recrypted compare - different
+delete bar
+call backup -encrypt 3des sW0rDf1sh copy foo bar.e
+exitcode-verify 0
+call backup -recrypt aes128 PAsSw0rD 3des sW0rDf1sh compare foo.e bar.e
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar.e [6]
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.e [2]
+endlist
+
+test recrypted compare - same
+delete foo.e
+call backup -encrypt aes128 PAsSw0rD copy foo foo.e
+exitcode-verify 0
+call backup -recrypt aes128 PAsSw0rD 3des sW0rDf1sh compare foo.e bar.e
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar.e [6]
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.e [7]
+endlist
+
+
+module compression and encryption tests
+
+test compressed/encrypted file test - same
+date 2014-01-01
+create foo -size 1048576
+call backup -compress -encrypt aes128 PAsSw0rD copy foo foo.z.e
+exitcode-verify 0
+call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist
+
+test decompressed/decrypted file test - same
+create bar
+call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [3]
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist
+
+test compressed/encrypted file test - different
+delete bar
+invert-range foo 1000000 1
+call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist
+
+test decompressed/decrypted file test - different
+create bar
+call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [5]
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist
+
+
+module file and directory
+
+test left file right directory
+date 2014-01-01
+create left
+mkdir right
+call backup compare left right
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- left [1]
+.                                         -----D right\
+endlist
+
+
+module directory and file
+
+test left directory right file
+date 2014-01-01
+mkdir left
+create right
+call backup compare left right
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.                                         -----D left\
+.          2014-01-01          2014-01-01 -A---- right [1]
+endlist
+
+
+module large file tests
+
+test compressed/encrypted file test - same
+date 2014-01-01
+create foo -size 15728640
+call backup -compress -encrypt aes128 PAsSw0rD copy foo foo.z.e
+exitcode-verify 0
+call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist
+
+test decompressed/decrypted file test - different
+create bar
+call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+exitcode-verify 0
+lastoutput-verify
+.Identical
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [3]
+.          2014-01-01          2014-01-01 -A---- foo [1]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist
+
+test compressed/encrypted file test - different
+delete bar
+invert-range foo 7124321 1
+call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist
+
+test decompressed/decrypted file test - different
+create bar
+call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+exitcode-verify not 0
+lastoutput-verify
+.Different
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- bar [5]
+.          2014-01-01          2014-01-01 -A---- foo [4]
+.          2014-01-01          2014-01-01 -A---- foo.z.e [2]
+endlist

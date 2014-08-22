@@ -1,0 +1,57 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module pack attributes
+
+test null test
+date 2014-01-01
+mkdir source
+create source\a
+create source\b
+attrib source\b +r
+create source\c
+attrib source\c +h
+create source\d
+attrib source\d +s
+create source\e
+attrib source\e +r +h +s
+create source\f
+attrib source\f -a
+date + 1
+list-verify .
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 RA---- source\b [2]
+.          2014-01-01          2014-01-01 -AH--- source\c [3]
+.          2014-01-01          2014-01-01 -A-S-- source\d [4]
+.          2014-01-01          2014-01-01 RAHS-- source\e [5]
+.          2014-01-01          2014-01-01 ------ source\f [6]
+endlist
+call backup -date %DATE% pack source archive.pack
+exitcode-verify 0
+date + 1
+call backup unpack archive.pack target
+exitcode-verify 0
+# only readonly attribute is supported
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.pack [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 RA---- source\b [2]
+.          2014-01-01          2014-01-01 -AH--- source\c [3]
+.          2014-01-01          2014-01-01 -A-S-- source\d [4]
+.          2014-01-01          2014-01-01 RAHS-- source\e [5]
+.          2014-01-01          2014-01-01 ------ source\f [6]
+.                                         -----D target\
+.          2014-01-01          2014-01-01 -A---- target\a [1]
+.          2014-01-01          2014-01-01 RA---- target\b [2]
+.          2014-01-01          2014-01-01 -A---- target\c [3]
+.          2014-01-01          2014-01-01 -A---- target\d [4]
+.          2014-01-01          2014-01-01 RA---- target\e [5]
+.          2014-01-01          2014-01-01 -A---- target\f [6]
+endlist

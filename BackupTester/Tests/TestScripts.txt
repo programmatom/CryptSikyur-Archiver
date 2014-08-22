@@ -1,0 +1,56 @@
+# Backup tool test scripts
+
+BackupBasic.txt
+BackupEncryption.txt
+BackupExclusions.txt
+BackupFileAttributes.txt
+BackupRestartable.txt
+BackupLogging.txt
+BackupValidations.txt
+
+CopyBasic.txt
+CopyExclusions.txt
+
+PackBasic.txt
+PackExclusions.txt
+PackAttributes.txt
+
+CompareFiles.txt
+CompareDirectories.txt
+
+SyncBasic.txt
+SyncLogging.txt
+SyncExclusions.txt
+# TODO: sync case sensitivity disambiguation
+
+DynpackBasic.txt
+DynpackExclusions.txt
+DynpackLogging.txt
+# TODO: dynpack case sensitivity disambiguation
+# TODO: segment name insertion algorithm
+
+ValidateBasic.txt
+ValidateEncryption.txt
+ValDynpack.txt
+
+RestoreBasic.txt
+# TODO: replacing file with directory and vice versa and ensuring various restores work across that
+# TODO: with general compression and encryption
+
+PurgeBasic.txt
+
+SplitBasic.txt
+
+DirBasic.txt
+
+UsageBasic.txt
+
+
+#TODO:
+
+#[prune]
+#
+#needs file hacking functionality:
+#pack/unpack - handling of files without terminating token & hash
+#pack/unpack - truncated file handling of various code points
+#pack/unpack - illegal path handling

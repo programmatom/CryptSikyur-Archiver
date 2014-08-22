@@ -1,0 +1,470 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module basic logging
+
+mkdir source
+mkdir archive
+mkdir logfiles
+
+test setup
+date 2014-01-01
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-01T00+00+00
+.
+.
+.Finished.
+endfile
+
+test add files
+date + 1
+create source\a
+date + 1
+mkdir source\b
+date + 1
+create source\b\x
+date + 1
+create source\b\y
+date + 1
+create source\c
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-07T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-07T00+00+00\a [1]
+.                                         -----D 2014-01-07T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-07T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-07T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-07T00+00+00\c [4]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-07T00+00+00
+.
+.added %WORKSPACE%\source\a
+.added %WORKSPACE%\source\b\
+.added %WORKSPACE%\source\b\x
+.added %WORKSPACE%\source\b\y
+.added %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+
+test modify files
+date + 1
+edit source\a
+date + 1
+edit source\b\x
+date + 1
+edit source\b\y
+date + 1
+edit source\c
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-07T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-07T00+00+00\a [1]
+.                                         -----D 2014-01-07T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-07T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-07T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-07T00+00+00\c [4]
+.                                         -----D 2014-01-12T00+00+00\
+.          2014-01-02          2014-01-08 -A---- 2014-01-12T00+00+00\a [5]
+.                                         -----D 2014-01-12T00+00+00\b\
+.          2014-01-04          2014-01-09 -A---- 2014-01-12T00+00+00\b\x [6]
+.          2014-01-05          2014-01-10 -A---- 2014-01-12T00+00+00\b\y [7]
+.          2014-01-06          2014-01-11 -A---- 2014-01-12T00+00+00\c [8]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-12T00+00+00
+.
+.modified %WORKSPACE%\source\a
+.modified %WORKSPACE%\source\b\x
+.modified %WORKSPACE%\source\b\y
+.modified %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+
+test delete files
+date + 1
+delete source\a
+rmdir source\b
+delete source\c
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-07T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-07T00+00+00\a [1]
+.                                         -----D 2014-01-07T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-07T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-07T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-07T00+00+00\c [4]
+.                                         -----D 2014-01-12T00+00+00\
+.          2014-01-02          2014-01-08 -A---- 2014-01-12T00+00+00\a [5]
+.                                         -----D 2014-01-12T00+00+00\b\
+.          2014-01-04          2014-01-09 -A---- 2014-01-12T00+00+00\b\x [6]
+.          2014-01-05          2014-01-10 -A---- 2014-01-12T00+00+00\b\y [7]
+.          2014-01-06          2014-01-11 -A---- 2014-01-12T00+00+00\c [8]
+.                                         -----D 2014-01-14T00+00+00\
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-14T00+00+00
+.
+.removed %WORKSPACE%\source\a
+.removed /s %WORKSPACE%\source\b\
+.removed %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+
+
+module restartable logging
+
+mkdir source
+mkdir archive
+mkdir logfiles
+
+test setup
+date 2014-01-01
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-01T00+00+00
+.
+.
+.Finished.
+endfile
+
+test add files
+date + 1
+create source\a
+date + 1
+mkdir source\b
+date + 1
+create source\b\x
+date + 1
+create source\b\y
+date + 1
+create source\c
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive -nofinish
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 9999-12-31T23+59+59\
+.          2014-01-02          2014-01-02 -A---- 9999-12-31T23+59+59\a [1]
+.                                         -----D 9999-12-31T23+59+59\b\
+.          2014-01-04          2014-01-04 -A---- 9999-12-31T23+59+59\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 9999-12-31T23+59+59\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 9999-12-31T23+59+59\c [4]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-07T00+00+00
+.
+.added %WORKSPACE%\source\a
+.added %WORKSPACE%\source\b\
+.added %WORKSPACE%\source\b\x
+.added %WORKSPACE%\source\b\y
+.added %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+date + 1
+create source\aa
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-09T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-09T00+00+00\a [1]
+.          2014-01-08          2014-01-08 -A---- 2014-01-09T00+00+00\aa [5]
+.                                         -----D 2014-01-09T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-09T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-09T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-09T00+00+00\c [4]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-09T00+00+00
+.
+.added %WORKSPACE%\source\a
+.added %WORKSPACE%\source\aa
+.added %WORKSPACE%\source\b\
+.added %WORKSPACE%\source\b\x
+.added %WORKSPACE%\source\b\y
+.added %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+
+test modify files
+date + 1
+edit source\a
+date + 1
+edit source\b\x
+date + 1
+edit source\b\y
+date + 1
+edit source\c
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive -nofinish
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-09T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-09T00+00+00\a [1]
+.          2014-01-08          2014-01-08 -A--Z- 2014-01-09T00+00+00\aa [0]
+.                                         -----D 2014-01-09T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-09T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-09T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-09T00+00+00\c [4]
+.                                         -----D 9999-12-31T23+59+59\
+.          2014-01-02          2014-01-10 -A---- 9999-12-31T23+59+59\a [6]
+.          2014-01-08          2014-01-08 -A---- 9999-12-31T23+59+59\aa [5]
+.                                         -----D 9999-12-31T23+59+59\b\
+.          2014-01-04          2014-01-11 -A---- 9999-12-31T23+59+59\b\x [7]
+.          2014-01-05          2014-01-12 -A---- 9999-12-31T23+59+59\b\y [8]
+.          2014-01-06          2014-01-13 -A---- 9999-12-31T23+59+59\c [9]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-14T00+00+00
+.
+.modified %WORKSPACE%\source\a
+.modified %WORKSPACE%\source\b\x
+.modified %WORKSPACE%\source\b\y
+.modified %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+date + 1
+create source\bb
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-09T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-09T00+00+00\a [1]
+.          2014-01-08          2014-01-08 -A--Z- 2014-01-09T00+00+00\aa [0]
+.                                         -----D 2014-01-09T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-09T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-09T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-09T00+00+00\c [4]
+.                                         -----D 2014-01-16T00+00+00\
+.          2014-01-02          2014-01-10 -A---- 2014-01-16T00+00+00\a [6]
+.          2014-01-08          2014-01-08 -A---- 2014-01-16T00+00+00\aa [5]
+.                                         -----D 2014-01-16T00+00+00\b\
+.          2014-01-04          2014-01-11 -A---- 2014-01-16T00+00+00\b\x [7]
+.          2014-01-05          2014-01-12 -A---- 2014-01-16T00+00+00\b\y [8]
+.          2014-01-15          2014-01-15 -A---- 2014-01-16T00+00+00\bb [10]
+.          2014-01-06          2014-01-13 -A---- 2014-01-16T00+00+00\c [9]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-16T00+00+00
+.
+.modified %WORKSPACE%\source\a
+.modified %WORKSPACE%\source\b\x
+.modified %WORKSPACE%\source\b\y
+.added %WORKSPACE%\source\bb
+.modified %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+
+test delete files
+date + 1
+delete source\a
+rmdir source\b
+delete source\c
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive -nofinish
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-09T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-09T00+00+00\a [1]
+.          2014-01-08          2014-01-08 -A--Z- 2014-01-09T00+00+00\aa [0]
+.                                         -----D 2014-01-09T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-09T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-09T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-09T00+00+00\c [4]
+.                                         -----D 2014-01-16T00+00+00\
+.          2014-01-02          2014-01-10 -A---- 2014-01-16T00+00+00\a [6]
+.          2014-01-08          2014-01-08 -A--Z- 2014-01-16T00+00+00\aa [0]
+.                                         -----D 2014-01-16T00+00+00\b\
+.          2014-01-04          2014-01-11 -A---- 2014-01-16T00+00+00\b\x [7]
+.          2014-01-05          2014-01-12 -A---- 2014-01-16T00+00+00\b\y [8]
+.          2014-01-15          2014-01-15 -A--Z- 2014-01-16T00+00+00\bb [0]
+.          2014-01-06          2014-01-13 -A---- 2014-01-16T00+00+00\c [9]
+.                                         -----D 9999-12-31T23+59+59\
+.          2014-01-08          2014-01-08 -A---- 9999-12-31T23+59+59\aa [5]
+.          2014-01-15          2014-01-15 -A---- 9999-12-31T23+59+59\bb [10]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-18T00+00+00
+.
+.removed %WORKSPACE%\source\a
+.removed /s %WORKSPACE%\source\b\
+.removed %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+date + 1
+edit source\aa
+date + 1
+edit source\bb
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-09T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-09T00+00+00\a [1]
+.          2014-01-08          2014-01-08 -A--Z- 2014-01-09T00+00+00\aa [0]
+.                                         -----D 2014-01-09T00+00+00\b\
+.          2014-01-04          2014-01-04 -A---- 2014-01-09T00+00+00\b\x [2]
+.          2014-01-05          2014-01-05 -A---- 2014-01-09T00+00+00\b\y [3]
+.          2014-01-06          2014-01-06 -A---- 2014-01-09T00+00+00\c [4]
+.                                         -----D 2014-01-16T00+00+00\
+.          2014-01-02          2014-01-10 -A---- 2014-01-16T00+00+00\a [6]
+.          2014-01-08          2014-01-08 -A---- 2014-01-16T00+00+00\aa [5]
+.                                         -----D 2014-01-16T00+00+00\b\
+.          2014-01-04          2014-01-11 -A---- 2014-01-16T00+00+00\b\x [7]
+.          2014-01-05          2014-01-12 -A---- 2014-01-16T00+00+00\b\y [8]
+.          2014-01-15          2014-01-15 -A---- 2014-01-16T00+00+00\bb [10]
+.          2014-01-06          2014-01-13 -A---- 2014-01-16T00+00+00\c [9]
+.                                         -----D 2014-01-21T00+00+00\
+.          2014-01-08          2014-01-19 -A---- 2014-01-21T00+00+00\aa [11]
+.          2014-01-15          2014-01-20 -A---- 2014-01-21T00+00+00\bb [12]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-21T00+00+00
+.
+.removed %WORKSPACE%\source\a
+.modified %WORKSPACE%\source\aa
+.removed /s %WORKSPACE%\source\b\
+.modified %WORKSPACE%\source\bb
+.removed %WORKSPACE%\source\c
+.
+.Finished.
+endfile
+
+
+module deep directory
+
+mkdir source
+mkdir archive
+mkdir logfiles
+
+test setup
+date 2014-01-01
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-01T00+00+00
+.
+.
+.Finished.
+endfile
+
+test add files
+date + 1
+create source\a
+date + 1
+mkdir source\b
+date + 1
+create source\b\x
+date + 1
+create source\b\y
+date + 1
+mkdir source\b\c
+date + 1
+create source\b\c\z
+date + 1
+create source\b\c\zz
+date + 1
+create source\d
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-10T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-10T00+00+00\a [1]
+.                                         -----D 2014-01-10T00+00+00\b\
+.                                         -----D 2014-01-10T00+00+00\b\c\
+.          2014-01-07          2014-01-07 -A---- 2014-01-10T00+00+00\b\c\z [2]
+.          2014-01-08          2014-01-08 -A---- 2014-01-10T00+00+00\b\c\zz [3]
+.          2014-01-04          2014-01-04 -A---- 2014-01-10T00+00+00\b\x [4]
+.          2014-01-05          2014-01-05 -A---- 2014-01-10T00+00+00\b\y [5]
+.          2014-01-09          2014-01-09 -A---- 2014-01-10T00+00+00\d [6]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-10T00+00+00
+.
+.added %WORKSPACE%\source\a
+.added %WORKSPACE%\source\b\
+.added %WORKSPACE%\source\b\c\
+.added %WORKSPACE%\source\b\c\z
+.added %WORKSPACE%\source\b\c\zz
+.added %WORKSPACE%\source\b\x
+.added %WORKSPACE%\source\b\y
+.added %WORKSPACE%\source\d
+.
+.Finished.
+endfile
+
+test delete files
+date + 1
+delete source\a
+rmdir source\b
+date + 1
+edit source\d
+date + 1
+call backup -logpath logfiles\file.log -date %DATE% backup source archive
+exitcode-verify 0
+list-verify archive
+.                                         -----D 2014-01-01T00+00+00\
+.                                         -----D 2014-01-10T00+00+00\
+.          2014-01-02          2014-01-02 -A---- 2014-01-10T00+00+00\a [1]
+.                                         -----D 2014-01-10T00+00+00\b\
+.                                         -----D 2014-01-10T00+00+00\b\c\
+.          2014-01-07          2014-01-07 -A---- 2014-01-10T00+00+00\b\c\z [2]
+.          2014-01-08          2014-01-08 -A---- 2014-01-10T00+00+00\b\c\zz [3]
+.          2014-01-04          2014-01-04 -A---- 2014-01-10T00+00+00\b\x [4]
+.          2014-01-05          2014-01-05 -A---- 2014-01-10T00+00+00\b\y [5]
+.          2014-01-09          2014-01-09 -A---- 2014-01-10T00+00+00\d [6]
+.                                         -----D 2014-01-13T00+00+00\
+.          2014-01-09          2014-01-12 -A---- 2014-01-13T00+00+00\d [7]
+endlist
+file-verify logfiles\file.log -workspacepathhack
+.Backup of %WORKSPACE%\source to %WORKSPACE%\archive\2014-01-13T00+00+00
+.
+.removed %WORKSPACE%\source\a
+.removed /s %WORKSPACE%\source\b\
+.modified %WORKSPACE%\source\d
+.
+.Finished.
+endfile

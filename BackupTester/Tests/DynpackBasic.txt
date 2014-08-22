@@ -1,0 +1,1799 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module basic
+
+test empty test
+date 2014-01-01
+mkdir source
+date + 1
+list-verify .
+.                                         -----D source\
+endlist
+call backup -date %DATE% dynpack source archive 1000000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [1]
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack.html [2]
+.                                         -----D source\
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [1]
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack.html [2]
+.                                         -----D source\
+.                                         -----D target\
+endlist
+
+test one file test
+reset
+date 2014-01-01
+mkdir source
+date + 1
+create source\a
+date + 1
+list-verify .
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+endlist
+call backup -date %DATE% dynpack source archive 1000000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-03 -A---- archive.a.dynpack [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-03 -A---- archive.a.dynpack [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+endlist
+
+
+module empty directory test
+
+test one file test
+reset
+date 2014-01-01
+date + 1
+mkdir source\a
+date + 1
+create source\a\b
+date + 1
+mkdir source\c
+date + 1
+mkdir source\d
+mkdir source\d\e
+create source\d\e\f
+date + 1
+mkdir source\g
+mkdir source\g\h
+mkdir source\g\i
+mkdir source\j
+create source\j\k
+date + 1
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-03          2014-01-03 -A---- source\a\b [1]
+.                                         -----D source\c\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-05          2014-01-05 -A---- source\d\e\f [2]
+.                                         -----D source\g\
+.                                         -----D source\g\h\
+.                                         -----D source\g\i\
+.                                         -----D source\j\
+.          2014-01-06          2014-01-06 -A---- source\j\k [3]
+endlist
+call backup -date %DATE% dynpack source archive 1000000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-07          2014-01-07 -A---- archive.0.dynpack [4]
+.          2014-01-07          2014-01-07 -A---- archive.0.dynpack.html [5]
+.          2014-01-07          2014-01-07 -A---- archive.a.dynpack [6]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-03          2014-01-03 -A---- source\a\b [1]
+.                                         -----D source\c\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-05          2014-01-05 -A---- source\d\e\f [2]
+.                                         -----D source\g\
+.                                         -----D source\g\h\
+.                                         -----D source\g\i\
+.                                         -----D source\j\
+.          2014-01-06          2014-01-06 -A---- source\j\k [3]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-07          2014-01-07 -A---- archive.0.dynpack [4]
+.          2014-01-07          2014-01-07 -A---- archive.0.dynpack.html [5]
+.          2014-01-07          2014-01-07 -A---- archive.a.dynpack [6]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-03          2014-01-03 -A---- source\a\b [1]
+.                                         -----D source\c\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-05          2014-01-05 -A---- source\d\e\f [2]
+.                                         -----D source\g\
+.                                         -----D source\g\h\
+.                                         -----D source\g\i\
+.                                         -----D source\j\
+.          2014-01-06          2014-01-06 -A---- source\j\k [3]
+.                                         -----D target\
+.                                         -----D target\a\
+.          2014-01-03          2014-01-03 -A---- target\a\b [1]
+.                                         -----D target\c\
+.                                         -----D target\d\
+.                                         -----D target\d\e\
+.          2014-01-05          2014-01-05 -A---- target\d\e\f [2]
+.                                         -----D target\g\
+.                                         -----D target\g\h\
+.                                         -----D target\g\i\
+.                                         -----D target\j\
+.          2014-01-06          2014-01-06 -A---- target\j\k [3]
+endlist
+call backup dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL: 1; SIGNATURE: .*$
+*        1 0B .* \-d \.\\c$
+# .\a\ is not stored explicitly
+*        2 .* \-\- \.\\a\\b$
+# .\d\ is not stored explicitly
+# .\d\e\ is not stored explicitly
+*        3 .* \-\- \.\\d\\e\\f$
+# .\g\ is not stored explicitly
+*        4 0B .* \-d \.\\g\\h$
+*        5 0B .* \-d \.\\g\\i$
+# .\j\ is not stored explicitly
+*        6 .* \-\- \.\\j\\k$
+endoutput
+rmdir target
+# update
+date + 1
+edit source\a\b
+date + 1
+edit source\d\e\f
+date + 1
+edit source\j\k
+date + 1
+call backup -date %DATE% dynpack source archive 1000000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target2
+exitcode-verify 0
+list-verify .
+.          2014-01-07          2014-01-11 -A---- archive.0.dynpack [7]
+.          2014-01-07          2014-01-11 -A---- archive.0.dynpack.html [5]
+.          2014-01-07          2014-01-11 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-03          2014-01-08 -A---- source\a\b [9]
+.                                         -----D source\c\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-05          2014-01-09 -A---- source\d\e\f [10]
+.                                         -----D source\g\
+.                                         -----D source\g\h\
+.                                         -----D source\g\i\
+.                                         -----D source\j\
+.          2014-01-06          2014-01-10 -A---- source\j\k [11]
+.                                         -----D target2\
+.                                         -----D target2\a\
+.          2014-01-03          2014-01-08 -A---- target2\a\b [9]
+.                                         -----D target2\c\
+.                                         -----D target2\d\
+.                                         -----D target2\d\e\
+.          2014-01-05          2014-01-09 -A---- target2\d\e\f [10]
+.                                         -----D target2\g\
+.                                         -----D target2\g\h\
+.                                         -----D target2\g\i\
+.                                         -----D target2\j\
+.          2014-01-06          2014-01-10 -A---- target2\j\k [11]
+endlist
+call backup dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL: 3; SIGNATURE: .*$
+*        1 0B .* \-d \.\\c$
+# .\a\ is not stored explicitly
+*        2 .* \-\- \.\\a\\b$
+# .\d\ is not stored explicitly
+# .\d\e\ is not stored explicitly
+*        3 .* \-\- \.\\d\\e\\f$
+# .\g\ is not stored explicitly
+*        4 0B .* \-d \.\\g\\h$
+*        5 0B .* \-d \.\\g\\i$
+# .\j\ is not stored explicitly
+*        6 .* \-\- \.\\j\\k$
+endoutput
+
+
+module incremental splitting
+
+test one
+date 2014-01-01
+mkdir source
+date + 1
+create source\a -size 9900
+date + 1
+list-verify .
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-03 -A---- archive.a.dynpack [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-03 -A---- archive.a.dynpack [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+endlist
+
+test two
+rmdir target
+date + 1
+create source\b -size 9900
+date + 1
+list-verify .
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
+.          2014-01-03          2014-01-03 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-03 -A---- archive.a.dynpack [4]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack [6]
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-05 -A---- archive.a.dynpack [7]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack [6]
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-05 -A---- archive.a.dynpack [7]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+.          2014-01-04          2014-01-04 -A---- target\b [5]
+endlist
+
+test three
+rmdir target
+date + 1
+create source\c -size 9900
+date + 1
+list-verify .
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack [6]
+.          2014-01-03          2014-01-05 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-05 -A---- archive.a.dynpack [7]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-07 -A---- archive.0.dynpack [9]
+.          2014-01-03          2014-01-07 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-07 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-07 -A---- archive.0.dynpack [9]
+.          2014-01-03          2014-01-07 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-07 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+.          2014-01-04          2014-01-04 -A---- target\b [5]
+.          2014-01-06          2014-01-06 -A---- target\c [8]
+endlist
+
+test four
+rmdir target
+date + 1
+create source\d -size 9900
+date + 1
+list-verify .
+.          2014-01-03          2014-01-07 -A---- archive.0.dynpack [9]
+.          2014-01-03          2014-01-07 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-07 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-09 -A---- archive.0.dynpack [12]
+.          2014-01-03          2014-01-09 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-09 -A---- archive.a.dynpack [13]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-09 -A---- archive.0.dynpack [12]
+.          2014-01-03          2014-01-09 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-09 -A---- archive.a.dynpack [13]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+.          2014-01-04          2014-01-04 -A---- target\b [5]
+.          2014-01-06          2014-01-06 -A---- target\c [8]
+.          2014-01-08          2014-01-08 -A---- target\d [11]
+endlist
+
+test five
+rmdir target
+date + 1
+create source\e -size 9900
+date + 1
+list-verify .
+.          2014-01-03          2014-01-09 -A---- archive.0.dynpack [12]
+.          2014-01-03          2014-01-09 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-09 -A---- archive.a.dynpack [13]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-11 -A---- archive.0.dynpack [15]
+.          2014-01-03          2014-01-11 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-11 -A---- archive.a.dynpack [16]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-11 -A---- archive.0.dynpack [15]
+.          2014-01-03          2014-01-11 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-11 -A---- archive.a.dynpack [16]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+.          2014-01-04          2014-01-04 -A---- target\b [5]
+.          2014-01-06          2014-01-06 -A---- target\c [8]
+.          2014-01-08          2014-01-08 -A---- target\d [11]
+.          2014-01-10          2014-01-10 -A---- target\e [14]
+endlist
+
+test six
+rmdir target
+date + 1
+create source\f -size 9900
+date + 1
+list-verify .
+.          2014-01-03          2014-01-11 -A---- archive.0.dynpack [15]
+.          2014-01-03          2014-01-11 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-11 -A---- archive.a.dynpack [16]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.          2014-01-12          2014-01-12 -A---- source\f [17]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack [18]
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack.html [19]
+.          2014-01-03          2014-01-11 -A---- archive.a.dynpack [16]
+.          2014-01-13          2014-01-13 -A---- archive.m.dynpack [20]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.          2014-01-12          2014-01-12 -A---- source\f [17]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack [18]
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack.html [19]
+.          2014-01-03          2014-01-11 -A---- archive.a.dynpack [16]
+.          2014-01-13          2014-01-13 -A---- archive.m.dynpack [20]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.          2014-01-12          2014-01-12 -A---- source\f [17]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+.          2014-01-04          2014-01-04 -A---- target\b [5]
+.          2014-01-06          2014-01-06 -A---- target\c [8]
+.          2014-01-08          2014-01-08 -A---- target\d [11]
+.          2014-01-10          2014-01-10 -A---- target\e [14]
+.          2014-01-12          2014-01-12 -A---- target\f [17]
+endlist
+call backup -date %DATE% unpack archive.a.dynpack target_a
+exitcode-verify 0
+call backup -date %DATE% unpack archive.m.dynpack target_m
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack [18]
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack.html [19]
+.          2014-01-03          2014-01-11 -A---- archive.a.dynpack [16]
+.          2014-01-13          2014-01-13 -A---- archive.m.dynpack [20]
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.          2014-01-12          2014-01-12 -A---- source\f [17]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\a [1]
+.          2014-01-04          2014-01-04 -A---- target\b [5]
+.          2014-01-06          2014-01-06 -A---- target\c [8]
+.          2014-01-08          2014-01-08 -A---- target\d [11]
+.          2014-01-10          2014-01-10 -A---- target\e [14]
+.          2014-01-12          2014-01-12 -A---- target\f [17]
+.                                         -----D target_a\
+.          2014-01-02          2014-01-02 -A---- target_a\a [1]
+.          2014-01-04          2014-01-04 -A---- target_a\b [5]
+.          2014-01-06          2014-01-06 -A---- target_a\c [8]
+.          2014-01-08          2014-01-08 -A---- target_a\d [11]
+.          2014-01-10          2014-01-10 -A---- target_a\e [14]
+.                                         -----D target_m\
+.          2014-01-12          2014-01-12 -A---- target_m\f [17]
+endlist
+
+test five
+rmdir target
+rmdir target_a
+rmdir target_m
+delete source\a
+date + 1
+list-verify .
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack [18]
+.          2014-01-03          2014-01-13 -A---- archive.0.dynpack.html [19]
+.          2014-01-03          2014-01-11 -A---- archive.a.dynpack [16]
+.          2014-01-13          2014-01-13 -A---- archive.m.dynpack [20]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.          2014-01-12          2014-01-12 -A---- source\f [17]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-14 -A---- archive.0.dynpack [21]
+.          2014-01-03          2014-01-14 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-14 -A---- archive.a.dynpack [22]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.          2014-01-12          2014-01-12 -A---- source\f [17]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-14 -A---- archive.0.dynpack [21]
+.          2014-01-03          2014-01-14 -A---- archive.0.dynpack.html [3]
+.          2014-01-03          2014-01-14 -A---- archive.a.dynpack [22]
+.                                         -----D source\
+.          2014-01-04          2014-01-04 -A---- source\b [5]
+.          2014-01-06          2014-01-06 -A---- source\c [8]
+.          2014-01-08          2014-01-08 -A---- source\d [11]
+.          2014-01-10          2014-01-10 -A---- source\e [14]
+.          2014-01-12          2014-01-12 -A---- source\f [17]
+.                                         -----D target\
+.          2014-01-04          2014-01-04 -A---- target\b [5]
+.          2014-01-06          2014-01-06 -A---- target\c [8]
+.          2014-01-08          2014-01-08 -A---- target\d [11]
+.          2014-01-10          2014-01-10 -A---- target\e [14]
+.          2014-01-12          2014-01-12 -A---- target\f [17]
+endlist
+
+
+module max fill
+
+test setup
+mkdir source
+create source\a -size 9900
+create source\b -size 9900
+create source\c -size 9900
+create source\d -size 9900
+create source\e -size 9900
+create source\f -size 9900
+create source\g -size 9900
+create source\h -size 9900
+create source\i -size 9900
+create source\j -size 9900
+create source\k -size 9900
+create source\l -size 9900
+create source\m -size 9900
+create source\n -size 9900
+create source\o -size 9900
+create source\p -size 9900
+date + 1
+list-verify .
+.                                         -----D source\
+.          2010-01-01          2010-01-01 -A---- source\a [1]
+.          2010-01-01          2010-01-01 -A---- source\b [2]
+.          2010-01-01          2010-01-01 -A---- source\c [3]
+.          2010-01-01          2010-01-01 -A---- source\d [4]
+.          2010-01-01          2010-01-01 -A---- source\e [5]
+.          2010-01-01          2010-01-01 -A---- source\f [6]
+.          2010-01-01          2010-01-01 -A---- source\g [7]
+.          2010-01-01          2010-01-01 -A---- source\h [8]
+.          2010-01-01          2010-01-01 -A---- source\i [9]
+.          2010-01-01          2010-01-01 -A---- source\j [10]
+.          2010-01-01          2010-01-01 -A---- source\k [11]
+.          2010-01-01          2010-01-01 -A---- source\l [12]
+.          2010-01-01          2010-01-01 -A---- source\m [13]
+.          2010-01-01          2010-01-01 -A---- source\n [14]
+.          2010-01-01          2010-01-01 -A---- source\o [15]
+.          2010-01-01          2010-01-01 -A---- source\p [16]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2010-01-02          2010-01-02 -A---- archive.0.dynpack [17]
+.          2010-01-02          2010-01-02 -A---- archive.0.dynpack.html [18]
+.          2010-01-02          2010-01-02 -A---- archive.a.dynpack [19]
+.          2010-01-02          2010-01-02 -A---- archive.g.dynpack [20]
+.          2010-01-02          2010-01-02 -A---- archive.m.dynpack [21]
+.          2010-01-02          2010-01-02 -A---- archive.s.dynpack [22]
+.                                         -----D source\
+.          2010-01-01          2010-01-01 -A---- source\a [1]
+.          2010-01-01          2010-01-01 -A---- source\b [2]
+.          2010-01-01          2010-01-01 -A---- source\c [3]
+.          2010-01-01          2010-01-01 -A---- source\d [4]
+.          2010-01-01          2010-01-01 -A---- source\e [5]
+.          2010-01-01          2010-01-01 -A---- source\f [6]
+.          2010-01-01          2010-01-01 -A---- source\g [7]
+.          2010-01-01          2010-01-01 -A---- source\h [8]
+.          2010-01-01          2010-01-01 -A---- source\i [9]
+.          2010-01-01          2010-01-01 -A---- source\j [10]
+.          2010-01-01          2010-01-01 -A---- source\k [11]
+.          2010-01-01          2010-01-01 -A---- source\l [12]
+.          2010-01-01          2010-01-01 -A---- source\m [13]
+.          2010-01-01          2010-01-01 -A---- source\n [14]
+.          2010-01-01          2010-01-01 -A---- source\o [15]
+.          2010-01-01          2010-01-01 -A---- source\p [16]
+endlist
+call backup -date %DATE% unpack archive.a.dynpack target1
+exitcode-verify 0
+list-verify target1
+.          2010-01-01          2010-01-01 -A---- a [1]
+.          2010-01-01          2010-01-01 -A---- b [2]
+.          2010-01-01          2010-01-01 -A---- c [3]
+.          2010-01-01          2010-01-01 -A---- d [4]
+.          2010-01-01          2010-01-01 -A---- e [5]
+endlist
+call backup -date %DATE% unpack archive.g.dynpack target2
+exitcode-verify 0
+list-verify target2
+.          2010-01-01          2010-01-01 -A---- f [6]
+.          2010-01-01          2010-01-01 -A---- g [7]
+.          2010-01-01          2010-01-01 -A---- h [8]
+.          2010-01-01          2010-01-01 -A---- i [9]
+.          2010-01-01          2010-01-01 -A---- j [10]
+endlist
+call backup -date %DATE% unpack archive.m.dynpack target3
+exitcode-verify 0
+list-verify target3
+.          2010-01-01          2010-01-01 -A---- k [11]
+.          2010-01-01          2010-01-01 -A---- l [12]
+.          2010-01-01          2010-01-01 -A---- m [13]
+endlist
+call backup -date %DATE% unpack archive.s.dynpack target4
+exitcode-verify 0
+list-verify target4
+.          2010-01-01          2010-01-01 -A---- n [14]
+.          2010-01-01          2010-01-01 -A---- o [15]
+.          2010-01-01          2010-01-01 -A---- p [16]
+endlist
+
+test segment merge, unmodified segments
+delete source\k
+rmdir target1
+rmdir target2
+rmdir target3
+rmdir target4
+date + 1
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2010-01-02          2010-01-03 -A---- archive.0.dynpack [23]
+.          2010-01-02          2010-01-03 -A---- archive.0.dynpack.html [24]
+.          2010-01-02          2010-01-02 -A---- archive.a.dynpack [19]
+.          2010-01-02          2010-01-02 -A---- archive.g.dynpack [20]
+.          2010-01-02          2010-01-03 -A---- archive.m.dynpack [25]
+.                                         -----D source\
+.          2010-01-01          2010-01-01 -A---- source\a [1]
+.          2010-01-01          2010-01-01 -A---- source\b [2]
+.          2010-01-01          2010-01-01 -A---- source\c [3]
+.          2010-01-01          2010-01-01 -A---- source\d [4]
+.          2010-01-01          2010-01-01 -A---- source\e [5]
+.          2010-01-01          2010-01-01 -A---- source\f [6]
+.          2010-01-01          2010-01-01 -A---- source\g [7]
+.          2010-01-01          2010-01-01 -A---- source\h [8]
+.          2010-01-01          2010-01-01 -A---- source\i [9]
+.          2010-01-01          2010-01-01 -A---- source\j [10]
+.          2010-01-01          2010-01-01 -A---- source\l [12]
+.          2010-01-01          2010-01-01 -A---- source\m [13]
+.          2010-01-01          2010-01-01 -A---- source\n [14]
+.          2010-01-01          2010-01-01 -A---- source\o [15]
+.          2010-01-01          2010-01-01 -A---- source\p [16]
+endlist
+call backup -date %DATE% unpack archive.m.dynpack target3
+exitcode-verify 0
+list-verify target3
+.          2010-01-01          2010-01-01 -A---- l [12]
+.          2010-01-01          2010-01-01 -A---- m [13]
+.          2010-01-01          2010-01-01 -A---- n [14]
+.          2010-01-01          2010-01-01 -A---- o [15]
+.          2010-01-01          2010-01-01 -A---- p [16]
+endlist
+
+test zeroing deleted segments
+rmdir target3
+delete source\f
+delete source\g
+delete source\h
+delete source\i
+delete source\j
+date + 1
+call backup -date %DATE% dynpack source archive 50000 -verify -zerodeletes
+exitcode-verify 0
+list-verify .
+.          2010-01-02          2010-01-04 -A---- archive.0.dynpack [26]
+.          2010-01-02          2010-01-04 -A---- archive.0.dynpack.html [27]
+.          2010-01-02          2010-01-02 -A---- archive.a.dynpack [19]
+.          2010-01-02          2010-01-04 -A--Z- archive.g.dynpack [0]
+.          2010-01-02          2010-01-03 -A---- archive.m.dynpack [25]
+.                                         -----D source\
+.          2010-01-01          2010-01-01 -A---- source\a [1]
+.          2010-01-01          2010-01-01 -A---- source\b [2]
+.          2010-01-01          2010-01-01 -A---- source\c [3]
+.          2010-01-01          2010-01-01 -A---- source\d [4]
+.          2010-01-01          2010-01-01 -A---- source\e [5]
+.          2010-01-01          2010-01-01 -A---- source\l [12]
+.          2010-01-01          2010-01-01 -A---- source\m [13]
+.          2010-01-01          2010-01-01 -A---- source\n [14]
+.          2010-01-01          2010-01-01 -A---- source\o [15]
+.          2010-01-01          2010-01-01 -A---- source\p [16]
+endlist
+
+
+module directories
+
+test initial
+date 2014-01-01
+mkdir source
+create source\aa -size 49500
+mkdir source\a-empty
+mkdir source\b
+mkdir source\c-empty
+mkdir source\d
+date + 1
+create source\b\x.txt
+date + 1
+edit source\b\x.txt -size 9900
+date + 1
+create source\b\y.txt -size 9900
+date + 1
+create source\b\z.txt -size 9900
+date + 1
+create source\b\w.txt -size 19900
+date + 1
+mkdir source\d\e
+create source\d\e\m.txt -size 9900
+date + 1
+create source\d\e\n.txt -size 9900
+date + 1
+create source\d\e\o.txt -size 9900
+date + 1
+create source\d\e\p.txt -size 9900
+date + 1
+create source\d\e\q.txt -size 9900
+date + 1
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a-empty\
+.          2014-01-01          2014-01-01 -A---- source\aa [1]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\w.txt [2]
+.          2014-01-02          2014-01-03 -A---- source\b\x.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\b\y.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\b\z.txt [5]
+.                                         -----D source\c-empty\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-07          2014-01-07 -A---- source\d\e\m.txt [6]
+.          2014-01-08          2014-01-08 -A---- source\d\e\n.txt [7]
+.          2014-01-09          2014-01-09 -A---- source\d\e\o.txt [8]
+.          2014-01-10          2014-01-10 -A---- source\d\e\p.txt [9]
+.          2014-01-11          2014-01-11 -A---- source\d\e\q.txt [10]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-12          2014-01-12 -A---- archive.0.dynpack [11]
+.          2014-01-12          2014-01-12 -A---- archive.0.dynpack.html [12]
+.          2014-01-12          2014-01-12 -A---- archive.a.dynpack [13]
+.          2014-01-12          2014-01-12 -A---- archive.m.dynpack [14]
+.          2014-01-12          2014-01-12 -A---- archive.s.dynpack [15]
+.                                         -----D source\
+.                                         -----D source\a-empty\
+.          2014-01-01          2014-01-01 -A---- source\aa [1]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\w.txt [2]
+.          2014-01-02          2014-01-03 -A---- source\b\x.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\b\y.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\b\z.txt [5]
+.                                         -----D source\c-empty\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-07          2014-01-07 -A---- source\d\e\m.txt [6]
+.          2014-01-08          2014-01-08 -A---- source\d\e\n.txt [7]
+.          2014-01-09          2014-01-09 -A---- source\d\e\o.txt [8]
+.          2014-01-10          2014-01-10 -A---- source\d\e\p.txt [9]
+.          2014-01-11          2014-01-11 -A---- source\d\e\q.txt [10]
+endlist
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify .
+.          2014-01-12          2014-01-12 -A---- archive.0.dynpack [11]
+.          2014-01-12          2014-01-12 -A---- archive.0.dynpack.html [12]
+.          2014-01-12          2014-01-12 -A---- archive.a.dynpack [13]
+.          2014-01-12          2014-01-12 -A---- archive.m.dynpack [14]
+.          2014-01-12          2014-01-12 -A---- archive.s.dynpack [15]
+.                                         -----D source\
+.                                         -----D source\a-empty\
+.          2014-01-01          2014-01-01 -A---- source\aa [1]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\w.txt [2]
+.          2014-01-02          2014-01-03 -A---- source\b\x.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\b\y.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\b\z.txt [5]
+.                                         -----D source\c-empty\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-07          2014-01-07 -A---- source\d\e\m.txt [6]
+.          2014-01-08          2014-01-08 -A---- source\d\e\n.txt [7]
+.          2014-01-09          2014-01-09 -A---- source\d\e\o.txt [8]
+.          2014-01-10          2014-01-10 -A---- source\d\e\p.txt [9]
+.          2014-01-11          2014-01-11 -A---- source\d\e\q.txt [10]
+.                                         -----D target\
+.                                         -----D target\a-empty\
+.          2014-01-01          2014-01-01 -A---- target\aa [1]
+.                                         -----D target\b\
+.          2014-01-06          2014-01-06 -A---- target\b\w.txt [2]
+.          2014-01-02          2014-01-03 -A---- target\b\x.txt [3]
+.          2014-01-04          2014-01-04 -A---- target\b\y.txt [4]
+.          2014-01-05          2014-01-05 -A---- target\b\z.txt [5]
+.                                         -----D target\c-empty\
+.                                         -----D target\d\
+.                                         -----D target\d\e\
+.          2014-01-07          2014-01-07 -A---- target\d\e\m.txt [6]
+.          2014-01-08          2014-01-08 -A---- target\d\e\n.txt [7]
+.          2014-01-09          2014-01-09 -A---- target\d\e\o.txt [8]
+.          2014-01-10          2014-01-10 -A---- target\d\e\p.txt [9]
+.          2014-01-11          2014-01-11 -A---- target\d\e\q.txt [10]
+endlist
+
+test directory reordering
+rmdir target
+move source\b source\f
+date + 1
+list-verify .
+.          2014-01-12          2014-01-12 -A---- archive.0.dynpack [11]
+.          2014-01-12          2014-01-12 -A---- archive.0.dynpack.html [12]
+.          2014-01-12          2014-01-12 -A---- archive.a.dynpack [13]
+.          2014-01-12          2014-01-12 -A---- archive.m.dynpack [14]
+.          2014-01-12          2014-01-12 -A---- archive.s.dynpack [15]
+.                                         -----D source\
+.                                         -----D source\a-empty\
+.          2014-01-01          2014-01-01 -A---- source\aa [1]
+.                                         -----D source\c-empty\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-07          2014-01-07 -A---- source\d\e\m.txt [6]
+.          2014-01-08          2014-01-08 -A---- source\d\e\n.txt [7]
+.          2014-01-09          2014-01-09 -A---- source\d\e\o.txt [8]
+.          2014-01-10          2014-01-10 -A---- source\d\e\p.txt [9]
+.          2014-01-11          2014-01-11 -A---- source\d\e\q.txt [10]
+.                                         -----D source\f\
+.          2014-01-06          2014-01-06 -A---- source\f\w.txt [2]
+.          2014-01-02          2014-01-03 -A---- source\f\x.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\f\y.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\f\z.txt [5]
+endlist
+call backup -date %DATE% dynpack source archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-12          2014-01-13 -A---- archive.0.dynpack [16]
+.          2014-01-12          2014-01-13 -A---- archive.0.dynpack.html [17]
+.          2014-01-12          2014-01-12 -A---- archive.a.dynpack [13]
+.          2014-01-12          2014-01-12 -A---- archive.s.dynpack [15]
+.          2014-01-13          2014-01-13 -A---- archive.v.dynpack [18]
+.                                         -----D source\
+.                                         -----D source\a-empty\
+.          2014-01-01          2014-01-01 -A---- source\aa [1]
+.                                         -----D source\c-empty\
+.                                         -----D source\d\
+.                                         -----D source\d\e\
+.          2014-01-07          2014-01-07 -A---- source\d\e\m.txt [6]
+.          2014-01-08          2014-01-08 -A---- source\d\e\n.txt [7]
+.          2014-01-09          2014-01-09 -A---- source\d\e\o.txt [8]
+.          2014-01-10          2014-01-10 -A---- source\d\e\p.txt [9]
+.          2014-01-11          2014-01-11 -A---- source\d\e\q.txt [10]
+.                                         -----D source\f\
+.          2014-01-06          2014-01-06 -A---- source\f\w.txt [2]
+.          2014-01-02          2014-01-03 -A---- source\f\x.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\f\y.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\f\z.txt [5]
+endlist
+call backup -date %DATE% unpack archive.a.dynpack target1
+exitcode-verify 0
+list-verify target1
+.                                         -----D a-empty\
+.          2014-01-01          2014-01-01 -A---- aa [1]
+.                                         -----D c-empty\
+endlist
+call backup -date %DATE% unpack archive.s.dynpack target2
+exitcode-verify 0
+list-verify target2
+.                                         -----D d\
+.                                         -----D d\e\
+.          2014-01-07          2014-01-07 -A---- d\e\m.txt [6]
+.          2014-01-08          2014-01-08 -A---- d\e\n.txt [7]
+.          2014-01-09          2014-01-09 -A---- d\e\o.txt [8]
+.          2014-01-10          2014-01-10 -A---- d\e\p.txt [9]
+.          2014-01-11          2014-01-11 -A---- d\e\q.txt [10]
+endlist
+call backup -date %DATE% unpack archive.v.dynpack target3
+exitcode-verify 0
+list-verify target3
+.                                         -----D f\
+.          2014-01-06          2014-01-06 -A---- f\w.txt [2]
+.          2014-01-02          2014-01-03 -A---- f\x.txt [3]
+.          2014-01-04          2014-01-04 -A---- f\y.txt [4]
+.          2014-01-05          2014-01-05 -A---- f\z.txt [5]
+endlist
+
+
+module compression & encryption
+
+test noncompressed nonencrypted archive variance (nondeterminism - archive random signature)
+date 2014-01-01
+mkdir archives
+mkdir source
+mkdir source\a
+mkdir source\b
+mkdir source\c
+create source\a\a1.txt -size 9900
+date + 1
+create source\a\a2.txt -size 9900
+date + 1
+create source\a\a3.txt -size 9900
+date + 1
+create source\a\a4.txt -size 9900
+date + 1
+create source\a\a5.txt -size 9900
+date + 1
+create source\b\b1.txt -size 9900
+date + 1
+create source\b\b2.txt -size 9900
+date + 1
+create source\b\b3.txt -size 9900
+date + 1
+create source\b\b4.txt -size 9900
+date + 1
+create source\b\b5.txt -size 9900
+date + 1
+create source\c\c1.txt -size 9900
+date + 1
+create source\c\c2.txt -size 9900
+date + 1
+create source\c\c3.txt -size 9900
+date + 1
+create source\c\c4.txt -size 9900
+date + 1
+create source\c\c5.txt -size 9900
+date + 1
+list-verify .
+.                                         -----D archives\
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\a\a5.txt [5]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- source\b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- source\b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- source\b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- source\b\b5.txt [10]
+.                                         -----D source\c\
+.          2014-01-11          2014-01-11 -A---- source\c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- source\c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- source\c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
+endlist
+call backup -date %DATE% dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.                                         -----D archives\
+.          2014-01-16          2014-01-16 -A---- archives\archive.0.dynpack [16]
+.          2014-01-16          2014-01-16 -A---- archives\archive.0.dynpack.html [17]
+.          2014-01-16          2014-01-16 -A---- archives\archive.a.dynpack [18]
+.          2014-01-16          2014-01-16 -A---- archives\archive.m.dynpack [19]
+.          2014-01-16          2014-01-16 -A---- archives\archive.s.dynpack [20]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\a\a5.txt [5]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- source\b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- source\b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- source\b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- source\b\b5.txt [10]
+.                                         -----D source\c\
+.          2014-01-11          2014-01-11 -A---- source\c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- source\c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- source\c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
+endlist
+rmdir archives
+mkdir archives
+date + 1
+call backup -date %DATE% dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.                                         -----D archives\
+.          2014-01-17          2014-01-17 -A---- archives\archive.0.dynpack [21]
+.          2014-01-17          2014-01-17 -A---- archives\archive.0.dynpack.html [17]
+.          2014-01-17          2014-01-17 -A---- archives\archive.a.dynpack [22]
+.          2014-01-17          2014-01-17 -A---- archives\archive.m.dynpack [23]
+.          2014-01-17          2014-01-17 -A---- archives\archive.s.dynpack [24]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\a\a5.txt [5]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- source\b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- source\b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- source\b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- source\b\b5.txt [10]
+.                                         -----D source\c\
+.          2014-01-11          2014-01-11 -A---- source\c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- source\c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- source\c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
+endlist
+rmdir archives
+mkdir archives
+
+test compression
+date + 1
+call backup -date %DATE% -compress dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.                                         -----D archives\
+.          2014-01-18          2014-01-18 -A---- archives\archive.0.dynpack [25]
+.          2014-01-18          2014-01-18 -A---- archives\archive.0.dynpack.html [17]
+.          2014-01-18          2014-01-18 -A---- archives\archive.a.dynpack [26]
+.          2014-01-18          2014-01-18 -A---- archives\archive.m.dynpack [27]
+.          2014-01-18          2014-01-18 -A---- archives\archive.s.dynpack [28]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\a\a5.txt [5]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- source\b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- source\b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- source\b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- source\b\b5.txt [10]
+.                                         -----D source\c\
+.          2014-01-11          2014-01-11 -A---- source\c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- source\c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- source\c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
+endlist
+call backup -date %DATE% -decompress dynunpack archives\archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D a\
+.          2014-01-01          2014-01-01 -A---- a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- a\a5.txt [5]
+.                                         -----D b\
+.          2014-01-06          2014-01-06 -A---- b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- b\b5.txt [10]
+.                                         -----D c\
+.          2014-01-11          2014-01-11 -A---- c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- c\c5.txt [15]
+endlist
+# update archive (force read of existing manifest - code coverage)
+date + 1
+call backup -date %DATE% -compress dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+list-verify archives
+.          2014-01-18          2014-01-19 -A---- archive.0.dynpack [29]
+.          2014-01-18          2014-01-19 -A---- archive.0.dynpack.html [17]
+.          2014-01-18          2014-01-18 -A---- archive.a.dynpack [26]
+.          2014-01-18          2014-01-18 -A---- archive.m.dynpack [27]
+.          2014-01-18          2014-01-18 -A---- archive.s.dynpack [28]
+endlist
+date - 1
+rmdir target
+rmdir archives
+mkdir archives
+
+test encryption
+date + 1
+call backup -date %DATE% -encrypt aes128 pA55w01D dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.                                         -----D archives\
+.          2014-01-19          2014-01-19 -A---- archives\archive.0.dynpack [30]
+.          2014-01-19          2014-01-19 -A---- archives\archive.0.dynpack.html [17]
+.          2014-01-19          2014-01-19 -A---- archives\archive.a.dynpack [31]
+.          2014-01-19          2014-01-19 -A---- archives\archive.m.dynpack [32]
+.          2014-01-19          2014-01-19 -A---- archives\archive.s.dynpack [33]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\a\a5.txt [5]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- source\b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- source\b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- source\b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- source\b\b5.txt [10]
+.                                         -----D source\c\
+.          2014-01-11          2014-01-11 -A---- source\c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- source\c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- source\c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
+endlist
+rmdir archives
+mkdir archives
+
+# this test is no longer useful, since the random archive signature will cause the archive files to always look different, whether encryption is used or not used
+test encryption (nondeterminism)
+date + 1
+call backup -date %DATE% -encrypt aes128 pA55w01D dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.                                         -----D archives\
+.          2014-01-20          2014-01-20 -A---- archives\archive.0.dynpack [34]
+.          2014-01-20          2014-01-20 -A---- archives\archive.0.dynpack.html [17]
+.          2014-01-20          2014-01-20 -A---- archives\archive.a.dynpack [35]
+.          2014-01-20          2014-01-20 -A---- archives\archive.m.dynpack [36]
+.          2014-01-20          2014-01-20 -A---- archives\archive.s.dynpack [37]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\a\a5.txt [5]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- source\b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- source\b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- source\b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- source\b\b5.txt [10]
+.                                         -----D source\c\
+.          2014-01-11          2014-01-11 -A---- source\c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- source\c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- source\c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
+endlist
+
+test decryption
+date + 1
+call backup -date %DATE% -decrypt aes128 pA55w01D dynunpack archives\archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D a\
+.          2014-01-01          2014-01-01 -A---- a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- a\a5.txt [5]
+.                                         -----D b\
+.          2014-01-06          2014-01-06 -A---- b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- b\b5.txt [10]
+.                                         -----D c\
+.          2014-01-11          2014-01-11 -A---- c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- c\c5.txt [15]
+endlist
+# update archive (force read of existing manifest - code coverage)
+call backup -date %DATE% -encrypt aes128 pA55w01D dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+rmdir target
+rmdir archives
+mkdir archives
+
+test compression and encryption
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 sW01dF15H dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+list-verify .
+.                                         -----D archives\
+.          2014-01-22          2014-01-22 -A---- archives\archive.0.dynpack [38]
+.          2014-01-22          2014-01-22 -A---- archives\archive.0.dynpack.html [17]
+.          2014-01-22          2014-01-22 -A---- archives\archive.a.dynpack [39]
+.          2014-01-22          2014-01-22 -A---- archives\archive.m.dynpack [40]
+.          2014-01-22          2014-01-22 -A---- archives\archive.s.dynpack [41]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- source\a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- source\a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- source\a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- source\a\a5.txt [5]
+.                                         -----D source\b\
+.          2014-01-06          2014-01-06 -A---- source\b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- source\b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- source\b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- source\b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- source\b\b5.txt [10]
+.                                         -----D source\c\
+.          2014-01-11          2014-01-11 -A---- source\c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- source\c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- source\c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
+endlist
+
+test decompression and decryption
+date + 1
+call backup -date %DATE% -decompress -decrypt aes128 sW01dF15H dynunpack archives\archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D a\
+.          2014-01-01          2014-01-01 -A---- a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- a\a5.txt [5]
+.                                         -----D b\
+.          2014-01-06          2014-01-06 -A---- b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- b\b5.txt [10]
+.                                         -----D c\
+.          2014-01-11          2014-01-11 -A---- c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- c\c5.txt [15]
+endlist
+# update archive (force read of existing manifest - code coverage)
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 sW01dF15H dynpack source archives\archive 50000 -verify
+exitcode-verify 0
+rmdir target
+date + 1
+call backup -date %DATE% -decompress -decrypt aes128 sW01dF15H dynunpack archives\archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D a\
+.          2014-01-01          2014-01-01 -A---- a\a1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\a2.txt [2]
+.          2014-01-03          2014-01-03 -A---- a\a3.txt [3]
+.          2014-01-04          2014-01-04 -A---- a\a4.txt [4]
+.          2014-01-05          2014-01-05 -A---- a\a5.txt [5]
+.                                         -----D b\
+.          2014-01-06          2014-01-06 -A---- b\b1.txt [6]
+.          2014-01-07          2014-01-07 -A---- b\b2.txt [7]
+.          2014-01-08          2014-01-08 -A---- b\b3.txt [8]
+.          2014-01-09          2014-01-09 -A---- b\b4.txt [9]
+.          2014-01-10          2014-01-10 -A---- b\b5.txt [10]
+.                                         -----D c\
+.          2014-01-11          2014-01-11 -A---- c\c1.txt [11]
+.          2014-01-12          2014-01-12 -A---- c\c2.txt [12]
+.          2014-01-13          2014-01-13 -A---- c\c3.txt [13]
+.          2014-01-14          2014-01-14 -A---- c\c4.txt [14]
+.          2014-01-15          2014-01-15 -A---- c\c5.txt [15]
+endlist
+rmdir target
+rmdir archives
+mkdir archives
+
+
+module segment naming tests
+
+test create segment name hierarchy
+date 2014-01-01
+mkdir source
+create source\0000 -size 9900
+create source\5000 -size 9900
+create source\9999 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+create source\7500 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+create source\6250 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [1]
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack.html [2]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [4]
+.          2014-01-04          2014-01-04 -A---- archive.n.dynpack [5]
+.          2014-01-03          2014-01-03 -A---- archive.p.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\0000 [8]
+.          2014-01-01          2014-01-01 -A---- source\5000 [9]
+.          2014-01-03          2014-01-03 -A---- source\6250 [10]
+.          2014-01-02          2014-01-02 -A---- source\7500 [11]
+.          2014-01-01          2014-01-01 -A---- source\9999 [12]
+endlist
+create source\5938 -size 9900
+create source\5625 -size 9900
+create source\5312 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack [13]
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack.html [14]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [4]
+.          2014-01-05          2014-01-05 -A---- archive.mg.dynpack [15]
+.          2014-01-05          2014-01-05 -A---- archive.mm.dynpack [16]
+.          2014-01-05          2014-01-05 -A---- archive.mt.dynpack [17]
+.          2014-01-04          2014-01-04 -A---- archive.n.dynpack [5]
+.          2014-01-03          2014-01-03 -A---- archive.p.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\0000 [8]
+.          2014-01-01          2014-01-01 -A---- source\5000 [9]
+.          2014-01-04          2014-01-04 -A---- source\5312 [18]
+.          2014-01-04          2014-01-04 -A---- source\5625 [19]
+.          2014-01-04          2014-01-04 -A---- source\5938 [20]
+.          2014-01-03          2014-01-03 -A---- source\6250 [10]
+.          2014-01-02          2014-01-02 -A---- source\7500 [11]
+.          2014-01-01          2014-01-01 -A---- source\9999 [12]
+endlist
+create source\6094 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+create source\6172 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+create source\6211 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-08 -A---- archive.0.dynpack [21]
+.          2014-01-02          2014-01-08 -A---- archive.0.dynpack.html [22]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [4]
+.          2014-01-05          2014-01-05 -A---- archive.mg.dynpack [15]
+.          2014-01-05          2014-01-05 -A---- archive.mm.dynpack [16]
+.          2014-01-05          2014-01-05 -A---- archive.mt.dynpack [17]
+.          2014-01-06          2014-01-06 -A---- archive.mw.dynpack [23]
+.          2014-01-07          2014-01-07 -A---- archive.my.dynpack [24]
+.          2014-01-08          2014-01-08 -A---- archive.mz.dynpack [25]
+.          2014-01-04          2014-01-04 -A---- archive.n.dynpack [5]
+.          2014-01-03          2014-01-03 -A---- archive.p.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\0000 [8]
+.          2014-01-01          2014-01-01 -A---- source\5000 [9]
+.          2014-01-04          2014-01-04 -A---- source\5312 [18]
+.          2014-01-04          2014-01-04 -A---- source\5625 [19]
+.          2014-01-04          2014-01-04 -A---- source\5938 [20]
+.          2014-01-05          2014-01-05 -A---- source\6094 [26]
+.          2014-01-06          2014-01-06 -A---- source\6172 [27]
+.          2014-01-07          2014-01-07 -A---- source\6211 [28]
+.          2014-01-03          2014-01-03 -A---- source\6250 [10]
+.          2014-01-02          2014-01-02 -A---- source\7500 [11]
+.          2014-01-01          2014-01-01 -A---- source\9999 [12]
+endlist
+create source\6230 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-09 -A---- archive.0.dynpack [29]
+.          2014-01-02          2014-01-09 -A---- archive.0.dynpack.html [30]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [4]
+.          2014-01-05          2014-01-05 -A---- archive.mg.dynpack [15]
+.          2014-01-05          2014-01-05 -A---- archive.mm.dynpack [16]
+.          2014-01-05          2014-01-05 -A---- archive.mt.dynpack [17]
+.          2014-01-06          2014-01-06 -A---- archive.mw.dynpack [23]
+.          2014-01-07          2014-01-07 -A---- archive.my.dynpack [24]
+.          2014-01-08          2014-01-08 -A---- archive.mz.dynpack [25]
+.          2014-01-09          2014-01-09 -A---- archive.mzm.dynpack [31]
+.          2014-01-04          2014-01-04 -A---- archive.n.dynpack [5]
+.          2014-01-03          2014-01-03 -A---- archive.p.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\0000 [8]
+.          2014-01-01          2014-01-01 -A---- source\5000 [9]
+.          2014-01-04          2014-01-04 -A---- source\5312 [18]
+.          2014-01-04          2014-01-04 -A---- source\5625 [19]
+.          2014-01-04          2014-01-04 -A---- source\5938 [20]
+.          2014-01-05          2014-01-05 -A---- source\6094 [26]
+.          2014-01-06          2014-01-06 -A---- source\6172 [27]
+.          2014-01-07          2014-01-07 -A---- source\6211 [28]
+.          2014-01-08          2014-01-08 -A---- source\6230 [32]
+.          2014-01-03          2014-01-03 -A---- source\6250 [10]
+.          2014-01-02          2014-01-02 -A---- source\7500 [11]
+.          2014-01-01          2014-01-01 -A---- source\9999 [12]
+endlist
+
+test remove range and reinsert with different length bounds
+delete source\5312
+delete source\5625
+delete source\5938
+delete source\6094
+delete source\6172
+delete source\6211
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-10 -A---- archive.0.dynpack [33]
+.          2014-01-02          2014-01-10 -A---- archive.0.dynpack.html [34]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [4]
+.          2014-01-09          2014-01-09 -A---- archive.mzm.dynpack [31]
+.          2014-01-04          2014-01-04 -A---- archive.n.dynpack [5]
+.          2014-01-03          2014-01-03 -A---- archive.p.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\0000 [8]
+.          2014-01-01          2014-01-01 -A---- source\5000 [9]
+.          2014-01-08          2014-01-08 -A---- source\6230 [32]
+.          2014-01-03          2014-01-03 -A---- source\6250 [10]
+.          2014-01-02          2014-01-02 -A---- source\7500 [11]
+.          2014-01-01          2014-01-01 -A---- source\9999 [12]
+endlist
+create source\5615 -size 9900
+date + 1
+call backup -date %DATE% dynpack source archive 10000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-11 -A---- archive.0.dynpack [35]
+.          2014-01-02          2014-01-11 -A---- archive.0.dynpack.html [36]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [4]
+.          2014-01-11          2014-01-11 -A---- archive.mm.dynpack [37]
+.          2014-01-09          2014-01-09 -A---- archive.mzm.dynpack [31]
+.          2014-01-04          2014-01-04 -A---- archive.n.dynpack [5]
+.          2014-01-03          2014-01-03 -A---- archive.p.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [7]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\0000 [8]
+.          2014-01-01          2014-01-01 -A---- source\5000 [9]
+.          2014-01-10          2014-01-10 -A---- source\5615 [38]
+.          2014-01-08          2014-01-08 -A---- source\6230 [32]
+.          2014-01-03          2014-01-03 -A---- source\6250 [10]
+.          2014-01-02          2014-01-02 -A---- source\7500 [11]
+.          2014-01-01          2014-01-01 -A---- source\9999 [12]
+endlist
+
+
+module ensure serial number rollover to multibyte representation works
+
+test one
+date 2014-01-01
+mkdir data
+create data\file0 -size 10000
+create data\file1 -size 10000
+create data\file2 -size 10000
+create data\file3 -size 10000
+create data\file4 -size 10000
+create data\file5 -size 10000
+create data\file6 -size 10000
+create data\file7 -size 10000
+create data\file8 -size 10000
+create data\file9 -size 10000
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 41\; SIGNATURE\: .*$
+. [a: 1]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 1\; SIGNATURE\: .*$
+endoutput
+#
+date + 1
+edit data\file0 -size 10000
+edit data\file1 -size 10000
+edit data\file2 -size 10000
+edit data\file3 -size 10000
+edit data\file4 -size 10000
+edit data\file5 -size 10000
+edit data\file6 -size 10000
+edit data\file7 -size 10000
+edit data\file8 -size 10000
+edit data\file9 -size 10000
+rmdir source
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 82\; SIGNATURE\: .*$
+. [a: 42]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 42\; SIGNATURE\: .*$
+endoutput
+#
+date + 1
+edit data\file0 -size 10000
+edit data\file1 -size 10000
+edit data\file2 -size 10000
+edit data\file3 -size 10000
+edit data\file4 -size 10000
+edit data\file5 -size 10000
+edit data\file6 -size 10000
+edit data\file7 -size 10000
+edit data\file8 -size 10000
+edit data\file9 -size 10000
+rmdir source
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 123\; SIGNATURE\: .*$
+. [a: 83]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 83\; SIGNATURE\: .*$
+endoutput
+#
+date + 1
+edit data\file0 -size 10000
+edit data\file1 -size 10000
+edit data\file2 -size 10000
+edit data\file3 -size 10000
+edit data\file4 -size 10000
+edit data\file5 -size 10000
+edit data\file6 -size 10000
+edit data\file7 -size 10000
+edit data\file8 -size 10000
+edit data\file9 -size 10000
+rmdir source
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 164\; SIGNATURE\: .*$
+. [a: 124]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 124\; SIGNATURE\: .*$
+endoutput
+#
+date + 1
+edit data\file0 -size 10000
+edit data\file1 -size 10000
+edit data\file2 -size 10000
+edit data\file3 -size 10000
+edit data\file4 -size 10000
+edit data\file5 -size 10000
+edit data\file6 -size 10000
+edit data\file7 -size 10000
+edit data\file8 -size 10000
+edit data\file9 -size 10000
+rmdir source
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 205\; SIGNATURE\: .*$
+. [a: 165]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 165\; SIGNATURE\: .*$
+endoutput
+#
+date + 1
+edit data\file0 -size 10000
+edit data\file1 -size 10000
+edit data\file2 -size 10000
+edit data\file3 -size 10000
+edit data\file4 -size 10000
+edit data\file5 -size 10000
+edit data\file6 -size 10000
+edit data\file7 -size 10000
+edit data\file8 -size 10000
+edit data\file9 -size 10000
+rmdir source
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 246\; SIGNATURE\: .*$
+. [a: 206]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 206\; SIGNATURE\: .*$
+endoutput
+#
+date + 1
+edit data\file0 -size 10000
+edit data\file1 -size 10000
+edit data\file2 -size 10000
+edit data\file3 -size 10000
+edit data\file4 -size 10000
+edit data\file5 -size 10000
+edit data\file6 -size 10000
+edit data\file7 -size 10000
+edit data\file8 -size 10000
+edit data\file9 -size 10000
+rmdir source
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 287\; SIGNATURE\: .*$
+. [a: 247]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 247\; SIGNATURE\: .*$
+endoutput
+#
+date + 1
+edit data\file0 -size 10000
+edit data\file1 -size 10000
+edit data\file2 -size 10000
+edit data\file3 -size 10000
+edit data\file4 -size 10000
+edit data\file5 -size 10000
+edit data\file6 -size 10000
+edit data\file7 -size 10000
+edit data\file8 -size 10000
+edit data\file9 -size 10000
+rmdir source
+mkdir source
+copy data source\data0
+copy data source\data1
+copy data source\data2
+copy data source\data3
+date + 1
+call backup -date %DATE% dynpack source archive 12000 -verify
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 328\; SIGNATURE\: .*$
+. [a: 288]
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify -ignoreextralines
+*SERIAL\: 288\; SIGNATURE\: .*$
+endoutput

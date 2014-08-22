@@ -1,0 +1,346 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module copy excluded subdirectories
+
+test setup
+date 2014-01-01
+mkdir source
+mkdir source\a
+mkdir source\b
+mkdir source\c
+create source\a\x
+create source\b\y
+create source\c\z
+date + 1
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\x [1]
+.                                         -----D source\b\
+.          2014-01-01          2014-01-01 -A---- source\b\y [2]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\z [3]
+endlist
+
+test excluded directories 1
+date + 1
+call backup -date %DATE% copy source target -exclude source\a
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\x [1]
+.                                         -----D source\b\
+.          2014-01-01          2014-01-01 -A---- source\b\y [2]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\z [3]
+.                                         -----D target\
+.                                         -----D target\b\
+.          2014-01-01          2014-01-01 -A---- target\b\y [2]
+.                                         -----D target\c\
+.          2014-01-01          2014-01-01 -A---- target\c\z [3]
+endlist
+rmdir target
+
+test excluded directories 2
+date + 1
+call backup -date %DATE% copy source target -exclude source\b
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\x [1]
+.                                         -----D source\b\
+.          2014-01-01          2014-01-01 -A---- source\b\y [2]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\z [3]
+.                                         -----D target\
+.                                         -----D target\a\
+.          2014-01-01          2014-01-01 -A---- target\a\x [1]
+.                                         -----D target\c\
+.          2014-01-01          2014-01-01 -A---- target\c\z [3]
+endlist
+rmdir target
+
+test excluded directories 2
+date + 1
+call backup -date %DATE% copy source target -exclude source\c
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\x [1]
+.                                         -----D source\b\
+.          2014-01-01          2014-01-01 -A---- source\b\y [2]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\z [3]
+.                                         -----D target\
+.                                         -----D target\a\
+.          2014-01-01          2014-01-01 -A---- target\a\x [1]
+.                                         -----D target\b\
+.          2014-01-01          2014-01-01 -A---- target\b\y [2]
+endlist
+rmdir target
+
+test excluded directories 4
+date + 1
+call backup -date %DATE% copy source target -exclude source\a -exclude source\c
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-01          2014-01-01 -A---- source\a\x [1]
+.                                         -----D source\b\
+.          2014-01-01          2014-01-01 -A---- source\b\y [2]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\z [3]
+.                                         -----D target\
+.                                         -----D target\b\
+.          2014-01-01          2014-01-01 -A---- target\b\y [2]
+endlist
+rmdir target
+
+
+module copy excluded extensions
+
+test setup
+date 2014-01-01
+mkdir source
+mkdir source\a
+mkdir source\a\b
+mkdir source\c
+create source\a\x.txt
+create source\a\y.foo
+create source\a\z
+create source\a\b\d.txt
+create source\a\b\e.foo
+create source\a\b\f
+create source\c\l.txt
+create source\c\m.foo
+create source\c\n
+date + 1
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.                                         -----D source\a\b\
+.          2014-01-01          2014-01-01 -A---- source\a\b\d.txt [1]
+.          2014-01-01          2014-01-01 -A---- source\a\b\e.foo [2]
+.          2014-01-01          2014-01-01 -A---- source\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [4]
+.          2014-01-01          2014-01-01 -A---- source\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- source\a\z [6]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\l.txt [7]
+.          2014-01-01          2014-01-01 -A---- source\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- source\c\n [9]
+endlist
+
+test excluded extensions 1
+date + 1
+call backup -date %DATE% copy source target -skip .txt
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.                                         -----D source\a\b\
+.          2014-01-01          2014-01-01 -A---- source\a\b\d.txt [1]
+.          2014-01-01          2014-01-01 -A---- source\a\b\e.foo [2]
+.          2014-01-01          2014-01-01 -A---- source\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [4]
+.          2014-01-01          2014-01-01 -A---- source\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- source\a\z [6]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\l.txt [7]
+.          2014-01-01          2014-01-01 -A---- source\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- source\c\n [9]
+.                                         -----D target\
+.                                         -----D target\a\
+.                                         -----D target\a\b\
+.          2014-01-01          2014-01-01 -A---- target\a\b\e.foo [2]
+.          2014-01-01          2014-01-01 -A---- target\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- target\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- target\a\z [6]
+.                                         -----D target\c\
+.          2014-01-01          2014-01-01 -A---- target\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- target\c\n [9]
+endlist
+rmdir target
+
+test excluded extensions 2
+date + 1
+call backup -date %DATE% copy source target -skip .foo
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.                                         -----D source\a\b\
+.          2014-01-01          2014-01-01 -A---- source\a\b\d.txt [1]
+.          2014-01-01          2014-01-01 -A---- source\a\b\e.foo [2]
+.          2014-01-01          2014-01-01 -A---- source\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [4]
+.          2014-01-01          2014-01-01 -A---- source\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- source\a\z [6]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\l.txt [7]
+.          2014-01-01          2014-01-01 -A---- source\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- source\c\n [9]
+.                                         -----D target\
+.                                         -----D target\a\
+.                                         -----D target\a\b\
+.          2014-01-01          2014-01-01 -A---- target\a\b\d.txt [1]
+.          2014-01-01          2014-01-01 -A---- target\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- target\a\x.txt [4]
+.          2014-01-01          2014-01-01 -A---- target\a\z [6]
+.                                         -----D target\c\
+.          2014-01-01          2014-01-01 -A---- target\c\l.txt [7]
+.          2014-01-01          2014-01-01 -A---- target\c\n [9]
+endlist
+rmdir target
+
+test excluded extensions 3
+date + 1
+call backup -date %DATE% copy source target -skip .foo -skip .txt
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.                                         -----D source\a\b\
+.          2014-01-01          2014-01-01 -A---- source\a\b\d.txt [1]
+.          2014-01-01          2014-01-01 -A---- source\a\b\e.foo [2]
+.          2014-01-01          2014-01-01 -A---- source\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [4]
+.          2014-01-01          2014-01-01 -A---- source\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- source\a\z [6]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\l.txt [7]
+.          2014-01-01          2014-01-01 -A---- source\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- source\c\n [9]
+.                                         -----D target\
+.                                         -----D target\a\
+.                                         -----D target\a\b\
+.          2014-01-01          2014-01-01 -A---- target\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- target\a\z [6]
+.                                         -----D target\c\
+.          2014-01-01          2014-01-01 -A---- target\c\n [9]
+endlist
+rmdir target
+
+test combined subdir and extension exclusion 1
+date + 1
+call backup -date %DATE% copy source target -skip .txt -exclude source\a\b
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.                                         -----D source\a\b\
+.          2014-01-01          2014-01-01 -A---- source\a\b\d.txt [1]
+.          2014-01-01          2014-01-01 -A---- source\a\b\e.foo [2]
+.          2014-01-01          2014-01-01 -A---- source\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [4]
+.          2014-01-01          2014-01-01 -A---- source\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- source\a\z [6]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\l.txt [7]
+.          2014-01-01          2014-01-01 -A---- source\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- source\c\n [9]
+.                                         -----D target\
+.                                         -----D target\a\
+.          2014-01-01          2014-01-01 -A---- target\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- target\a\z [6]
+.                                         -----D target\c\
+.          2014-01-01          2014-01-01 -A---- target\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- target\c\n [9]
+endlist
+rmdir target
+
+test combined subdir and extension exclusion 2
+date + 1
+call backup -date %DATE% copy source target -skip .txt -exclude source\a -skip .foo
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\a\
+.                                         -----D source\a\b\
+.          2014-01-01          2014-01-01 -A---- source\a\b\d.txt [1]
+.          2014-01-01          2014-01-01 -A---- source\a\b\e.foo [2]
+.          2014-01-01          2014-01-01 -A---- source\a\b\f [3]
+.          2014-01-01          2014-01-01 -A---- source\a\x.txt [4]
+.          2014-01-01          2014-01-01 -A---- source\a\y.foo [5]
+.          2014-01-01          2014-01-01 -A---- source\a\z [6]
+.                                         -----D source\c\
+.          2014-01-01          2014-01-01 -A---- source\c\l.txt [7]
+.          2014-01-01          2014-01-01 -A---- source\c\m.foo [8]
+.          2014-01-01          2014-01-01 -A---- source\c\n [9]
+.                                         -----D target\
+.                                         -----D target\c\
+.          2014-01-01          2014-01-01 -A---- target\c\n [9]
+endlist
+rmdir target
+
+
+module skipped extensions not applied to directory names
+
+test create content and backup, excluding .foo
+mkdir source
+date + 1
+create source\m.txt
+date + 1
+create source\n.foo
+date + 1
+mkdir source\C.foo
+date + 1
+create source\C.foo\q.txt
+date + 1
+create source\C.foo\r.foo
+date + 1
+qlist .
+call backup -date %DATE% copy source target -skip .foo
+exitcode-verify 0
+list-verify .
+.                                         -----D source\
+.                                         -----D source\C.foo\
+.          2010-01-05          2010-01-05 -A---- source\C.foo\q.txt [1]
+.          2010-01-06          2010-01-06 -A---- source\C.foo\r.foo [2]
+.          2010-01-02          2010-01-02 -A---- source\m.txt [3]
+.          2010-01-03          2010-01-03 -A---- source\n.foo [4]
+.                                         -----D target\
+.                                         -----D target\C.foo\
+.          2010-01-05          2010-01-05 -A---- target\C.foo\q.txt [1]
+.          2010-01-02          2010-01-02 -A---- target\m.txt [3]
+endlist
+
+
+module excluded file (not directory) item
+
+test excluded file (not directory) item
+date 2014-01-01
+mkdir source
+date + 1
+create source\m.txt
+date + 1
+create source\n.foo
+date + 1
+create source\o.bar
+date + 1
+qlist .
+call backup -date %DATE% copy source target -exclude source\n.foo
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.  SKIPPED FILE: %WORKSPACE%\source\n.foo
+endoutput
+list-verify .
+.                                         -----D source\
+.          2014-01-02          2014-01-02 -A---- source\m.txt [1]
+.          2014-01-03          2014-01-03 -A---- source\n.foo [2]
+.          2014-01-04          2014-01-04 -A---- source\o.bar [3]
+.                                         -----D target\
+.          2014-01-02          2014-01-02 -A---- target\m.txt [1]
+.          2014-01-04          2014-01-04 -A---- target\o.bar [3]
+endlist

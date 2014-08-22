@@ -1,0 +1,350 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module basic
+
+test initial test
+date 2014-01-01
+mkdir logs
+mkdir source
+mkdir source\a
+mkdir source\b
+mkdir source\c
+date + 1
+create source\a\m -size 9900
+date + 1
+create source\a\n -size 9900
+date + 1
+create source\a\o -size 9900
+date + 1
+create source\b\p -size 9900
+date + 1
+create source\b\q -size 9900
+date + 1
+create source\b\r -size 9900
+date + 1
+create source\c\s -size 9900
+date + 1
+create source\c\t -size 9900
+date + 1
+create source\c\v -size 9900
+date + 1
+list-verify .
+.                                         -----D logs\
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-02          2014-01-02 -A---- source\a\m [1]
+.          2014-01-03          2014-01-03 -A---- source\a\n [2]
+.          2014-01-04          2014-01-04 -A---- source\a\o [3]
+.                                         -----D source\b\
+.          2014-01-05          2014-01-05 -A---- source\b\p [4]
+.          2014-01-06          2014-01-06 -A---- source\b\q [5]
+.          2014-01-07          2014-01-07 -A---- source\b\r [6]
+.                                         -----D source\c\
+.          2014-01-08          2014-01-08 -A---- source\c\s [7]
+.          2014-01-09          2014-01-09 -A---- source\c\t [8]
+.          2014-01-10          2014-01-10 -A---- source\c\v [9]
+endlist
+call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+exitcode-verify 0
+list-verify .
+.          2014-01-11          2014-01-11 -A---- archive.0.dynpack [10]
+.          2014-01-11          2014-01-11 -A---- archive.0.dynpack.html [11]
+.          2014-01-11          2014-01-11 -A---- archive.a.dynpack [12]
+.          2014-01-11          2014-01-11 -A---- archive.m.dynpack [13]
+.          2014-01-11          2014-01-11 -A---- archive.s.dynpack [14]
+.                                         -----D logs\
+.          2014-01-11          2014-01-11 -A---- logs\archive.0.dynpack.log [15]
+.          2014-01-11          2014-01-11 -A---- logs\dynpack.log [16]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-02          2014-01-02 -A---- source\a\m [1]
+.          2014-01-03          2014-01-03 -A---- source\a\n [2]
+.          2014-01-04          2014-01-04 -A---- source\a\o [3]
+.                                         -----D source\b\
+.          2014-01-05          2014-01-05 -A---- source\b\p [4]
+.          2014-01-06          2014-01-06 -A---- source\b\q [5]
+.          2014-01-07          2014-01-07 -A---- source\b\r [6]
+.                                         -----D source\c\
+.          2014-01-08          2014-01-08 -A---- source\c\s [7]
+.          2014-01-09          2014-01-09 -A---- source\c\t [8]
+.          2014-01-10          2014-01-10 -A---- source\c\v [9]
+endlist
+file-verify logs\archive.0.dynpack.log
+.[Non-dirty segment verification enabled]
+.
+*SEGMENT a \d+ [0-9a-fA-F]{8}$
+.0 dirty
+*SEGMENT m \d+ [0-9a-fA-F]{8}$
+.1 dirty
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+.2 dirty
+.
+*SEGMENT a \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
+*  FILE         9900 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
+*  FILE         9900 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
+*SEGMENT m \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-05T\d\d\:\d\d\:\d\d 2014-01-05T\d\d\:\d\d\:\d\d \.\\b\\p$
+*  FILE         9900 2014-01-06T\d\d\:\d\d\:\d\d 2014-01-06T\d\d\:\d\d\:\d\d \.\\b\\q$
+*  FILE         9900 2014-01-07T\d\d\:\d\d\:\d\d 2014-01-07T\d\d\:\d\d\:\d\d \.\\b\\r$
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
+*  FILE         9900 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
+*  FILE         9900 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
+endfile
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\m [1]
+.          2014-01-03          2014-01-03 -A---- a\n [2]
+.          2014-01-04          2014-01-04 -A---- a\o [3]
+.                                         -----D b\
+.          2014-01-05          2014-01-05 -A---- b\p [4]
+.          2014-01-06          2014-01-06 -A---- b\q [5]
+.          2014-01-07          2014-01-07 -A---- b\r [6]
+.                                         -----D c\
+.          2014-01-08          2014-01-08 -A---- c\s [7]
+.          2014-01-09          2014-01-09 -A---- c\t [8]
+.          2014-01-10          2014-01-10 -A---- c\v [9]
+endlist
+rmdir target
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 1]
+.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+. [m: 2]
+.        4 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        5 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        6 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+. [s: 3]
+.        7 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        8 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        9 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+endoutput
+call backup -date %DATE% dumppack archive.a.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 1\; SIGNATURE\: .*$
+.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+endoutput
+call backup -date %DATE% dumppack archive.m.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 2\; SIGNATURE\: .*$
+.        1 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        2 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        3 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+endoutput
+call backup -date %DATE% dumppack archive.s.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 3\; SIGNATURE\: .*$
+.        1 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        2 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        3 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+endoutput
+# validate globbing in dumppack file argument and multifile output
+call backup -date %DATE% dumppack archive.*.dynpack
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.FILE: "%WORKSPACE%\archive.0.dynpack"
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 1]
+.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+. [m: 2]
+.        4 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        5 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        6 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+. [s: 3]
+.        7 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        8 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        9 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+.
+.FILE: "%WORKSPACE%\archive.a.dynpack"
+*SERIAL\: 1\; SIGNATURE\: .*$
+.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+.
+.FILE: "%WORKSPACE%\archive.m.dynpack"
+*SERIAL\: 2\; SIGNATURE\: .*$
+.        1 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        2 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        3 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+.
+.FILE: "%WORKSPACE%\archive.s.dynpack"
+*SERIAL\: 3\; SIGNATURE\: .*$
+.        1 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        2 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        3 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+.
+endoutput
+
+test delete segment
+rmdir source\b
+date + 1
+list-verify source
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\m [1]
+.          2014-01-03          2014-01-03 -A---- a\n [2]
+.          2014-01-04          2014-01-04 -A---- a\o [3]
+.                                         -----D c\
+.          2014-01-08          2014-01-08 -A---- c\s [7]
+.          2014-01-09          2014-01-09 -A---- c\t [8]
+.          2014-01-10          2014-01-10 -A---- c\v [9]
+endlist
+call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+exitcode-verify 0
+list-verify .
+.          2014-01-11          2014-01-12 -A---- archive.0.dynpack [17]
+.          2014-01-11          2014-01-12 -A---- archive.0.dynpack.html [18]
+.          2014-01-11          2014-01-11 -A---- archive.a.dynpack [12]
+.          2014-01-11          2014-01-11 -A---- archive.s.dynpack [14]
+.                                         -----D logs\
+.          2014-01-12          2014-01-12 -A---- logs\archive.0.dynpack.log [19]
+.          2014-01-11          2014-01-11 -A---- logs\archive.0.dynpack.previous.log [15]
+.          2014-01-12          2014-01-12 -A---- logs\dynpack.log [20]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-02          2014-01-02 -A---- source\a\m [1]
+.          2014-01-03          2014-01-03 -A---- source\a\n [2]
+.          2014-01-04          2014-01-04 -A---- source\a\o [3]
+.                                         -----D source\c\
+.          2014-01-08          2014-01-08 -A---- source\c\s [7]
+.          2014-01-09          2014-01-09 -A---- source\c\t [8]
+.          2014-01-10          2014-01-10 -A---- source\c\v [9]
+endlist
+file-verify logs\archive.0.dynpack.log
+.[Non-dirty segment verification enabled]
+.
+*SEGMENT a \d+ [0-9a-fA-F]{8}$
+.0 not-dirty
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+.2 not-dirty
+.
+*SEGMENT a \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
+*  FILE         9900 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
+*  FILE         9900 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
+*  FILE         9900 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
+*  FILE         9900 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
+endfile
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\m [1]
+.          2014-01-03          2014-01-03 -A---- a\n [2]
+.          2014-01-04          2014-01-04 -A---- a\o [3]
+.                                         -----D c\
+.          2014-01-08          2014-01-08 -A---- c\s [7]
+.          2014-01-09          2014-01-09 -A---- c\t [8]
+.          2014-01-10          2014-01-10 -A---- c\v [9]
+endlist
+rmdir target
+
+test add segment
+mkdir source\d
+date + 1
+create source\d\w -size 9900
+date + 1
+create source\d\x -size 9900
+date + 1
+create source\d\y -size 9900
+date + 1
+list-verify source
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\m [1]
+.          2014-01-03          2014-01-03 -A---- a\n [2]
+.          2014-01-04          2014-01-04 -A---- a\o [3]
+.                                         -----D c\
+.          2014-01-08          2014-01-08 -A---- c\s [7]
+.          2014-01-09          2014-01-09 -A---- c\t [8]
+.          2014-01-10          2014-01-10 -A---- c\v [9]
+.                                         -----D d\
+.          2014-01-13          2014-01-13 -A---- d\w [21]
+.          2014-01-14          2014-01-14 -A---- d\x [22]
+.          2014-01-15          2014-01-15 -A---- d\y [23]
+endlist
+call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+exitcode-verify 0
+list-verify .
+.          2014-01-11          2014-01-16 -A---- archive.0.dynpack [24]
+.          2014-01-11          2014-01-16 -A---- archive.0.dynpack.html [25]
+.          2014-01-11          2014-01-11 -A---- archive.a.dynpack [12]
+.          2014-01-11          2014-01-11 -A---- archive.s.dynpack [14]
+.          2014-01-16          2014-01-16 -A---- archive.v.dynpack [26]
+.                                         -----D logs\
+.          2014-01-16          2014-01-16 -A---- logs\archive.0.dynpack.log [27]
+.          2014-01-11          2014-01-12 -A---- logs\archive.0.dynpack.previous.log [19]
+.          2014-01-16          2014-01-16 -A---- logs\dynpack.log [28]
+.                                         -----D source\
+.                                         -----D source\a\
+.          2014-01-02          2014-01-02 -A---- source\a\m [1]
+.          2014-01-03          2014-01-03 -A---- source\a\n [2]
+.          2014-01-04          2014-01-04 -A---- source\a\o [3]
+.                                         -----D source\c\
+.          2014-01-08          2014-01-08 -A---- source\c\s [7]
+.          2014-01-09          2014-01-09 -A---- source\c\t [8]
+.          2014-01-10          2014-01-10 -A---- source\c\v [9]
+.                                         -----D source\d\
+.          2014-01-13          2014-01-13 -A---- source\d\w [21]
+.          2014-01-14          2014-01-14 -A---- source\d\x [22]
+.          2014-01-15          2014-01-15 -A---- source\d\y [23]
+endlist
+file-verify logs\archive.0.dynpack.log
+.[Non-dirty segment verification enabled]
+.
+*SEGMENT a \d+ [0-9a-fA-F]{8}$
+.0 not-dirty
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+.1 not-dirty
+*SEGMENT v \d+ [0-9a-fA-F]{8}$
+.2 dirty
+.
+*SEGMENT a \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
+*  FILE         9900 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
+*  FILE         9900 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
+*  FILE         9900 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
+*  FILE         9900 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
+*SEGMENT v \d+ [0-9a-fA-F]{8}$
+*  FILE         9900 2014-01-13T\d\d\:\d\d\:\d\d 2014-01-13T\d\d\:\d\d\:\d\d \.\\d\\w$
+*  FILE         9900 2014-01-14T\d\d\:\d\d\:\d\d 2014-01-14T\d\d\:\d\d\:\d\d \.\\d\\x$
+*  FILE         9900 2014-01-15T\d\d\:\d\d\:\d\d 2014-01-15T\d\d\:\d\d\:\d\d \.\\d\\y$
+endfile
+call backup -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.                                         -----D a\
+.          2014-01-02          2014-01-02 -A---- a\m [1]
+.          2014-01-03          2014-01-03 -A---- a\n [2]
+.          2014-01-04          2014-01-04 -A---- a\o [3]
+.                                         -----D c\
+.          2014-01-08          2014-01-08 -A---- c\s [7]
+.          2014-01-09          2014-01-09 -A---- c\t [8]
+.          2014-01-10          2014-01-10 -A---- c\v [9]
+.                                         -----D d\
+.          2014-01-13          2014-01-13 -A---- d\w [21]
+.          2014-01-14          2014-01-14 -A---- d\x [22]
+.          2014-01-15          2014-01-15 -A---- d\y [23]
+endlist

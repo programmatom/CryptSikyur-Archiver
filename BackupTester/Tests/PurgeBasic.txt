@@ -1,0 +1,460 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module purge
+
+test initial setup
+date 2014-01-01
+mkdir archive
+mkdir source0
+call backup -date %DATE% backup source0 archive
+exitcode-verify 0
+mkdir source1
+mkdir source1\a
+create source1\a\x.txt
+date + 1
+create source1\a\y.txt
+date + 1
+mkdir source1\b
+create source1\b\m.txt
+date + 1
+create source1\b\zero-len.txt -size 0
+list-verify source1
+.                                         -----D a\
+.          2014-01-01          2014-01-01 -A---- a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y.txt [2]
+.                                         -----D b\
+.          2014-01-03          2014-01-03 -A---- b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- b\zero-len.txt [0]
+endlist
+date + 1
+call backup -date %DATE% backup source1 archive
+exitcode-verify 0
+
+test first modification
+copy source1 source2
+dirs-equal-verify source1 source2
+date + 1
+edit source2\a\x.txt
+date + 1
+create source2\a\z.txt
+date + 1
+delete source2\b\m.txt
+date + 1
+mkdir source2\c
+create source2\c\zero-len2.txt -size 0
+create source2\c\w.txt
+date + 1
+list-verify source2
+.                                         -----D a\
+.          2014-01-01          2014-01-06 -A---- a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\y.txt [2]
+.          2014-01-07          2014-01-07 -A---- a\z.txt [5]
+.                                         -----D b\
+.          2014-01-04          2014-01-04 -A--Z- b\zero-len.txt [0]
+.                                         -----D c\
+.          2014-01-09          2014-01-09 -A---- c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
+endlist
+date + 1
+call backup -date %DATE% backup source2 archive
+exitcode-verify 0
+
+test second modification
+copy source2 source3
+dirs-equal-verify source2 source3
+delete source3\b\zero-len.txt
+delete source3\a\y.txt
+delete source3\a\z.txt
+date + 1
+edit source3\a\x.txt
+date + 1
+create source3\b\m.txt
+date + 1
+list-verify source3
+.                                         -----D a\
+.          2014-01-01          2014-01-12 -A---- a\x.txt [7]
+.                                         -----D b\
+.          2014-01-13          2014-01-13 -A---- b\m.txt [8]
+.                                         -----D c\
+.          2014-01-09          2014-01-09 -A---- c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
+endlist
+call backup -date %DATE% backup source3 archive
+exitcode-verify 0
+
+test third modification
+copy source3 source4
+dirs-equal-verify source3 source4
+date + 1
+rmdir source4\a
+rmdir source4\b
+date + 1
+list-verify source4
+.                                         -----D c\
+.          2014-01-09          2014-01-09 -A---- c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
+endlist
+call backup -date %DATE% backup source4 archive
+exitcode-verify 0
+
+test fourth modification
+copy source4 source5
+dirs-equal-verify source4 source5
+copy source3\a source5\a
+mkdir source5\b
+date + 1
+create source5\b\m.txt
+date + 1
+list-verify source5
+.                                         -----D a\
+.          2014-01-01          2014-01-12 -A---- a\x.txt [7]
+.                                         -----D b\
+.          2014-01-17          2014-01-17 -A---- b\m.txt [9]
+.                                         -----D c\
+.          2014-01-09          2014-01-09 -A---- c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
+endlist
+call backup -date %DATE% backup source5 archive
+exitcode-verify 0
+
+test restore all
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify 0
+dirs-equal-verify source1 target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify 0
+dirs-equal-verify source2 target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify 0
+dirs-equal-verify source3 target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify 0
+dirs-equal-verify source4 target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir target0
+rmdir target1
+rmdir target2
+rmdir target3
+rmdir target4
+rmdir target5
+
+test purge 1
+copy archive archive2
+call backup -date %DATE% purge archive 2014-01-05T00+00+00 2014-01-14T00+00+00
+exitcode-verify 0
+
+test restore remaining
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify 0
+dirs-equal-verify source1 target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-11T00+00+00" does not exist
+endoutput
+verify-not-exist target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify 0
+dirs-equal-verify source3 target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify 0
+dirs-equal-verify source4 target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir target0
+rmdir target1
+rmdir target3
+rmdir target4
+rmdir target5
+
+test purge 2
+rmdir archive
+move archive2 archive
+copy archive archive2
+call backup -date %DATE% purge archive 2014-01-11T00+00+00 2014-01-16T00+00+00
+exitcode-verify 0
+
+test restore remaining
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify 0
+dirs-equal-verify source1 target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify 0
+dirs-equal-verify source2 target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-14T00+00+00" does not exist
+endoutput
+verify-not-exist target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify 0
+dirs-equal-verify source4 target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir target0
+rmdir target1
+rmdir target2
+rmdir target4
+rmdir target5
+
+test purge 3
+rmdir archive
+move archive2 archive
+copy archive archive2
+call backup -date %DATE% purge archive 2014-01-14T00+00+00 2014-01-18T00+00+00
+exitcode-verify 0
+
+test restore remaining
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify 0
+dirs-equal-verify source1 target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify 0
+dirs-equal-verify source2 target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify 0
+dirs-equal-verify source3 target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-16T00+00+00" does not exist
+endoutput
+verify-not-exist target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir target0
+rmdir target1
+rmdir target2
+rmdir target3
+rmdir target5
+
+test purge 4 (multiple)
+rmdir archive
+move archive2 archive
+copy archive archive2
+call backup -date %DATE% purge archive 2014-01-01T00+00+00 2014-01-14T00+00+00
+exitcode-verify 0
+
+test restore remaining
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-05T00+00+00" does not exist
+endoutput
+verify-not-exist target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-11T00+00+00" does not exist
+endoutput
+verify-not-exist target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify 0
+dirs-equal-verify source3 target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify 0
+dirs-equal-verify source4 target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir target0
+rmdir target3
+rmdir target4
+rmdir target5
+
+test purge 5 (multiple)
+rmdir archive
+move archive2 archive
+copy archive archive2
+call backup -date %DATE% purge archive 2014-01-11T00+00+00 2014-01-18T00+00+00
+exitcode-verify 0
+
+test restore remaining
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify 0
+dirs-equal-verify source1 target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify 0
+dirs-equal-verify source2 target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-14T00+00+00" does not exist
+endoutput
+verify-not-exist target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-16T00+00+00" does not exist
+endoutput
+verify-not-exist target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir target0
+rmdir target1
+rmdir target2
+rmdir target5
+
+test purge 6 (maximum)
+rmdir archive
+move archive2 archive
+copy archive archive2
+call backup -date %DATE% purge archive 2014-01-01T00+00+00 2014-01-18T00+00+00
+exitcode-verify 0
+
+test restore remaining
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-05T00+00+00" does not exist
+endoutput
+verify-not-exist target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-11T00+00+00" does not exist
+endoutput
+verify-not-exist target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-14T00+00+00" does not exist
+endoutput
+verify-not-exist target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Archive point "2014-01-16T00+00+00" does not exist
+endoutput
+verify-not-exist target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir target0
+rmdir target5
+
+test sanity check - restore all and verify
+rmdir archive
+move archive2 archive
+test restore all
+call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+exitcode-verify 0
+dirs-equal-verify source0 target0
+call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+exitcode-verify 0
+dirs-equal-verify source1 target1
+call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+exitcode-verify 0
+dirs-equal-verify source2 target2
+call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+exitcode-verify 0
+dirs-equal-verify source3 target3
+call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+exitcode-verify 0
+dirs-equal-verify source4 target4
+call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+exitcode-verify 0
+dirs-equal-verify source5 target5
+rmdir source0
+rmdir source1
+rmdir source2
+rmdir source3
+rmdir source4
+rmdir source5
+rmdir archive
+list-verify .
+.                                         -----D target0\
+.                                         -----D target1\
+.                                         -----D target1\a\
+.          2014-01-01          2014-01-01 -A---- target1\a\x.txt [1]
+.          2014-01-02          2014-01-02 -A---- target1\a\y.txt [2]
+.                                         -----D target1\b\
+.          2014-01-03          2014-01-03 -A---- target1\b\m.txt [3]
+.          2014-01-04          2014-01-04 -A--Z- target1\b\zero-len.txt [0]
+.                                         -----D target2\
+.                                         -----D target2\a\
+.          2014-01-01          2014-01-06 -A---- target2\a\x.txt [4]
+.          2014-01-02          2014-01-02 -A---- target2\a\y.txt [2]
+.          2014-01-07          2014-01-07 -A---- target2\a\z.txt [5]
+.                                         -----D target2\b\
+.          2014-01-04          2014-01-04 -A--Z- target2\b\zero-len.txt [0]
+.                                         -----D target2\c\
+.          2014-01-09          2014-01-09 -A---- target2\c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- target2\c\zero-len2.txt [0]
+.                                         -----D target3\
+.                                         -----D target3\a\
+.          2014-01-01          2014-01-12 -A---- target3\a\x.txt [7]
+.                                         -----D target3\b\
+.          2014-01-13          2014-01-13 -A---- target3\b\m.txt [8]
+.                                         -----D target3\c\
+.          2014-01-09          2014-01-09 -A---- target3\c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- target3\c\zero-len2.txt [0]
+.                                         -----D target4\
+.                                         -----D target4\c\
+.          2014-01-09          2014-01-09 -A---- target4\c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- target4\c\zero-len2.txt [0]
+.                                         -----D target5\
+.                                         -----D target5\a\
+.          2014-01-01          2014-01-12 -A---- target5\a\x.txt [7]
+.                                         -----D target5\b\
+.          2014-01-17          2014-01-17 -A---- target5\b\m.txt [9]
+.                                         -----D target5\c\
+.          2014-01-09          2014-01-09 -A---- target5\c\w.txt [6]
+.          2014-01-09          2014-01-09 -A--Z- target5\c\zero-len2.txt [0]
+endlist

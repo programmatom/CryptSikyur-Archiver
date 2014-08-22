@@ -1,0 +1,71 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.50727</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{C09A3325-7DDA-4A24-901A-35EE3B77A11A}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Tests</RootNamespace>
+    <AssemblyName>Tests</AssemblyName>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <UseVSHostingProcess>false</UseVSHostingProcess>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+  <ItemGroup>
+    <Content Include="BackupBasic.txt" />
+    <Content Include="BackupEncryption.txt" />
+    <Content Include="BackupExclusions.txt" />
+    <Content Include="BackupFileAttributes.txt" />
+    <Content Include="BackupLogging.txt" />
+    <Content Include="BackupRestartable.txt" />
+    <Content Include="BackupValidations.txt" />
+    <Content Include="CompareDirectories.txt" />
+    <Content Include="CompareFiles.txt" />
+    <Content Include="CopyBasic.txt" />
+    <Content Include="CopyExclusions.txt" />
+    <Content Include="DirBasic.txt" />
+    <Content Include="DynpackBasic.txt" />
+    <Content Include="DynpackExclusions.txt" />
+    <Content Include="DynpackLogging.txt" />
+    <Content Include="PackAttributes.txt" />
+    <Content Include="PackBasic.txt" />
+    <Content Include="PackExclusions.txt" />
+    <Content Include="PurgeBasic.txt" />
+    <Content Include="RestoreBasic.txt" />
+    <Content Include="SplitBasic.txt" />
+    <Content Include="SyncBasic.txt" />
+    <Content Include="SyncExclusions.txt" />
+    <Content Include="SyncLogging.txt" />
+    <Content Include="TestScripts.txt" />
+    <Content Include="UsageBasic.txt" />
+    <Content Include="ValDynpack.txt" />
+    <Content Include="ValidateBasic.txt" />
+    <Content Include="ValidateEncryption.txt" />
+  </ItemGroup>
+</Project>

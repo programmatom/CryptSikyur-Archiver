@@ -1,0 +1,345 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module encryption and compression consistency - ordinary archive
+
+test initial ordinary
+date 2014-01-01
+mkdir source
+mkdir archive
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D source\
+endlist
+
+test try compressed
+date + 1
+call backup -date %DATE% -compress backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D source\
+endlist
+
+test try encrypted
+date + 1
+call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Previous backups prevent encryption from being allowed
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D source\
+endlist
+
+test try compressed/encrypted
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D source\
+endlist
+
+test try ordinary again (should succeed)
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\
+.                                         -----D source\
+endlist
+
+
+module encryption and compression consistency - compressed archive
+
+test initial compressed
+date 2014-01-01
+mkdir source
+mkdir archive
+call backup -date %DATE% -compress backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A--Z- archive\nocheckc.bin [0]
+.                                         -----D source\
+endlist
+
+test try ordinary
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A--Z- archive\nocheckc.bin [0]
+.                                         -----D source\
+endlist
+
+test try encrypted
+date + 1
+call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A--Z- archive\nocheckc.bin [0]
+.                                         -----D source\
+endlist
+
+test try compressed/encrypted
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Previous backups prevent encryption from being allowed
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A--Z- archive\nocheckc.bin [0]
+.                                         -----D source\
+endlist
+
+test try compressed again (should succeed)
+date + 1
+call backup -date %DATE% -compress backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D archive\2014-01-05T00+00+00\
+.          2014-01-01          2014-01-01 -A--Z- archive\nocheckc.bin [0]
+.                                         -----D source\
+endlist
+
+
+module encryption and compression consistency - encrypted archive
+
+test initial encrypted
+date 2014-01-01
+mkdir source
+mkdir archive
+call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
+.                                         -----D source\
+endlist
+
+test try ordinary
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Previous backups require encryption to be specified
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
+.                                         -----D source\
+endlist
+
+test try compressed
+date + 1
+call backup -date %DATE% -compress backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
+.                                         -----D source\
+endlist
+
+test try encrypted, wrong password
+date + 1
+call backup -date %DATE% -encrypt aes128 5w0rDf1SH backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Encryption key does not match key from previous run
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
+.                                         -----D source\
+endlist
+
+test try compressed/encrypted
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
+.                                         -----D source\
+endlist
+
+test try encrypted again (should succeed)
+date + 1
+call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D archive\2014-01-06T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
+.                                         -----D source\
+endlist
+
+
+module encryption and compression consistency - compressed and encrypted archive
+
+test initial compressed/encrypted
+date 2014-01-01
+mkdir source
+mkdir archive
+call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
+.                                         -----D source\
+endlist
+
+test try ordinary
+date + 1
+call backup -date %DATE% backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
+.                                         -----D source\
+endlist
+
+test try compressed
+date + 1
+call backup -date %DATE% -compress backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.
+.Error:
+.Previous backups require encryption to be specified
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
+.                                         -----D source\
+endlist
+
+test try encrypted
+date + 1
+call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Previous backups have compression setting incompatible with current setting
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
+.                                         -----D source\
+endlist
+
+test try compressed/encrypted, wrong password
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 5w0rDf1SH backup source archive
+exitcode-verify not 0
+lastoutput-verify -ignoreextralines
+.WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
+.
+.Error:
+.Encryption key does not match key from previous run
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
+.                                         -----D source\
+endlist
+
+test try compressed/encrypted again (should succeed)
+date + 1
+call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2014-01-01T00+00+00\
+.                                         -----D archive\2014-01-06T00+00+00\
+.          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
+.                                         -----D source\
+endlist

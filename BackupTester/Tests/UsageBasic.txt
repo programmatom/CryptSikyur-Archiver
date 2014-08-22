@@ -1,0 +1,16 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module basic
+
+test empty argument usage message
+call backup
+exitcode-verify 2
+lastoutput-verify -ignoreextralines
+.Usage:
+endoutput

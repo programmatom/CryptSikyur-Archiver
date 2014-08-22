@@ -1,0 +1,10 @@
+/Backup/Backup/obj/*
+
+/BackupTester/FileUtilityTester/bin/*
+/BackupTester/FileUtilityTester/obj/*
+/BackupTester/Tests/bin/*
+/BackupTester/Tests/obj/*
+
+/Code Coverage Report/results*.xml
+
+/FileUtilityTester/FileUtilityTester/obj/*
