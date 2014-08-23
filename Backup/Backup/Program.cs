@@ -138,7 +138,7 @@ namespace Backup
             Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
             Stream CreateDecryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
 
-            string UniquePersistentFileFormatIdentifier { get; }
+            string UniquePersistentCiphersuiteIdentifier { get; }
 
             void Test();
         }
@@ -338,7 +338,7 @@ namespace Backup
                 return cipher.CreateDecryptStream(stream, cipherKey, initialCounter);
             }
 
-            public abstract string UniquePersistentFileFormatIdentifier { get; }
+            public abstract string UniquePersistentCiphersuiteIdentifier { get; }
 
             public void Test()
             {
@@ -368,7 +368,7 @@ namespace Backup
 
             public override bool Weak { get { return true; } }
 
-            public override string UniquePersistentFileFormatIdentifier { get { return "\x01"; } }
+            public override string UniquePersistentCiphersuiteIdentifier { get { return "\x01"; } }
         }
 
         public class CryptoSystemAES128 : CryptoSystemComposable
@@ -385,7 +385,7 @@ namespace Backup
 
             public override bool Weak { get { return false; } }
 
-            public override string UniquePersistentFileFormatIdentifier { get { return "\x02"; } }
+            public override string UniquePersistentCiphersuiteIdentifier { get { return "\x02"; } }
         }
 
         public class CryptoSystemSerpent256 : CryptoSystemComposable
@@ -400,7 +400,7 @@ namespace Backup
 
             public override bool Weak { get { return false; } }
 
-            public override string UniquePersistentFileFormatIdentifier { get { return "\x03"; } }
+            public override string UniquePersistentCiphersuiteIdentifier { get { return "\x03"; } }
         }
 
         // Threefish is a block cipher underlying Skein, a NIST SHA-3 hash competition
@@ -419,7 +419,7 @@ namespace Backup
 
             public override bool Weak { get { return false; } }
 
-            public override string UniquePersistentFileFormatIdentifier { get { return "\x04"; } }
+            public override string UniquePersistentCiphersuiteIdentifier { get { return "\x04"; } }
         }
 
         // Ferguson, Schneier, and Kohno [Cryptography Engineering, 2010, page 129]
@@ -1854,7 +1854,7 @@ namespace Backup
         //   short of ideal in some way.
         // - They are not well vetted theoretically or practically; they have not gone
         //   through a standards scrutiny process and there are no known widely used
-        //   implmentations.
+        //   implementations.
         public class CryptoPrimitiveCounterModeDecryptStream : Stream
         {
             private const int DefaultWorkspaceLength = 4096;
@@ -4526,7 +4526,7 @@ namespace Backup
             public const byte EncryptedFileContainerHeaderNumber = 0x81;
 
             public byte headerNumber;
-            public string uniquePersistentFileFormatIdentifier;
+            public string uniquePersistentCiphersuiteIdentifier;
             public byte[] passwordSalt;
             public byte[] fileSalt;
             public int rfc2898Rounds;
@@ -4536,7 +4536,7 @@ namespace Backup
             {
                 headerNumber = EncryptedFileContainerHeaderNumber;
 
-                uniquePersistentFileFormatIdentifier = crypto.algorithm.UniquePersistentFileFormatIdentifier;
+                uniquePersistentCiphersuiteIdentifier = crypto.algorithm.UniquePersistentCiphersuiteIdentifier;
                 rfc2898Rounds = crypto.algorithm.DefaultRfc2898Rounds;
             }
 
@@ -4548,7 +4548,7 @@ namespace Backup
                     new BinaryReadUtils.Reader[]
                     {
                         delegate(Stream stream) { headerNumber = BinaryReadUtils.ReadBytes(stream, 1)[0]; },
-                        delegate(Stream stream) { uniquePersistentFileFormatIdentifier = BinaryReadUtils.ReadStringUtf8(stream); },
+                        delegate(Stream stream) { uniquePersistentCiphersuiteIdentifier = BinaryReadUtils.ReadStringUtf8(stream); },
                         delegate(Stream stream) { passwordSalt = BinaryReadUtils.ReadVariableLengthByteArray(stream); },
                         delegate(Stream stream) { fileSalt = BinaryReadUtils.ReadVariableLengthByteArray(stream); },
                         delegate(Stream stream) { rfc2898Rounds = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream); },
@@ -4563,7 +4563,7 @@ namespace Backup
                     });
 
                 bool valid = (headerNumber == EncryptedFileContainerHeaderNumber)
-                    && String.Equals(uniquePersistentFileFormatIdentifier, crypto.algorithm.UniquePersistentFileFormatIdentifier)
+                    && String.Equals(uniquePersistentCiphersuiteIdentifier, crypto.algorithm.UniquePersistentCiphersuiteIdentifier)
                     && (passwordSalt.Length == crypto.algorithm.PasswordSaltLengthBytes)
                     && (fileSalt.Length == crypto.algorithm.FileSaltLengthBytes)
                     // but rfc2898Rounds is allowed to vary
@@ -4577,7 +4577,7 @@ namespace Backup
             public void Write(Stream stream)
             {
                 BinaryWriteUtils.WriteBytes(stream, new byte[1] { EncryptedFileContainerHeaderNumber });
-                BinaryWriteUtils.WriteStringUtf8(stream, uniquePersistentFileFormatIdentifier);
+                BinaryWriteUtils.WriteStringUtf8(stream, uniquePersistentCiphersuiteIdentifier);
                 BinaryWriteUtils.WriteVariableLengthByteArray(stream, passwordSalt);
                 BinaryWriteUtils.WriteVariableLengthByteArray(stream, fileSalt);
                 BinaryWriteUtils.WriteVariableLengthQuantity(stream, rfc2898Rounds);
@@ -9191,8 +9191,8 @@ namespace Backup
                     },
                     delegate(Stream stream)
                     {
-                        int headerNumber = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
-                        if (headerNumber != PackArchiveFixedHeaderNumber)
+                        byte[] headerNumber = BinaryReadUtils.ReadBytes(stream, 1);
+                        if (headerNumber[0] != PackArchiveFixedHeaderNumber)
                         {
                             throw new InvalidDataException(); // unrecognized format
                         }
@@ -10187,8 +10187,8 @@ namespace Backup
                         },
                         delegate(Stream stream)
                         {
-                            int headerNumber = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
-                            if (headerNumber != PackArchiveFixedHeaderNumber)
+                            byte[] headerNumber = BinaryReadUtils.ReadBytes(stream, 1);
+                            if (headerNumber[0] != PackArchiveFixedHeaderNumber)
                             {
                                 throw new InvalidDataException(); // unrecognized format
                             }
@@ -11799,7 +11799,7 @@ namespace Backup
                 foreach (ICryptoSystem cryptoSystem in CryptoSystems)
                 {
                     cryptoSystem.Test();
-                    uniquePersistedID.Add(cryptoSystem.UniquePersistentFileFormatIdentifier, false);
+                    uniquePersistedID.Add(cryptoSystem.UniquePersistentCiphersuiteIdentifier, false);
                 }
             }
 
