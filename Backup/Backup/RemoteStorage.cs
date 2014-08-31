@@ -5,9 +5,9 @@
  * 
  *  GNU General Public License
  * 
- *  This file is part of Backup (Secure Archiver)
+ *  This file is part of Backup (CryptSikyur-Archiver)
  * 
- *  Backup (Secure Archiver) is free software: you can redistribute it and/or modify
+ *  Backup (CryptSikyur-Archiver) is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
@@ -1045,7 +1045,7 @@ namespace Backup
         private readonly bool enableRestartableUploads;
         private readonly bool? UseCustomHttpImplementation = null;
 
-        private const string UserAgent = "Backup (Secure Archiver) v0 [github.com/programmatom/SecureArchiver]";
+        private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
 
         protected WebMethodsBase(RemoteAccessControl remoteAccessControl, bool enableRestartableUploads)
         {

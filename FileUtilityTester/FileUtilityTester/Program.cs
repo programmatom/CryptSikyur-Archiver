@@ -1126,6 +1126,7 @@ namespace FileUtilityTester
             if (workspacePathHack)
             {
                 actual = actual.Replace(Environment.CurrentDirectory, "%WORKSPACE%");
+                actual = actual.Replace(Environment.CurrentDirectory.ToLowerInvariant(), "%WORKSPACE%"); // try a common case variation
             }
             if (!CompareContent(standard, actual, wildcardLines.ToArray(), ignoreExtraLines))
             {

@@ -5,9 +5,9 @@
  * 
  *  GNU General Public License
  * 
- *  This file is part of Backup (Secure Archiver)
+ *  This file is part of Backup (CryptSikyur-Archiver)
  * 
- *  Backup (Secure Archiver) is free software: you can redistribute it and/or modify
+ *  Backup (CryptSikyur-Archiver) is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
@@ -32,7 +32,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Backup")]
+[assembly: AssemblyProduct("Backup/CryptSikyur-Archiver")]
 [assembly: AssemblyCopyright("Copyright © 2014 Thomas R. Lawrence")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
