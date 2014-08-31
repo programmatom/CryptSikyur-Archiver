@@ -35,8 +35,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="IArchiveFileManager.cs" />
     <Compile Include="Backup.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RemoteStorage.cs" />
     <Compile Include="Serpent\SerpentEngine.cs" />
     <Compile Include="Serpent\SerpentTest.cs" />
     <Compile Include="Serpent\SerpentTransform.cs" />

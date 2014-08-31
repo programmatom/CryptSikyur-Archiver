@@ -50,7 +50,7 @@ list-verify .
 .          2014-01-09          2014-01-09 -A---- source\c\t [8]
 .          2014-01-10          2014-01-10 -A---- source\c\v [9]
 endlist
-call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+call backup -date %DATE% dynpack source archive 30000 -verify -html -logpath logs
 exitcode-verify 0
 list-verify .
 .          2014-01-11          2014-01-11 -A---- archive.0.dynpack [10]
@@ -60,7 +60,6 @@ list-verify .
 .          2014-01-11          2014-01-11 -A---- archive.s.dynpack [14]
 .                                         -----D logs\
 .          2014-01-11          2014-01-11 -A---- logs\archive.0.dynpack.log [15]
-.          2014-01-11          2014-01-11 -A---- logs\dynpack.log [16]
 .                                         -----D source\
 .                                         -----D source\a\
 .          2014-01-02          2014-01-02 -A---- source\a\m [1]
@@ -208,17 +207,16 @@ list-verify source
 .          2014-01-09          2014-01-09 -A---- c\t [8]
 .          2014-01-10          2014-01-10 -A---- c\v [9]
 endlist
-call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+call backup -date %DATE% dynpack source archive 30000 -verify -html -logpath logs
 exitcode-verify 0
 list-verify .
-.          2014-01-11          2014-01-12 -A---- archive.0.dynpack [17]
-.          2014-01-11          2014-01-12 -A---- archive.0.dynpack.html [18]
+.          2014-01-11          2014-01-12 -A---- archive.0.dynpack [16]
+.          2014-01-11          2014-01-12 -A---- archive.0.dynpack.html [17]
 .          2014-01-11          2014-01-11 -A---- archive.a.dynpack [12]
 .          2014-01-11          2014-01-11 -A---- archive.s.dynpack [14]
 .                                         -----D logs\
-.          2014-01-12          2014-01-12 -A---- logs\archive.0.dynpack.log [19]
+.          2014-01-12          2014-01-12 -A---- logs\archive.0.dynpack.log [18]
 .          2014-01-11          2014-01-11 -A---- logs\archive.0.dynpack.previous.log [15]
-.          2014-01-12          2014-01-12 -A---- logs\dynpack.log [20]
 .                                         -----D source\
 .                                         -----D source\a\
 .          2014-01-02          2014-01-02 -A---- source\a\m [1]
@@ -279,22 +277,21 @@ list-verify source
 .          2014-01-09          2014-01-09 -A---- c\t [8]
 .          2014-01-10          2014-01-10 -A---- c\v [9]
 .                                         -----D d\
-.          2014-01-13          2014-01-13 -A---- d\w [21]
-.          2014-01-14          2014-01-14 -A---- d\x [22]
-.          2014-01-15          2014-01-15 -A---- d\y [23]
+.          2014-01-13          2014-01-13 -A---- d\w [19]
+.          2014-01-14          2014-01-14 -A---- d\x [20]
+.          2014-01-15          2014-01-15 -A---- d\y [21]
 endlist
-call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+call backup -date %DATE% dynpack source archive 30000 -verify -html -logpath logs
 exitcode-verify 0
 list-verify .
-.          2014-01-11          2014-01-16 -A---- archive.0.dynpack [24]
-.          2014-01-11          2014-01-16 -A---- archive.0.dynpack.html [25]
+.          2014-01-11          2014-01-16 -A---- archive.0.dynpack [22]
+.          2014-01-11          2014-01-16 -A---- archive.0.dynpack.html [23]
 .          2014-01-11          2014-01-11 -A---- archive.a.dynpack [12]
 .          2014-01-11          2014-01-11 -A---- archive.s.dynpack [14]
-.          2014-01-16          2014-01-16 -A---- archive.v.dynpack [26]
+.          2014-01-16          2014-01-16 -A---- archive.v.dynpack [24]
 .                                         -----D logs\
-.          2014-01-16          2014-01-16 -A---- logs\archive.0.dynpack.log [27]
-.          2014-01-11          2014-01-12 -A---- logs\archive.0.dynpack.previous.log [19]
-.          2014-01-16          2014-01-16 -A---- logs\dynpack.log [28]
+.          2014-01-16          2014-01-16 -A---- logs\archive.0.dynpack.log [25]
+.          2014-01-11          2014-01-12 -A---- logs\archive.0.dynpack.previous.log [18]
 .                                         -----D source\
 .                                         -----D source\a\
 .          2014-01-02          2014-01-02 -A---- source\a\m [1]
@@ -305,9 +302,9 @@ list-verify .
 .          2014-01-09          2014-01-09 -A---- source\c\t [8]
 .          2014-01-10          2014-01-10 -A---- source\c\v [9]
 .                                         -----D source\d\
-.          2014-01-13          2014-01-13 -A---- source\d\w [21]
-.          2014-01-14          2014-01-14 -A---- source\d\x [22]
-.          2014-01-15          2014-01-15 -A---- source\d\y [23]
+.          2014-01-13          2014-01-13 -A---- source\d\w [19]
+.          2014-01-14          2014-01-14 -A---- source\d\x [20]
+.          2014-01-15          2014-01-15 -A---- source\d\y [21]
 endlist
 file-verify logs\archive.0.dynpack.log
 .[Non-dirty segment verification enabled]
@@ -344,7 +341,7 @@ list-verify target
 .          2014-01-09          2014-01-09 -A---- c\t [8]
 .          2014-01-10          2014-01-10 -A---- c\v [9]
 .                                         -----D d\
-.          2014-01-13          2014-01-13 -A---- d\w [21]
-.          2014-01-14          2014-01-14 -A---- d\x [22]
-.          2014-01-15          2014-01-15 -A---- d\y [23]
+.          2014-01-13          2014-01-13 -A---- d\w [19]
+.          2014-01-14          2014-01-14 -A---- d\x [20]
+.          2014-01-15          2014-01-15 -A---- d\y [21]
 endlist

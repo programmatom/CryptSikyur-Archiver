@@ -10,6 +10,7 @@ The tool itself resides in subdirectory Backup. A brief summary of features:
 - Syncronize two filesystems
 - Pack mode (like tar)
 - Dynamic pack mode - creates multi-segment archive supporting partial updates, suitable for synchronizing to a cloud storage
+    * Includes integration with Microsoft OneDrive and Google Drive
 - Encryption and integrity support for pack and dynamic pack modes
 Documentation and security analysis can be found in the program directory (Backup/Backup/*.rtf)
 

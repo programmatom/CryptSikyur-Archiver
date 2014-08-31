@@ -246,7 +246,7 @@ date + 1
 create source\i -size 50000
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000 -html
 exitcode-verify 0
 list-verify .
 .          2014-01-10          2014-01-10 -A---- archive.0.dynpack [10]
@@ -312,8 +312,8 @@ endlist
 call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate dynunpack archive target4
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
-.Unpacking %WORKSPACE%\archive.a.dynpack:
-.Unpacking %WORKSPACE%\archive.m.dynpack:
+.Unpacking archive.a.dynpack:
+.Unpacking archive.m.dynpack:
 .Individual archived file data check values do not match
 endoutput
 list-verify target4
@@ -334,11 +334,10 @@ test update pack with invalid manifest
 invert-range archive.0.dynpack 300 300
 date + 1
 create source\j -size 50000
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000 -html
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 # update involves reading manifest first - operation is aborted with MAC error before anything else
-.%WORKSPACE%\source
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
 endoutput
 list-verify .
@@ -358,15 +357,14 @@ list-verify .
 .          2014-01-09          2014-01-09 -A---- source\i [9]
 .          2014-01-11          2014-01-11 -A---- source\j [17]
 endlist
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd -nomacprevalidate dynpack source archive 160000
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd -nomacprevalidate dynpack source archive 160000 -html
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack -ignoreextralines
 # in this case, manifest data is parsed until some internal header integrity error is generated
-.%WORKSPACE%\source
 .
 .Error:
 .Arithmetic operation resulted in an overflow.
-*   at Backup\.Program\.BinaryReadUtils\.ReadVariableLengthQuantity.*\(Stream stream\) in .*$
+*   at Backup\.Core\.BinaryReadUtils\.ReadVariableLengthQuantity.*\(Stream stream\) in .*$
 endoutput
 list-verify .
 .          2014-01-10          2014-01-10 -A---- archive.0.dynpack [16]
@@ -472,7 +470,7 @@ rmdir archive2
 
 test dynpack files with forced rekeying
 mkdir archive
-call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys dynpack source archive\a 35000
+call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys dynpack source archive\a 35000 -html
 exitcode-verify 0
 call backup -date %DATE% -decrypt aes128 Ba55w1rD dynunpack archive\a copy3
 exitcode-verify 0

@@ -1,4 +1,6 @@
 /Backup/Backup/obj/*
+/Backup/RemoteDriveAuth/bin/*
+/Backup/RemoteDriveAuth/obj/*
 
 /BackupTester/FileUtilityTester/bin/*
 /BackupTester/FileUtilityTester/obj/*

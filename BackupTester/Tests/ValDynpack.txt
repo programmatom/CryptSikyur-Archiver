@@ -15,7 +15,7 @@ date + 1
 list-verify .
 .                                         -----D source\
 endlist
-call backup -date %DATE% -encrypt aes128 pAs5W0rD dynpack source archive 1000000 -verify
+call backup -date %DATE% -encrypt aes128 pAs5W0rD dynpack source archive 1000000 -verify -html
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- archive.0.dynpack [1]
@@ -64,7 +64,7 @@ create source\k -size 9900
 create source\l -size 9900
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive 35000 -verify
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive 35000 -verify -html
 exitcode-verify 0
 # save old copy
 mkdir old
@@ -135,7 +135,7 @@ edit source\k -size 9900
 edit source\l -size 9900
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive 35000 -verify
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive 35000 -verify -html
 exitcode-verify 0
 # save new copy
 mkdir new
@@ -285,7 +285,7 @@ create source\h -size 9900
 create source\i -size 9900
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive1 35000 -verify
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive1 35000 -verify -html
 exitcode-verify 0
 # sanity check - successful validation
 call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive1
@@ -323,7 +323,7 @@ create source\h -size 9900
 create source\i -size 9900
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive2 35000 -verify
+call backup -date %DATE% -encrypt aes128 pASsw0Rd dynpack source archive2 35000 -verify -html
 exitcode-verify 0
 # sanity check - successful validation
 call backup -date %DATE% -decrypt aes128 pASsw0Rd valdynpack archive1
@@ -413,8 +413,8 @@ endlist
 call backup -date %DATE% -decrypt aes128 pASsw0Rd -nomacprevalidate dynunpack archive1 target
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
-.Unpacking %WORKSPACE%\archive1.a.dynpack:
-.Unpacking %WORKSPACE%\archive1.m.dynpack:
+.Unpacking archive1.a.dynpack:
+.Unpacking archive1.m.dynpack:
 .Segment m: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!
 endoutput
 list-verify .

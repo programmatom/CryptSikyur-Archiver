@@ -37,7 +37,7 @@ create source\o\fourteen.foo
 create source\o\fifteen.bar
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup -date %DATE% dynpack source archive 1000000 -verify -html
 exitcode-verify 0
 date + 1
 list-verify .
@@ -123,7 +123,7 @@ edit source\o\fourteen.foo
 date + 1
 edit source\o\fifteen.bar
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify -exclude source\n\t -exclude source\m
+call backup -date %DATE% dynpack source archive 1000000 -verify -html -exclude source\n\t -exclude source\m
 exitcode-verify 0
 date + 1
 list-verify .
@@ -201,7 +201,7 @@ edit source\o\fourteen.foo
 date + 1
 edit source\o\fifteen.bar
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify -skip .foo -skip .bar
+call backup -date %DATE% dynpack source archive 1000000 -verify -html -skip .foo -skip .bar
 exitcode-verify 0
 date + 1
 list-verify .
@@ -277,7 +277,7 @@ edit source\o\fourteen.foo
 date + 1
 edit source\o\fifteen.bar
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify -skip .foo -skip .txt -exclude source\m
+call backup -date %DATE% dynpack source archive 1000000 -verify -html -skip .foo -skip .txt -exclude source\m
 exitcode-verify 0
 date + 1
 list-verify .
@@ -321,7 +321,7 @@ rmdir target
 
 test reinclude all
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup -date %DATE% dynpack source archive 1000000 -verify -html
 exitcode-verify 0
 date + 1
 list-verify .
@@ -392,7 +392,7 @@ date + 1
 create source\C.foo\r.foo
 date + 1
 qlist .
-call backup -date %DATE% dynpack source archive 1000000 -skip .foo
+call backup -date %DATE% dynpack source archive 1000000 -html -skip .foo
 call backup -date %DATE% dynunpack archive target
 exitcode-verify 0
 list-verify .
@@ -425,7 +425,7 @@ date + 1
 create source\o.bar
 date + 1
 qlist .
-call backup -date %DATE% dynpack source archive 1000000 -exclude source\n.foo
+call backup -date %DATE% dynpack source archive 1000000 -html -exclude source\n.foo
 exitcode-verify 0
 call backup -date %DATE% dynunpack archive target
 exitcode-verify 0
