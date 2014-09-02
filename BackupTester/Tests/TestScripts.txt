@@ -26,6 +26,7 @@ SyncExclusions.txt
 DynpackBasic.txt
 DynpackExclusions.txt
 DynpackLogging.txt
+DynpackLargeFileSplitting.txt
 # TODO: dynpack case sensitivity disambiguation
 # TODO: segment name insertion algorithm
 

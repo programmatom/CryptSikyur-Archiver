@@ -161,9 +161,9 @@ endlist
 
 test recrypted compare - different
 delete bar
-call backup -encrypt 3des sW0rDf1sh copy foo bar.e
+call backup -encrypt serpent256 sW0rDf1sh copy foo bar.e
 exitcode-verify 0
-call backup -recrypt aes128 PAsSw0rD 3des sW0rDf1sh compare foo.e bar.e
+call backup -recrypt aes128 PAsSw0rD serpent256 sW0rDf1sh compare foo.e bar.e
 exitcode-verify not 0
 lastoutput-verify
 .Different
@@ -178,7 +178,7 @@ test recrypted compare - same
 delete foo.e
 call backup -encrypt aes128 PAsSw0rD copy foo foo.e
 exitcode-verify 0
-call backup -recrypt aes128 PAsSw0rD 3des sW0rDf1sh compare foo.e bar.e
+call backup -recrypt aes128 PAsSw0rD serpent256 sW0rDf1sh compare foo.e bar.e
 exitcode-verify 0
 lastoutput-verify
 .Identical

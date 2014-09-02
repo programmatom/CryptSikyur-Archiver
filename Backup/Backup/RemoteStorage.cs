@@ -41,22 +41,6 @@ namespace Backup
 {
     ////////////////////////////////////////////////////////////////////////////
     //
-    // Constants
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    static class Constants
-    {
-        private const int MaxSmallObjectHeapObjectSize = 85000; // http://msdn.microsoft.com/en-us/magazine/cc534993.aspx, http://blogs.msdn.com/b/dotnet/archive/2011/10/04/large-object-heap-improvements-in-net-4-5.aspx
-        private const int PageSize = 4096;
-        private const int MaxSmallObjectPageDivisibleSize = MaxSmallObjectHeapObjectSize & ~(PageSize - 1);
-
-        public const int BufferSize = MaxSmallObjectPageDivisibleSize;
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
     // Debug Logging
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -66,7 +50,7 @@ namespace Backup
         public static readonly bool EnableLogging = true;
         public static int StreamLoggingLengthLimit = Int32.MaxValue;
 
-        private static readonly string LoggingPath = EnableLogging ? Environment.ExpandEnvironmentVariables(@"%TEMP%\BackupOneDrive.log") : null;
+        private static readonly string LoggingPath = EnableLogging ? Environment.ExpandEnvironmentVariables(@"%TEMP%\BackupRemoteStorage.log") : null;
 
         private static bool logEntriesLost;
         private static bool logEntriesLostOne;
@@ -1074,7 +1058,7 @@ namespace Backup
         private const int ReceiveTimeout = 60 * 1000;
         private WebExceptionStatus SocketRequest(Uri uri, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out string[] responseHeaders, Stream responseBodyDestination)
         {
-            byte[] buffer = new byte[Constants.BufferSize];
+            byte[] buffer = new byte[Core.Constants.BufferSize];
 
             bool useTLS = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
 
@@ -1399,7 +1383,7 @@ namespace Backup
                     throw new NotSupportedException(String.Format("Content-Encoding: {0}", responseHeaders[contentLengthHeaderIndex].Value));
                 }
 
-                byte[] buffer = new byte[Constants.BufferSize];
+                byte[] buffer = new byte[Core.Constants.BufferSize];
 
                 string tempPath = Path.GetTempFileName();
                 using (Stream tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
@@ -1698,7 +1682,7 @@ namespace Backup
                             {
                                 using (Stream responseStream = response.GetResponseStream())
                                 {
-                                    byte[] buffer = new byte[Constants.BufferSize];
+                                    byte[] buffer = new byte[Core.Constants.BufferSize];
                                     int read;
                                     while ((read = responseStream.Read(buffer, 0, buffer.Length)) != 0)
                                     {
@@ -1745,7 +1729,7 @@ namespace Backup
                                 long requestBytesSentThisRequest = 0; // vs. "bytes thus far" over multiple requests of a resumable upload - which would be requestBytesSentTotal
                                 const int MaxBytesPerWebRequest = 30 * 1024 * 1024;
 
-                                byte[] buffer = new byte[Constants.BufferSize];
+                                byte[] buffer = new byte[Core.Constants.BufferSize];
                                 int read;
                                 while ((read = requestBodySource.Read(buffer, 0, buffer.Length)) != 0)
                                 {
@@ -1783,7 +1767,7 @@ namespace Backup
 
                     // Is there any harm in always writing Content-Length header?
                     request.ContentLength = requestBodySource != null ? requestBodySource.Length - requestBodySource.Position : 0;
-                    if ((requestBodySource != null) && (requestBodySource.Length >= Constants.BufferSize))
+                    if ((requestBodySource != null) && (requestBodySource.Length >= Core.Constants.BufferSize))
                     {
                         // Turn off .NET in-memory stream buffering if request body is large
                         request.AllowWriteStreamBuffering = false;
@@ -2315,6 +2299,9 @@ namespace Backup
 
         public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom)
         {
+            // TODO: figure out if there is support yet for resumable uploads on OneDrive Live
+            // API (doesn't appear so as of 2014-09-01).
+
             if (Logging.EnableLogging)
             {
                 Logging.WriteLine("+UploadFile(folderId={0}, name={1})", folderId, remoteName);

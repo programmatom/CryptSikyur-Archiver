@@ -64,14 +64,14 @@ list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 endlist
-call backup -date %DATE% -recrypt aes128 PASsw0rD 3des Sw0RDf1sH copy target1 target2
+call backup -date %DATE% -recrypt aes128 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 .          2014-01-01          2014-01-02 -A---- target2 [3]
 endlist
-call backup -date %DATE% -decrypt 3des Sw0RDf1sH copy target2 target3
+call backup -date %DATE% -decrypt serpent256 Sw0RDf1sH copy target2 target3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
@@ -96,14 +96,14 @@ list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 endlist
-call backup -date %DATE% -recrypt aes128 PASsw0rD 3des Sw0RDf1sH copy target1 target2
+call backup -date %DATE% -recrypt aes128 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 .          2014-01-01          2014-01-02 -A---- target2 [3]
 endlist
-call backup -date %DATE% -decompress -decrypt 3des Sw0RDf1sH copy target2 target3
+call backup -date %DATE% -decompress -decrypt serpent256 Sw0RDf1sH copy target2 target3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
@@ -297,14 +297,14 @@ list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
 .          2014-01-01          2014-01-02 -A---- target1 [1]
 endlist
-call backup -date %DATE% -recrypt aes128 PVssM01D 3des SM01dF15h copy target1 target2
+call backup -date %DATE% -recrypt aes128 PVssM01D serpent256 SM01dF15h copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
 .          2014-01-01          2014-01-02 -A---- target1 [1]
 .          2014-01-01          2014-01-02 -A---- target2 [2]
 endlist
-call backup -date %DATE% -decrypt 3des SM01dF15h copy target2 target3
+call backup -date %DATE% -decrypt serpent256 SM01dF15h copy target2 target3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
@@ -333,14 +333,14 @@ list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
 .          2014-01-01          2014-01-02 -A---- target1 [3]
 endlist
-call backup -date %DATE% -recrypt aes128 PVssM01D 3des SM01dF15h copy target1 target2
+call backup -date %DATE% -recrypt aes128 PVssM01D serpent256 SM01dF15h copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
 .          2014-01-01          2014-01-02 -A---- target1 [3]
 .          2014-01-01          2014-01-02 -A---- target2 [4]
 endlist
-call backup -date %DATE% -decompress -decrypt 3des SM01dF15h copy target2 target3
+call backup -date %DATE% -decompress -decrypt serpent256 SM01dF15h copy target2 target3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
@@ -381,14 +381,14 @@ list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 endlist
-call backup -date %DATE% -recrypt aes128 PASsw0rD 3des Sw0RDf1sH copy target1 target2
+call backup -date %DATE% -recrypt aes128 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 .          2014-01-01          2014-01-02 -A---- target2 [3]
 endlist
-call backup -date %DATE% -decompress -decrypt 3des Sw0RDf1sH copy target2 target3
+call backup -date %DATE% -decompress -decrypt serpent256 Sw0RDf1sH copy target2 target3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]

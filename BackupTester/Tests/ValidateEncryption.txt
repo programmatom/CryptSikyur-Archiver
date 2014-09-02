@@ -338,6 +338,7 @@ call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000 
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 # update involves reading manifest first - operation is aborted with MAC error before anything else
+.%WORKSPACE%\source
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
 endoutput
 list-verify .
@@ -361,6 +362,7 @@ call backup -date %DATE% -encrypt aes128 Pa5sV0Rd -nomacprevalidate dynpack sour
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack -ignoreextralines
 # in this case, manifest data is parsed until some internal header integrity error is generated
+.%WORKSPACE%\source
 .
 .Error:
 .Arithmetic operation resulted in an overflow.
@@ -516,6 +518,7 @@ copy source\a source\e
 date + 1
 
 test encrypt files with forced rekeying
+# using 3des for speed here
 call backup -date %DATE% -encrypt 3des pA55w1rD -forcenewkeys copy source copy1.e
 exitcode-verify 0
 call backup -date %DATE% -decrypt 3des pA55w1rD copy copy1.e copy2

@@ -39,6 +39,21 @@ namespace Backup
 {
     class Core
     {
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        // Constants & globals
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        public static class Constants
+        {
+            private const int MaxSmallObjectHeapObjectSize = 85000; // http://msdn.microsoft.com/en-us/magazine/cc534993.aspx, http://blogs.msdn.com/b/dotnet/archive/2011/10/04/large-object-heap-improvements-in-net-4-5.aspx
+            private const int PageSize = 4096;
+            private const int MaxSmallObjectPageDivisibleSize = MaxSmallObjectHeapObjectSize & ~(PageSize - 1);
+
+            public const int BufferSize = MaxSmallObjectPageDivisibleSize;
+        }
+
         private const int GlobalBufferLength = 4 * 1024 * 1024;
         private static byte[] global_buffer = new byte[GlobalBufferLength];
 
@@ -743,7 +758,7 @@ namespace Backup
             private const byte ipad = 0x36;
             private const byte opad = 0x5C;
 
-            private const int WorkspaceCapacityTarget = 4096;
+            private const int WorkspaceCapacityTarget = Constants.BufferSize;
             private byte[] workspace;
             private int index;
             private bool started;
@@ -1859,7 +1874,7 @@ namespace Backup
         //   implementations.
         public class CryptoPrimitiveCounterModeDecryptStream : Stream
         {
-            private const int DefaultWorkspaceLength = 4096;
+            private const int DefaultWorkspaceLength = Constants.BufferSize;
 
             private Stream inner;
             private ICryptoTransform decryptor;
@@ -1985,7 +2000,7 @@ namespace Backup
         // See security note at header of CounterModeDecryptStream
         public class CryptoPrimitiveCounterModeEncryptStream : Stream
         {
-            private const int DefaultWorkspaceLength = 4096;
+            private const int DefaultWorkspaceLength = Constants.BufferSize;
 
             private Stream inner;
             private ICryptoTransform encryptor;
@@ -2883,7 +2898,7 @@ namespace Backup
 
         internal static void ReadAndDiscardEntireStream(Stream stream)
         {
-            byte[] buffer = new byte[4096];
+            byte[] buffer = new byte[Constants.BufferSize];
             int read;
             while ((read = stream.Read(buffer, 0, buffer.Length)) != 0)
             {
@@ -2966,7 +2981,7 @@ namespace Backup
                 catch (Exception exception)
                 {
                     tried = true;
-                    Console.WriteLine(String.Format("EXCEPTION: {0}", exception.Message));
+                    Console.WriteLine("EXCEPTION: {0}", exception.Message);
 
                     if (context.continueOnAccessDenied &&
                         (exception is UnauthorizedAccessException) &&
@@ -3373,7 +3388,7 @@ namespace Backup
         // length - reserved. PostReserved() is called upon normal closing of the stream.
         public class ReadStreamHoldShort : Stream, IAbortable
         {
-            private const int WorkspaceLength = 4096;
+            private const int WorkspaceLength = Constants.BufferSize;
 
             private Stream inner;
             private int reserved;
@@ -4401,7 +4416,7 @@ namespace Backup
                         using (MemoryStream decompressed = new MemoryStream())
                         {
                             int read;
-                            byte[] localBuffer = new byte[4096];
+                            byte[] localBuffer = new byte[Constants.BufferSize];
                             do
                             {
                                 read = decompressor.Read(localBuffer, 0, localBuffer.Length);
@@ -5128,7 +5143,7 @@ namespace Backup
                             else
                             {
                                 EraseStatusLine();
-                                Console.WriteLine(String.Format("  SKIPPED FILE: {0}", file));
+                                Console.WriteLine("  SKIPPED FILE: {0}", file);
                             }
                         }
                     }
@@ -5144,7 +5159,7 @@ namespace Backup
                 else
                 {
                     EraseStatusLine();
-                    Console.WriteLine(String.Format("  SKIPPED SUBDIRECTORY: {0}", subdirectory));
+                    Console.WriteLine("  SKIPPED SUBDIRECTORY: {0}", subdirectory);
                 }
             }
 
@@ -5288,7 +5303,7 @@ namespace Backup
             {
                 EraseStatusLine();
                 different.Set();
-                Console.WriteLine(String.Format("  Exception processing directory '{0}': {1}", sourceRootDirectory, exception.Message));
+                Console.WriteLine("  Exception processing directory '{0}': {1}", sourceRootDirectory, exception.Message);
             }
 
             foreach (KeyValuePair<string, bool> item in allFiles)
@@ -5727,7 +5742,7 @@ namespace Backup
                     {
                         sizePart = String.Format("{0}, {1} ", FileSizeString(sizeLPath), FileSizeString(sizeRPath));
                     }
-                    log.WriteLine(String.Format("{1}{2}{3} \"{0}\" {5}[codePath={4}]", path, l2r ? sourceRoot : targetRoot, l2r ? "==>" : "<==", l2r ? targetRoot : sourceRoot, codePath, sizePart));
+                    log.WriteLine("{1}{2}{3} \"{0}\" {5}[codePath={4}]", path, l2r ? sourceRoot : targetRoot, l2r ? "==>" : "<==", l2r ? targetRoot : sourceRoot, codePath, sizePart);
                 }
 
                 string sourcePath = Path.Combine(sourceRoot, path);
@@ -5737,7 +5752,7 @@ namespace Backup
                 {
                     if (log != null)
                     {
-                        log.WriteLine(String.Format("  {0,-8} {1,-3} \"{2}\"", "del", String.Empty, targetPath));
+                        log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "del", String.Empty, targetPath);
                     }
                     File.SetAttributes(targetPath, File.GetAttributes(targetPath) & ~FileAttributes.ReadOnly);
                     File.Delete(targetPath);
@@ -5746,7 +5761,7 @@ namespace Backup
                 {
                     if (log != null)
                     {
-                        log.WriteLine(String.Format("  {0,-8} {1,-3} \"{2}\"", "rmdir /s", String.Empty, targetPath));
+                        log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "rmdir /s", String.Empty, targetPath);
                     }
                     bool retry = false;
                     try
@@ -5776,7 +5791,7 @@ namespace Backup
                 {
                     if (log != null)
                     {
-                        log.WriteLine(String.Format("  {0,-8} {1,-3} \"{2}\"", "copy", "to", targetPath));
+                        log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "copy", "to", targetPath);
                     }
                     try
                     {
@@ -5799,7 +5814,7 @@ namespace Backup
                 {
                     if (log != null)
                     {
-                        log.WriteLine(String.Format("  {0,-8} {1,-3} \"{2}\"", "mkdir", String.Empty, targetPath));
+                        log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "mkdir", String.Empty, targetPath);
                     }
                     try
                     {
@@ -5817,7 +5832,7 @@ namespace Backup
             {
                 if (log != null)
                 {
-                    log.WriteLine(String.Format("  {0} {2}", "EXCEPTION", String.Empty, exception.Message));
+                    log.WriteLine("  {0} {2}", "EXCEPTION", String.Empty, exception.Message);
                 }
                 ConsoleWriteLineColor(String.Format("EXCEPTION at \"{0}\": {1}", path, exception.Message), ConsoleColor.Red);
                 throw;
@@ -5938,7 +5953,7 @@ namespace Backup
                         {
                             if (!suppressLoggingItems.Contains(currentEntriesL.Current) && (rootExclusion || extensionExclusion))
                             {
-                                log.WriteLine(String.Format("SKIP \"{0}{1}\"", currentEntriesL.Current, Directory.Exists(Path.Combine(rootL, currentEntriesL.Current)) ? "\\" : String.Empty));
+                                log.WriteLine("SKIP \"{0}{1}\"", currentEntriesL.Current, Directory.Exists(Path.Combine(rootL, currentEntriesL.Current)) ? "\\" : String.Empty);
                             }
                         }
                         currentEntriesL.MoveNext();
@@ -5954,7 +5969,7 @@ namespace Backup
                         {
                             if (!suppressLoggingItems.Contains(currentEntriesR.Current) && (rootExclusion || extensionExclusion))
                             {
-                                log.WriteLine(String.Format("SKIP \"{0}{1}\"", currentEntriesR.Current, Directory.Exists(Path.Combine(rootR, currentEntriesR.Current)) ? "\\" : String.Empty));
+                                log.WriteLine("SKIP \"{0}{1}\"", currentEntriesR.Current, Directory.Exists(Path.Combine(rootR, currentEntriesR.Current)) ? "\\" : String.Empty);
                             }
                         }
                         currentEntriesR.MoveNext();
@@ -6015,7 +6030,7 @@ namespace Backup
                                 codePath = 100;
                                 if (log != null)
                                 {
-                                    log.WriteLine(String.Format("CONFLICT '{0}' modified '{2}', deleted '{3}' [codePath={1}]", selected, codePath, rootL, rootR));
+                                    log.WriteLine("CONFLICT '{0}' modified '{2}', deleted '{3}' [codePath={1}]", selected, codePath, rootL, rootR);
                                     log.Flush();
                                 }
                                 Console.WriteLine();
@@ -6036,7 +6051,7 @@ namespace Backup
                                             codePath = 121;
                                             if (log != null)
                                             {
-                                                log.WriteLine(String.Format("  USER KEEPS L '{0}' [codePath={1}]", Path.Combine(rootL, selected), codePath));
+                                                log.WriteLine("  USER KEEPS L '{0}' [codePath={1}]", Path.Combine(rootL, selected), codePath);
                                             }
                                             changedL = true;
                                             changedR = false;
@@ -6048,7 +6063,7 @@ namespace Backup
                                             codePath = 122;
                                             if (log != null)
                                             {
-                                                log.WriteLine(String.Format("  USER DELETES L '{0}' [codePath={1}]", Path.Combine(rootR, selected), codePath));
+                                                log.WriteLine("  USER DELETES L '{0}' [codePath={1}]", Path.Combine(rootR, selected), codePath);
                                             }
                                             changedL = false;
                                             changedR = true;
@@ -6072,7 +6087,7 @@ namespace Backup
                                             }
                                             catch (Exception exception)
                                             {
-                                                Console.WriteLine(String.Format("Exception: {0}", exception.Message));
+                                                Console.WriteLine("Exception: {0}", exception.Message);
                                             }
                                         }
                                     }
@@ -6129,7 +6144,7 @@ namespace Backup
                                 codePath = 200;
                                 if (log != null)
                                 {
-                                    log.WriteLine(String.Format("CONFLICT '{0}' deleted '{2}', modified '{3}' [codePath={1}]", selected, codePath, rootL, rootR));
+                                    log.WriteLine("CONFLICT '{0}' deleted '{2}', modified '{3}' [codePath={1}]", selected, codePath, rootL, rootR);
                                     log.Flush();
                                 }
                                 Console.WriteLine();
@@ -6150,7 +6165,7 @@ namespace Backup
                                             codePath = 221;
                                             if (log != null)
                                             {
-                                                log.WriteLine(String.Format("  USER DELETES R '{0}' [codePath={1}]", Path.Combine(rootR, selected), codePath));
+                                                log.WriteLine("  USER DELETES R '{0}' [codePath={1}]", Path.Combine(rootR, selected), codePath);
                                             }
                                             changedL = true;
                                             changedR = false;
@@ -6162,7 +6177,7 @@ namespace Backup
                                             codePath = 222;
                                             if (log != null)
                                             {
-                                                log.WriteLine(String.Format("  USER KEEPS R '{0}' [codePath={1}]", Path.Combine(rootR, selected), codePath));
+                                                log.WriteLine("  USER KEEPS R '{0}' [codePath={1}]", Path.Combine(rootR, selected), codePath);
                                             }
                                             changedL = false;
                                             changedR = true;
@@ -6186,7 +6201,7 @@ namespace Backup
                                             }
                                             catch (Exception exception)
                                             {
-                                                Console.WriteLine(String.Format("Exception: {0}", exception.Message));
+                                                Console.WriteLine("Exception: {0}", exception.Message);
                                             }
                                         }
                                     }
@@ -6251,7 +6266,7 @@ namespace Backup
                                 if (log != null)
                                 {
                                     const string TimeStampFormat = "s";
-                                    log.WriteLine(String.Format("CONFLICT '{0}' L:{1},{2} R:{3},{4} [codePath={5}]", selected, (int)currentEntriesL.CurrentAttributes, !currentEntriesL.CurrentIsDirectory ? currentEntriesL.CurrentLastWrite.ToString(TimeStampFormat) : "0", (int)currentEntriesR.CurrentAttributes, !currentEntriesR.CurrentIsDirectory ? currentEntriesR.CurrentLastWrite.ToString(TimeStampFormat) : "0", codePath));
+                                    log.WriteLine("CONFLICT '{0}' L:{1},{2} R:{3},{4} [codePath={5}]", selected, (int)currentEntriesL.CurrentAttributes, !currentEntriesL.CurrentIsDirectory ? currentEntriesL.CurrentLastWrite.ToString(TimeStampFormat) : "0", (int)currentEntriesR.CurrentAttributes, !currentEntriesR.CurrentIsDirectory ? currentEntriesR.CurrentLastWrite.ToString(TimeStampFormat) : "0", codePath);
                                     log.Flush();
                                 }
                                 bool? same = null;
@@ -6280,7 +6295,7 @@ namespace Backup
                                             codePath = 321;
                                             if (log != null)
                                             {
-                                                log.WriteLine(String.Format("  USER KEEPS L '{0}' [codePath={1}]", Path.Combine(rootL, currentEntriesL.Current), codePath));
+                                                log.WriteLine("  USER KEEPS L '{0}' [codePath={1}]", Path.Combine(rootL, currentEntriesL.Current), codePath);
                                             }
                                             changedL = true;
                                             changedR = false;
@@ -6292,7 +6307,7 @@ namespace Backup
                                             codePath = 322;
                                             if (log != null)
                                             {
-                                                log.WriteLine(String.Format("  USER KEEPS R '{0}' [codePath={1}]", Path.Combine(rootR, currentEntriesR.Current), codePath));
+                                                log.WriteLine("  USER KEEPS R '{0}' [codePath={1}]", Path.Combine(rootR, currentEntriesR.Current), codePath);
                                             }
                                             changedL = false;
                                             changedR = true;
@@ -6316,7 +6331,7 @@ namespace Backup
                                             }
                                             catch (Exception exception)
                                             {
-                                                Console.WriteLine(String.Format("Exception: {0}", exception.Message));
+                                                Console.WriteLine("Exception: {0}", exception.Message);
                                             }
                                         }
                                     }
@@ -6400,7 +6415,7 @@ namespace Backup
                     {
                         if (log != null)
                         {
-                            log.WriteLine(String.Format("EXCEPTION: {0} [codePath={1}]", exception.Message, codePath));
+                            log.WriteLine("EXCEPTION: {0} [codePath={1}]", exception.Message, codePath);
                         }
                         throw;
                     }
@@ -7127,7 +7142,7 @@ namespace Backup
                                     {
                                         excluded = true;
                                         EraseStatusLine();
-                                        Console.WriteLine(String.Format("  SKIPPED {1}: {0}", sourcePath, Directory.Exists(sourcePath) ? "SUBDIRECTORY" : "FILE"));
+                                        Console.WriteLine("  SKIPPED {1}: {0}", sourcePath, Directory.Exists(sourcePath) ? "SUBDIRECTORY" : "FILE");
                                     }
                                 }
 
@@ -7135,7 +7150,7 @@ namespace Backup
                                 {
                                     excluded = true;
                                     EraseStatusLine();
-                                    Console.WriteLine(String.Format("  SKIPPED FILE: {0}", sourcePath));
+                                    Console.WriteLine("  SKIPPED FILE: {0}", sourcePath);
                                 }
                             }
                         }
@@ -7662,7 +7677,7 @@ namespace Backup
 
                         movedFiles++;
 
-                        Console.WriteLine(String.Format("  {0}", earlySaveFile));
+                        Console.WriteLine("  {0}", earlySaveFile);
 
                         DoRetryable<int>(
                             delegate
@@ -7795,7 +7810,7 @@ namespace Backup
                     out movedFiles,
                     out discardedFiles,
                     out discardedRoots);
-                Console.WriteLine(String.Format("moved files {0}, discarded files {1}, discarded roots {2}", movedFiles, discardedFiles, discardedRoots));
+                Console.WriteLine("moved files {0}, discarded files {1}, discarded roots {2}", movedFiles, discardedFiles, discardedRoots);
             }
         }
 
@@ -7830,7 +7845,7 @@ namespace Backup
             Console.WriteLine("All checkpoints:");
             foreach (string checkpoint in checkpoints)
             {
-                Console.WriteLine(String.Format("  {0}", checkpoint));
+                Console.WriteLine("  {0}", checkpoint);
             }
             Console.WriteLine();
 
@@ -7907,7 +7922,7 @@ namespace Backup
             Console.WriteLine("Pending purge command sequence:");
             foreach (KeyValuePair<string, string> purge in purgeSeries)
             {
-                Console.WriteLine(String.Format("  purge {0} {1}", purge.Key, purge.Value));
+                Console.WriteLine("  purge {0} {1}", purge.Key, purge.Value);
             }
             Console.WriteLine();
             while (true)
@@ -8095,7 +8110,7 @@ namespace Backup
                     {
                         Debug.Assert(position % size == 0);
                         string destinationFile = String.Concat(destinationTemplate, ".", (position / size).ToString("D" + digits.ToString()));
-                        Console.WriteLine(String.Format("Generating {0}", destinationFile));
+                        Console.WriteLine("Generating {0}", destinationFile);
                         using (Stream destinationStream = File.Open(destinationFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                         {
                             long toReadOne = Math.Min(size, length - position);
@@ -8122,14 +8137,14 @@ namespace Backup
             }
 
             string destinationFileHash = String.Concat(destinationTemplate, ".sha256");
-            Console.WriteLine(String.Format("Generating {0}", destinationFileHash));
+            Console.WriteLine("Generating {0}", destinationFileHash);
             using (Stream destinationStreamHash = File.Open(destinationFileHash, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 using (TextWriter writer = new StreamWriter(destinationStreamHash))
                 {
                     string hashText = HexEncode(hash);
                     writer.WriteLine(hashText);
-                    Console.WriteLine(String.Format("SHA256={0}", hashText));
+                    Console.WriteLine("SHA256={0}", hashText);
                 }
             }
             File.SetCreationTime(destinationFileHash, context.now);
@@ -8159,7 +8174,7 @@ namespace Backup
                         string extension = Path.GetExtension(file1.Key);
                         int sequence;
 
-                        Console.WriteLine(String.Format("Incorporating {0}", path));
+                        Console.WriteLine("Incorporating {0}", path);
 
                         if (extension.StartsWith(".") && Int32.TryParse(extension.Substring(1), out sequence))
                         {
@@ -8195,7 +8210,7 @@ namespace Backup
             }
 
             string sha256HashText = HexEncode(hash);
-            Console.WriteLine(String.Format("SHA256={0}", sha256HashText));
+            Console.WriteLine("SHA256={0}", sha256HashText);
             hashValid = sha256HashText.Equals(sha256OriginalHashText, StringComparison.OrdinalIgnoreCase);
             Console.WriteLine(hashValid
                 ? "  SHA256 hashes match"
@@ -8343,6 +8358,11 @@ namespace Backup
                 // - if present implies PackArchiveStructureTypeManifest, if absent implies PackArchiveStructureTypeFiles
                 SegmentName = 6,
                 SegmentSerialNumber = 7,
+
+                // used for large files split across multiple segments. optional; if
+                // present, fileLength is the amount of stored data rather than the total
+                // length of the original file.
+                Range = 8,
             }
 
             internal const int SupportedVersionNumber = 1;
@@ -8398,6 +8418,53 @@ namespace Backup
                 return r;
             }
 
+            public class RangeRecord
+            {
+                public readonly long Start;
+                public readonly long End;
+                public readonly long TotalFileLength;
+
+                public RangeRecord(long start, long end, long totalFileLength)
+                {
+                    this.Start = start;
+                    this.End = end;
+                    this.TotalFileLength = totalFileLength;
+                }
+
+                public long Length { get { return End + 1 - Start; } }
+
+                public override string ToString()
+                {
+                    return String.Format("{0}-{1}/{2}", Start, End, TotalFileLength);
+                }
+
+                public static RangeRecord Parse(string value)
+                {
+                    string[] parts = value.Split(new char[] { '-', '/' });
+                    if (parts.Length != 3)
+                    {
+                        throw new InvalidDataException();
+                    }
+                    long start = Int64.Parse(parts[0]);
+                    long end = Int64.Parse(parts[1]);
+                    long totalFileLength = Int64.Parse(parts[2]);
+                    return new RangeRecord(start, end, totalFileLength);
+                }
+
+                public static bool Equals(RangeRecord l, RangeRecord r)
+                {
+                    if (l == null)
+                    {
+                        if (r == null)
+                        {
+                            return true;
+                        }
+                        return false;
+                    }
+                    return (l.Start == r.Start) && (l.End == r.End) && (l.TotalFileLength == r.TotalFileLength);
+                }
+            }
+
             internal const int HeaderTokenLength = 4;
             private static readonly byte[] PackedFileHeaderToken = new byte[HeaderTokenLength] { 0x81, 0x72, 0x63, 0x54 };
 
@@ -8407,29 +8474,51 @@ namespace Backup
             private DateTime creationTimeUtc;
             private DateTime lastWriteTimeUtc;
             private HeaderAttributes attributes;
-            private long fileLength;
+            private long embeddedStreamLength; // if range==null: orig. file & embedded data length, else embedded data length only
 
             private string segmentName;
             private ulong segmentSerialNumber;
+
+            private RangeRecord range; // null if file is not split
 
             private PackedFileHeaderRecord()
             {
             }
 
-            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long fileLength, string segmentName, ulong segmentSerialNumber)
+            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, string segmentName, ulong segmentSerialNumber, RangeRecord range)
             {
+                if (range != null)
+                {
+                    if (embeddedStreamLength != range.Length)
+                    {
+                        throw new ArgumentException();
+                    }
+                }
+
                 this.subpath = subpath;
                 this.creationTimeUtc = creationTimeUtc;
                 this.lastWriteTimeUtc = lastWriteTimeUtc;
                 this.attributes = attributes;
-                this.fileLength = fileLength;
+                this.embeddedStreamLength = embeddedStreamLength;
 
                 this.segmentName = segmentName;
                 this.segmentSerialNumber = segmentSerialNumber;
+
+                this.range = range;
             }
 
-            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long fileLength)
-                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, fileLength, null/*segmentName*/, 0/*segmentSerialNumber*/)
+            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, string segmentName, ulong segmentSerialNumber)
+                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, segmentName, segmentSerialNumber, null/*range*/)
+            {
+            }
+
+            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength)
+                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, null/*segmentName*/, 0/*segmentSerialNumber*/, null/*range*/)
+            {
+            }
+
+            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, RangeRecord range)
+                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, null/*segmentName*/, 0/*segmentSerialNumber*/, range)
             {
             }
 
@@ -8459,6 +8548,8 @@ namespace Backup
 
                 using (CheckedWriteStream checkedStream = new CheckedWriteStream(stream, new CRC32()))
                 {
+                    // header fields section start
+
                     if (subpath != null)
                     {
                         Debug.Assert(!String.IsNullOrEmpty(subpath.ToString()));
@@ -8499,9 +8590,17 @@ namespace Backup
                         BinaryWriteUtils.WriteStringUtf8(checkedStream, segmentSerialNumber.ToString());
                     }
 
+                    if (range != null)
+                    {
+                        BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.Range);
+                        BinaryWriteUtils.WriteStringUtf8(checkedStream, range.ToString());
+                    }
+
                     BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.Terminator);
 
-                    BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, fileLength);
+                    // header fields section end
+
+                    BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, embeddedStreamLength);
 
                     checkedStream.Close();
                     checkValue = checkedStream.CheckValue;
@@ -8565,6 +8664,7 @@ namespace Backup
                                 }
                                 // ignore unrecognized header fields
                                 break;
+
                             case Fields.Version:
                                 // version field is optional, but must be first
                                 if (count != 1)
@@ -8576,9 +8676,11 @@ namespace Backup
                                     throw new InvalidDataException();
                                 }
                                 break;
+
                             case Fields.Subpath:
                                 subpath = value; // must be validated at time of use
                                 break;
+
                             case Fields.CreationTimeUtc:
                                 try
                                 {
@@ -8593,6 +8695,7 @@ namespace Backup
                                     creationTimeUtc = now;
                                 }
                                 break;
+
                             case Fields.LastWriteTimeUtc:
                                 try
                                 {
@@ -8607,6 +8710,7 @@ namespace Backup
                                     lastWriteTimeUtc = now;
                                 }
                                 break;
+
                             case Fields.Attributes:
                                 try
                                 {
@@ -8620,18 +8724,39 @@ namespace Backup
                                     }
                                 }
                                 break;
+
                             case Fields.SegmentName:
                                 segmentName = value;
                                 break;
+
                             case Fields.SegmentSerialNumber:
                                 segmentSerialNumber = UInt64.Parse(value);
+                                break;
+
+                            case Fields.Range:
+                                try
+                                {
+                                    range = RangeRecord.Parse(value);
+                                }
+                                catch (Exception)
+                                {
+                                    if (strict)
+                                    {
+                                        throw;
+                                    }
+                                    else
+                                    {
+                                        // invalid range - problem dealt with elsewhere
+                                        range = new RangeRecord(-1, -1, -1);
+                                    }
+                                }
                                 break;
                         }
                     }
 
-                    fileLength = BinaryReadUtils.ReadVariableLengthQuantityAsInt64(checkedStream);
+                    embeddedStreamLength = BinaryReadUtils.ReadVariableLengthQuantityAsInt64(checkedStream);
 
-                    nullHeader = (count == 0) && (fileLength == 0);
+                    nullHeader = (count == 0) && (embeddedStreamLength == 0);
 
                     checkedStream.Close();
                     checkValue = checkedStream.CheckValue;
@@ -8666,7 +8791,7 @@ namespace Backup
                         && (creationTimeUtc == default(DateTime))
                         && (lastWriteTimeUtc == default(DateTime))
                         && (attributes == default(HeaderAttributes))
-                        && (fileLength == 0)
+                        && (embeddedStreamLength == 0)
                         && (segmentName == null)
                         && (segmentSerialNumber == 0)))
                     {
@@ -8695,14 +8820,20 @@ namespace Backup
                         && (creationTimeUtc == default(DateTime))
                         && (lastWriteTimeUtc == default(DateTime))
                         && (attributes == default(HeaderAttributes))
-                        && (fileLength == 0)))
+                        && (embeddedStreamLength == 0)))
                     {
                         throw new InvalidOperationException();
                     }
                 }
 
                 // directories never have a stream associated with them
-                if (!(!((attributes & HeaderAttributes.Directory) != 0) || (fileLength == 0)))
+                if (!(!((attributes & HeaderAttributes.Directory) != 0) || (embeddedStreamLength == 0)))
+                {
+                    throw new InvalidOperationException();
+                }
+
+                // range invariant
+                if ((range != null) && (range.Length != embeddedStreamLength))
                 {
                     throw new InvalidOperationException();
                 }
@@ -8762,11 +8893,11 @@ namespace Backup
                 }
             }
 
-            internal long FileLength
+            internal long EmbeddedStreamLength
             {
                 get
                 {
-                    return fileLength;
+                    return embeddedStreamLength;
                 }
             }
 
@@ -8795,9 +8926,25 @@ namespace Backup
                     segmentSerialNumber = value;
                 }
             }
+
+            internal RangeRecord Range
+            {
+                get
+                {
+                    return range;
+                }
+            }
+
+            internal long TotalFileLength
+            {
+                get
+                {
+                    return range == null ? embeddedStreamLength : range.TotalFileLength;
+                }
+            }
         }
 
-        private static void PackOne(string file, Stream stream, string partialPathPrefix, Context context)
+        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, Context context)
         {
             bool directory = false;
 
@@ -8826,12 +8973,38 @@ namespace Backup
                 {
                     // write header
 
+                    long embeddedStreamLength = 0;
+                    if (!directory)
+                    {
+                        if (range == null)
+                        {
+                            embeddedStreamLength = inputStream.Length;
+                            if (inputStream.Position != 0)
+                            {
+                                throw new InvalidOperationException(); // program defect
+                            }
+                        }
+                        else
+                        {
+                            embeddedStreamLength = range.Length;
+                            inputStream.Position = range.Start;
+                        }
+                    }
+                    else
+                    {
+                        if (range != null)
+                        {
+                            throw new InvalidOperationException(); // program defect
+                        }
+                    }
+
                     PackedFileHeaderRecord header = new PackedFileHeaderRecord(
                         Path.Combine(partialPathPrefix, Path.GetFileName(file)),
                         !directory ? File.GetCreationTimeUtc(file) : default(DateTime),
                         !directory ? File.GetLastWriteTimeUtc(file) : default(DateTime),
                         PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(file)),
-                        !directory ? inputStream.Length : 0);
+                        embeddedStreamLength,
+                        range);
                     header.Write(stream);
 
 
@@ -8842,22 +9015,21 @@ namespace Backup
                     {
                         if (!directory)
                         {
-                            while (true)
+                            long bytesRemaining = embeddedStreamLength;
+                            while (bytesRemaining > 0)
                             {
-                                int bytesRead = 0;
+                                int bytesRead;
                                 try
                                 {
-                                    bytesRead = inputStream.Read(global_buffer, 0, GlobalBufferLength);
+                                    int needed = (int)Math.Min(GlobalBufferLength, bytesRemaining);
+                                    bytesRead = inputStream.Read(global_buffer, 0, needed);
                                 }
                                 catch (Exception exception)
                                 {
                                     throw new Exception(String.Format("{0} [file \"{1}\"]", exception.Message, file), exception);
                                 }
-                                if (bytesRead == 0)
-                                {
-                                    break;
-                                }
                                 checkedStream.Write(global_buffer, 0, bytesRead);
+                                bytesRemaining -= bytesRead;
                             }
                         }
 
@@ -8890,12 +9062,12 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            PackOne(file, stream, partialPathPrefix, context);
+                            PackOne(file, stream, partialPathPrefix, null/*range*/, context);
                             addedCount++;
                         }
                         else
                         {
-                            Console.WriteLine(String.Format("  SKIPPED FILE: {0}", file));
+                            Console.WriteLine("  SKIPPED FILE: {0}", file);
                         }
                     }
                 }
@@ -8912,13 +9084,13 @@ namespace Backup
                     // for subdirectories, only if it is empty add it explicitly
                     if (addedCount == initialAddedCount)
                     {
-                        PackOne(subdirectory, stream, partialPathPrefix, context);
+                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, context);
                         addedCount++;
                     }
                 }
                 else
                 {
-                    Console.WriteLine(String.Format("  SKIPPED SUBDIRECTORY: {0}", subdirectory));
+                    Console.WriteLine("  SKIPPED SUBDIRECTORY: {0}", subdirectory);
                 }
             }
         }
@@ -9071,11 +9243,11 @@ namespace Backup
                 }
             }
 
-            internal long FileLength
+            internal long EmbeddedStreamLength
             {
                 get
                 {
-                    return header.FileLength;
+                    return header.EmbeddedStreamLength;
                 }
             }
 
@@ -9100,6 +9272,22 @@ namespace Backup
                 get
                 {
                     return header.SegmentSerialNumber;
+                }
+            }
+
+            internal PackedFileHeaderRecord.RangeRecord Range
+            {
+                get
+                {
+                    return header.Range;
+                }
+            }
+
+            internal long TotalFileLength
+            {
+                get
+                {
+                    return header.TotalFileLength;
                 }
             }
         }
@@ -9246,6 +9434,10 @@ namespace Backup
                     bool firstHeader = true;
                     bool firstHeaderWasSegment = false;
                     string currentDisplayDirectory = null;
+                    //
+                    string lastSubpath = null;
+                    PackedFileHeaderRecord.RangeRecord lastRange = null;
+                    //
                     while (true)
                     {
                         byte[] startToken = BinaryReadUtils.ReadBytes(stream, PackedFileHeaderRecord.HeaderTokenLength);
@@ -9335,6 +9527,20 @@ namespace Backup
                             }
                         }
 
+                        if (String.Equals(header.Subpath, lastSubpath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // a file split into multiple ranges must have consistent range information
+                            // for each entry.
+                            if (((lastRange == null) != (header.Range == null))
+                                || (lastRange.TotalFileLength != header.Range.TotalFileLength)
+                                || (lastRange.End + 1 != header.Range.Start))
+                            {
+                                throw new InvalidDataException();
+                            }
+                        }
+                        lastSubpath = header.Subpath;
+                        lastRange = header.Range;
+
                         if (!fileDataOmitted) // i.e. not a manifest
                         {
                             byte[] fileDataCheckValue;
@@ -9346,12 +9552,45 @@ namespace Backup
                                     Directory.CreateDirectory(fullPath);
                                 }
 
-                                using (Stream output = writeFiles && !directory ? new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write) : null)
+                                Stream outputX;
+                                if (writeFiles && !directory)
                                 {
-                                    long length = header.FileLength;
+                                    if (header.Range == null)
+                                    {
+                                        // for simple files - always create (fail if it exists)
+                                        outputX = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write);
+                                    }
+                                    else
+                                    {
+                                        // for ranged files - create if needed or open existing.
+                                        // it would be nice to use FileMode.CreateNew for the first segment and
+                                        // FileMode.Open for subsequent ones, since that would be more precise,
+                                        // but since ranges span archive segments, this method will exit and be
+                                        // reinvoked between ranges, and plumbing the state up to the top level
+                                        // caller to check for this is not worth it.
+                                        outputX = new FileStream(fullPath, FileMode.OpenOrCreate, FileAccess.Write);
+                                    }
+                                }
+                                else
+                                {
+                                    outputX = null;
+                                }
+
+                                using (Stream output = outputX)
+                                {
+                                    long length = header.EmbeddedStreamLength;
                                     if (directory && (length != 0))
                                     {
                                         throw new InvalidDataException();
+                                    }
+                                    if (writeFiles && (header.Range != null))
+                                    {
+                                        if (length != header.Range.Length)
+                                        {
+                                            throw new InvalidDataException();
+                                        }
+                                        output.SetLength(header.Range.TotalFileLength);
+                                        output.Position = header.Range.Start;
                                     }
                                     while (length > 0)
                                     {
@@ -9469,7 +9708,17 @@ namespace Backup
 
                     const string TimeStampFormat = "s";
 
-                    Console.WriteLine(" {5,8} {0,-6} {1} {2} {3} {4}", FileSizeString(file.FileLength), file.CreationTimeUtc.ToLocalTime().ToString(TimeStampFormat), file.LastWriteTimeUtc.ToLocalTime().ToString(TimeStampFormat), attrs, file.ArchivePath, ++index);
+                    Console.WriteLine(" {5,8} {0,-6} {1} {2} {3} {4}",
+                        FileSizeString(file.TotalFileLength),
+                        file.CreationTimeUtc.ToLocalTime().ToString(TimeStampFormat),
+                        file.LastWriteTimeUtc.ToLocalTime().ToString(TimeStampFormat),
+                        attrs,
+                        file.ArchivePath,
+                        ++index);
+                    if (file.Range != null)
+                    {
+                        Console.WriteLine("   {0}", file.Range);
+                    }
                 }
 
                 if (sourceFileList.Length > 1)
@@ -9483,36 +9732,34 @@ namespace Backup
         private const string DynPackManifestExtension = ".0";
         private const string DynPackTempFileExtension = ".tmp";
 
-        private static readonly bool DynPackDiagnosticTrace = false;
+        private static readonly bool DynPackDiagnosticTrace = true;
         private const string DynPackTraceFileTimestampTemplate = "dynpacktrace-{0:yyyy-MM-ddTHH-mm-ss}.log";
         private static readonly bool DynPackDiagnosticManifestWindiff = true;
         private const string DynPackManifestLogFileExtension = ".log";
         private const string DynPackManifestLogFileExtensionOld = ".previous.log";
 
-        private abstract class FilePath /*: IComparable<FilePath>, IEquatable<FilePath>*/
+        public abstract class FilePath /*: IComparable<FilePath>, IEquatable<FilePath>*/
         {
-            internal abstract string Step();
-            internal abstract FilePath Parent();
+            public abstract string Step { get; }
+            public abstract FilePath Parent { get; }
 
             private const int StepsToReserve = 8;
-
             public override string ToString()
             {
-                List<FilePath> steps = new List<FilePath>(StepsToReserve);
+                string[] steps = Steps();
+
                 int chars = -1; // no separator at start of path
-                FilePath step = this;
-                while (step != null)
+                for (int i = 0; i < steps.Length; i++)
                 {
-                    steps.Add(step);
-                    chars = chars + 1/*separator*/ + step.Step().Length;
-                    step = step.Parent();
+                    chars = chars + 1/*separator*/ + steps[i].Length;
                 }
+
                 StringBuilder builder = new StringBuilder(chars);
-                builder.Append(steps[steps.Count - 1].Step());
-                for (int i = steps.Count - 2; i >= 0; i--)
+                builder.Append(steps[0]);
+                for (int i = 1; i < steps.Length; i++)
                 {
                     builder.Append('\\');
-                    builder.Append(steps[i].Step());
+                    builder.Append(steps[i]);
                 }
                 if (chars != builder.Length)
                 {
@@ -9520,6 +9767,26 @@ namespace Backup
                 }
                 return builder.ToString();
             }
+
+            //public static implicit operator string(FilePath path)
+            //{
+            //    return path.ToString();
+            //}
+
+            //public override int GetHashCode()
+            //{
+            //    return ToString().GetHashCode();
+            //}
+
+            //public override bool Equals(object obj)
+            //{
+            //    FilePath other;
+            //    if ((other = obj as FilePath) != null)
+            //    {
+            //        return String.Equals(this.ToString(), other.ToString());
+            //    }
+            //    return base.Equals(obj);
+            //}
 
             //int IComparable<FilePath>.CompareTo(FilePath other)
             //{
@@ -9564,83 +9831,85 @@ namespace Backup
             //    return 0 == ((IComparable<FilePath>)this).CompareTo(other);
             //}
 
-            internal string[] Steps()
+            public string[] Steps()
             {
-                List<string> steps = new List<string>(StepsToReserve);
+                int stepCount = 0;
+
                 FilePath step = this;
                 while (step != null)
                 {
-                    steps.Add(step.Step());
-                    step = step.Parent();
+                    stepCount++;
+                    step = step.Parent;
                 }
-                steps.Reverse();
-                return steps.ToArray();
+
+                string[] steps = new string[stepCount];
+
+                int i = stepCount - 1;
+                step = this;
+                while (step != null)
+                {
+                    steps[i--] = step.Step;
+                    step = step.Parent;
+                }
+
+                return steps;
+            }
+
+            public static FilePath Create(FilePath parent, string file)
+            {
+                return new FilePathItem(parent, file);
+            }
+
+            public static FilePath Create(string path)
+            {
+                return (new FilePathItem.Factory()).Create(path); // create one-off
+            }
+
+            public static FilePath Create(FilePathItem.Factory factory, string path)
+            {
+                return factory.Create(path);
             }
         }
 
-        private class FilePathDrive : FilePath
+        private class FilePathRoot : FilePath
         {
-            private readonly char driveLetter;
+            private readonly string file;
 
-            internal FilePathDrive(char driveLetter)
+            public FilePathRoot(string file)
             {
-                this.driveLetter = driveLetter;
+                this.file = file;
             }
 
-            internal override string Step()
-            {
-                return String.Concat(new String(driveLetter, 1), ":");
-            }
-
-            internal override FilePath Parent()
-            {
-                return null;
-            }
+            public override string Step { get { return file; } }
+            public override FilePath Parent { get { return null; } }
         }
 
-        private class FilePathItem : FilePath
+        public class FilePathItem : FilePath
         {
             private readonly FilePath parent;
             private readonly string file;
 
-            internal FilePathItem(FilePath parent, string file)
+            public FilePathItem(FilePath parent, string file)
             {
                 this.parent = parent;
                 this.file = file;
             }
 
-            internal override string Step()
-            {
-                return file;
-            }
+            public override string Step { get { return file; } }
+            public override FilePath Parent { get { return parent; } }
 
-            internal override FilePath Parent()
+            public class Factory // last used item
             {
-                return parent;
-            }
+                private List<FilePath> current = new List<FilePath>();
 
-            internal static FilePath Create(FilePath parent, string file)
-            {
-                return new FilePathItem(parent, file);
-            }
-
-            internal static FilePath Create(string path)
-            {
-                return (new Cache()).Create(path);
-            }
-
-            internal class Cache // last used item
-            {
-                List<FilePath> current = new List<FilePath>();
-
-                internal FilePath Create(string path)
+                public FilePath Create(string path)
                 {
                     string[] steps = path.Split(new char[] { '\\' });
 
                     int i;
                     for (i = 0; (i < current.Count) && (i < steps.Length); i++)
                     {
-                        if (!steps[i].Equals(current[i].Step(), StringComparison.OrdinalIgnoreCase))
+                        if (!steps[i].Equals(current[i].Step, StringComparison.OrdinalIgnoreCase))
                         {
                             break;
                         }
@@ -9655,20 +9924,13 @@ namespace Backup
                     current.RemoveRange(i, current.Count - i);
                     for (; i < steps.Length; i++)
                     {
-                        if ((i == 0) && (steps[i].Length == 2) && Char.IsLetter(steps[i][0]) && (steps[i][1] == ':'))
-                        {
-                            step = new FilePathDrive(steps[i][0]);
-                        }
-                        else
-                        {
-                            step = new FilePathItem(step, steps[i]);
-                        }
+                        step = i == 0 ? (FilePath)new FilePathRoot(steps[i]) : (FilePath)new FilePathItem(step, steps[i]);
                         current.Add(step);
                     }
 
                     if (!step.ToString().Equals(path, StringComparison.Ordinal))
                     {
-                        throw new InvalidOperationException("Defect in FilePathItem.Cache.Create(string)");
+                        throw new InvalidOperationException("Defect in FilePathItem.Factory.Create(string)");
                     }
 
                     return step;
@@ -9743,10 +10005,10 @@ namespace Backup
             private readonly PackedFileHeaderRecord header;
             private readonly int headerOverhead;
 
-            internal FileRecord(SegmentRecord segment, FilePath partialPath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, PackedFileHeaderRecord.HeaderAttributes attributes, long fileLength)
+            internal FileRecord(SegmentRecord segment, FilePath partialPath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, PackedFileHeaderRecord.HeaderAttributes attributes, long embeddedStreamLength, PackedFileHeaderRecord.RangeRecord range)
             {
                 this.segment = segment;
-                this.header = new PackedFileHeaderRecord(partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, fileLength);
+                this.header = new PackedFileHeaderRecord(partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, range);
                 headerOverhead = header.GetHeaderLength();
             }
 
@@ -9791,11 +10053,19 @@ namespace Backup
                 }
             }
 
-            internal long FileLength
+            internal PackedFileHeaderRecord.HeaderAttributes Attributes
             {
                 get
                 {
-                    return header.FileLength;
+                    return header.Attributes;
+                }
+            }
+
+            internal long EmbeddedStreamLength
+            {
+                get
+                {
+                    return header.EmbeddedStreamLength;
                 }
             }
 
@@ -9804,6 +10074,14 @@ namespace Backup
                 get
                 {
                     return headerOverhead;
+                }
+            }
+
+            internal PackedFileHeaderRecord.RangeRecord Range
+            {
+                get
+                {
+                    return header.Range;
                 }
             }
 
@@ -9816,12 +10094,9 @@ namespace Backup
             }
         }
 
-        private static void ItemizeFilesRecursive(List<FileRecord> files, string sourceRootDirectory, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, FilePath partialPathPrefix)
+        private static void ItemizeFilesRecursive(List<FileRecord> files, string sourceRootDirectory, long? largeFileSegmentSize, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, FilePath partialPathPrefix)
         {
-            if (DynPackDiagnosticTrace)
-            {
-                WriteStatusLine(sourceRootDirectory);
-            }
+            WriteStatusLine(sourceRootDirectory);
 
             List<string> subdirectories = new List<string>();
             bool driveRoot = IsDriveRoot(sourceRootDirectory);
@@ -9839,31 +10114,44 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            long inputStreamLength = DoRetryable<long>(
-                                delegate
+                            long inputStreamLength = GetFileLengthRetriable(file, context);
+                            if (inputStreamLength >= 0)
+                            {
+                                FilePath partialPath = FilePathItem.Create(partialPathPrefix, Path.GetFileName(file));
+                                DateTime creationTimeUtc = File.GetCreationTimeUtc(file);
+                                DateTime lastWriteTimeUtc = File.GetLastWriteTimeUtc(file);
+                                PackedFileHeaderRecord.HeaderAttributes attributes = PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(file));
+                                Debug.Assert((creationTimeUtc == PackedFileHeaderRecord.ParseDateTime(PackedFileHeaderRecord.FormatDateTime(creationTimeUtc)))
+                                    && (lastWriteTimeUtc == PackedFileHeaderRecord.ParseDateTime(PackedFileHeaderRecord.FormatDateTime(lastWriteTimeUtc))));
+
+                                if (!largeFileSegmentSize.HasValue || (inputStreamLength <= largeFileSegmentSize.Value))
                                 {
-                                    using (Stream inputStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                    files.Add(new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, inputStreamLength, null/*range*/));
+                                }
+                                else
+                                {
+                                    long currentStart = 0;
+                                    while (currentStart < inputStreamLength)
                                     {
-                                        return inputStream.Length;
+                                        long currentLength = Math.Min(inputStreamLength - currentStart, largeFileSegmentSize.Value);
+                                        long currentEnd = currentStart + currentLength - 1;
+                                        files.Add(new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, currentLength, new PackedFileHeaderRecord.RangeRecord(currentStart, currentEnd, inputStreamLength)));
+                                        currentStart += largeFileSegmentSize.Value;
                                     }
-                                },
-                                delegate { return 0; },
-                                delegate { },
-                                context);
-                            FilePath partialPath = FilePathItem.Create(partialPathPrefix, Path.GetFileName(file));
-                            DateTime creationTimeUtc = File.GetCreationTimeUtc(file);
-                            DateTime lastWriteTimeUtc = File.GetLastWriteTimeUtc(file);
-                            PackedFileHeaderRecord.HeaderAttributes attributes = PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(file));
-                            Debug.Assert((creationTimeUtc == PackedFileHeaderRecord.ParseDateTime(PackedFileHeaderRecord.FormatDateTime(creationTimeUtc)))
-                                && (lastWriteTimeUtc == PackedFileHeaderRecord.ParseDateTime(PackedFileHeaderRecord.FormatDateTime(lastWriteTimeUtc))));
-                            files.Add(new FileRecord(null, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, inputStreamLength));
+                                }
+                            }
+                            else
+                            {
+                                EraseStatusLine();
+                                Console.WriteLine("  SKIPPED FILE - UNREADABLE: {0}", file);
+                            }
                         }
                         else
                         {
                             if (DynPackDiagnosticTrace)
                             {
                                 EraseStatusLine();
-                                Console.WriteLine(String.Format("  SKIPPED FILE: {0}", file));
+                                Console.WriteLine("  SKIPPED FILE: {0}", file);
                             }
                         }
                     }
@@ -9876,12 +10164,12 @@ namespace Backup
                 {
                     int initialFilesCount = files.Count;
 
-                    ItemizeFilesRecursive(files, subdirectory, context, excludedExtensions, excludedItems, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)));
+                    ItemizeFilesRecursive(files, subdirectory, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)));
 
                     // for subdirectories, only if it is empty add it explicitly
                     if (initialFilesCount == files.Count)
                     {
-                        files.Add(new FileRecord(null, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)), default(DateTime), default(DateTime), PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(subdirectory)), 0));
+                        files.Add(new FileRecord(null/*segment*/, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)), default(DateTime), default(DateTime), PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(subdirectory)), 0, null/*range*/));
                     }
                 }
                 else
@@ -9889,15 +10177,16 @@ namespace Backup
                     if (DynPackDiagnosticTrace)
                     {
                         EraseStatusLine();
-                        Console.WriteLine(String.Format("  SKIPPED SUBDIRECTORY: {0}", subdirectory));
+                        Console.WriteLine("  SKIPPED SUBDIRECTORY: {0}", subdirectory);
                     }
                 }
             }
         }
 
-        private static int DynPackPathCompare(FileRecord l, FileRecord r)
+        private static int DynPackPathComparePartialPathOnly(FileRecord l, FileRecord r)
         {
             int c;
+
             string[] lParts = l.PartialPath.Steps();
             string[] rParts = r.PartialPath.Steps();
             int i;
@@ -9909,11 +10198,13 @@ namespace Backup
                     return c;
                 }
             }
+
             c = lParts.Length.CompareTo(rParts.Length);
             if (c != 0)
             {
                 return c;
             }
+
             for (; i < lParts.Length; i++)
             {
                 c = String.Compare(lParts[i], rParts[i], StringComparison.OrdinalIgnoreCase);
@@ -9922,6 +10213,33 @@ namespace Backup
                     return c;
                 }
             }
+
+            return 0;
+        }
+
+        private static int DynPackPathCompareWithRange(FileRecord l, FileRecord r)
+        {
+            int c;
+
+            c = DynPackPathComparePartialPathOnly(l, r);
+            if (c != 0)
+            {
+                return c;
+            }
+
+            if (r.Range != null)
+            {
+                if (l.Range == null)
+                {
+                    return -1;
+                }
+                c = l.Range.Start.CompareTo(r.Range.Start);
+                if (c != 0)
+                {
+                    return c;
+                }
+            }
+
             return 0;
         }
 
@@ -10054,6 +10372,16 @@ namespace Backup
             // encryption padding & IV and potential compression overhead.
 
 
+            long? largeFileSegmentSize = null;
+            {
+                bool split;
+                GetAdHocArgument(ref args, "-nosplitlargefiles", true/*default*/, false/*explicit*/, out split);
+                if (split)
+                {
+                    largeFileSegmentSize = segmentSizeTarget;
+                }
+            }
+
             bool safe;
             GetAdHocArgument(ref args, "-unsafe", true/*default*/, false/*explicit*/, out safe);
 
@@ -10083,31 +10411,33 @@ namespace Backup
 
 
             TextWriter traceLog = null;
-            string tracePath = Path.Combine(Path.GetTempPath(), String.Format(DynPackTraceFileTimestampTemplate, context.now));
+            // use actual time, not context.now time, for the trace file name
+            string tracePath = Path.Combine(Path.GetTempPath(), String.Format(DynPackTraceFileTimestampTemplate, DateTime.Now));
             if (DynPackDiagnosticTrace)
             {
                 traceLog = new StreamWriter(tracePath, false/*append*/, Encoding.UTF8);
             }
 
 
+            // build current file list
+            List<FileRecord> currentFiles = new List<FileRecord>();
+            ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."));
+            EraseStatusLine();
+            if (traceLog != null)
+            {
+                traceLog.WriteLine("Current Files:");
+                for (int i = 0; i < currentFiles.Count; i++)
+                {
+                    FileRecord record = currentFiles[i];
+                    traceLog.WriteLine("    {5,-8} {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i);
+                }
+                traceLog.WriteLine();
+                traceLog.Flush();
+            }
+
             string targetArchiveFileNameTemplate;
             using (IArchiveFileManager fileManager = GetArchiveFileManager(targetArchivePathTemplate, out targetArchiveFileNameTemplate, context))
             {
-                // build current file list
-                List<FileRecord> currentFiles = new List<FileRecord>();
-                ItemizeFilesRecursive(currentFiles, source, context, excludedExtensions, excludedItems, FilePathItem.Create("."));
-                EraseStatusLine();
-                if (traceLog != null)
-                {
-                    traceLog.WriteLine("Current Files:");
-                    foreach (FileRecord record in currentFiles)
-                    {
-                        traceLog.WriteLine(String.Format("    {0} {1} {2} {3}", record.FileLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath));
-                    }
-                    traceLog.WriteLine();
-                    traceLog.Flush();
-                }
-
                 // read old manifest (if any)
                 string manifestFileName = targetArchiveFileNameTemplate + DynPackManifestExtension + DynPackFileExtension;
                 List<SegmentRecord> segments = new List<SegmentRecord>();
@@ -10228,7 +10558,7 @@ namespace Backup
                                         throw new InvalidDataException(); // must be manifest structure
                                     }
 
-                                    FilePathItem.Cache pathFactory = new FilePathItem.Cache();
+                                    FilePathItem.Factory pathFactory = new FilePathItem.Factory();
                                     string currentSegmentName = null;
                                     ulong currentSegmentSerialNumber = 0;
                                     bool firstHeader = true;
@@ -10315,7 +10645,7 @@ namespace Backup
                                             throw new InvalidDataException("Segment serial number inconsistent");
                                         }
 
-                                        previousFiles.Add(new FileRecord(segment, pathFactory.Create(header.Subpath), header.CreationTimeUtc, header.LastWriteTimeUtc, header.Attributes, header.FileLength));
+                                        previousFiles.Add(new FileRecord(segment, pathFactory.Create(header.Subpath), header.CreationTimeUtc, header.LastWriteTimeUtc, header.Attributes, header.EmbeddedStreamLength, header.Range));
                                     }
 
                                     BinaryReadUtils.EnsureAtEOF(stream);
@@ -10326,9 +10656,10 @@ namespace Backup
                 if (traceLog != null)
                 {
                     traceLog.WriteLine("Previous Files:");
-                    foreach (FileRecord record in previousFiles)
+                    for (int i = 0; i < previousFiles.Count; i++)
                     {
-                        traceLog.WriteLine(String.Format("    {0} {1} {2} {3}", record.FileLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath));
+                        FileRecord record = previousFiles[i];
+                        traceLog.WriteLine("    {5,-8}  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i);
                     }
                     traceLog.WriteLine();
                     traceLog.Flush();
@@ -10337,12 +10668,15 @@ namespace Backup
                 // sort and merge
                 List<FileRecord> mergedFiles = new List<FileRecord>();
                 {
-                    currentFiles.Sort(DynPackPathCompare);
-                    previousFiles.Sort(DynPackPathCompare); // ensure sorted - do not trust old manifest
+                    int iCurrent;
+                    int iPrevious;
+
+                    currentFiles.Sort(DynPackPathCompareWithRange);
+                    previousFiles.Sort(DynPackPathCompareWithRange); // ensure sorted - do not trust old manifest
                     // detect flaws in comparison algorithm
                     for (int i = 0; i < currentFiles.Count - 1; i++)
                     {
-                        if (!(DynPackPathCompare(currentFiles[i], currentFiles[i + 1]) < 0))
+                        if (!(DynPackPathCompareWithRange(currentFiles[i], currentFiles[i + 1]) < 0))
                         {
                             Debugger.Break();
                             throw new ApplicationException(String.Format("Sort defect: {0} {1}", currentFiles[i].PartialPath, currentFiles[i + 1].PartialPath));
@@ -10350,22 +10684,91 @@ namespace Backup
                     }
                     for (int i = 0; i < previousFiles.Count - 1; i++)
                     {
-                        if (!(DynPackPathCompare(previousFiles[i], previousFiles[i + 1]) < 0))
+                        if (!(DynPackPathCompareWithRange(previousFiles[i], previousFiles[i + 1]) < 0))
                         {
                             Debugger.Break();
                             throw new ApplicationException(String.Format("Sort defect: {0} {1}", previousFiles[i].PartialPath, previousFiles[i + 1].PartialPath));
                         }
                     }
 
-                    int iCurrent = 0;
-                    int iPrevious = 0;
+                    // Here is a hack to ensure that range-split files are not gratuitously
+                    // rearchived if the segment target size changes. (This also affects the case
+                    // where an archive containing unsplit large file, i.e. length > segment target size,
+                    // is run with the split option enabled, where the file has not changed).
+                    // Find all ranged files in currentFiles or previousFiles and if the
+                    // underlying file has not changed, ensure that the structure from previousFiles
+                    // is retained.
+                    iCurrent = 0;
+                    iPrevious = 0;
+                    while ((iCurrent < currentFiles.Count) && (iPrevious < previousFiles.Count))
+                    {
+                        int c = DynPackPathComparePartialPathOnly(currentFiles[iCurrent], previousFiles[iPrevious]);
+                        if (c < 0)
+                        {
+                            iCurrent++;
+                        }
+                        else if (c > 0)
+                        {
+                            iPrevious++;
+                        }
+                        else
+                        {
+                            int iPreviousStart = iPrevious;
+                            int iCurrentStart = iCurrent;
+                            List<FileRecord> previousSequence = new List<FileRecord>();
+                            List<FileRecord> currentSequence = new List<FileRecord>();
+                            bool range = false;
+                            do
+                            {
+                                range = range || (previousFiles[iPrevious].Range != null);
+                                previousSequence.Add(previousFiles[iPrevious]);
+                                iPrevious++;
+                            } while ((iPrevious < previousFiles.Count)
+                                && (0 == DynPackPathComparePartialPathOnly(previousFiles[iPrevious - 1], previousFiles[iPrevious])));
+                            do
+                            {
+                                range = range || (currentFiles[iCurrent].Range != null);
+                                currentSequence.Add(currentFiles[iCurrent]);
+                                iCurrent++;
+                            } while ((iCurrent < currentFiles.Count)
+                                && (0 == DynPackPathComparePartialPathOnly(currentFiles[iCurrent - 1], currentFiles[iCurrent])));
+
+                            if (range
+                                && previousSequence[0].CreationTimeUtc.Equals(currentSequence[0].CreationTimeUtc)
+                                && previousFiles[0].LastWriteTimeUtc.Equals(currentSequence[0].LastWriteTimeUtc))
+                            {
+                                if (traceLog != null)
+                                {
+                                    traceLog.WriteLine("Gratuitous re-ranging of large files suppressed: previous=[{0},{1}> current=[{2},{3}>", iPreviousStart, previousSequence.Count, iCurrentStart, currentSequence.Count);
+                                }
+
+                                // unchanged, and ranges involved in either previous or current
+                                List<FileRecord> currentSequenceReplacement = new List<FileRecord>();
+                                foreach (FileRecord previous in previousSequence)
+                                {
+                                    currentSequenceReplacement.Add(new FileRecord(previous.Segment, previous.PartialPath, previous.CreationTimeUtc, previous.LastWriteTimeUtc, previous.Attributes, previous.EmbeddedStreamLength, previous.Range));
+                                }
+                                currentFiles.RemoveRange(iCurrentStart, currentSequence.Count);
+                                currentFiles.InsertRange(iCurrentStart, currentSequenceReplacement);
+                                iCurrent = iCurrent - currentSequence.Count + currentSequenceReplacement.Count;
+                            }
+                        }
+                    }
+                    if (traceLog != null)
+                    {
+                        traceLog.WriteLine();
+                    }
+
+                    // main merge occurs here
+                    iCurrent = 0;
+                    iPrevious = 0;
                     while ((iCurrent < currentFiles.Count) || (iPrevious < previousFiles.Count))
                     {
                         if (!(iCurrent < currentFiles.Count))
                         {
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("Deleted(1): {0} {1} {2} {3}", previousFiles[iPrevious].FileLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath));
+                                traceLog.WriteLine("Deleted(1): {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty);
                             }
 
                             previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
@@ -10375,7 +10778,7 @@ namespace Backup
                         {
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("Added(1): {0} {1} {2} {3}", currentFiles[iCurrent].FileLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath));
+                                traceLog.WriteLine("Added(1): {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
                             }
 
                             mergedFiles.Add(currentFiles[iCurrent]);
@@ -10383,12 +10786,12 @@ namespace Backup
                         }
                         else
                         {
-                            int c = DynPackPathCompare(currentFiles[iCurrent], previousFiles[iPrevious]);
+                            int c = DynPackPathCompareWithRange(currentFiles[iCurrent], previousFiles[iPrevious]);
                             if (c < 0)
                             {
                                 if (traceLog != null)
                                 {
-                                    traceLog.WriteLine(String.Format("Added(2): {0} {1} {2} {3}", currentFiles[iCurrent].FileLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath));
+                                    traceLog.WriteLine("Added(2): {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
                                 }
 
                                 mergedFiles.Add(currentFiles[iCurrent]);
@@ -10398,7 +10801,7 @@ namespace Backup
                             {
                                 if (traceLog != null)
                                 {
-                                    traceLog.WriteLine(String.Format("Deleted(2): {0} {1} {2} {3}", previousFiles[iPrevious].FileLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath));
+                                    traceLog.WriteLine("Deleted(2): {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty);
                                 }
 
                                 previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
@@ -10410,13 +10813,14 @@ namespace Backup
                                 record.Segment = previousFiles[iPrevious].Segment;
                                 mergedFiles.Add(record);
 
-                                if (!(previousFiles[iPrevious].CreationTimeUtc.Equals(currentFiles[iCurrent].CreationTimeUtc)) ||
-                                    !(previousFiles[iPrevious].LastWriteTimeUtc.Equals(currentFiles[iCurrent].LastWriteTimeUtc)))
+                                if (!previousFiles[iPrevious].CreationTimeUtc.Equals(currentFiles[iCurrent].CreationTimeUtc)
+                                    || !previousFiles[iPrevious].LastWriteTimeUtc.Equals(currentFiles[iCurrent].LastWriteTimeUtc)
+                                    || !PackedFileHeaderRecord.RangeRecord.Equals(previousFiles[iPrevious].Range, currentFiles[iCurrent].Range))
                                 {
                                     if (traceLog != null)
                                     {
-                                        traceLog.WriteLine(String.Format("Changed: {0} {1} {2} {3}", previousFiles[iPrevious].FileLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath));
-                                        traceLog.WriteLine(String.Format("       : {0} {1} {2} {3}", currentFiles[iCurrent].FileLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath));
+                                        traceLog.WriteLine("Changed: {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty);
+                                        traceLog.WriteLine("       : {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
                                     }
 
                                     previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified because file changed
@@ -10425,7 +10829,7 @@ namespace Backup
                                 {
                                     if (traceLog != null)
                                     {
-                                        traceLog.WriteLine(String.Format("Unchanged: {0} {1} {2} {3}", currentFiles[iCurrent].FileLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath));
+                                        traceLog.WriteLine("Unchanged: {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
                                     }
                                 }
 
@@ -10459,13 +10863,13 @@ namespace Backup
                             currentSegment = new SegmentRecord();
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("New segment: {0}", currentSegment.diagnosticSerialNumber));
+                                traceLog.WriteLine("New segment: {0}", currentSegment.diagnosticSerialNumber);
                             }
                             segments.Add(currentSegment);
                             mergedFiles[0].Segment = currentSegment;
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("Segment assign: {0} {1}", currentSegment.diagnosticSerialNumber, mergedFiles[0].PartialPath));
+                                traceLog.WriteLine("Segment assign: {0} {2} {1}", currentSegment.diagnosticSerialNumber, mergedFiles[0].PartialPath, mergedFiles[0].Range != null ? String.Format("[{0}]", mergedFiles[0].Range) : String.Empty);
                             }
                         }
                         usedSegments.Add(currentSegment, false);
@@ -10496,7 +10900,7 @@ namespace Backup
                             }
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("Segment assign: {0} {1}", currentSegment.diagnosticSerialNumber, mergedFiles[i].PartialPath));
+                                traceLog.WriteLine("Segment assign: {0} {2} {1}", currentSegment.diagnosticSerialNumber, mergedFiles[i].PartialPath, mergedFiles[i].Range != null ? String.Format("[{0}]", mergedFiles[i].Range) : String.Empty);
                             }
                         }
                         else if (mergedFiles[i].Segment != currentSegment)
@@ -10515,7 +10919,7 @@ namespace Backup
                                 segments.Add(currentSegment);
                                 if (traceLog != null)
                                 {
-                                    traceLog.WriteLine(String.Format("New segment: {0}", currentSegment.diagnosticSerialNumber));
+                                    traceLog.WriteLine("New segment: {0}", currentSegment.diagnosticSerialNumber);
                                 }
                             }
                             usedSegments.Add(currentSegment, false);
@@ -10535,7 +10939,7 @@ namespace Backup
                     traceLog.WriteLine("Segments:");
                     foreach (SegmentRecord segment in segments)
                     {
-                        traceLog.WriteLine(String.Format("    {0} {1}", segment.diagnosticSerialNumber, segment.Name != null ? segment.Name : "<>"));
+                        traceLog.WriteLine("    {0} {1}", segment.diagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceLog.WriteLine();
                     traceLog.Flush();
@@ -10570,7 +10974,7 @@ namespace Backup
                     int j = 0;
                     while (j < count)
                     {
-                        totalSize += mergedFiles[j + start].FileLength + mergedFiles[j + start].HeaderOverhead;
+                        totalSize += mergedFiles[j + start].EmbeddedStreamLength + mergedFiles[j + start].HeaderOverhead;
                         if (totalSize > segmentSizeTarget)
                         {
                             if (j > 0)
@@ -10593,8 +10997,8 @@ namespace Backup
                             long rightSize = 0;
                             while ((left < right) && (leftSize <= segmentSizeTarget) && (rightSize <= segmentSizeTarget))
                             {
-                                long leftOne = mergedFiles[left + start].FileLength + mergedFiles[left + start].HeaderOverhead;
-                                long rightOne = mergedFiles[right - 1 + start].FileLength + mergedFiles[right - 1 + start].HeaderOverhead;
+                                long leftOne = mergedFiles[left + start].EmbeddedStreamLength + mergedFiles[left + start].HeaderOverhead;
+                                long rightOne = mergedFiles[right - 1 + start].EmbeddedStreamLength + mergedFiles[right - 1 + start].HeaderOverhead;
                                 if ((leftSize + leftOne <= rightSize) || (rightSize + rightOne > segmentSizeTarget))
                                 {
                                     leftSize += leftOne;
@@ -10618,7 +11022,7 @@ namespace Backup
                         newSegment.start = j + start;
                         if (traceLog != null)
                         {
-                            traceLog.WriteLine(String.Format("Split: {0} after {1}", segment.diagnosticSerialNumber, mergedFiles[newSegment.start.Value].PartialPath));
+                            traceLog.WriteLine("Split: {0} after {1}", segment.diagnosticSerialNumber, mergedFiles[newSegment.start.Value].PartialPath);
                         }
                         segments.Insert(i + 1, newSegment);
                         for (int k = j; k < count; k++)
@@ -10643,13 +11047,13 @@ namespace Backup
                     long totalSize = 0;
                     for (int j = 0; j < count; j++)
                     {
-                        totalSize += mergedFiles[j + start].FileLength + mergedFiles[j + start].HeaderOverhead;
+                        totalSize += mergedFiles[j + start].EmbeddedStreamLength + mergedFiles[j + start].HeaderOverhead;
                     }
                     if (totalSize <= segmentSizeTarget)
                     {
                         if (traceLog != null)
                         {
-                            traceLog.WriteLine(String.Format("Join: {0}, {1}", segments[i].diagnosticSerialNumber, segments[i + 1].diagnosticSerialNumber));
+                            traceLog.WriteLine("Join: {0}, {1}", segments[i].diagnosticSerialNumber, segments[i + 1].diagnosticSerialNumber);
                         }
 
                         segments[i].Dirty.Set();
@@ -10687,7 +11091,7 @@ namespace Backup
                             segments[0].Name = "a";
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("Rename: {0} = {1}", segments[0].diagnosticSerialNumber, segments[0].Name));
+                                traceLog.WriteLine("Rename: {0} = {1}", segments[0].diagnosticSerialNumber, segments[0].Name);
                             }
                         }
                     }
@@ -10704,7 +11108,7 @@ namespace Backup
                                 segments[i].Name = null;
                                 if (traceLog != null)
                                 {
-                                    traceLog.WriteLine(String.Format("Rename: {0} = {1}", segments[i].diagnosticSerialNumber, "<>"));
+                                    traceLog.WriteLine("Rename: {0} = {1}", segments[i].diagnosticSerialNumber, "<>");
                                 }
                             }
                             else
@@ -10729,7 +11133,7 @@ namespace Backup
                                 segments[i + j].Name = newNames[j];
                                 if (traceLog != null)
                                 {
-                                    traceLog.WriteLine(String.Format("Rename: {0} = {1}", segments[i + j].diagnosticSerialNumber, segments[i + j].Name));
+                                    traceLog.WriteLine("Rename: {0} = {1}", segments[i + j].diagnosticSerialNumber, segments[i + j].Name);
                                 }
                             }
                         }
@@ -10746,7 +11150,7 @@ namespace Backup
                                 segments[i].Name = newName;
                                 if (traceLog != null)
                                 {
-                                    traceLog.WriteLine(String.Format("Rename: {0} = {1}", segments[i].diagnosticSerialNumber, segments[i].Name));
+                                    traceLog.WriteLine("Rename: {0} = {1}", segments[i].diagnosticSerialNumber, segments[i].Name);
                                 }
                             }
                         }
@@ -10758,7 +11162,7 @@ namespace Backup
                     traceLog.WriteLine("Segments (2):");
                     foreach (SegmentRecord segment in segments)
                     {
-                        traceLog.WriteLine(String.Format("    {0} {1}", segment.diagnosticSerialNumber, segment.Name != null ? segment.Name : "<>"));
+                        traceLog.WriteLine("    {0} {1}", segment.diagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceLog.WriteLine();
                     traceLog.Flush();
@@ -10786,13 +11190,15 @@ namespace Backup
                         string suffix = name.Substring(targetFileNamePrefix.Length);
                         if (suffix.EndsWith(DynPackTempFileExtension))
                         {
-                            Console.WriteLine("Deleting (abandoned temp file): {0}", name);
+                            Console.WriteLine("Deleting (old temporary file): {0}", name);
                             fileManager.Delete(name);
                         }
                     }
                 }
 
-                // verify integrity of non-dirty segments
+                // verify integrity of non-dirty segments - note this validates metadata
+                // (i.e. the structure of the segment pack file) but DOES NOT verify content
+                // of each file.
                 int badSegments = 0;
                 if (verifyNonDirtyMetadata)
                 {
@@ -10804,10 +11210,10 @@ namespace Backup
 
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("Validating non-dirty segment: {0} {1}", segments[i].diagnosticSerialNumber, segments[i].Name));
+                                traceLog.WriteLine("Validating non-dirty segment: {0} {1}", segments[i].diagnosticSerialNumber, segments[i].Name);
                                 traceLog.Flush();
                             }
-                            Console.WriteLine(String.Format("Validating non-dirty segment: {0}", segments[i].Name));
+                            Console.WriteLine("Validating non-dirty segment: {0}", segments[i].Name);
 
                             string segmentFileName = targetArchiveFileNameTemplate + "." + segments[i].Name + DynPackFileExtension;
                             using (ILocalFileCopy fileRef = fileManager.Read(segmentFileName))
@@ -10842,9 +11248,9 @@ namespace Backup
 
                                     if (traceLog != null)
                                     {
-                                        traceLog.WriteLine(String.Format("Segment corrupt, could not be read: {0}", exception.ToString()));
+                                        traceLog.WriteLine("Segment corrupt, could not be read: {0}", exception.ToString());
                                     }
-                                    Console.WriteLine(String.Format("SEGMENT INTEGRITY PROBLEM {0} (segment corrupt, could not be read): {1}", segments[i].Name, exception.ToString()));
+                                    Console.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (segment corrupt, could not be read): {1}", segments[i].Name, exception.ToString());
                                     if (context.beepEnabled)
                                     {
                                         Console.Beep(440, 500);
@@ -10857,9 +11263,9 @@ namespace Backup
 
                                     if (traceLog != null)
                                     {
-                                        traceLog.WriteLine(String.Format("Segment random signature mismatch: expected={0}, actual={1}", HexEncode(randomArchiveSignature), HexEncode(segmentRandomArchiveSignature)));
+                                        traceLog.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", HexEncode(randomArchiveSignature), HexEncode(segmentRandomArchiveSignature));
                                     }
-                                    Console.WriteLine(String.Format("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segments[i].Name, segmentFileName));
+                                    Console.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segments[i].Name, segmentFileName);
                                     if (context.beepEnabled)
                                     {
                                         Console.Beep(440, 500);
@@ -10872,9 +11278,9 @@ namespace Backup
 
                                     if (traceLog != null)
                                     {
-                                        traceLog.WriteLine(String.Format("Segment serial number mismatch: manfest-ref={0}, actual={1}", segments[i].SerialNumber, segmentSerialNumber));
+                                        traceLog.WriteLine("Segment serial number mismatch: manfest-ref={0}, actual={1}", segments[i].SerialNumber, segmentSerialNumber);
                                     }
-                                    Console.WriteLine(String.Format("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segments[i].Name, segmentFileName));
+                                    Console.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segments[i].Name, segmentFileName);
                                     if (context.beepEnabled)
                                     {
                                         Console.Beep(440, 500);
@@ -10891,9 +11297,9 @@ namespace Backup
 
                                         if (traceLog != null)
                                         {
-                                            traceLog.WriteLine(String.Format("Length mismatch: {0}, {1}", segmentLength, archiveFiles.Length));
+                                            traceLog.WriteLine("Length mismatch: {0}, {1}", segmentLength, archiveFiles.Length);
                                         }
-                                        Console.WriteLine(String.Format("SEGMENT INTEGRITY PROBLEM {0} (length mismatch): {1}", segments[i].Name, segmentFileName));
+                                        Console.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (length mismatch): {1}", segments[i].Name, segmentFileName);
                                         if (context.beepEnabled)
                                         {
                                             Console.Beep(440, 500);
@@ -10910,15 +11316,15 @@ namespace Backup
 
                                             if (traceLog != null)
                                             {
-                                                traceLog.WriteLine(String.Format("File added or removed: {0} : {1}", archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath));
+                                                traceLog.WriteLine("File added or removed: {0} : {1}", archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
                                             }
-                                            Console.WriteLine(String.Format("SEGMENT INTEGRITY PROBLEM {0} (file added or removed): {1} : {2}", segments[i].Name, archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath));
+                                            Console.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file added or removed): {1} : {2}", segments[i].Name, archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
                                             if (context.beepEnabled)
                                             {
                                                 Console.Beep(440, 500);
                                             }
                                         }
-                                        else if ((archiveFiles[j].FileLength != mergedFiles[j + segmentStart].FileLength) ||
+                                        else if ((archiveFiles[j].EmbeddedStreamLength != mergedFiles[j + segmentStart].EmbeddedStreamLength) ||
                                             (archiveFiles[j].CreationTimeUtc != mergedFiles[j + segmentStart].CreationTimeUtc) ||
                                             (archiveFiles[j].LastWriteTimeUtc != mergedFiles[j + segmentStart].LastWriteTimeUtc))
                                         {
@@ -10926,9 +11332,9 @@ namespace Backup
 
                                             if (traceLog != null)
                                             {
-                                                traceLog.WriteLine(String.Format("File different: {0}", archiveFiles[j].ArchivePath));
+                                                traceLog.WriteLine("File different: {0}", archiveFiles[j].ArchivePath);
                                             }
-                                            Console.WriteLine(String.Format("SEGMENT INTEGRITY PROBLEM {0} (file different): {1}", segments[i].Name, archiveFiles[j].ArchivePath));
+                                            Console.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file different): {1}", segments[i].Name, archiveFiles[j].ArchivePath);
                                             if (context.beepEnabled)
                                             {
                                                 Console.Beep(440, 500);
@@ -10988,12 +11394,12 @@ namespace Backup
                         {
                             if (safe && !fileManager.Exists(segmentBackupFileName))
                             {
-                                Console.WriteLine(String.Format("Renaming (segment dirty): {0} to {1}", segmentFileName, segmentBackupFileName));
+                                Console.WriteLine("Renaming (segment dirty): {0} to {1}", segmentFileName, segmentBackupFileName);
                                 fileManager.Rename(segmentFileName, segmentBackupFileName);
                             }
                             else
                             {
-                                Console.WriteLine(String.Format("Deleting (segment dirty): {0}", segmentFileName));
+                                Console.WriteLine("Deleting (segment dirty): {0}", segmentFileName);
                                 fileManager.Delete(segmentFileName);
                             }
 
@@ -11061,7 +11467,7 @@ namespace Backup
                                 for (int j = start; j < endP1; j++)
                                 {
                                     FileRecord record = mergedFiles[j];
-                                    BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, record.FileLength);
+                                    BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, record.EmbeddedStreamLength);
                                     if (record.CreationTimeUtc != default(DateTime))
                                     {
                                         BinaryWriteUtils.WriteStringUtf8(checkedStream, PackedFileHeaderRecord.FormatDateTime(record.CreationTimeUtc));
@@ -11088,7 +11494,7 @@ namespace Backup
                             {
                                 segmentSizes.Add(record.Segment, 0);
                             }
-                            segmentSizes[record.Segment] = segmentSizes[record.Segment] + record.FileLength + record.HeaderOverhead;
+                            segmentSizes[record.Segment] = segmentSizes[record.Segment] + record.EmbeddedStreamLength + record.HeaderOverhead;
                         }
 
                         using (TextWriter writer = new StreamWriter(newDiagnosticFile))
@@ -11098,7 +11504,7 @@ namespace Backup
                                 writer.WriteLine("[Non-dirty segment verification enabled]");
                                 if (badSegments != 0)
                                 {
-                                    writer.WriteLine(String.Format("{0} BAD SEGMENTS DETECTED DURING VERIFICATION", badSegments));
+                                    writer.WriteLine("{0} BAD SEGMENTS DETECTED DURING VERIFICATION", badSegments);
                                 }
                             }
                             else
@@ -11113,7 +11519,7 @@ namespace Backup
                                 if (currentSegment != record.Segment)
                                 {
                                     currentSegment = record.Segment;
-                                    writer.WriteLine(String.Format("SEGMENT {0} {1} {2:x8}" + Environment.NewLine + "{3} {4}", currentSegment.Name, segmentSizes[currentSegment], segmentDiagnosticCRC32[currentSegment], currentSegment.diagnosticSerialNumber, currentSegment.Dirty.Value ? "dirty" : "not-dirty"));
+                                    writer.WriteLine("SEGMENT {0} {1} {2:x8}" + Environment.NewLine + "{3} {4}", currentSegment.Name, segmentSizes[currentSegment], segmentDiagnosticCRC32[currentSegment], currentSegment.diagnosticSerialNumber, currentSegment.Dirty.Value ? "dirty" : "not-dirty");
                                 }
                             }
                             writer.WriteLine();
@@ -11124,9 +11530,9 @@ namespace Backup
                                 if (currentSegment != record.Segment)
                                 {
                                     currentSegment = record.Segment;
-                                    writer.WriteLine(String.Format("SEGMENT {0} {1} {2:x8}", currentSegment.Name, segmentSizes[currentSegment], segmentDiagnosticCRC32[currentSegment]));
+                                    writer.WriteLine("SEGMENT {0} {1} {2:x8}", currentSegment.Name, segmentSizes[currentSegment], segmentDiagnosticCRC32[currentSegment]);
                                 }
-                                writer.WriteLine(String.Format("  FILE {0,12} {1} {2} {3}", record.FileLength, record.CreationTimeUtc.ToString(DynPackDiagnosticDateTimeFormat), record.LastWriteTimeUtc.ToString(DynPackDiagnosticDateTimeFormat), record.PartialPath));
+                                writer.WriteLine("  FILE {0,12}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc.ToString(DynPackDiagnosticDateTimeFormat), record.LastWriteTimeUtc.ToString(DynPackDiagnosticDateTimeFormat), record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty);
                             }
                         }
                         File.SetLastWriteTime(newDiagnosticFile, context.now);
@@ -11165,9 +11571,9 @@ namespace Backup
                         string htmlTempManifestFileName = manifestFileName + DynPackTempFileExtension;
                         if (traceLog != null)
                         {
-                            traceLog.WriteLine(String.Format("Writing: {0}", htmlManifestFileName));
+                            traceLog.WriteLine("Writing: {0}", htmlManifestFileName);
                         }
-                        Console.WriteLine(String.Format("Writing: {0}", htmlManifestFileName));
+                        Console.WriteLine("Writing: {0}", htmlManifestFileName);
                         using (ILocalFileCopy fileRef = fileManager.WriteTemp(htmlTempManifestFileName))
                         {
                             using (Stream tempHtmlManifestStream = fileRef.Write())
@@ -11181,11 +11587,11 @@ namespace Backup
                                     writer.WriteLine("</head>");
                                     writer.WriteLine("<body>");
                                     const string ItemTemplate = "<div><a href=\"{0}\">{0}</a></div>";
-                                    writer.WriteLine(String.Format(ItemTemplate, manifestFileName));
+                                    writer.WriteLine(ItemTemplate, manifestFileName);
                                     foreach (SegmentRecord segment in segments)
                                     {
                                         string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
-                                        writer.WriteLine(String.Format(ItemTemplate, segmentFileName));
+                                        writer.WriteLine(ItemTemplate, segmentFileName);
                                     }
                                     writer.WriteLine("</body>");
                                     writer.WriteLine("</html>");
@@ -11199,9 +11605,9 @@ namespace Backup
                     // write actual archive manifest
                     if (traceLog != null)
                     {
-                        traceLog.WriteLine(String.Format("Writing: {0}", manifestFileName));
+                        traceLog.WriteLine("Writing: {0}", manifestFileName);
                     }
-                    Console.WriteLine(String.Format("Writing: {0}", manifestFileName));
+                    Console.WriteLine("Writing: {0}", manifestFileName);
                     string manifestTempFileName = targetArchiveFileNameTemplate + DynPackManifestExtension + DynPackTempFileExtension;
                     using (ILocalFileCopy fileRef = fileManager.WriteTemp(manifestTempFileName))
                     {
@@ -11314,9 +11720,9 @@ namespace Backup
                         {
                             if (traceLog != null)
                             {
-                                traceLog.WriteLine(String.Format("Writing: {0}", segmentFileName));
+                                traceLog.WriteLine("Writing: {0}", segmentFileName);
                             }
-                            Console.WriteLine(String.Format("Writing: {0}", segmentFileName));
+                            Console.WriteLine("Writing: {0}", segmentFileName);
                             using (Stream fileStream = fileRef.Write())
                             {
                                 // reserve estimated file size now, to reduce file system fragmentation
@@ -11328,9 +11734,9 @@ namespace Backup
                                     int count = end - start;
                                     if (count == 1)
                                     {
-                                        if (estimatedSegmentSize < mergedFiles[start].FileLength)
+                                        if (estimatedSegmentSize < mergedFiles[start].EmbeddedStreamLength)
                                         {
-                                            estimatedSegmentSize = mergedFiles[start].FileLength;
+                                            estimatedSegmentSize = mergedFiles[start].EmbeddedStreamLength;
                                         }
                                     }
                                     fileStream.SetLength(estimatedSegmentSize);
@@ -11419,7 +11825,7 @@ namespace Backup
                                                 fullPath = fullPath.Substring(NoOpPrefix.Length);
                                             }
                                             fullPath = Path.Combine(source, fullPath);
-                                            PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), context);
+                                            PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, context);
                                         }
 
                                         PackedFileHeaderRecord.WriteNullHeader(stream);
@@ -11480,7 +11886,7 @@ namespace Backup
                             if (("." + suffix != DynPackManifestExtension) &&
                                 (null == segments.Find(delegate(SegmentRecord a) { return a.Name == suffix; })))
                             {
-                                Console.WriteLine(String.Format("Deleting ({0} file): {1}", suffix.StartsWith("-") ? "backup" : "unreferenced", name));
+                                Console.WriteLine("Deleting ({0} file): {1}", suffix.StartsWith("-") ? "backup" : "unreferenced", name);
                                 fileManager.Delete(name);
                                 if (zeroLengthDeletions && !suffix.StartsWith("-"))
                                 {
@@ -11856,7 +12262,7 @@ namespace Backup
                     {
                         if (mode == UnpackMode.ParseAndUnpack)
                         {
-                            Console.WriteLine(String.Format("Unpacking {0}:", name));
+                            Console.WriteLine("Unpacking {0}:", name);
                         }
                         using (ILocalFileCopy fileRef = fileManager.Read(name))
                         {
@@ -12320,7 +12726,7 @@ namespace Backup
             }
             foreach (ICryptoSystem cryptoSystem in CryptoSystems)
             {
-                Console.WriteLine(String.Format("  {0,-" + maxWidth.ToString() + "} {1}", cryptoSystem.Name, cryptoSystem.Description));
+                Console.WriteLine("  {0,-" + maxWidth.ToString() + "} {1}", cryptoSystem.Name, cryptoSystem.Description);
             }
             Console.WriteLine("");
             Console.WriteLine("Backup options (<backup-options>):");
@@ -12338,7 +12744,7 @@ namespace Backup
             Console.WriteLine("No options can be used with 'purge'");
             Console.WriteLine("");
 
-            throw new UsageException();
+            throw new UsageException(String.Empty);
         }
 
         private static string EnsureRootedLocalPath(string path)
@@ -13094,7 +13500,11 @@ namespace Backup
             }
             catch (UsageException exception)
             {
-                if (!String.IsNullOrEmpty(exception.Message))
+                if (exception.Message == null)
+                {
+                    Console.WriteLine("Invalid program arguments");
+                }
+                else if (!String.IsNullOrEmpty(exception.Message))
                 {
                     Console.WriteLine(exception.Message);
                 }

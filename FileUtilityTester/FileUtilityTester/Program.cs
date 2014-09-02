@@ -1,7 +1,9 @@
 /*
  *  Copyright 2014 Thomas R. Lawrence
  * 
- *  This program is free software: you can redistribute it and/or modify
+ *  This file is part of FileUtilityTester
+ *
+ *  FileUtilityTester is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
@@ -887,6 +889,7 @@ namespace FileUtilityTester
                                 string path = CheckPath(args[0], lineNumber);
                                 string dateFormat = defaultDateFormat;
                                 string linePrefix = ".";
+                                bool showSizes = false;
                                 for (int i = 1; i < args.Length; i++)
                                 {
                                     if (args[i].Equals("-lineprefix"))
@@ -899,13 +902,17 @@ namespace FileUtilityTester
                                         i++;
                                         dateFormat = args[i];
                                     }
+                                    else if (args[i].Equals("-sizes"))
+                                    {
+                                        showSizes = true;
+                                    }
                                     else
                                     {
                                         throw new ApplicationException();
                                     }
                                 }
 
-                                string output = List(path, hashes, dateFormat);
+                                string output = List(path, hashes, dateFormat, showSizes);
                                 if (command != "qlist")
                                 {
                                     WriteWithLinePrefix(Console.Out, output, linePrefix);
@@ -921,6 +928,13 @@ namespace FileUtilityTester
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
+                                bool showSizes = false;
+                                if ((args.Length > 1) && args[1].Equals("-sizes"))
+                                {
+                                    showSizes = true;
+                                    Array.Copy(args, 2, args, 1, args.Length - 2);
+                                    Array.Resize(ref args, args.Length - 1);
+                                }
                                 StreamVerify(
                                     command,
                                     scriptReader,
@@ -929,7 +943,7 @@ namespace FileUtilityTester
                                     "endlist",
                                     ref lineNumber,
                                     defaultDateFormat,
-                                    delegate(string dateFormat) { return List(path, hashes, dateFormat); },
+                                    delegate(string dateFormat) { return List(path, hashes, dateFormat, showSizes); },
                                     testFailed,
                                     ref currentFailed,
                                     resultMatrix,
@@ -953,6 +967,7 @@ namespace FileUtilityTester
                                 string right = CheckPath(args[1], lineNumber);
                                 string dateFormat = defaultDateFormat;
                                 string linePrefix = ".";
+                                bool showSizes = false;
                                 for (int i = 2; i < args.Length; i++)
                                 {
                                     if (args[i].StartsWith("-lineprefix"))
@@ -965,13 +980,17 @@ namespace FileUtilityTester
                                         i++;
                                         dateFormat = args[i];
                                     }
+                                    else if (args[i].Equals("-sizes"))
+                                    {
+                                        showSizes = true;
+                                    }
                                     else
                                     {
                                         throw new ApplicationException();
                                     }
                                 }
-                                string leftList = List(left, hashes, dateFormat);
-                                string rightList = List(right, hashes, dateFormat);
+                                string leftList = List(left, hashes, dateFormat, showSizes);
+                                string rightList = List(right, hashes, dateFormat, showSizes);
                                 if (!String.Equals(leftList, rightList))
                                 {
                                     currentFailed = true;
@@ -1372,17 +1391,17 @@ namespace FileUtilityTester
             }
         }
 
-        private static string List(string root, HashDispenser hashes, string dateFormat)
+        private static string List(string root, HashDispenser hashes, string dateFormat, bool showSizes)
         {
             StringBuilder sb = new StringBuilder();
             using (TextWriter writer = new StringWriter(sb))
             {
-                ListRecursive(root, writer, hashes, dateFormat, root.Length + 1);
+                ListRecursive(root, writer, hashes, dateFormat, showSizes, root.Length + 1);
             }
             return sb.ToString();
         }
 
-        private static void ListRecursive(string root, TextWriter writer, HashDispenser hashes, string dateFormat, int substring)
+        private static void ListRecursive(string root, TextWriter writer, HashDispenser hashes, string dateFormat, bool showSizes, int substring)
         {
             foreach (string entry in Directory.GetFileSystemEntries(root))
             {
@@ -1405,10 +1424,16 @@ namespace FileUtilityTester
                         !isDirectory && (GetFileLength(entry) == 0) ? 'Z' : '-',
                         ((File.GetAttributes(entry) & FileAttributes.Directory) != 0) ? 'D' : '-',
                     });
-                writer.WriteLine(" {0,19} {1,19} {2,5} {3}{4}", created, lastModified, attrs, entryPrintable, isDirectory ? new String(Path.DirectorySeparatorChar, 1) : String.Format(" [{0}]", hashNum));
+                writer.WriteLine(" {0,19} {1,19} {2,5}{5} {3}{4}",
+                    created,
+                    lastModified,
+                    attrs,
+                    entryPrintable,
+                    isDirectory ? new String(Path.DirectorySeparatorChar, 1) : String.Format(" [{0}]", hashNum),
+                    showSizes ? String.Format("{0,12}", !isDirectory ? GetFileLength(entry).ToString() : String.Empty) : String.Empty);
                 if (isDirectory)
                 {
-                    ListRecursive(entry, writer, hashes, dateFormat, substring);
+                    ListRecursive(entry, writer, hashes, dateFormat, showSizes, substring);
                 }
             }
         }

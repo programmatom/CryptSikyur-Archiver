@@ -382,6 +382,8 @@ namespace RemoteDriveAuth
     //
     ////////////////////////////////////////////////////////////////////////////
 
+    // TODO: clean this up - most menu items and buttons aren't needed
+
     [PermissionSet(SecurityAction.Demand, Name = "FullTrust")]
     public class Form1 : Form
     {
@@ -603,6 +605,19 @@ namespace RemoteDriveAuth
             Application.Exit();
         }
 
+        // Ensures focus is in the WebOC when window is brought to front. This recovers
+        // focus to the input control when a user is using something like, e.g.
+        // Password Safe (https://www.schneier.com/passsafe.html) to enter passwords,
+        // which usually involve changing focus and immediately using SendKeys. Without
+        // this event handler, focus is lost when window is raised and approach fails.
+        void Form1_Activated(object sender, EventArgs e)
+        {
+            if (webBrowser1.Document != null)
+            {
+                webBrowser1.Document.Focus();
+            }
+        }
+
         // The remaining code in this file provides basic form initialization and  
         // includes a Main method. If you use the Visual Studio designer to create 
         // your form, you can use the designer generated code instead of this code,  
@@ -709,6 +724,8 @@ namespace RemoteDriveAuth
 
             webBrowser1.Dock = DockStyle.Fill;
             webBrowser1.Navigated += new WebBrowserNavigatedEventHandler(webBrowser1_Navigated);
+
+            this.Activated += new EventHandler(Form1_Activated);
 
             Controls.AddRange(new Control[] { webBrowser1, toolStrip2, toolStrip1, menuStrip1, statusStrip1, menuStrip1 });
         }
