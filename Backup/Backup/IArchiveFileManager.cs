@@ -23,27 +23,75 @@
 */
 using System;
 using System.IO;
+using System.Threading;
 
 namespace Backup
 {
     public interface IArchiveFileManager : IDisposable
     {
         // File content access methods
-        ILocalFileCopy Read(string name);
-        ILocalFileCopy WriteTemp(string nameTemp);
-        void Commit(ILocalFileCopy localFile, string nameTemp, string name);
-        void Abandon(ILocalFileCopy localFile, string nameTemp);
+        ILocalFileCopy Read(string name, ProgressTracker progressTracker, TextWriter trace);
+        ILocalFileCopy WriteTemp(string nameTemp, TextWriter trace);
+        void Commit(ILocalFileCopy localFile, string nameTemp, string name, bool overwrite, ProgressTracker progressTracker, TextWriter trace);
+        void Abandon(ILocalFileCopy localFile, string nameTemp, TextWriter trace);
 
         // File management methods
-        void Delete(string name);
-        void DeleteById(string id);
-        bool Exists(string name);
-        void Rename(string oldName, string newName);
-        void RenameById(string id, string newName);
+        void Delete(string name, TextWriter trace);
+        void DeleteById(string id, TextWriter trace);
+        bool Exists(string name, TextWriter trace);
+        void Rename(string oldName, string newName, TextWriter trace);
+        void RenameById(string id, string newName, TextWriter trace);
 
         // Enumeration methods
-        string[] GetFileNames(string prefix);
-        void GetFileInfo(string name, out string id, out bool directory, out DateTime created, out DateTime modified, out long size);
+        string[] GetFileNames(string prefix, TextWriter trace);
+        void GetFileInfo(string name, out string id, out bool directory, out DateTime created, out DateTime modified, out long size, TextWriter trace);
+
+        // Tracing methods
+        TextWriter GetMasterTrace(); // TextWriter is threadsafe; remains owned - do not Dispose()
+    }
+
+    public class ProgressTracker
+    {
+        private long current;
+        private long total = -1; // during download, HttpWebRequest has to update this once Content-Length header is received
+        public readonly string Tag;
+
+        public long Current
+        {
+            get
+            {
+                return Interlocked.Read(ref current);
+            }
+            set
+            {
+                Interlocked.Exchange(ref current, value);
+            }
+        }
+
+        public long Total
+        {
+            get
+            {
+                return Interlocked.Read(ref total);
+            }
+        }
+
+        public void UpdateTotal(long newTotal)
+        {
+            Interlocked.CompareExchange(ref total, newTotal, -1);
+        }
+
+        public ProgressTracker(long total, long current, string tag)
+        {
+            this.current = current;
+            this.total = total;
+            this.Tag = tag;
+        }
+
+        public ProgressTracker(string tag)
+        {
+            this.Tag = tag;
+        }
     }
 
     public interface ILocalFileCopy : IDisposable

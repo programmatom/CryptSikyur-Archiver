@@ -49,7 +49,9 @@ namespace Backup
     {
         public static readonly bool EnableLogging = true;
         public static int StreamLoggingLengthLimit = Int32.MaxValue;
+        public const string TraceFileTimestampTemplate = "remotestoragetrace-{0:yyyy-MM-ddTHH-mm-ss}+{1}.log";
 
+#if false
         private static readonly string LoggingPath = EnableLogging ? Environment.ExpandEnvironmentVariables(@"%TEMP%\BackupRemoteStorage.log") : null;
 
         private static bool logEntriesLost;
@@ -154,7 +156,7 @@ namespace Backup
                 }
             }
         }
-
+#endif
         public static string ToString(Stream stream)
         {
             return ToString(stream, false/*omitContent*/);
@@ -686,6 +688,8 @@ namespace Backup
         private string refreshToken; // null if not enabled
         private string userId;
 
+        private readonly TextWriter masterTrace;
+
         // All accesses are through critical section to prevent multiple re-authorizations
         // from occurring simultaneously if access token has expired.
 
@@ -694,7 +698,13 @@ namespace Backup
             throw new NotSupportedException();
         }
 
-        public RemoteAccessControl(string remoteServiceUrl, bool enableRefreshToken, string refreshTokenPath)
+        private RemoteAccessControl(TextWriter masterTrace)
+        {
+            this.masterTrace = masterTrace;
+        }
+
+        public RemoteAccessControl(string remoteServiceUrl, bool enableRefreshToken, string refreshTokenPath, TextWriter trace)
+            : this(trace)
         {
             lock (this)
             {
@@ -726,9 +736,9 @@ namespace Backup
                 {
                     if (DateTime.Now >= accessTokenExpiry)
                     {
-                        if (Logging.EnableLogging)
+                        if (masterTrace != null)
                         {
-                            Logging.WriteLine("[access token expiring]");
+                            masterTrace.WriteLine("[access token expiring {0}]", DateTime.Now);
                         }
                         InvalidateAccessToken();
                     }
@@ -756,14 +766,13 @@ namespace Backup
 
         public void InvalidateAccessToken()
         {
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLineTimestamp();
-                Logging.WriteLine("*InvalidateAccessToken()");
-            }
-
             lock (this)
             {
+                if (masterTrace != null)
+                {
+                    masterTrace.WriteLine("*InvalidateAccessToken() - {0}", DateTime.Now);
+                }
+
                 accessToken = null;
                 accessTokenExpiry = DateTime.MinValue;
             }
@@ -773,90 +782,94 @@ namespace Backup
         private const int SecondaryEntropyLengthBytes = 256 / 8;
         private void Authenticate()
         {
-            if (Logging.EnableLogging)
+            // caller should have already locked object for this invocation
+
+            using (TextWriter batchTrace = Core.TaskWriter.Create(masterTrace))
             {
-                Logging.WriteLine("+RemoteAccessControl.Authenticate()");
-                Logging.WriteLineTimestamp();
-            }
-
-            RecoverSavedRefreshToken();
-
-            byte[] secondaryEntropy = new byte[SecondaryEntropyLengthBytes];
-            rng.GetBytes(secondaryEntropy);
-
-            string arg0 = "-auth";
-            string arg1 = Core.HexEncode(secondaryEntropy);
-            string arg2 = String.Format("refresh-token={0}", enableRefreshToken ? "yes" : "no");
-            string arg3 = enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? Core.HexEncodeASCII(refreshToken) : "\"\"";
-            string arg4 = remoteServiceUrl;
-            string args = String.Concat(arg0, " ", arg1, " ", arg2, " ", arg3, " ", arg4);
-            int exitCode;
-            string output;
-            Exec(LoginProgramName, args, null, null/*timeout*/, out exitCode, out output);
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, /*arg1*/"(secondary entropy omitted)", arg2, /*arg3*/(enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? "(refresh token omitted)" : "\"\""), arg4);
-                Logging.WriteLine("exit code: {0}", exitCode);
-                Logging.WriteLine("output:");
-                Logging.WriteLine(output != null ? output.Trim() : "null");
-                Logging.WriteLine();
-            }
-
-            if (exitCode != 0)
-            {
-                if (exitCode == 2)
+                if (batchTrace != null)
                 {
-                    throw new ApplicationException(String.Format("Authentication to remote service failed with message: {0}", output));
+                    batchTrace.WriteLine("+RemoteAccessControl.Authenticate() - {0}", DateTime.Now);
                 }
-                throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
-            }
 
-            string oldRefreshToken = refreshToken;
+                RecoverSavedRefreshToken();
 
-            byte[] outputBytes = Core.HexDecode(output.Trim());
-            byte[] decryptedOutput = ProtectedDataStorage.Decrypt(outputBytes, 0, outputBytes.Length, secondaryEntropy);
-            JSONDictionary tokenJSON = new JSONDictionary(Encoding.ASCII.GetString(decryptedOutput));
-            string token_type, scope;
-            long expires_in;
-            if (!tokenJSON.TryGetValueAs("token_type", out token_type)
-                || !tokenJSON.TryGetValueAs("expires_in", out expires_in)
-                || !tokenJSON.TryGetValueAs("access_token", out accessToken))
-            {
-                throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
-            }
-            tokenJSON.TryGetValueAs("scope", out scope); // not needed - in any case only returned by Microsoft, not returned by Google
-            tokenJSON.TryGetValueAs("refresh_token", out refreshToken); // may be absent (--> null)
-            tokenJSON.TryGetValueAs("user_id", out userId); // not needed
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLine("Acquired tokens:");
-                Logging.WriteLine("  access_token={0}", !String.IsNullOrEmpty(accessToken) ? "(omitted)" : "no");
-                Logging.WriteLine("  refresh_token={0}", !String.IsNullOrEmpty(refreshToken) ? "(omitted)" : "no");
-                Logging.WriteLine("  user_id={0}", !String.IsNullOrEmpty(userId) ? "(omitted)" : "no");
-                Logging.WriteLine("  other: token_type={0}, expires_in={1}, scope=\"{2}\"", token_type, expires_in, scope);
-                Logging.WriteLine();
-            }
-            if (!token_type.Equals("bearer", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException("token_type");
-            }
-            // subtract a grace period from expiration to force proactive renewal
-            accessTokenExpiry = DateTime.Now.AddSeconds(expires_in).AddSeconds(-TokenExpirationGracePeriodSeconds);
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLine("Token expiration set to: {0}", accessTokenExpiry);
-            }
+                byte[] secondaryEntropy = new byte[SecondaryEntropyLengthBytes];
+                rng.GetBytes(secondaryEntropy);
 
-            if (refreshToken == null)
-            {
-                refreshToken = oldRefreshToken;
-            }
+                string arg0 = "-auth";
+                string arg1 = Core.HexEncode(secondaryEntropy);
+                string arg2 = String.Format("refresh-token={0}", enableRefreshToken ? "yes" : "no");
+                string arg3 = enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? Core.HexEncodeASCII(refreshToken) : "\"\"";
+                string arg4 = remoteServiceUrl;
+                string args = String.Concat(arg0, " ", arg1, " ", arg2, " ", arg3, " ", arg4);
+                int exitCode;
+                string output;
+                Exec(LoginProgramName, args, null, null/*timeout*/, out exitCode, out output);
+                if (batchTrace != null)
+                {
+                    batchTrace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, /*arg1*/"(secondary entropy omitted)", arg2, /*arg3*/(enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? "(refresh token omitted)" : "\"\""), arg4);
+                    batchTrace.WriteLine("exit code: {0}", exitCode);
+                    batchTrace.WriteLine("output:");
+                    batchTrace.WriteLine(output != null ? output.Trim() : "null");
+                    batchTrace.WriteLine();
+                }
 
-            SaveRefeshToken();
+                if (exitCode != 0)
+                {
+                    if (exitCode == 2)
+                    {
+                        throw new ApplicationException(String.Format("Authentication to remote service failed with message: {0}", output));
+                    }
+                    throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+                }
 
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLine("-RemoteAccessControl.Authenticate");
+                string oldRefreshToken = refreshToken;
+
+                byte[] outputBytes = Core.HexDecode(output.Trim());
+                byte[] decryptedOutput = ProtectedDataStorage.Decrypt(outputBytes, 0, outputBytes.Length, secondaryEntropy);
+                JSONDictionary tokenJSON = new JSONDictionary(Encoding.ASCII.GetString(decryptedOutput));
+                string token_type, scope;
+                long expires_in;
+                if (!tokenJSON.TryGetValueAs("token_type", out token_type)
+                    || !tokenJSON.TryGetValueAs("expires_in", out expires_in)
+                    || !tokenJSON.TryGetValueAs("access_token", out accessToken))
+                {
+                    throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+                }
+                tokenJSON.TryGetValueAs("scope", out scope); // not needed - in any case only returned by Microsoft, not returned by Google
+                tokenJSON.TryGetValueAs("refresh_token", out refreshToken); // may be absent (--> null)
+                tokenJSON.TryGetValueAs("user_id", out userId); // not needed
+                if (batchTrace != null)
+                {
+                    batchTrace.WriteLine("Acquired tokens:");
+                    batchTrace.WriteLine("  access_token={0}", !String.IsNullOrEmpty(accessToken) ? "(omitted)" : "no");
+                    batchTrace.WriteLine("  refresh_token={0}", !String.IsNullOrEmpty(refreshToken) ? "(omitted)" : "no");
+                    batchTrace.WriteLine("  user_id={0}", !String.IsNullOrEmpty(userId) ? "(omitted)" : "no");
+                    batchTrace.WriteLine("  other: token_type={0}, expires_in={1}, scope=\"{2}\"", token_type, expires_in, scope);
+                    batchTrace.WriteLine();
+                }
+                if (!token_type.Equals("bearer", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException("token_type");
+                }
+                // subtract a grace period from expiration to force proactive renewal
+                accessTokenExpiry = DateTime.Now.AddSeconds(expires_in).AddSeconds(-TokenExpirationGracePeriodSeconds);
+                if (batchTrace != null)
+                {
+                    batchTrace.WriteLine("Token expiration set to: {0}", accessTokenExpiry);
+                }
+
+                if (refreshToken == null)
+                {
+                    refreshToken = oldRefreshToken;
+                }
+
+                SaveRefeshToken();
+
+                if (batchTrace != null)
+                {
+                    batchTrace.WriteLine("-RemoteAccessControl.Authenticate - {0}", DateTime.Now);
+                }
             }
         }
 
@@ -1015,12 +1028,12 @@ namespace Backup
 
     interface IWebMethods
     {
-        RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId);
-        RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast);
-        void DownloadFile(string fileId, Stream streamDownloadInto);
-        RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom);
-        void DeleteFile(string fileId);
-        RemoteFileSystemEntry RenameFile(string fileId, string newName);
+        RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace);
+        RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace);
+        void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace);
+        RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace);
+        void DeleteFile(string fileId, TextWriter trace);
+        RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace);
     }
 
     class WebMethodsBase
@@ -1030,6 +1043,8 @@ namespace Backup
         private readonly bool? UseCustomHttpImplementation = null;
 
         private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
+
+        private const int MaxBytesPerWebRequest = 30 * 1024 * 1024;
 
         protected WebMethodsBase(RemoteAccessControl remoteAccessControl, bool enableRestartableUploads)
         {
@@ -1056,7 +1071,7 @@ namespace Backup
 
         private const int SendTimeout = 60 * 1000;
         private const int ReceiveTimeout = 60 * 1000;
-        private WebExceptionStatus SocketRequest(Uri uri, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out string[] responseHeaders, Stream responseBodyDestination)
+        private WebExceptionStatus SocketRequest(Uri uri, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out string[] responseHeaders, Stream responseBodyDestination, ProgressTracker progressTracker, TextWriter trace)
         {
             byte[] buffer = new byte[Core.Constants.BufferSize];
 
@@ -1122,10 +1137,6 @@ namespace Backup
 
                         if (requestBodySource != null)
                         {
-                            const int MaxBytesPerWebRequest = 30 * 1024 * 1024;
-                            const int UpdateIntervalSeconds = 5;
-
-                            DateTime lastDisplay = DateTime.Now;
                             long requestBytesSent = 0;
                             int read;
                             while ((read = requestBodySource.Read(buffer, 0, buffer.Length)) != 0)
@@ -1133,23 +1144,21 @@ namespace Backup
                                 socketStream.Write(buffer, 0, read);
                                 requestBytesSent += read;
 
-                                if ((DateTime.Now - lastDisplay).TotalSeconds >= UpdateIntervalSeconds)
+                                if (progressTracker != null)
                                 {
-                                    Console.Write("{0}%  ", requestBodySource.Position * 100 / requestBodySource.Length);
-                                    Console.CursorLeft = 0;
-                                    lastDisplay = DateTime.Now;
+                                    progressTracker.Current = requestBodySource.Position;
+                                }
 
-                                    if (enableRestartableUploads)
+                                if (enableRestartableUploads)
+                                {
+                                    if (remoteAccessControl.AccessTokenExpirationImminant)
                                     {
-                                        if (remoteAccessControl.AccessTokenExpirationImminant)
-                                        {
-                                            remoteAccessControl.InvalidateAccessToken();
-                                            return WebExceptionStatus.ReceiveFailure;
-                                        }
-                                        if (requestBytesSent > MaxBytesPerWebRequest)
-                                        {
-                                            return WebExceptionStatus.ReceiveFailure;
-                                        }
+                                        remoteAccessControl.InvalidateAccessToken();
+                                        return WebExceptionStatus.ReceiveFailure;
+                                    }
+                                    if (requestBytesSent > MaxBytesPerWebRequest)
+                                    {
+                                        return WebExceptionStatus.ReceiveFailure;
                                     }
                                 }
                             }
@@ -1235,9 +1244,9 @@ namespace Backup
             }
             catch (IOException exception)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("Exception: {0}", exception);
+                    trace.WriteLine("Exception: {0}", exception);
                 }
                 return WebExceptionStatus.ReceiveFailure;
             }
@@ -1246,11 +1255,11 @@ namespace Backup
         }
 
         private static string[] ForbiddenHeaders = new string[] { "Accept-Encoding", "Content-Length", "Expect", "Connection" };
-        private WebExceptionStatus SocketHttpRequest(Uri uri, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl)
+        private WebExceptionStatus SocketHttpRequest(Uri uri, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, ProgressTracker progressTracker, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+SocketHttpRequest(url={0}, hostAddress={1}, verb={2}, request-body={3}, response-body={4})", uri, hostAddress, verb, Logging.ToString(requestBodySource), Logging.ToString(responseBodyDestination, true/*omitContent*/));
+                trace.WriteLine("+SocketHttpRequest(url={0}, hostAddress={1}, verb={2}, request-body={3}, response-body={4})", uri, hostAddress, verb, Logging.ToString(requestBodySource), Logging.ToString(responseBodyDestination, true/*omitContent*/));
             }
 
             foreach (string forbiddenHeader in ForbiddenHeaders)
@@ -1302,26 +1311,26 @@ namespace Backup
                 requestHeaderBytes = stream.ToArray();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("Request headers:");
-                Logging.WriteLine(Encoding.ASCII.GetString(requestHeaderBytes));
+                trace.WriteLine("Request headers:");
+                trace.WriteLine(Encoding.ASCII.GetString(requestHeaderBytes));
             }
 
 
             string[] responseHeadersLines;
             long responseBodyDestinationStart = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
-            WebExceptionStatus result = SocketRequest(uri, hostAddress, twoStageRequest, requestHeaderBytes, requestBodySource, out responseHeadersLines, responseBodyDestination);
+            WebExceptionStatus result = SocketRequest(uri, hostAddress, twoStageRequest, requestHeaderBytes, requestBodySource, out responseHeadersLines, responseBodyDestination, progressTracker, trace);
             long responseBodyDestinationEnd = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
             long responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("Socket request result: {0} ({1})", (int)result, result);
-                Logging.WriteLine("Response headers:");
+                trace.WriteLine("Socket request result: {0} ({1})", (int)result, result);
+                trace.WriteLine("Response headers:");
                 foreach (string s in responseHeadersLines)
                 {
-                    Logging.WriteLine(s);
+                    trace.WriteLine(s);
                 }
             }
 
@@ -1429,11 +1438,11 @@ namespace Backup
             if (((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307))
                 && ((locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); })) >= 0))
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
                     if (Array.FindAll(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); }).Length > 1)
                     {
-                        Logging.WriteLine(" NOTICE: multiple Location response headers present - using first one (http status was {0} {1})", (int)httpStatus, httpStatus);
+                        trace.WriteLine(" NOTICE: multiple Location response headers present - using first one (http status was {0} {1})", (int)httpStatus, httpStatus);
                     }
                 }
 
@@ -1459,9 +1468,9 @@ namespace Backup
             finalUrl = uri.ToString();
 
         Exit:
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-SocketHttpRequest returns {0} ({1})", (int)result, result);
+                trace.WriteLine("-SocketHttpRequest returns {0} ({1})", (int)result, result);
             }
             return result;
         }
@@ -1482,7 +1491,7 @@ namespace Backup
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
         private static readonly string[] SupportedVerbs = new string[] { "GET", "PUT", "POST", "DELETE", "PATCH" };
         private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", "Content-Length", "Accept-Encoding", "Expect", "Authorization" };
-        protected bool DoWebAction(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut)
+        protected bool DoWebAction(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTracker, TextWriter trace)
         {
             bool useCustomHttpImplementation = UseCustomHttpImplementation.HasValue ? UseCustomHttpImplementation.Value : ((DateTime.Now.Minute % 5) % 2 != 0); // how'd-ya like dem apples?
 
@@ -1495,9 +1504,9 @@ namespace Backup
                 responseHeadersOut = new KeyValuePair<string, string>[0];
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+DoWebAction(url={0}, verb={1}, request-body={2}, response-body={3})", url, verb, Logging.ToString(requestBodySource), responseBodyDestination != null ? "yes" : "no");
+                trace.WriteLine("+DoWebAction(url={0}, verb={1}, request-body={2}, response-body={3})", url, verb, Logging.ToString(requestBodySource), responseBodyDestination != null ? "yes" : "no");
             }
 
             foreach (KeyValuePair<string, string> header in requestHeaders)
@@ -1625,7 +1634,7 @@ namespace Backup
 
                 KeyValuePair<string, string>[] responseHeaders;
                 string finalUrl;
-                webStatusCode = SocketHttpRequest(uri, hostAddress, verb, requestHeadersList.ToArray(), requestBodySource, out httpStatusCode, out responseHeaders, responseBodyDestination, out finalUrl);
+                webStatusCode = SocketHttpRequest(uri, hostAddress, verb, requestHeadersList.ToArray(), requestBodySource, out httpStatusCode, out responseHeaders, responseBodyDestination, out finalUrl, progressTracker, trace);
 
                 for (int i = 0; i < responseHeadersOut.Length; i++)
                 {
@@ -1651,9 +1660,13 @@ namespace Backup
                 ManualResetEvent finished = new ManualResetEvent(false);
                 Exception exception = null;
 
-                long requestBytesTotal = requestBodySource != null ? requestBodySource.Length : 0;
-                long requestBytesSentTotal = requestBodySource != null ? requestBodySource.Position : 0;
-                long forceFailure = 0;
+                if (progressTracker == null)
+                {
+                    progressTracker = new ProgressTracker(
+                        requestBodySource != null ? requestBodySource.Length : 0,
+                        requestBodySource != null ? requestBodySource.Position : 0,
+                        null);
+                }
 
                 AsyncCallback responseAction = delegate(IAsyncResult asyncResult)
                 {
@@ -1670,9 +1683,9 @@ namespace Backup
                             long? responseLengthExpected = null;
                             if (!String.IsNullOrEmpty(response.Headers[HttpResponseHeader.ContentLength]))
                             {
-                                if (Logging.EnableLogging)
+                                if (trace != null)
                                 {
-                                    Logging.WriteLine(" response Content-Length header={0}", response.Headers[HttpResponseHeader.ContentLength]);
+                                    trace.WriteLine(" response Content-Length header={0}", response.Headers[HttpResponseHeader.ContentLength]);
                                 }
                                 responseLengthExpected = Int64.Parse(response.Headers[HttpResponseHeader.ContentLength]);
                             }
@@ -1689,9 +1702,9 @@ namespace Backup
                                         responseBodyDestination.Write(buffer, 0, read);
                                     }
                                     responseLengthActual = responseBodyDestination.Length;
-                                    if (Logging.EnableLogging)
+                                    if (trace != null)
                                     {
-                                        Logging.WriteLine(" actual response length={0}", responseLengthActual);
+                                        trace.WriteLine(" actual response length={0}", responseLengthActual);
                                     }
 
                                     if (responseLengthExpected.HasValue && (responseLengthExpected.Value != responseLengthActual))
@@ -1726,19 +1739,28 @@ namespace Backup
                             if (requestBodySource != null)
                             {
                                 // this permits testing of resumable upload
-                                long requestBytesSentThisRequest = 0; // vs. "bytes thus far" over multiple requests of a resumable upload - which would be requestBytesSentTotal
-                                const int MaxBytesPerWebRequest = 30 * 1024 * 1024;
+                                long requestBytesSentThisRequest = 0;
+                                long requestBytesSentTotal = requestBodySource.Position; // "bytes thus far" over multiple requests of a resumable upload
 
                                 byte[] buffer = new byte[Core.Constants.BufferSize];
                                 int read;
                                 while ((read = requestBodySource.Read(buffer, 0, buffer.Length)) != 0)
                                 {
                                     requestStream.Write(buffer, 0, read);
-                                    Interlocked.Add(ref requestBytesSentTotal, read);
+
+                                    requestBytesSentTotal += read;
                                     requestBytesSentThisRequest += read;
+
+                                    progressTracker.Current = requestBytesSentTotal;
+
                                     if (enableRestartableUploads)
                                     {
-                                        if ((Interlocked.Read(ref forceFailure) != 0) || (requestBytesSentThisRequest > MaxBytesPerWebRequest))
+                                        if (remoteAccessControl.AccessTokenExpirationImminant)
+                                        {
+                                            remoteAccessControl.InvalidateAccessToken();
+                                            throw new TimeoutException();
+                                        }
+                                        if (requestBytesSentThisRequest > MaxBytesPerWebRequest)
                                         {
                                             throw new TimeoutException();
                                         }
@@ -1831,31 +1853,13 @@ namespace Backup
                     }
                 }
 
-                const int UpdateIntervalSeconds = 5;
-                const int MinimumFileSizeForProgress = 1024 * 1024;
-                while (!finished.WaitOne(UpdateIntervalSeconds * 1000))
-                {
-                    if (enableRestartableUploads)
-                    {
-                        if (remoteAccessControl.AccessTokenExpirationImminant)
-                        {
-                            remoteAccessControl.InvalidateAccessToken();
-                            Interlocked.CompareExchange(ref forceFailure, 1, 0);
-                        }
-                    }
-
-                    if (requestBytesTotal >= MinimumFileSizeForProgress)
-                    {
-                        Console.Write("{0}%  ", Interlocked.Read(ref requestBytesSentTotal) * 100 / requestBytesTotal);
-                        Console.CursorLeft = 0;
-                    }
-                }
+                finished.WaitOne();
 
                 if (exception != null)
                 {
-                    if (Logging.EnableLogging)
+                    if (trace != null)
                     {
-                        Logging.WriteLine(" exception caught during asynchronous processing: {0}", exception);
+                        trace.WriteLine(" exception caught during asynchronous processing: {0}", exception);
                     }
 
                     WebException webException;
@@ -1882,9 +1886,9 @@ namespace Backup
                                 {
                                     if (!accessDeniedRetried)
                                     {
-                                        if (Logging.EnableLogging)
+                                        if (trace != null)
                                         {
-                                            Logging.WriteLine(" access denied - invalidating access token and trying again");
+                                            trace.WriteLine(" access denied - invalidating access token and trying again");
                                         }
 
                                         accessDeniedRetried = true;
@@ -1913,20 +1917,20 @@ namespace Backup
 
             bool result = (webStatusCode == WebExceptionStatus.Success)
                 && (((int)httpStatusCode >= 200) && ((int)httpStatusCode <= 299));
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
                 if (responseBodyDestination != null)
                 {
-                    Logging.WriteLine(" response-body={0}", Logging.ToString(responseBodyDestination));
+                    trace.WriteLine(" response-body={0}", Logging.ToString(responseBodyDestination));
                 }
-                Logging.WriteLine("-DoWebAction result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                trace.WriteLine("-DoWebAction result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
             }
             webStatusCodeOut = webStatusCode;
             httpStatusCodeOut = httpStatusCode;
             return result;
         }
 
-        protected bool DoWebActionPostForm(string url, string formDataRequestBody, Stream responseBodyDestination, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut)
+        protected bool DoWebActionPostForm(string url, string formDataRequestBody, Stream responseBodyDestination, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace)
         {
             KeyValuePair<string, string>[] requestHeadersExtra = new KeyValuePair<string, string>[]
             {
@@ -1941,10 +1945,12 @@ namespace Backup
                 requestHeadersExtra,
                 null/*extraHeadersOut*/,
                 out webStatusCodeOut,
-                out httpStatusCodeOut);
+                out httpStatusCodeOut,
+                null/*progressTracker*/,
+                trace);
         }
 
-        protected bool DoWebActionPostJSON(string url, string jsonRequestBody, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersExtraOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut)
+        protected bool DoWebActionPostJSON(string url, string jsonRequestBody, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersExtraOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace)
         {
             List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(requestHeaders);
             if (jsonRequestBody != null)
@@ -1962,11 +1968,13 @@ namespace Backup
                     requestHeadersExtra.ToArray(),
                     responseHeadersExtraOut,
                     out webStatusCodeOut,
-                    out httpStatusCodeOut);
+                    out httpStatusCodeOut,
+                    null/*progressTracker*/,
+                    trace);
             }
         }
 
-        protected bool DoWebActionJSON2JSON(string url, string verb, string jsonRequestBody, out string jsonResponseBody, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut)
+        protected bool DoWebActionJSON2JSON(string url, string verb, string jsonRequestBody, out string jsonResponseBody, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace)
         {
             List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(1);
             if (!String.IsNullOrEmpty(jsonRequestBody))
@@ -1990,7 +1998,9 @@ namespace Backup
                         requestHeadersExtra.ToArray(),
                         responseHeadersExtra,
                         out webStatusCodeOut,
-                        out httpStatusCodeOut);
+                        out httpStatusCodeOut,
+                        null/*progressTracker*/,
+                        trace);
 
                     jsonResponseBody = null;
                     if (responseHeadersExtra[0].Value == "application/json; charset=UTF-8")
@@ -2007,7 +2017,7 @@ namespace Backup
             }
         }
 
-        protected bool DoWebActionGetBinary(string url, KeyValuePair<string, string>[] requestHeaders, Stream responseBodyBinary, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut)
+        protected bool DoWebActionGetBinary(string url, KeyValuePair<string, string>[] requestHeaders, Stream responseBodyBinary, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTracker, TextWriter trace)
         {
             List<KeyValuePair<string, string>> requestHeadersList = new List<KeyValuePair<string, string>>();
             if (requestHeaders != null)
@@ -2026,16 +2036,21 @@ namespace Backup
                     requestHeadersList.ToArray(),
                     responseHeadersOut,
                     out webStatusCodeOut,
-                    out httpStatusCodeOut);
+                    out httpStatusCodeOut,
+                    progressTracker,
+                    trace);
                 return result;
             }
         }
 
-        protected bool DownloadFileWithResume(string url, Stream streamDownloadInto)
+        protected bool DownloadFileWithResume(string url, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            // ProgressTracker is problematic here because we don't have the download target
+            // length until response headers are recieved. Callee has to update for us.
+
+            if (trace != null)
             {
-                Logging.WriteLine("+DownloadFileWithResume(url={0})", url);
+                trace.WriteLine("+DownloadFileWithResume(url={0})", url);
             }
 
             KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
@@ -2052,10 +2067,12 @@ namespace Backup
                 streamDownloadInto,
                 responseHeaders,
                 out webStatusCode,
-                out httpStatusCode);
-            if (Logging.EnableLogging)
+                out httpStatusCode,
+                progressTracker,
+                trace);
+            if (trace != null)
             {
-                Logging.WriteLine(" DownloadFileWithResume result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                trace.WriteLine(" DownloadFileWithResume result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
             }
             if (!result || (responseHeaders[0].Value == null) || (streamDownloadInto.Length != Int64.Parse(responseHeaders[0].Value)))
             {
@@ -2097,26 +2114,28 @@ namespace Backup
                             streamDownloadInto,
                             null,
                             out webStatusCode,
-                            out httpStatusCode);
-                        if (Logging.EnableLogging)
+                            out httpStatusCode,
+                            progressTracker,
+                            trace);
+                        if (trace != null)
                         {
-                            Logging.WriteLine(" DownloadFileWithResume result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                            trace.WriteLine(" DownloadFileWithResume result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                         }
                     }
 
                     if (streamDownloadInto.Length == contentLength)
                     {
-                        if (Logging.EnableLogging)
+                        if (trace != null)
                         {
-                            Logging.WriteLine("-DownloadFileWithResume returns True");
+                            trace.WriteLine("-DownloadFileWithResume returns True");
                         }
                         return true;
                     }
                 }
 
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-DownloadFileWithResume returns False");
+                    trace.WriteLine("-DownloadFileWithResume returns False");
                 }
                 return false;
             }
@@ -2131,9 +2150,13 @@ namespace Backup
         // REST API - Files: http://msdn.microsoft.com/en-us/library/dn631834.aspx
         // REST API - Folders: http://msdn.microsoft.com/en-us/library/dn631836.aspx
 
-        public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl)
+        public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace)
             : base(remoteAccessControl, false/*enableRestartableUploads*/)
         {
+            if (trace != null)
+            {
+                trace.WriteLine("*MicrosoftOneDriveWebMethods constructor");
+            }
         }
 
         private const string UploadLocationUrlPrefix = "https://apis.live.net/v5.0/";
@@ -2188,11 +2211,11 @@ namespace Backup
             return new RemoteFileSystemEntry(id, name, type == "folder", DateTime.Parse(created_time), DateTime.Parse(updated_time), size);
         }
 
-        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId)
+        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+RemoteGetFileSystemEntries(folderId={0})", folderId);
+                trace.WriteLine("+RemoteGetFileSystemEntries(folderId={0})", folderId);
             }
 
             string url = String.Format("{0}?pretty=false", FileIdToUploadLocation(folderId, false/*content*/));
@@ -2206,12 +2229,13 @@ namespace Backup
                 null/*jsonRequestBody*/,
                 out response,
                 out webStatusCode,
-                out httpStatusCode);
+                out httpStatusCode,
+                trace);
             if (!result)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-RemoteGetFileSystemEntries result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine("-RemoteGetFileSystemEntries result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
                 throw new WebException();
             }
@@ -2228,23 +2252,28 @@ namespace Backup
                 items[i] = FileSystemEntryFromJSON(entries[i]);
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  json={0}", response);
-                Logging.WriteLine("  return {0} items", items.Length);
+                trace.WriteLine("  json={0}", response);
+                trace.WriteLine("  return {0} items", items.Length);
                 for (int i = 0; i < items.Length; i++)
                 {
-                    Logging.WriteLine("  [{0}]: {1}", i, items[i]);
+                    trace.WriteLine("  [{0}]: {1}", i, items[i]);
                 }
-                Logging.WriteLine("-RemoteGetFileSystemEntries");
-                Logging.WriteLine();
+                trace.WriteLine("-RemoteGetFileSystemEntries");
+                trace.WriteLine();
             }
 
             return items;
         }
 
-        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast)
+        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace)
         {
+            if (trace != null)
+            {
+                trace.WriteLine("+NavigateRemotePath(remotePath={0}, includeLast={1})", remotePath, includeLast);
+            }
+
             if (!(String.IsNullOrEmpty(remotePath) || remotePath.StartsWith("/")))
             {
                 throw new ArgumentException();
@@ -2262,7 +2291,7 @@ namespace Backup
             for (int i = 1; i < remotePathPartsLength; i++)
             {
                 string remotePathPart = remotePathParts[i];
-                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id);
+                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace);
                 int index = Array.FindIndex(entries, delegate(RemoteFileSystemEntry candidate) { return candidate.Name.Equals(remotePathPart); });
                 if (index < 0)
                 {
@@ -2273,38 +2302,43 @@ namespace Backup
             return currentDirectory;
         }
 
-        public void DownloadFile(string fileId, Stream streamDownloadInto)
+        public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+DownloadFile(fileId={0})", fileId);
+                trace.WriteLine("+DownloadFile(fileId={0})", fileId);
             }
 
             string url = String.Format("{0}?pretty=false", FileIdToUploadLocation(fileId, true/*content*/));
 
-            if (!DownloadFileWithResume(url, streamDownloadInto))
+            if (!DownloadFileWithResume(url, streamDownloadInto, progressTracker, trace))
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-DownloadFile throw", fileId);
+                    trace.WriteLine("-DownloadFile throw", fileId);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-DownloadFile", fileId);
+                trace.WriteLine("-DownloadFile", fileId);
             }
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom)
+        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace)
         {
             // TODO: figure out if there is support yet for resumable uploads on OneDrive Live
             // API (doesn't appear so as of 2014-09-01).
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+UploadFile(folderId={0}, name={1})", folderId, remoteName);
+                trace.WriteLine("+UploadFile(folderId={0}, name={1})", folderId, remoteName);
+            }
+
+            if (progressTracker != null)
+            {
+                progressTracker.UpdateTotal(streamUploadFrom.Length);
             }
 
             string response;
@@ -2328,12 +2362,14 @@ namespace Backup
                     null/*requestHeaders*/,
                     responseHeaders,
                     out webStatusCode,
-                    out httpStatusCode);
+                    out httpStatusCode,
+                    progressTracker,
+                    trace);
                 if (!result)
                 {
-                    if (Logging.EnableLogging)
+                    if (trace != null)
                     {
-                        Logging.WriteLine("-UploadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine("-UploadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
                     throw new WebException();
                 }
@@ -2348,9 +2384,9 @@ namespace Backup
                 }
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  json={0}", response);
+                trace.WriteLine("  json={0}", response);
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -2362,22 +2398,22 @@ namespace Backup
             }
             Debug.Assert(name == remoteName); // if fails then TODO handle remote auto name adjustment
 
-            RemoteFileSystemEntry entry = GetFileMetadata(fileId);
+            RemoteFileSystemEntry entry = GetFileMetadata(fileId, trace);
             Debug.Assert(entry.Name == remoteName); // if fails then TODO handle remote auto name adjustment
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-UploadFile returns {0}", entry);
-                Logging.WriteLine();
+                trace.WriteLine("-UploadFile returns {0}", entry);
+                trace.WriteLine();
             }
             return entry;
         }
 
-        private RemoteFileSystemEntry GetFileMetadata(string fileId)
+        private RemoteFileSystemEntry GetFileMetadata(string fileId, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+GetFileMetadata(id={0})", fileId);
+                trace.WriteLine("+GetFileMetadata(id={0})", fileId);
             }
 
             string url = String.Format("https://apis.live.net/v5.0/{0}?pretty=false", fileId);
@@ -2392,38 +2428,39 @@ namespace Backup
                 null/*jsonRequestBody*/,
                 out response,
                 out webStatusCode,
-                out httpStatusCode);
+                out httpStatusCode,
+                trace);
             if (!result)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-GetFileMetadata result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine("-GetFileMetadata result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  json={0}", response);
+                trace.WriteLine("  json={0}", response);
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-GetFileMetadata returns {0}", entry);
-                Logging.WriteLine();
+                trace.WriteLine("-GetFileMetadata returns {0}", entry);
+                trace.WriteLine();
             }
 
             return entry;
         }
 
-        public void DeleteFile(string fileId)
+        public void DeleteFile(string fileId, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+DeleteFile(id={0})", fileId);
+                trace.WriteLine("+DeleteFile(id={0})", fileId);
             }
 
             // http://msdn.microsoft.com/en-us/library/dn659743.aspx#delete_a_file
@@ -2440,28 +2477,30 @@ namespace Backup
                 null/*requestHeaders*/,
                 null/*responseHeadersOut*/,
                 out webStatusCode,
-                out httpStatusCode);
+                out httpStatusCode,
+                null/*progressTracker*/,
+                trace);
             if (!result)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-DeleteFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine("-DeleteFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-DeleteFile");
-                Logging.WriteLine();
+                trace.WriteLine("-DeleteFile");
+                trace.WriteLine();
             }
         }
 
-        public RemoteFileSystemEntry RenameFile(string fileId, string newName)
+        public RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+RenameFile(id={0}, newName={1})", fileId, newName);
+                trace.WriteLine("+RenameFile(id={0}, newName={1})", fileId, newName);
             }
 
             if (newName.Contains("\""))
@@ -2485,28 +2524,29 @@ namespace Backup
                 requestBody,
                 out response,
                 out webStatusCode,
-                out httpStatusCode);
+                out httpStatusCode,
+                trace);
             if (!result)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-RenameFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine("-RenameFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  json={0}", response);
+                trace.WriteLine("  json={0}", response);
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-RenameFile returns {0}", entry);
-                Logging.WriteLine();
+                trace.WriteLine("-RenameFile returns {0}", entry);
+                trace.WriteLine();
             }
 
             return entry;
@@ -2521,12 +2561,12 @@ namespace Backup
         private Dictionary<string, List<GoogleDriveFile>> childrenMap;
         private string rootId;
 
-        public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl)
+        public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace)
             : base(remoteAccessControl, true/*enableRestartableUploads*/)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+GoogleDriveWebMethods constructor");
+                trace.WriteLine("+GoogleDriveWebMethods constructor");
             }
 
             // Google doesn't have a method to get the listing of files for a given folder -
@@ -2536,7 +2576,7 @@ namespace Backup
             // each file to construct the hierarchy. (Also, files can be put into multiple
             // folders - like hard links.)
 
-            GoogleDriveFile[] files = GetRemoteFlatFilesList();
+            GoogleDriveFile[] files = GetRemoteFlatFilesList(trace);
 
             childrenMap = new Dictionary<string, List<GoogleDriveFile>>(files.Length + 1);
             Dictionary<string, bool> roots = new Dictionary<string, bool>(1);
@@ -2574,9 +2614,9 @@ namespace Backup
                 }
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+GoogleDriveWebMethods constructor");
+                trace.WriteLine("-GoogleDriveWebMethods constructor");
             }
         }
 
@@ -2665,13 +2705,13 @@ namespace Backup
         // Add the "fields" query parameter to reduce the amount of json fields returned
         // to just the relevant ones.
 
-        private GoogleDriveFile[] GetRemoteFlatFilesList()
+        private GoogleDriveFile[] GetRemoteFlatFilesList(TextWriter trace)
         {
             List<GoogleDriveFile> aggregateItems = new List<GoogleDriveFile>();
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+GetRemoteFlatFilesList()");
+                trace.WriteLine("+GetRemoteFlatFilesList()");
             }
 
             string pageToken = null;
@@ -2695,12 +2735,13 @@ namespace Backup
                     null/*jsonRequestBody*/,
                     out response,
                     out webStatusCode,
-                    out httpStatusCode);
+                    out httpStatusCode,
+                    trace);
                 if (!result)
                 {
-                    if (Logging.EnableLogging)
+                    if (trace != null)
                     {
-                        Logging.WriteLine("-GetRemoteFlatFilesList result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine("-GetRemoteFlatFilesList result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
                     throw new WebException();
                 }
@@ -2759,13 +2800,13 @@ namespace Backup
                     items[i] = new GoogleDriveFile(entry, mimeType, hidden, trashed, parentsList);
                 }
 
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("  json={0}", response);
-                    Logging.WriteLine("  create {0} items", items.Length);
+                    trace.WriteLine("  json={0}", response);
+                    trace.WriteLine("  create {0} items", items.Length);
                     for (int i = 0; i < items.Length; i++)
                     {
-                        Logging.WriteLine("  [{0}]: {1}", i, items[i]);
+                        trace.WriteLine("  [{0}]: {1}", i, items[i]);
                     }
                 }
 
@@ -2774,10 +2815,10 @@ namespace Backup
             } while (pageToken != null);
 
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-GetRemoteFlatFilesList total={0}", aggregateItems.Count);
-                Logging.WriteLine();
+                trace.WriteLine("-GetRemoteFlatFilesList total={0}", aggregateItems.Count);
+                trace.WriteLine();
             }
 
             return aggregateItems.ToArray();
@@ -2801,11 +2842,11 @@ namespace Backup
             return new RemoteFileSystemEntry(id, title, mimeType == "application/vnd.google-apps.folder", DateTime.Parse(createdDate), DateTime.Parse(modifiedDate), Int64.Parse(fileSize));
         }
 
-        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId)
+        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+RemoteGetFileSystemEntries(folderId={0})", folderId);
+                trace.WriteLine("+RemoteGetFileSystemEntries(folderId={0})", folderId);
             }
 
             if (String.IsNullOrEmpty(folderId))
@@ -2837,21 +2878,21 @@ namespace Backup
                 }
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  return {0} items", items.Count);
+                trace.WriteLine("  return {0} items", items.Count);
                 for (int i = 0; i < items.Count; i++)
                 {
-                    Logging.WriteLine("  [{0}]: {1}", i, items[i]);
+                    trace.WriteLine("  [{0}]: {1}", i, items[i]);
                 }
-                Logging.WriteLine("-RemoteGetFileSystemEntries");
-                Logging.WriteLine();
+                trace.WriteLine("-RemoteGetFileSystemEntries");
+                trace.WriteLine();
             }
 
             return items.ToArray();
         }
 
-        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast)
+        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace)
         {
             if (!(String.IsNullOrEmpty(remotePath) || remotePath.StartsWith("/")))
             {
@@ -2870,7 +2911,7 @@ namespace Backup
             for (int i = 1; i < remotePathPartsLength; i++)
             {
                 string remotePathPart = remotePathParts[i];
-                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id);
+                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace);
                 int index = Array.FindIndex(entries, delegate(RemoteFileSystemEntry candidate) { return candidate.Name.Equals(remotePathPart); });
                 if (index < 0)
                 {
@@ -2881,11 +2922,11 @@ namespace Backup
             return currentDirectory;
         }
 
-        public void DownloadFile(string fileId, Stream streamDownloadInto)
+        public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+DownloadFile(fileId={0})", fileId);
+                trace.WriteLine("+DownloadFile(fileId={0})", fileId);
             }
 
             string url = FileIdToSelfLink(fileId);
@@ -2899,19 +2940,20 @@ namespace Backup
                 null/*jsonRequestBody*/,
                 out response,
                 out webStatusCode,
-                out httpStatusCode);
+                out httpStatusCode,
+                trace);
             if (!result)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-DownloadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine("-DownloadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  json={0}", response);
+                trace.WriteLine("  json={0}", response);
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -2924,31 +2966,36 @@ namespace Backup
 
             // https://developers.google.com/drive/web/manage-downloads
 
-            if (!DownloadFileWithResume(downloadUrl, streamDownloadInto))
+            if (!DownloadFileWithResume(downloadUrl, streamDownloadInto, progressTracker, trace))
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-DownloadFile throw", fileId);
+                    trace.WriteLine("-DownloadFile throw", fileId);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-DownloadFile", fileId);
+                trace.WriteLine("-DownloadFile", fileId);
             }
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom)
+        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace)
         {
             if (remoteName.IndexOf('"') >= 0)
             {
                 throw new ArgumentException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+UploadFile(folderId={0}, name={1})", folderId, remoteName);
+                trace.WriteLine("+UploadFile(folderId={0}, name={1})", folderId, remoteName);
+            }
+
+            if (progressTracker != null)
+            {
+                progressTracker.UpdateTotal(streamUploadFrom.Length);
             }
 
             // https://developers.google.com/drive/v2/reference/files/insert
@@ -3003,12 +3050,13 @@ namespace Backup
                     requestHeaders,
                     responseHeaders,
                     out webStatusCode,
-                    out httpStatusCode);
+                    out httpStatusCode,
+                    trace);
                 if (!result)
                 {
-                    if (Logging.EnableLogging)
+                    if (trace != null)
                     {
-                        Logging.WriteLine("-UploadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine("-UploadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
                     throw new WebException();
                 }
@@ -3041,7 +3089,9 @@ namespace Backup
                                 null/*requestHeaders*/,
                                 responseHeaders,
                                 out webStatusCode,
-                                out httpStatusCode);
+                                out httpStatusCode,
+                                progressTracker,
+                                trace);
 
                             if (result)
                             {
@@ -3058,9 +3108,9 @@ namespace Backup
                             }
                             else
                             {
-                                if (Logging.EnableLogging)
+                                if (trace != null)
                                 {
-                                    Logging.WriteLine(" DoWebAction failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                                    trace.WriteLine(" DoWebAction failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                                 }
 
                                 if (httpStatusCode == (HttpStatusCode)404)
@@ -3079,9 +3129,9 @@ namespace Backup
 
                     // https://developers.google.com/drive/web/manage-uploads#resume-upload
 
-                    if (Logging.EnableLogging)
+                    if (trace != null)
                     {
-                        Logging.WriteLine(" attempting to resume upload");
+                        trace.WriteLine(" attempting to resume upload");
                     }
 
                     // 2b-1&2. request status and number of bytes uploaded so far
@@ -3111,7 +3161,9 @@ namespace Backup
                             requestHeaders,
                             responseHeaders,
                             out webStatusCode,
-                            out httpStatusCode);
+                            out httpStatusCode,
+                            null/*progressTracker*/,
+                            trace);
 
                         if (httpStatusCode == (HttpStatusCode)404)
                         {
@@ -3135,9 +3187,9 @@ namespace Backup
 
                         if (httpStatusCode != (HttpStatusCode)308)
                         {
-                            if (Logging.EnableLogging)
+                            if (trace != null)
                             {
-                                Logging.WriteLine("-DoWebAction throw: unexpected HTTP result code: webStatusCode={0} ({1}), httpStatusCode={2} ({3})", (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                                trace.WriteLine("-DoWebAction throw: unexpected HTTP result code: webStatusCode={0} ({1}), httpStatusCode={2} ({3})", (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                             }
                             throw new InvalidDataException();
                         }
@@ -3147,9 +3199,9 @@ namespace Backup
 
                     // 2b-3. upload remaining data
 
-                    if (Logging.EnableLogging)
+                    if (trace != null)
                     {
-                        Logging.WriteLine(" range response header={0}", rangeResponseHeader);
+                        trace.WriteLine(" range response header={0}", rangeResponseHeader);
                     }
 
                     if (!String.IsNullOrEmpty(rangeResponseHeader))
@@ -3157,27 +3209,27 @@ namespace Backup
                         const string BytesPrefix = "bytes=";
                         if (!rangeResponseHeader.StartsWith(BytesPrefix))
                         {
-                            if (Logging.EnableLogging)
+                            if (trace != null)
                             {
-                                Logging.WriteLine("-DoWebAction throw: invalid range header format");
+                                trace.WriteLine("-DoWebAction throw: invalid range header format");
                             }
                             throw new InvalidDataException();
                         }
                         string[] parts = rangeResponseHeader.Substring(BytesPrefix.Length).Split(new char[] { '-' });
                         if (parts.Length != 2)
                         {
-                            if (Logging.EnableLogging)
+                            if (trace != null)
                             {
-                                Logging.WriteLine("-DoWebAction throw: invalid range header format");
+                                trace.WriteLine("-DoWebAction throw: invalid range header format");
                             }
                             throw new InvalidDataException();
                         }
                         long rangeStart = Int64.Parse(parts[0]);
                         if (rangeStart != 0)
                         {
-                            if (Logging.EnableLogging)
+                            if (trace != null)
                             {
-                                Logging.WriteLine("-DoWebAction throw: unexpected range header value");
+                                trace.WriteLine("-DoWebAction throw: unexpected range header value");
                             }
                             throw new InvalidDataException();
                         }
@@ -3213,7 +3265,9 @@ namespace Backup
                             requestHeaders,
                             responseHeaders,
                             out webStatusCode,
-                            out httpStatusCode);
+                            out httpStatusCode,
+                            progressTracker,
+                            trace);
 
                         if (result)
                         {
@@ -3230,9 +3284,9 @@ namespace Backup
                         }
                         else
                         {
-                            if (Logging.EnableLogging)
+                            if (trace != null)
                             {
-                                Logging.WriteLine(" DoWebAction failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                                trace.WriteLine(" DoWebAction failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                             }
 
                             if (httpStatusCode == (HttpStatusCode)404)
@@ -3246,9 +3300,9 @@ namespace Backup
                 }
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  json={0}", response);
+                trace.WriteLine("  json={0}", response);
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -3265,25 +3319,25 @@ namespace Backup
                 if (!Core.ArrayEqual(md5ChecksumLocal, Core.HexDecode(md5Checksum)))
                 {
                     string error = String.Format("UploadFile md5 checksum does not match (name={0}, remote={1}, local={1})", remoteName, md5Checksum, Core.HexEncode(md5ChecksumLocal));
-                    if (Logging.EnableLogging)
+                    if (trace != null)
                     {
-                        Logging.WriteLine("-UploadFile throw {0}", error);
-                        Logging.WriteLine();
+                        trace.WriteLine("-UploadFile throw {0}", error);
+                        trace.WriteLine();
                     }
                     throw new InvalidDataException(error);
                 }
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-UploadFile returns {0}", entry);
-                Logging.WriteLine();
+                trace.WriteLine("-UploadFile returns {0}", entry);
+                trace.WriteLine();
             }
             return entry;
         }
 
 #if false
-        public RemoteFileSystemEntry GetFileMetadata(string fileId)
+        public RemoteFileSystemEntry GetFileMetadata(string fileId, TextWriter trace)
         {
             if (Logging.EnableLogging)
             {
@@ -3329,11 +3383,11 @@ namespace Backup
         }
 #endif
 
-        public void DeleteFile(string fileId)
+        public void DeleteFile(string fileId, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+DeleteFile(id={0})", fileId);
+                trace.WriteLine("+DeleteFile(id={0})", fileId);
             }
 
             string url = String.Format("https://www.googleapis.com/drive/v2/files/{0}", fileId);
@@ -3348,28 +3402,30 @@ namespace Backup
                 null/*requestHeaders*/,
                 null/*responseHeadersOut*/,
                 out webStatusCode,
-                out httpStatusCode);
+                out httpStatusCode,
+                null/*progressTracker*/,
+                trace);
             if (!result)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-DeleteFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine("-DeleteFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-DeleteFile", fileId);
-                Logging.WriteLine();
+                trace.WriteLine("-DeleteFile", fileId);
+                trace.WriteLine();
             }
         }
 
-        public RemoteFileSystemEntry RenameFile(string fileId, string newName)
+        public RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace)
         {
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("+RenameFile(id={0}, newName={1})", fileId, newName);
+                trace.WriteLine("+RenameFile(id={0}, newName={1})", fileId, newName);
             }
 
             if (newName.Contains("\""))
@@ -3395,28 +3451,29 @@ namespace Backup
                 requestBody,
                 out response,
                 out webStatusCode,
-                out httpStatusCode);
+                out httpStatusCode,
+                trace);
             if (!result)
             {
-                if (Logging.EnableLogging)
+                if (trace != null)
                 {
-                    Logging.WriteLine("-RenameFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine("-RenameFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
                 throw new WebException();
             }
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("  json={0}", response);
+                trace.WriteLine("  json={0}", response);
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
 
-            if (Logging.EnableLogging)
+            if (trace != null)
             {
-                Logging.WriteLine("-RenameFile returns {0}", entry);
-                Logging.WriteLine();
+                trace.WriteLine("-RenameFile returns {0}", entry);
+                trace.WriteLine();
             }
 
             return entry;
@@ -3431,6 +3488,9 @@ namespace Backup
         private RemoteDirectoryCache remoteDirectoryCache;
         private Dictionary<string, LocalFileCopy> uncommittedLocalTempFiles = new Dictionary<string, LocalFileCopy>(1);
         private IWebMethods remoteWebMethods;
+
+        private readonly Stream masterTraceStream;
+        private readonly TextWriter masterTrace; // this is the master (root) tracelog instance
 
         private class RemoteDirectoryCache : IEnumerable<RemoteFileSystemEntry>
         {
@@ -3478,6 +3538,7 @@ namespace Backup
             }
         }
 
+#if false
         private delegate void WebActionMethod();
         private class WebActionTask
         {
@@ -3544,30 +3605,49 @@ namespace Backup
                 }
                 if (lastException != null)
                 {
-                    if (Logging.EnableLogging)
+                    if (trace!=null)
                     {
-                        Logging.WriteLine("WebActionTask rethrow {0}", lastException);
+                        trace.WriteLine("WebActionTask rethrow {0}", lastException);
                     }
 
                     throw new Exception(lastException.Message, lastException);
                 }
             }
         }
+#endif
 
         private RemoteArchiveFileManager()
         {
-            throw new NotSupportedException();
+            if (Logging.EnableLogging)
+            {
+                string path;
+                while (masterTraceStream == null)
+                {
+                    int i = new Random().Next();
+                    path = Path.Combine(Path.GetTempPath(), String.Format(Logging.TraceFileTimestampTemplate, DateTime.Now, i));
+                    try
+                    {
+                        masterTraceStream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read, 1/*smallest possible buffer*/);
+                    }
+                    catch (IOException)
+                    {
+                        // file in use - try another name
+                    }
+                }
+                masterTrace = StreamWriter.Synchronized(new StreamWriter(masterTraceStream, Encoding.UTF8, 1/*smallest possible buffer*/));
+            }
         }
 
 
-        private delegate IWebMethods CreateWebMethodsMethod(RemoteAccessControl remoteAccessControl);
+        private delegate IWebMethods CreateWebMethodsMethod(RemoteAccessControl remoteAccessControl, TextWriter trace);
         private static readonly KeyValuePair<string, CreateWebMethodsMethod>[] SupportedServices = new KeyValuePair<string, CreateWebMethodsMethod>[]
         {
-            new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl) { return new MicrosoftOneDriveWebMethods(remoteAccessControl); }),
-            new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl) { return new GoogleDriveWebMethods(remoteAccessControl); }),
+            new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace) { return new MicrosoftOneDriveWebMethods(remoteAccessControl, trace); }),
+            new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace) { return new GoogleDriveWebMethods(remoteAccessControl, trace); }),
         };
 
         public RemoteArchiveFileManager(string serviceUrl, string remoteDirectory, string refreshTokenPath, Core.Context context)
+            : this()
         {
             Uri serviceUri = new Uri(serviceUrl);
             if (!serviceUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
@@ -3587,27 +3667,26 @@ namespace Backup
 
             this.context = context;
 
-            if (Logging.EnableLogging)
+            if (masterTrace != null)
             {
-                Logging.InitializeLog();
-                Logging.WriteLine("Backup.OneDriveArchiveFileManager log");
-                Logging.WriteLineTimestamp();
-                Logging.WriteLine();
-                Logging.WriteLine("RemoteArchiveFileManager constructor(service={0}, directory={1})", serviceUrl, remoteDirectory);
+                masterTrace.WriteLine("Backup.OneDriveArchiveFileManager log - {0}", DateTime.Now);
+                masterTrace.WriteLine();
+                masterTrace.WriteLine();
+                masterTrace.WriteLine("*RemoteArchiveFileManager constructor(service={0}, directory={1})", serviceUrl, remoteDirectory);
             }
 
-            remoteAccessControl = new RemoteAccessControl(String.Concat("https://", SupportedServices[serviceSelector].Key), true/*enableRefreshToken*/, refreshTokenPath);
+            remoteAccessControl = new RemoteAccessControl(String.Concat("https://", SupportedServices[serviceSelector].Key), true/*enableRefreshToken*/, refreshTokenPath, masterTrace);
 
-            remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl);
+            remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl, masterTrace);
 
-            remoteDirectoryEntry = remoteWebMethods.NavigateRemotePath(remoteDirectory, true/*includeLast*/);
-            if (Logging.EnableLogging)
+            remoteDirectoryEntry = remoteWebMethods.NavigateRemotePath(remoteDirectory, true/*includeLast*/, masterTrace);
+            if (masterTrace != null)
             {
-                Logging.WriteLine("Remote directory entry: {0}", remoteDirectoryEntry);
-                Logging.WriteLine();
+                masterTrace.WriteLine("Remote directory entry: {0}", remoteDirectoryEntry);
+                masterTrace.WriteLine();
             }
 
-            remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.RemoteGetFileSystemEntries(remoteDirectoryEntry.Id));
+            remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.RemoteGetFileSystemEntries(remoteDirectoryEntry.Id, masterTrace));
         }
 
         public void Dispose()
@@ -3631,14 +3710,17 @@ namespace Backup
             remoteDirectoryEntry = null;
             remoteDirectoryCache = null;
 
-            if (Logging.EnableLogging)
+            if (masterTrace != null)
             {
-                Logging.WriteLine("OneDriveArchiveFileManager.Dispose()");
-                Logging.WriteLineTimestamp();
+                masterTrace.WriteLine("*OneDriveArchiveFileManager.Dispose() - {0}", DateTime.Now);
+                masterTrace.WriteLine("Goodbye!");
+
+                masterTrace.Dispose();
+                masterTraceStream.Dispose();
             }
         }
 
-        public ILocalFileCopy Read(string name)
+        public ILocalFileCopy Read(string name, ProgressTracker progressTracker, TextWriter trace)
         {
             string localPath;
 
@@ -3651,31 +3733,39 @@ namespace Backup
             LocalFileCopy localCopy = new LocalFileCopy();
             localPath = localCopy.LocalFilePath;
 
+#if false
             WebActionTask task = new WebActionTask(
                 delegate()
                 {
-                    using (Stream stream = localCopy.Write())
-                    {
-                        remoteWebMethods.DownloadFile(entry.Id, stream);
-                    }
+#endif
+            using (Stream stream = localCopy.Write())
+            {
+                remoteWebMethods.DownloadFile(entry.Id, stream, progressTracker, trace);
+            }
+#if false
                 });
             task.Try();
             task.ThrowIfFailed();
+#endif
             return localCopy;
         }
 
-        public ILocalFileCopy WriteTemp(string nameTemp)
+        public ILocalFileCopy WriteTemp(string nameTemp, TextWriter trace)
         {
             LocalFileCopy localCopy = new LocalFileCopy();
             uncommittedLocalTempFiles.Add(nameTemp, localCopy);
             return localCopy.AddRef();
         }
 
-        public void Commit(ILocalFileCopy localFile, string nameTemp, string name)
+        public void Commit(ILocalFileCopy localFile, string nameTemp, string name, bool overwrite, ProgressTracker progressTracker, TextWriter trace)
         {
-            if (Exists(nameTemp))
+            if (Exists(nameTemp, trace))
             {
-                throw new InvalidOperationException();
+                throw new IOException(String.Format("file exists - remote:{0}", nameTemp));
+            }
+            if (!overwrite && Exists(name, trace))
+            {
+                throw new IOException(String.Format("file exists - remote:{0}", name));
             }
 
             LocalFileCopy uncommitted;
@@ -3690,21 +3780,22 @@ namespace Backup
             RemoteFileSystemEntry entry;
             using (Stream stream = uncommitted.Read())
             {
-                entry = remoteWebMethods.UploadFile(remoteDirectoryEntry.Id, nameTemp, stream);
+                entry = remoteWebMethods.UploadFile(remoteDirectoryEntry.Id, nameTemp, stream, progressTracker, trace);
             }
             remoteDirectoryCache.Update(entry);
 
             if (!name.Equals(nameTemp))
             {
-                if (Exists(name))
+                if (Exists(name, trace))
                 {
-                    Delete(name);
+                    Delete(name, trace);
                 }
-                Rename(nameTemp, name);
+
+                Rename(nameTemp, name, trace);
             }
         }
 
-        public void Abandon(ILocalFileCopy localFile, string nameTemp)
+        public void Abandon(ILocalFileCopy localFile, string nameTemp, TextWriter trace)
         {
             LocalFileCopy uncommitted;
             if (!uncommittedLocalTempFiles.TryGetValue(nameTemp, out uncommitted)
@@ -3716,7 +3807,7 @@ namespace Backup
             uncommitted.Release();
         }
 
-        public void Delete(string name)
+        public void Delete(string name, TextWriter trace)
         {
             RemoteFileSystemEntry entry;
             if (!remoteDirectoryCache.TryGetName(name, out entry))
@@ -3724,19 +3815,19 @@ namespace Backup
                 throw new FileNotFoundException(String.Format("remote:{0}", name));
             }
 
-            remoteWebMethods.DeleteFile(entry.Id);
+            remoteWebMethods.DeleteFile(entry.Id, trace);
             remoteDirectoryCache.Remove(name);
 
             if (entry.HasDuplicates)
             {
                 foreach (RemoteFileSystemEntry duplicate in entry.Duplicates)
                 {
-                    remoteWebMethods.DeleteFile(duplicate.Id);
+                    remoteWebMethods.DeleteFile(duplicate.Id, trace);
                 }
             }
         }
 
-        public void DeleteById(string id)
+        public void DeleteById(string id, TextWriter trace)
         {
             RemoteFileSystemEntry entry = null;
             foreach (RemoteFileSystemEntry candidate in remoteDirectoryCache)
@@ -3752,19 +3843,19 @@ namespace Backup
                 throw new FileNotFoundException(String.Format("remote-id:{0}", id));
             }
 
-            remoteWebMethods.DeleteFile(entry.Id);
+            remoteWebMethods.DeleteFile(entry.Id, trace);
             remoteDirectoryCache.Remove(entry.Name);
 
             // do not delete duplicates in this method
         }
 
-        public bool Exists(string name)
+        public bool Exists(string name, TextWriter trace)
         {
             RemoteFileSystemEntry entry;
             return remoteDirectoryCache.TryGetName(name, out entry);
         }
 
-        public void Rename(string oldName, string newName)
+        public void Rename(string oldName, string newName, TextWriter trace)
         {
             RemoteFileSystemEntry entry;
             if (!remoteDirectoryCache.TryGetName(oldName, out entry))
@@ -3772,7 +3863,7 @@ namespace Backup
                 throw new FileNotFoundException(String.Format("remote:{0}", oldName));
             }
 
-            RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName);
+            RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName, trace);
             remoteDirectoryCache.Remove(oldName);
             if (newEntry != null)
             {
@@ -3780,7 +3871,7 @@ namespace Backup
             }
         }
 
-        public void RenameById(string id, string newName)
+        public void RenameById(string id, string newName, TextWriter trace)
         {
             RemoteFileSystemEntry entry = null;
             foreach (RemoteFileSystemEntry candidate in remoteDirectoryCache)
@@ -3796,7 +3887,7 @@ namespace Backup
                 throw new FileNotFoundException(String.Format("remote-id:{0}", id));
             }
 
-            RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName);
+            RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName, trace);
             remoteDirectoryCache.Remove(entry.Name);
             if (newEntry != null)
             {
@@ -3804,7 +3895,7 @@ namespace Backup
             }
         }
 
-        public string[] GetFileNames(string prefix)
+        public string[] GetFileNames(string prefix, TextWriter trace)
         {
             List<string> names = new List<string>(remoteDirectoryCache.Count);
             foreach (RemoteFileSystemEntry entry in remoteDirectoryCache)
@@ -3817,7 +3908,7 @@ namespace Backup
             return names.ToArray();
         }
 
-        public void GetFileInfo(string name, out string id, out bool directory, out DateTime created, out DateTime modified, out long size)
+        public void GetFileInfo(string name, out string id, out bool directory, out DateTime created, out DateTime modified, out long size, TextWriter trace)
         {
             RemoteFileSystemEntry entry;
             if (!remoteDirectoryCache.TryGetName(name, out entry))
@@ -3831,7 +3922,10 @@ namespace Backup
             modified = entry.Modified;
             size = entry.Size;
         }
-    }
 
-    // TODO: multi-threaded requests
+        public TextWriter GetMasterTrace() // TextWriter is threadsafe; remains owned - do not Dispose()
+        {
+            return masterTrace;
+        }
+    }
 }

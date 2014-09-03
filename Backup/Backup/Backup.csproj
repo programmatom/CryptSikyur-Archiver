@@ -33,6 +33,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Concurrency.cs" />
     <Compile Include="IArchiveFileManager.cs" />
     <Compile Include="Backup.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

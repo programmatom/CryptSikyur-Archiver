@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("RemoteMicrosoftOneDrive")]
+[assembly: AssemblyTitle("RemoteDriveAuth")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("RemoteMicrosoftOneDrive")]
-[assembly: AssemblyCopyright("Copyright ©  2014")]
+[assembly: AssemblyProduct("Backup/CryptSikyur-Archiver")]
+[assembly: AssemblyCopyright("Copyright © 2014 Thomas R. Lawrence")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

@@ -385,14 +385,14 @@ namespace RemoteDriveAuth
     // TODO: clean this up - most menu items and buttons aren't needed
 
     [PermissionSet(SecurityAction.Demand, Name = "FullTrust")]
-    public class Form1 : Form
+    public class WebBrowserHostingForm : Form
     {
         private const int DefaultWidth = 768;
         private const int DefaultHeight = 600;
 
         private OAuth20RemoteService authService;
 
-        public Form1(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, bool enableRefreshToken)
+        public WebBrowserHostingForm(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, bool enableRefreshToken)
         {
             this.authService = authService;
 
@@ -596,7 +596,7 @@ namespace RemoteDriveAuth
         // Updates the title bar with the current document title. 
         private void webBrowser1_DocumentTitleChanged(object sender, EventArgs e)
         {
-            this.Text = webBrowser1.DocumentTitle;
+            this.Text = String.Format("{0}: {1}", ProductName, webBrowser1.DocumentTitle);
         }
 
         // Exits the application. 
@@ -1003,7 +1003,7 @@ namespace RemoteDriveAuth
                     {
                         // Create window asking user to log in.
                         string authorizationCode;
-                        using (Form1 form = new Form1(authService, clientIdentity, enableRefreshToken))
+                        using (WebBrowserHostingForm form = new WebBrowserHostingForm(authService, clientIdentity, enableRefreshToken))
                         {
                             Application.EnableVisualStyles();
                             Application.Run(form);
