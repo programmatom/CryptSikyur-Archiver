@@ -1,5 +1,5 @@
 ﻿/*
- *  Copyright 2014 Thomas R. Lawrence
+ *  Copyright © 2014 Thomas R. Lawrence
  * 
  *  This file is part of FileUtilityTester
  *
@@ -29,7 +29,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("FileUtilityTester")]
-[assembly: AssemblyCopyright("Copyright © 2014 Thoams R. Lawrence")]
+[assembly: AssemblyCopyright("Copyright © 2014 Thomas R. Lawrence")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

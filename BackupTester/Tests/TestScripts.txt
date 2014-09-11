@@ -27,6 +27,7 @@ DynpackBasic.txt
 DynpackExclusions.txt
 DynpackLogging.txt
 DynpackLargeFileSplitting.txt
+DynpackRangeFaults.txt
 # TODO: dynpack case sensitivity disambiguation
 # TODO: segment name insertion algorithm
 
@@ -45,6 +46,8 @@ SplitBasic.txt
 DirBasic.txt
 
 UsageBasic.txt
+
+RemoteBasic.txt
 
 
 #TODO:

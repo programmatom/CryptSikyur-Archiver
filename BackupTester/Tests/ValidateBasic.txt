@@ -130,14 +130,13 @@ list-verify .
 .          2014-01-09          2014-01-09 -A---- source\c\t [8]
 .          2014-01-10          2014-01-10 -A---- source\c\v [9]
 endlist
-call backup -date %DATE% -encrypt aes128 pVSsw01d dynpack source archive 30000 -verify -html
+call backup -date %DATE% -encrypt aes128 pVSsw01d dynpack source archive 30000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-11          2014-01-11 -A---- archive.0.dynpack [10]
-.          2014-01-11          2014-01-11 -A---- archive.0.dynpack.html [11]
-.          2014-01-11          2014-01-11 -A---- archive.a.dynpack [12]
-.          2014-01-11          2014-01-11 -A---- archive.m.dynpack [13]
-.          2014-01-11          2014-01-11 -A---- archive.s.dynpack [14]
+.          2014-01-11          2014-01-11 -A---- archive.a.dynpack [11]
+.          2014-01-11          2014-01-11 -A---- archive.m.dynpack [12]
+.          2014-01-11          2014-01-11 -A---- archive.s.dynpack [13]
 .                                         -----D source\
 .                                         -----D source\a\
 .          2014-01-02          2014-01-02 -A---- source\a\m [1]

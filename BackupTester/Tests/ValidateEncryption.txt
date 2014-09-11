@@ -246,14 +246,13 @@ date + 1
 create source\i -size 50000
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000 -html
+call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
 exitcode-verify 0
 list-verify .
 .          2014-01-10          2014-01-10 -A---- archive.0.dynpack [10]
-.          2014-01-10          2014-01-10 -A---- archive.0.dynpack.html [11]
-.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [12]
-.          2014-01-10          2014-01-10 -A---- archive.m.dynpack [13]
-.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [14]
+.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [11]
+.          2014-01-10          2014-01-10 -A---- archive.m.dynpack [12]
+.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [13]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\a [1]
 .          2014-01-02          2014-01-02 -A---- source\b [2]
@@ -300,21 +299,32 @@ test unpack with invalidated files
 # magic: damage 2nd file of 2nd pack
 invert-range archive.m.dynpack 60000 1
 mkdir target3
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd dynunpack archive target3
+call backup -concurrency 0 -date %DATE% -decrypt aes128 Pa5sV0Rd dynunpack archive target3
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
 .Segment m: File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
-.Segment m: missing segment (referenced in manifest, serial number 2)
+.Unpacking archive.m.dynpack
 endoutput
 list-verify target3
 # nothing should be created
+# 2014-09-11 prevalidation is disabled for now as it is very slow and uses a lot of bandwidth for remote archives (mac prevalidation still occurs per-segment)
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-02          2014-01-02 -A---- b [2]
+.          2014-01-03          2014-01-03 -A---- c [3]
 endlist
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate dynunpack archive target4
+call backup -concurrency 0 -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate dynunpack archive target4
 exitcode-verify not 0
-lastoutput-verify -workspacepathhack
-.Unpacking archive.a.dynpack:
-.Unpacking archive.m.dynpack:
-.Individual archived file data check values do not match
+lastoutput-verify -workspacepathhack -ignoreextralines
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Exception processing archive.m.dynpack: Backup.Core+ExitCodeException: Individual archived file data check values do not match
+*   at .*$
+*   at .*$
+*   at .*$
+*   at .*$
+.Unpacking archive.m.dynpack
 endoutput
 list-verify target4
 # first archive file was extracted
@@ -323,7 +333,7 @@ list-verify target4
 .          2014-01-03          2014-01-03 -A---- c [3]
 # part of second archive file was extracted, including a file with invalid data
 .          2014-01-04          2014-01-04 -A---- d [4]
-.          2014-01-05          2014-01-05 -A---- e [15]
+.          2014-01-05          2014-01-05 -A---- e [14]
 endlist
 rmdir target3
 rmdir target4
@@ -334,18 +344,18 @@ test update pack with invalid manifest
 invert-range archive.0.dynpack 300 300
 date + 1
 create source\j -size 50000
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000 -html
+call backup -concurrency 0 -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 # update involves reading manifest first - operation is aborted with MAC error before anything else
 .%WORKSPACE%\source
+.Reading: archive.0.dynpack
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
 endoutput
 list-verify .
-.          2014-01-10          2014-01-10 -A---- archive.0.dynpack [16]
-.          2014-01-10          2014-01-10 -A---- archive.0.dynpack.html [11]
-.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [12]
-.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [14]
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack [15]
+.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [11]
+.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [13]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\a [1]
 .          2014-01-02          2014-01-02 -A---- source\b [2]
@@ -356,23 +366,23 @@ list-verify .
 .          2014-01-07          2014-01-07 -A---- source\g [7]
 .          2014-01-08          2014-01-08 -A---- source\h [8]
 .          2014-01-09          2014-01-09 -A---- source\i [9]
-.          2014-01-11          2014-01-11 -A---- source\j [17]
+.          2014-01-11          2014-01-11 -A---- source\j [16]
 endlist
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd -nomacprevalidate dynpack source archive 160000 -html
+call backup -concurrency 0 -date %DATE% -encrypt aes128 Pa5sV0Rd -nomacprevalidate dynpack source archive 160000
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack -ignoreextralines
 # in this case, manifest data is parsed until some internal header integrity error is generated
 .%WORKSPACE%\source
+.Reading: archive.0.dynpack
 .
 .Error:
 .Arithmetic operation resulted in an overflow.
 *   at Backup\.Core\.BinaryReadUtils\.ReadVariableLengthQuantity.*\(Stream stream\) in .*$
 endoutput
 list-verify .
-.          2014-01-10          2014-01-10 -A---- archive.0.dynpack [16]
-.          2014-01-10          2014-01-10 -A---- archive.0.dynpack.html [11]
-.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [12]
-.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [14]
+.          2014-01-10          2014-01-10 -A---- archive.0.dynpack [15]
+.          2014-01-10          2014-01-10 -A---- archive.a.dynpack [11]
+.          2014-01-10          2014-01-10 -A---- archive.s.dynpack [13]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\a [1]
 .          2014-01-02          2014-01-02 -A---- source\b [2]
@@ -383,7 +393,7 @@ list-verify .
 .          2014-01-07          2014-01-07 -A---- source\g [7]
 .          2014-01-08          2014-01-08 -A---- source\h [8]
 .          2014-01-09          2014-01-09 -A---- source\i [9]
-.          2014-01-11          2014-01-11 -A---- source\j [17]
+.          2014-01-11          2014-01-11 -A---- source\j [16]
 endlist
 
 
@@ -472,7 +482,7 @@ rmdir archive2
 
 test dynpack files with forced rekeying
 mkdir archive
-call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys dynpack source archive\a 35000 -html
+call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys dynpack source archive\a 35000
 exitcode-verify 0
 call backup -date %DATE% -decrypt aes128 Ba55w1rD dynunpack archive\a copy3
 exitcode-verify 0
@@ -518,9 +528,8 @@ copy source\a source\e
 date + 1
 
 test encrypt files with forced rekeying
-# using 3des for speed here
-call backup -date %DATE% -encrypt 3des pA55w1rD -forcenewkeys copy source copy1.e
+call backup -date %DATE% -encrypt aes128 pA55w1rD -forcenewkeys copy source copy1.e
 exitcode-verify 0
-call backup -date %DATE% -decrypt 3des pA55w1rD copy copy1.e copy2
+call backup -date %DATE% -decrypt aes128 pA55w1rD copy copy1.e copy2
 exitcode-verify 0
 dirs-equal-verify source copy2

@@ -1,7 +1,7 @@
 /*
  *  Copyright 2014 Thomas R. Lawrence
  *    except: "SkeinFish 0.5.0" sources, which is Copyright 2010 Alberto Fajardo
- *    except: "SerpentEngine.cs", which is Copyright 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team
+ *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team
  * 
  *  GNU General Public License
  * 

@@ -1,7 +1,7 @@
 /*
  *  Copyright © 2014 Thomas R. Lawrence
- *    except: "SkeinFish 0.5.0/*.cs", which are Copyright 2010 Alberto Fajardo
- *    except: "SerpentEngine.cs", which is Copyright 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
+ *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
+ *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  * 
  *  GNU General Public License
  * 
@@ -163,12 +163,8 @@ namespace Backup
         // must be called on the thread that will use it, which may occur out of sequence.
         // This auto-generating method is for convenience in the case where sequencing
         // is not enabled.
-        private ThreadMessageLog GetNewMessageLog()
+        public ThreadMessageLog GetNewMessageLog()
         {
-            if (sequenceNumbering != null) // actually forbid this case for now
-            {
-                throw new InvalidOperationException();
-            }
             return new ThreadMessageLog(this, GetSequenceNumber());
         }
 
@@ -280,7 +276,7 @@ namespace Backup
                         batch.Add(line);
                     }
 
-                    lastSequenceNumber = record.sequenceNumber;
+                    lastSequenceNumber = Math.Max(lastSequenceNumber, record.sequenceNumber);
                 }
                 records.RemoveRange(0, i);
 
@@ -400,6 +396,8 @@ namespace Backup
         private long faultingTasks;
         private ThreadState[] threads;
 
+        private const int LogDelayInterval = 2 * 60; // this should be tunable for different applications
+
         internal class ThreadState
         {
             public readonly ConcurrentTasks owner;
@@ -433,45 +431,43 @@ namespace Backup
         // executed in order, non-overlapped, but the main thread is permitted to continue it's own
         // work simultaneously.
         // messagesLog and trace are both optional (can be null);
-        public ConcurrentTasks(int threadCount, ConcurrentMessageLog messagesLog, TextWriter trace)
+        public ConcurrentTasks(int threadCount, int? maxQueuedTasksCount, ConcurrentMessageLog messagesLog, TextWriter trace)
         {
-            this.primaryThreadId = Thread.CurrentThread.ManagedThreadId;
-            this.messagesLog = messagesLog;
-            this.trace = trace;
-
             if (threadCount < 0)
             {
                 throw new ArgumentException();
             }
+
+            this.primaryThreadId = Thread.CurrentThread.ManagedThreadId;
+
+            this.messagesLog = messagesLog;
+            this.trace = trace;
+
             this.threadCount = threadCount;
-            this.maxQueuedTasksCount = threadCount + 1;
+            this.maxQueuedTasksCount = (maxQueuedTasksCount.HasValue ? maxQueuedTasksCount.Value : threadCount) + 1;
+
             if (threadCount > 0)
             {
-                tasks = new Queue<TaskMethodInternal>(maxQueuedTasksCount);
+                this.tasks = new Queue<TaskMethodInternal>(this.maxQueuedTasksCount);
 
-                waitForTask = new Semaphore(0, maxQueuedTasksCount);
-                waitQueueNotFull = new EventWaitHandle(false/*intially signalled*/, EventResetMode.AutoReset);
-                waitTermination = new EventWaitHandle(false/*intially signalled*/, EventResetMode.ManualReset);
-                waitQueueEmpty = new EventWaitHandle(true/*intially signalled*/, EventResetMode.ManualReset);
-                waitAllIdle = new EventWaitHandle(false/*intially signalled*/, EventResetMode.ManualReset);
-                threads = new ThreadState[threadCount];
-
-                queueLengthHistogram = new ConcurrencyHistogram(maxQueuedTasksCount + 1/*needed for waiting on full queue*/);
-                mainThreadBlocked = new ConcurrencyBlocked("Main thread");
+                this.waitForTask = new Semaphore(0, threadCount + this.maxQueuedTasksCount);
+                this.waitQueueNotFull = new EventWaitHandle(true/*intially signalled*/, EventResetMode.ManualReset);
+                this.waitTermination = new EventWaitHandle(false/*intially signalled*/, EventResetMode.ManualReset);
+                this.waitQueueEmpty = new EventWaitHandle(true/*intially signalled*/, EventResetMode.ManualReset);
+                this.waitAllIdle = new EventWaitHandle(false/*intially signalled*/, EventResetMode.ManualReset);
+                this.threads = new ThreadState[threadCount];
 
                 for (int i = 0; i < threadCount; i++)
                 {
-                    threads[i] = new ThreadState(this, new Thread(StaticThreadMain));
-                    threads[i].thread.Start(threads[i]);
+                    this.threads[i] = new ThreadState(this, new Thread(StaticThreadMain));
+                    this.threads[i].thread.Start(threads[i]);
                 }
 
-                waitAllIdle.WaitOne(); // wait for spin-up to complete (otherwise a too-soon Dispose() will hang)
-            }
-        }
+                this.queueLengthHistogram = new ConcurrencyHistogram(this.maxQueuedTasksCount + 1/*0..maxQueuedTasksCount - range inclusive*/);
+                this.mainThreadBlocked = new ConcurrencyBlocked("Main thread");
 
-        public ConcurrentTasks(ConcurrentMessageLog messagesLog, TextWriter trace)
-            : this(0, messagesLog, trace)
-        {
+                this.waitAllIdle.WaitOne(); // wait for spin-up to complete (otherwise a too-soon Dispose() will hang)
+            }
         }
 
         private ConcurrentTasks()
@@ -484,6 +480,7 @@ namespace Backup
         public void Drain(WaitIntervalMethod waitIntervalMethod, int waitInterval)
         {
             Debug.Assert(Thread.CurrentThread.ManagedThreadId == primaryThreadId);
+            // draining paused queue is ok.
 
             if ((waitInterval == -1) != (waitIntervalMethod == null))
             {
@@ -494,15 +491,41 @@ namespace Backup
             {
                 mainThreadBlocked.EnterWaitRegion();
 
+                if (waitInterval < 0)
+                {
+                    waitInterval = LogDelayInterval * 1000;
+                }
+
                 // must drain queue first, otherwise waitAllIdle is invalid because it may jitter
+                DateTime start = DateTime.Now;
                 while (!waitQueueEmpty.WaitOne(waitInterval))
                 {
-                    waitIntervalMethod();
+                    if (waitIntervalMethod != null)
+                    {
+                        waitIntervalMethod();
+                    }
+
+                    if ((trace != null) && ((DateTime.Now - start).TotalSeconds >= LogDelayInterval))
+                    {
+                        trace.WriteLine("ConcurrentTasks.Drain() {0} seconds for waitQueueEmpty - still waiting", LogDelayInterval);
+                        trace.Flush();
+                        start = DateTime.Now;
+                    }
                 }
 
                 while (!waitAllIdle.WaitOne(waitInterval))
                 {
-                    waitIntervalMethod();
+                    if (waitIntervalMethod != null)
+                    {
+                        waitIntervalMethod();
+                    }
+
+                    if ((trace != null) && ((DateTime.Now - start).TotalSeconds >= LogDelayInterval))
+                    {
+                        trace.WriteLine("ConcurrentTasks.Drain() {0} seconds for waitAllIdle - still waiting", LogDelayInterval);
+                        trace.Flush();
+                        start = DateTime.Now;
+                    }
                 }
 
                 mainThreadBlocked.ExitWaitRegion();
@@ -518,25 +541,28 @@ namespace Backup
         {
             Debug.Assert(Thread.CurrentThread.ManagedThreadId == primaryThreadId);
 
+            Drain();
+
             if (threadCount > 0)
             {
-                mainThreadBlocked.EnterWaitRegion();
-
-                // wait for all real tasks to dispatch
-                waitQueueEmpty.WaitOne();
                 Debug.Assert(tasks.Count == 0);
                 Debug.Assert(running == threadCount);
 
-                // with queue empty, release all threads and they will terminate
+                mainThreadBlocked.EnterWaitRegion();
+
+                // with queue empty (ensured by Drain() above), release all threads and they will terminate
                 waitForTask.Release(threadCount);
                 // wait for last thead to exit
                 waitTermination.WaitOne();
 
                 mainThreadBlocked.ExitWaitRegion();
-                mainThreadBlocked.Stop();
 
+                // release resources
                 waitForTask.Close();
+                waitTermination.Close();
+                waitQueueEmpty.Close();
                 waitQueueNotFull.Close();
+                waitAllIdle.Close();
                 foreach (EventWaitHandle completionHandle in availableCompletionHandles)
                 {
                     completionHandle.Close();
@@ -544,8 +570,9 @@ namespace Backup
                 availableCompletionHandles.Clear();
 
                 // write concurrency statistics
-                queueLengthHistogram.Report(WriteLineMessage);
+                mainThreadBlocked.Stop();
                 mainThreadBlocked.Report(WriteLineMessage);
+                queueLengthHistogram.Report(WriteLineMessage);
             }
 
             // write fault statistics in all modes
@@ -560,6 +587,7 @@ namespace Backup
             if (trace != null)
             {
                 trace.WriteLine(line);
+                trace.Flush();
             }
             if (writeStatsToMessagesLog && (messagesLog != null))
             {
@@ -573,8 +601,16 @@ namespace Backup
 
         public abstract class CompletionObject : IDisposable
         {
+            private bool succeeded;
+
             public abstract void Wait();
+            public bool Succeeded { get { return succeeded; } }
             public abstract void Dispose();
+
+            internal void SetSucceeded()
+            {
+                succeeded = true;
+            }
         }
 
         public class NullCompletionObject : CompletionObject
@@ -623,6 +659,7 @@ namespace Backup
                 }
                 else
                 {
+                    // otherwise, discard object. signalling code will eat the received exception.
                     waitCompleted.Close();
                 }
                 waitCompleted = null;
@@ -658,35 +695,53 @@ namespace Backup
             availableCompletionHandles.Add(completionHandle);
         }
 
-        public enum Status
-        {
-            Unspecified,
-
-            Completed,
-
-            ComputeBound,
-            IOBound,
-        }
-
         public interface ITaskContext
         {
+            long TaskSequenceNumber { get; }
+            void SetSucceeded();
         }
 
         public class CallbackProxy : ITaskContext
         {
+            private long taskSequenceNumber;
             private ThreadState threadState;
+            private CompletionObject completionObject;
 
-            internal CallbackProxy(ConcurrentTasks owner, ThreadState threadState)
+            internal CallbackProxy(ConcurrentTasks owner, ThreadState threadState, long taskSequenceNumber, CompletionObject completionObject)
             {
                 this.threadState = threadState;
+                this.taskSequenceNumber = taskSequenceNumber;
+                this.completionObject = completionObject;
             }
 
-            public CallbackProxy()
+            public CallbackProxy(CompletionObject completionObject)
             {
+                this.completionObject = completionObject;
+            }
+
+            private CallbackProxy()
+            {
+                throw new NotSupportedException();
+            }
+
+            public long TaskSequenceNumber
+            {
+                get
+                {
+                    return taskSequenceNumber;
+                }
+            }
+
+            public void SetSucceeded()
+            {
+                if (completionObject != null)
+                {
+                    completionObject.SetSucceeded();
+                }
             }
         }
 
-        public CompletionObject Do(string traceTag, TaskMethod method, WaitIntervalMethod waitIntervalMethod, int waitInterval, bool desireCompletionObject)
+        public void Do(string traceTag, bool desireCompletionObject, out CompletionObject completionObject, TaskMethod method, WaitIntervalMethod waitIntervalMethod, int waitInterval)
         {
             Debug.Assert(Thread.CurrentThread.ManagedThreadId == primaryThreadId);
 
@@ -695,21 +750,21 @@ namespace Backup
                 throw new ArgumentException(); // both or neither
             }
 
-            CompletionObject completionObject = null;
-
+            completionObject = null;
             if (threadCount > 0)
             {
+                // create *and assign* completion object before task has any chance of executing
                 EventWaitHandle waitCompleted = null;
+                CompletionObject completionObjectLocal = null;
                 if (desireCompletionObject)
                 {
                     waitCompleted = GetCompletionHandle();
-                    completionObject = new ConcurrentCompletionObject(this, waitCompleted);
+                    completionObjectLocal = completionObject = new ConcurrentCompletionObject(this, waitCompleted);
                 }
 
                 long taskSequenceNumber = taskSequenceNumbering.Next();
 
-                bool queueFull;
-                lock (tasks)
+                lock (this)
                 {
                     tasks.Enqueue(
                         delegate(ThreadState threadState)
@@ -717,12 +772,13 @@ namespace Backup
                             if (trace != null)
                             {
                                 trace.WriteLine("{0:HH:mm:ss+ffff} task {1} initiated", DateTime.Now, traceTag);
+                                trace.Flush();
                             }
 
                             threadState.currentTaskTraceTag = traceTag;
                             Interlocked.Exchange(ref threadState.currentTaskSequenceNumber, taskSequenceNumber);
 
-                            CallbackProxy callbackProxy = new CallbackProxy(this, threadState);
+                            CallbackProxy callbackProxy = new CallbackProxy(this, threadState, taskSequenceNumber, completionObjectLocal);
 
                             try
                             {
@@ -735,6 +791,7 @@ namespace Backup
                                 if (trace != null)
                                 {
                                     trace.WriteLine("{0:HH:mm:ss+ffff} task {1} terminated with exception {2}", DateTime.Now, traceTag, exception);
+                                    trace.Flush();
                                 }
                             }
                             finally
@@ -756,44 +813,94 @@ namespace Backup
                                 if (trace != null)
                                 {
                                     trace.WriteLine("{0:HH:mm:ss+ffff} task {1} completed", DateTime.Now, traceTag);
+                                    trace.Flush();
                                 }
                             }
                         });
-                    queueLengthHistogram.Update(tasks.Count);
-                    queueFull = tasks.Count == maxQueuedTasksCount;
+
                     waitQueueEmpty.Reset();
+                    if (tasks.Count == maxQueuedTasksCount)
+                    {
+                        waitQueueNotFull.Reset();
+                    }
+
+                    queueLengthHistogram.Update(tasks.Count);
                 }
+
                 waitForTask.Release();
-                if (queueFull)
+
+                if (waitInterval < 0)
                 {
-                    mainThreadBlocked.EnterWaitRegion();
-                    while (!waitQueueNotFull.WaitOne(waitInterval))
+                    waitInterval = LogDelayInterval * 1000;
+                }
+
+                mainThreadBlocked.EnterWaitRegion();
+                DateTime start = DateTime.Now;
+                while (!waitQueueNotFull.WaitOne(waitInterval))
+                {
+                    if (waitIntervalMethod != null)
                     {
                         waitIntervalMethod();
                     }
-                    mainThreadBlocked.ExitWaitRegion();
+
+                    if ((trace != null) && ((DateTime.Now - start).TotalSeconds >= LogDelayInterval))
+                    {
+                        trace.WriteLine("ConcurrentTasks.Do() {0} seconds for waitQueueNotFull - still waiting", LogDelayInterval);
+                        trace.Flush();
+                        start = DateTime.Now;
+                    }
                 }
+                mainThreadBlocked.ExitWaitRegion();
             }
             else
             {
+                // create *and assign* completion object before task has any chance of executing
+                completionObject = desireCompletionObject ? new NullCompletionObject() : null;
+
                 // low overhead non-concurrent option
                 try
                 {
-                    method(new CallbackProxy());
+                    method(new CallbackProxy(completionObject));
                 }
                 catch (Exception)
                 {
                     faultingTasks++;
                 }
-                completionObject = desireCompletionObject ? new NullCompletionObject() : null;
             }
-
-            return completionObject;
         }
 
-        public CompletionObject Do(string traceTag, TaskMethod method, bool desireCompletionObject)
+        public void Do(string traceTag, TaskMethod method, WaitIntervalMethod waitIntervalMethod, int waitInterval)
         {
-            return Do(traceTag, method, null, -1/*infinite timeout*/, desireCompletionObject);
+            CompletionObject completionObject;
+            Do(traceTag, false/*desireCompletionObject*/, out completionObject, method, waitIntervalMethod, waitInterval);
+            Debug.Assert(completionObject == null);
+        }
+
+        public void Do(string traceTag, TaskMethod method)
+        {
+            CompletionObject completionObject;
+            Do(traceTag, false/*desireCompletionObject*/, out completionObject, method, null, -1/*infinite timeout*/);
+            Debug.Assert(completionObject == null);
+        }
+
+        public void WaitQueueEmpty(WaitIntervalMethod waitIntervalMethod, int waitInterval)
+        {
+            Debug.Assert(Thread.CurrentThread.ManagedThreadId == primaryThreadId);
+
+            if (threadCount > 0)
+            {
+                mainThreadBlocked.EnterWaitRegion();
+                while (!waitQueueEmpty.WaitOne(waitInterval))
+                {
+                    waitIntervalMethod();
+                }
+                mainThreadBlocked.ExitWaitRegion();
+            }
+        }
+
+        public void WaitQueueEmpty()
+        {
+            WaitQueueEmpty(null/*waitIntervalMethod*/, -1/*inifinite wait*/);
         }
 
 
@@ -823,22 +930,22 @@ namespace Backup
                     waitAllIdle.Reset();
 
                     TaskMethodInternal method;
-                    lock (tasks)
+                    lock (this)
                     {
                         if (tasks.Count == 0)
                         {
                             break; // terminate
                         }
-                        if (tasks.Count == maxQueuedTasksCount)
-                        {
-                            waitQueueNotFull.Set();
-                        }
+
                         method = tasks.Dequeue();
-                        queueLengthHistogram.Update(tasks.Count);
+                        waitQueueNotFull.Set();
+
                         if (tasks.Count == 0)
                         {
                             waitQueueEmpty.Set();
                         }
+
+                        queueLengthHistogram.Update(tasks.Count);
                     }
 
                     try

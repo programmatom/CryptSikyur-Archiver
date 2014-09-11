@@ -1,5 +1,5 @@
 /*
- *  Copyright 2014 Thomas R. Lawrence
+ *  Copyright © 2014 Thomas R. Lawrence
  * 
  *  This file is part of FileUtilityTester
  *
@@ -264,7 +264,12 @@ namespace FileUtilityTester
                             {
                                 throw new ApplicationException();
                             }
-                            Directory.CreateDirectory(CheckPath(args[0], lineNumber));
+                            {
+                                string path = CheckPath(args[0], lineNumber);
+                                Directory.CreateDirectory(path);
+                                Directory.SetCreationTime(path, now);
+                                Directory.SetLastWriteTime(path, now);
+                            }
                             break;
 
                         case "rmdir":

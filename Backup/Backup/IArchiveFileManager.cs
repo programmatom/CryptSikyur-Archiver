@@ -1,7 +1,7 @@
 /*
  *  Copyright © 2014 Thomas R. Lawrence
- *    except: "SkeinFish 0.5.0/*.cs", which are Copyright 2010 Alberto Fajardo
- *    except: "SerpentEngine.cs", which is Copyright 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
+ *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
+ *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  * 
  *  GNU General Public License
  * 
@@ -29,9 +29,16 @@ namespace Backup
 {
     public interface IArchiveFileManager : IDisposable
     {
+        // Implementations are expected to be threadsafe. However, client threads are expected to be
+        // cooperative. Therefore, these methods may not be implemented atomically. Adversarial behavior
+        // is not supported and must be controlled by synchronization in the client. (E.g. commit
+        // may succesfully assert that the target file does not exist, and some other thread may
+        // create the file before commit can do so, causing that part of commit to fail with exception.)
+
         // File content access methods
         ILocalFileCopy Read(string name, ProgressTracker progressTracker, TextWriter trace);
         ILocalFileCopy WriteTemp(string nameTemp, TextWriter trace);
+        ILocalFileCopy GetTempExisting(string localPath, string nameTemp, TextWriter trace);
         void Commit(ILocalFileCopy localFile, string nameTemp, string name, bool overwrite, ProgressTracker progressTracker, TextWriter trace);
         void Abandon(ILocalFileCopy localFile, string nameTemp, TextWriter trace);
 
@@ -45,11 +52,16 @@ namespace Backup
         // Enumeration methods
         string[] GetFileNames(string prefix, TextWriter trace);
         void GetFileInfo(string name, out string id, out bool directory, out DateTime created, out DateTime modified, out long size, TextWriter trace);
+        void GetFileInfo(string name, out bool directory, TextWriter trace);
+
+        // Other methods
+        void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace);
 
         // Tracing methods
         TextWriter GetMasterTrace(); // TextWriter is threadsafe; remains owned - do not Dispose()
     }
 
+    // Threadsafe
     public class ProgressTracker
     {
         private long current;
@@ -81,6 +93,11 @@ namespace Backup
             Interlocked.CompareExchange(ref total, newTotal, -1);
         }
 
+        public void Reset()
+        {
+            Interlocked.Exchange(ref total, -1);
+        }
+
         public ProgressTracker(long total, long current, string tag)
         {
             this.current = current;
@@ -94,6 +111,7 @@ namespace Backup
         }
     }
 
+    // Not theadsafe. For use on one task thread at a time.
     public interface ILocalFileCopy : IDisposable
     {
         ILocalFileCopy AddRef();
@@ -106,6 +124,7 @@ namespace Backup
         void CopyLocal(string localPathTarget, bool overwrite);
     }
 
+    // Not theadsafe. For use on one task thread at a time.
     public class LocalFileCopy : ILocalFileCopy
     {
         private string localFilePath;
@@ -120,7 +139,7 @@ namespace Backup
             this.localFilePath = localFilePath;
             this.writable = writable;
             this.delete = delete;
-            using (Stream stream = !File.Exists(LocalFilePath) ? new FileStream(localFilePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, 1) : null)
+            using (Stream stream = !File.Exists(localFilePath) ? new FileStream(localFilePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, 1) : null)
             {
                 this.keeper = new FileStream(localFilePath, FileMode.Open, FileAccess.Read, writable ? FileShare.ReadWrite : FileShare.Read, 1);
             }

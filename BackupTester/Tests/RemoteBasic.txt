@@ -1,0 +1,403 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module quota
+
+test basic
+# tests the quota code path but does not return meaningful information on local file system
+call backup -concurrency 0 -date %DATE% remote . quota
+exitcode-verify 0
+lastoutput-verify
+.Quota: total=8,388,608TB, used=0B, available=8,388,608TB
+endoutput
+
+
+module list
+
+test empty
+date 2014-01-01
+mkdir test
+call backup -concurrency 0 -date %DATE% remote test list
+exitcode-verify 0
+lastoutput-verify
+.list file://test\/*
+endoutput
+
+test files and directories
+date + 1
+mkdir test\test2
+date + 1
+create test\file1 -size 500
+date + 1
+create test\zfile2 -size 98765
+date + 1
+call backup -concurrency 0 -date %DATE% remote test list
+exitcode-verify 0
+lastoutput-verify
+.list file://test\/*
+.2014-01-03 00:00  2014-01-03 00:00             500                                              file1
+.2014-01-02 00:00  2014-01-02 00:00 <DIR>                                                        test2
+.2014-01-04 00:00  2014-01-04 00:00           98765                                              zfile2
+endoutput
+
+test subdir
+create test\test2\file3 -size 1234
+date + 1
+call backup -concurrency 0 -date %DATE% remote test\test2 list
+exitcode-verify 0
+lastoutput-verify
+.list file://test\test2\/*
+.2014-01-05 00:00  2014-01-05 00:00            1234                                              file3
+endoutput
+
+
+module rename
+
+test file
+date 2014-01-01
+mkdir test
+date + 1
+create test\file
+date + 1
+list-verify .
+.                                         -----D test\
+.          2014-01-02          2014-01-02 -A---- test\file [1]
+endlist
+call backup -date %DATE% remote test rename file renamedfile
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.          2014-01-03          2014-01-03 -A---- test\renamedfile [1]
+endlist
+
+test wildcard (not supported)
+call backup -date %DATE% remote test rename renamed*file renamedfile2
+exitcode-verify not 0
+list-verify .
+.                                         -----D test\
+.          2014-01-03          2014-01-03 -A---- test\renamedfile [1]
+endlist
+call backup -date %DATE% remote test rename renamedfile renamed*file2
+exitcode-verify not 0
+list-verify .
+.                                         -----D test\
+.          2014-01-03          2014-01-03 -A---- test\renamedfile [1]
+endlist
+
+test directory (not supported)
+date + 1
+mkdir test\testdir
+date + 1
+list-verify .
+.                                         -----D test\
+.          2014-01-03          2014-01-03 -A---- test\renamedfile [1]
+.                                         -----D test\testdir\
+endlist
+call backup -date %DATE% remote test rename testdir renameddir
+exitcode-verify not 0
+list-verify .
+.                                         -----D test\
+.          2014-01-03          2014-01-03 -A---- test\renamedfile [1]
+.                                         -----D test\testdir\
+endlist
+
+
+module rename-id (not supported for local)
+
+
+module delete
+
+test setup
+date 2014-01-01
+mkdir test
+date + 1
+create test\file1
+date + 1
+create test\file2
+date + 1
+create test\file3.txt
+date + 1
+create test\file4.txt
+date + 1
+create test\anotherfile
+date + 1
+mkdir test\dir
+date + 1
+list-verify .
+.                                         -----D test\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+.          2014-01-02          2014-01-02 -A---- test\file1 [2]
+.          2014-01-03          2014-01-03 -A---- test\file2 [3]
+.          2014-01-04          2014-01-04 -A---- test\file3.txt [4]
+.          2014-01-05          2014-01-05 -A---- test\file4.txt [5]
+endlist
+
+test delete
+call backup -date %DATE% remote test delete file1
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+.          2014-01-03          2014-01-03 -A---- test\file2 [3]
+.          2014-01-04          2014-01-04 -A---- test\file3.txt [4]
+.          2014-01-05          2014-01-05 -A---- test\file4.txt [5]
+endlist
+call backup -date %DATE% remote test del file2
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+.          2014-01-04          2014-01-04 -A---- test\file3.txt [4]
+.          2014-01-05          2014-01-05 -A---- test\file4.txt [5]
+endlist
+
+test delete wildcard
+call backup -date %DATE% remote test delete f*.txt
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+endlist
+
+test delete directory (not supported)
+call backup -date %DATE% remote test delete dir
+exitcode-verify not 0
+list-verify .
+.                                         -----D test\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+endlist
+
+test delete nonexistent (succeeds)
+call backup -date %DATE% remote test delete foobar
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+endlist
+
+test delete nonexistent (succeeds)
+call backup -date %DATE% remote test delete foobar
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+endlist
+
+test delete wildcard mixed file/directory succeeds
+mkdir test\anotherdirectory
+list-verify .
+.                                         -----D test\
+.                                         -----D test\anotherdirectory\
+.          2014-01-06          2014-01-06 -A---- test\anotherfile [1]
+.                                         -----D test\dir\
+endlist
+call backup -date %DATE% remote test delete another*
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.                                         -----D test\anotherdirectory\
+.                                         -----D test\dir\
+endlist
+
+
+module delete-id (not supported for local)
+
+
+module rename-stem
+
+test setup
+date 2014-01-01
+mkdir test
+create test\one1.txt
+create test\one2.txt
+create test\one.txt
+create test\one-abc.txt
+create test\oneone.txt
+create test\two1.txt
+create test\two2.txt
+create test\two.txt
+create test\two-abc.txt
+create test\twotwo.txt
+list-verify .
+.                                         -----D test\
+.          2014-01-01          2014-01-01 -A---- test\one-abc.txt [1]
+.          2014-01-01          2014-01-01 -A---- test\one.txt [2]
+.          2014-01-01          2014-01-01 -A---- test\one1.txt [3]
+.          2014-01-01          2014-01-01 -A---- test\one2.txt [4]
+.          2014-01-01          2014-01-01 -A---- test\oneone.txt [5]
+.          2014-01-01          2014-01-01 -A---- test\two-abc.txt [6]
+.          2014-01-01          2014-01-01 -A---- test\two.txt [7]
+.          2014-01-01          2014-01-01 -A---- test\two1.txt [8]
+.          2014-01-01          2014-01-01 -A---- test\two2.txt [9]
+.          2014-01-01          2014-01-01 -A---- test\twotwo.txt [10]
+endlist
+
+test rename
+call backup -date %DATE% remote test rename-stem one three
+exitcode-verify 0
+list-verify .
+.                                         -----D test\
+.          2014-01-01          2014-01-01 -A---- test\three-abc.txt [1]
+.          2014-01-01          2014-01-01 -A---- test\three.txt [2]
+.          2014-01-01          2014-01-01 -A---- test\three1.txt [3]
+.          2014-01-01          2014-01-01 -A---- test\three2.txt [4]
+.          2014-01-01          2014-01-01 -A---- test\threeone.txt [5]
+.          2014-01-01          2014-01-01 -A---- test\two-abc.txt [6]
+.          2014-01-01          2014-01-01 -A---- test\two.txt [7]
+.          2014-01-01          2014-01-01 -A---- test\two1.txt [8]
+.          2014-01-01          2014-01-01 -A---- test\two2.txt [9]
+.          2014-01-01          2014-01-01 -A---- test\twotwo.txt [10]
+endlist
+
+test detect collision
+call backup -date %DATE% remote test rename-stem three two
+exitcode-verify not 0
+list-verify .
+.                                         -----D test\
+.          2014-01-01          2014-01-01 -A---- test\three-abc.txt [1]
+.          2014-01-01          2014-01-01 -A---- test\three.txt [2]
+.          2014-01-01          2014-01-01 -A---- test\three1.txt [3]
+.          2014-01-01          2014-01-01 -A---- test\three2.txt [4]
+.          2014-01-01          2014-01-01 -A---- test\threeone.txt [5]
+.          2014-01-01          2014-01-01 -A---- test\two-abc.txt [6]
+.          2014-01-01          2014-01-01 -A---- test\two.txt [7]
+.          2014-01-01          2014-01-01 -A---- test\two1.txt [8]
+.          2014-01-01          2014-01-01 -A---- test\two2.txt [9]
+.          2014-01-01          2014-01-01 -A---- test\twotwo.txt [10]
+endlist
+
+test detect partial collision
+delete test\two-abc.txt
+delete test\two.txt
+delete test\two2.txt
+delete test\twotwo.txt
+call backup -date %DATE% remote test rename-stem three two
+exitcode-verify not 0
+list-verify .
+.                                         -----D test\
+.          2014-01-01          2014-01-01 -A---- test\three-abc.txt [1]
+.          2014-01-01          2014-01-01 -A---- test\three.txt [2]
+.          2014-01-01          2014-01-01 -A---- test\three1.txt [3]
+.          2014-01-01          2014-01-01 -A---- test\three2.txt [4]
+.          2014-01-01          2014-01-01 -A---- test\threeone.txt [5]
+.          2014-01-01          2014-01-01 -A---- test\two1.txt [8]
+endlist
+
+test detect directory collision
+delete test\two1.txt
+mkdir test\two2.txt
+call backup -date %DATE% remote test rename-stem three two
+exitcode-verify not 0
+list-verify .
+.                                         -----D test\
+.          2014-01-01          2014-01-01 -A---- test\three-abc.txt [1]
+.          2014-01-01          2014-01-01 -A---- test\three.txt [2]
+.          2014-01-01          2014-01-01 -A---- test\three1.txt [3]
+.          2014-01-01          2014-01-01 -A---- test\three2.txt [4]
+.          2014-01-01          2014-01-01 -A---- test\threeone.txt [5]
+.                                         -----D test\two2.txt\
+endlist
+
+
+module upload
+
+test setup
+date 2014-01-01
+mkdir test
+create originalfile
+date + 1
+list-verify .
+.          2014-01-01          2014-01-01 -A---- originalfile [1]
+.                                         -----D test\
+endlist
+
+test upload one
+call backup -date %DATE% remote test upload originalfile uploadfile
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- originalfile [1]
+.                                         -----D test\
+.          2014-01-02          2014-01-02 -A---- test\uploadfile [1]
+endlist
+
+test upload wildcard
+delete originalfile
+delete test\uploadfile
+date + 1
+create orig1file
+create origtwofile
+create orig3item
+create orixg4item
+date + 1
+qlist .
+call backup -date %DATE% remote test upload orig*file
+exitcode-verify 0
+list-verify .
+.          2014-01-03          2014-01-03 -A---- orig1file [2]
+.          2014-01-03          2014-01-03 -A---- orig3item [3]
+.          2014-01-03          2014-01-03 -A---- origtwofile [4]
+.          2014-01-03          2014-01-03 -A---- orixg4item [5]
+.                                         -----D test\
+.          2014-01-04          2014-01-04 -A---- test\orig1file [2]
+.          2014-01-04          2014-01-04 -A---- test\origtwofile [4]
+endlist
+
+
+module download
+
+test setup
+date 2014-01-01
+mkdir test
+create test\originalfile
+date + 1
+list-verify .
+.                                         -----D test\
+.          2014-01-01          2014-01-01 -A---- test\originalfile [1]
+endlist
+
+test download one
+call backup -date %DATE% remote test download originalfile downloadfile
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- downloadfile [1]
+.                                         -----D test\
+.          2014-01-01          2014-01-01 -A---- test\originalfile [1]
+endlist
+
+test download wildcard
+delete downloadfile
+delete test\originalfile
+date + 1
+create test\orig1file
+create test\origtwofile
+create test\orig3item
+create test\orixg4item
+date + 1
+qlist .
+call backup -date %DATE% remote test download orig*file .
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-04 -A---- orig1file [2]
+.          2014-01-04          2014-01-04 -A---- origtwofile [4]
+.                                         -----D test\
+.          2014-01-03          2014-01-03 -A---- test\orig1file [2]
+.          2014-01-03          2014-01-03 -A---- test\orig3item [3]
+.          2014-01-03          2014-01-03 -A---- test\origtwofile [4]
+.          2014-01-03          2014-01-03 -A---- test\orixg4item [5]
+endlist
+
+
+module dynpack-rollback
+#TODO

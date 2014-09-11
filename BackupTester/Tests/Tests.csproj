@@ -54,6 +54,7 @@
     <Content Include="DynpackExclusions.txt" />
     <Content Include="DynpackLargeFileSplitting.txt" />
     <Content Include="DynpackLogging.txt" />
+    <Content Include="DynpackRangeFaults.txt" />
     <Content Include="PackAttributes.txt" />
     <Content Include="PackBasic.txt" />
     <Content Include="PackExclusions.txt" />
@@ -64,6 +65,7 @@
     <Content Include="SyncExclusions.txt" />
     <Content Include="SyncLogging.txt" />
     <Content Include="TestScripts.txt" />
+    <Content Include="RemoteBasic.txt" />
     <Content Include="UsageBasic.txt" />
     <Content Include="ValDynpack.txt" />
     <Content Include="ValidateBasic.txt" />

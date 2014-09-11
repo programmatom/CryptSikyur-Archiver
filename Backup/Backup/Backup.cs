@@ -1,7 +1,7 @@
 /*
  *  Copyright © 2014 Thomas R. Lawrence
- *    except: "SkeinFish 0.5.0/*.cs", which are Copyright 2010 Alberto Fajardo
- *    except: "SerpentEngine.cs", which is Copyright 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
+ *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
+ *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  * 
  *  GNU General Public License
  * 
@@ -32,6 +32,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Text;
+using System.Text.RegularExpressions;
 using Serpent;
 using SkeinFish;
 
@@ -54,7 +55,7 @@ namespace Backup
             public const int BufferSize = MaxSmallObjectPageDivisibleSize;
 
             // concurrency tuning parameters for various scenarios
-            internal const int ConcurrencyForDiskBound = 1;
+            internal const int ConcurrencyForDiskBound = 0;
             internal const int ConcurrencyForComputeBound = 2;
             internal const int ConcurrencyForNetworkBound = 3;
         }
@@ -62,9 +63,32 @@ namespace Backup
 
         ////////////////////////////////////////////////////////////////////////////
         //
-        // Logging utilities
+        // Logging, debugging, and testing utilities
         //
         ////////////////////////////////////////////////////////////////////////////
+
+        public class Logging
+        {
+            public static TextWriter CreateLogFile(string prefix)
+            {
+                DateTime now = DateTime.Now; // use actual time, not context.now time, for the trace file name
+                Stream traceStream = null;
+                int i = 1;
+                while (traceStream == null)
+                {
+                    string tracePath = Path.Combine(Path.GetTempPath(), String.Format("{0}-{1:yyyy-MM-ddTHH-mm-ss}+{2}.log", prefix, now, i++));
+                    try
+                    {
+                        traceStream = new FileStream(tracePath, FileMode.Create, FileAccess.Write, FileShare.Read, 1/*smallest possible buffer*/);
+                    }
+                    catch (IOException)
+                    {
+                        // file in use - try another name
+                    }
+                }
+                return StreamWriter.Synchronized(new StreamWriter(traceStream, Encoding.UTF8, 1/*smallest possible buffer*/));
+            }
+        }
 
         public class TaskWriter : StringWriter
         {
@@ -95,8 +119,600 @@ namespace Backup
 
             public override void WriteLine(string value)
             {
-                string prefix = String.Format("{0} {1:HH:mm:ss+ffff} ", taskSerialNumber, DateTime.Now);
+                string prefix = String.Format(" {0} {1:HH:mm:ss+ffff} ", taskSerialNumber, DateTime.Now);
                 base.WriteLine(prefix + value);
+            }
+        }
+
+
+        // Fault injection framework
+
+        public abstract class FaultPredicate
+        {
+            public abstract FaultPredicate Clone();
+            public abstract bool Test();
+            public abstract bool Test(long l);
+            public abstract bool Test(string s);
+        }
+
+        public class NullFaultPredicate : FaultPredicate
+        {
+            public static readonly NullFaultPredicate Null = new NullFaultPredicate();
+
+            public override FaultPredicate Clone()
+            {
+                return Null;
+            }
+
+            public override bool Test()
+            {
+                return true;
+            }
+
+            public override bool Test(long l)
+            {
+                return true;
+            }
+
+            public override bool Test(string s)
+            {
+                return true;
+            }
+
+            public override string ToString()
+            {
+                return String.Empty;
+            }
+        }
+
+        public class CountFaultPredicate : FaultPredicate
+        {
+            private long count;
+            private long trigger;
+
+            public CountFaultPredicate(long trigger)
+            {
+                this.trigger = trigger;
+            }
+
+            public CountFaultPredicate(CountFaultPredicate original)
+            {
+                this.count = original.count;
+                this.trigger = original.trigger;
+            }
+
+            public override FaultPredicate Clone()
+            {
+                return new CountFaultPredicate(this);
+            }
+
+            public override bool Test()
+            {
+                long current = Interlocked.Increment(ref count);
+                return current == trigger;
+            }
+
+            public override bool Test(long l)
+            {
+                return Test();
+            }
+
+            public override bool Test(string s)
+            {
+                return Test();
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[count:{0}]", trigger);
+            }
+        }
+
+        public class LimitFaultPredicate : FaultPredicate
+        {
+            private long limit;
+
+            public LimitFaultPredicate(long limit)
+            {
+                this.limit = limit;
+            }
+
+            public LimitFaultPredicate(LimitFaultPredicate original)
+            {
+                this.limit = original.limit;
+            }
+
+            public override FaultPredicate Clone()
+            {
+                return new LimitFaultPredicate(this);
+            }
+
+            public override bool Test()
+            {
+                return false;
+            }
+
+            public override bool Test(long l)
+            {
+                return l >= limit;
+            }
+
+            public override bool Test(string s)
+            {
+                return false;
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[limit:{0}]", limit);
+            }
+        }
+
+        public class SumLimitFaultPredicate : FaultPredicate
+        {
+            private long sum;
+            private long limit;
+
+            public SumLimitFaultPredicate(long limit)
+            {
+                this.limit = limit;
+            }
+
+            public SumLimitFaultPredicate(SumLimitFaultPredicate original)
+            {
+                this.sum = original.sum;
+                this.limit = original.limit;
+            }
+
+            public override FaultPredicate Clone()
+            {
+                return new SumLimitFaultPredicate(this);
+            }
+
+            public override bool Test()
+            {
+                return false;
+            }
+
+            public override bool Test(long l)
+            {
+                long current = Interlocked.Add(ref sum, l);
+                return current >= limit;
+            }
+
+            public override bool Test(string s)
+            {
+                return false;
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[sumlimit:{0}]", limit);
+            }
+        }
+
+        public class StringEqualFaultPredicate : FaultPredicate
+        {
+            private string equals;
+
+            public StringEqualFaultPredicate(string match)
+            {
+                this.equals = match;
+            }
+
+            public StringEqualFaultPredicate(StringEqualFaultPredicate original)
+            {
+                this.equals = original.equals;
+            }
+
+            public override FaultPredicate Clone()
+            {
+                return new StringEqualFaultPredicate(this);
+            }
+
+            public override bool Test()
+            {
+                return false;
+            }
+
+            public override bool Test(long l)
+            {
+                return Test(l.ToString());
+            }
+
+            public override bool Test(string s)
+            {
+                return String.Equals(s, equals);
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[stringequal:{0}]", equals);
+            }
+        }
+
+        public class StringMatchFaultPredicate : FaultPredicate
+        {
+            private string pattern;
+            private Regex match;
+
+            public StringMatchFaultPredicate(string pattern)
+            {
+                this.pattern = pattern;
+                this.match = new Regex(pattern);
+            }
+
+            public StringMatchFaultPredicate(StringMatchFaultPredicate original)
+            {
+                this.pattern = original.pattern;
+                this.match = original.match;
+            }
+
+            public override FaultPredicate Clone()
+            {
+                return new StringMatchFaultPredicate(this);
+            }
+
+            public override bool Test()
+            {
+                return false;
+            }
+
+            public override bool Test(long l)
+            {
+                return Test(l.ToString());
+            }
+
+            public override bool Test(string s)
+            {
+                return match.IsMatch(s);
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[regex:{0}]", pattern);
+            }
+        }
+
+        public class FaultInjectionException : ApplicationException
+        {
+            public FaultInjectionException(string message)
+                : base(message)
+            {
+            }
+        }
+
+        public class FaultInstanceNode
+        {
+            private KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
+
+            public FaultInstanceNode(FaultTemplateNode templateNode)
+            {
+                this.predicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
+                this.predicates[0] = new KeyValuePair<FaultPredicate, FaultTemplateNode>(NullFaultPredicate.Null, templateNode);
+            }
+
+            private FaultInstanceNode(KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates)
+            {
+                this.predicates = predicates;
+            }
+
+            private void Throw(FaultTemplateNode[] throwing)
+            {
+                StringBuilder message = new StringBuilder();
+                foreach (FaultTemplateNode node in throwing)
+                {
+                    string path = null;
+                    FaultTemplateNode walk = node;
+                    while (walk != null)
+                    {
+                        FaultTemplateNode parent = walk.Parent;
+                        string predicateString = null;
+                        if (parent != null)
+                        {
+                            KeyValuePair<FaultTemplateNode, FaultPredicate> item = Array.Find(parent.Children, delegate(KeyValuePair<FaultTemplateNode, FaultPredicate> candidate) { return candidate.Key == walk; });
+                            predicateString = item.Value.ToString();
+                        }
+                        path = String.Concat(walk.Tag, predicateString, path != null ? "/" : null, path);
+                        walk = parent;
+                    }
+                    if (message.Length != 0)
+                    {
+                        message.Append(", ");
+                    }
+                    message.Append(path);
+                }
+                throw new FaultInjectionException(message.ToString());
+            }
+
+            private delegate bool TestMethod(FaultPredicate predicate);
+            private FaultInstanceNode Select(string tag, TestMethod testMethod)
+            {
+                KeyValuePair<FaultPredicate, FaultTemplateNode>[] childPredicates = null;
+                FaultTemplateNode[] throwing = null;
+                for (int i = 0; i < predicates.Length; i++)
+                {
+                    if (String.Equals(tag, predicates[i].Value.Tag) && testMethod(predicates[i].Key))
+                    {
+                        if (predicates[i].Value.Terminal && (predicates[i].Value.Parent != null))
+                        {
+                            if (throwing == null)
+                            {
+                                throwing = new FaultTemplateNode[1];
+                            }
+                            else
+                            {
+                                Array.Resize(ref throwing, throwing.Length + 1);
+                            }
+                            throwing[throwing.Length - 1] = predicates[i].Value;
+                        }
+                        else
+                        {
+                            KeyValuePair<FaultTemplateNode, FaultPredicate>[] children = predicates[i].Value.Children;
+                            for (int j = 0; j < children.Length; j++)
+                            {
+                                if (childPredicates == null)
+                                {
+                                    childPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
+                                }
+                                else
+                                {
+                                    Array.Resize(ref childPredicates, childPredicates.Length + 1);
+                                }
+                                childPredicates[childPredicates.Length - 1] = new KeyValuePair<FaultPredicate, FaultTemplateNode>(children[j].Value.Clone(), children[j].Key);
+                            }
+                        }
+                    }
+                }
+
+                if (throwing != null)
+                {
+                    Throw(throwing);
+                }
+
+                return new FaultInstanceNode(childPredicates);
+            }
+
+            public FaultPredicate SelectPredicate(string tag)
+            {
+                KeyValuePair<FaultPredicate, FaultTemplateNode>[] matchingPredicates = null;
+                if (predicates != null)
+                {
+                    for (int i = 0; i < predicates.Length; i++)
+                    {
+                        if (String.Equals(tag, predicates[i].Value.Tag))
+                        {
+                            if (matchingPredicates == null)
+                            {
+                                matchingPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
+                            }
+                            else
+                            {
+                                Array.Resize(ref matchingPredicates, matchingPredicates.Length + 1);
+                            }
+                            matchingPredicates[matchingPredicates.Length - 1] = predicates[i];
+                        }
+                    }
+                }
+                return new FaultInstancePredicate(matchingPredicates, this);
+            }
+
+            public FaultInstanceNode Select(string tag)
+            {
+                if (predicates == null)
+                {
+                    return new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
+                }
+                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(); });
+            }
+
+            public FaultInstanceNode Select(string tag, long l)
+            {
+                if (predicates == null)
+                {
+                    return new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
+                }
+                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(l); });
+            }
+
+            public FaultInstanceNode Select(string tag, string s)
+            {
+                if (predicates == null)
+                {
+                    return new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
+                }
+                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(s); });
+            }
+
+            private class FaultInstancePredicate : FaultPredicate
+            {
+                private KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
+                private FaultInstanceNode owner;
+
+                public FaultInstancePredicate(KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates, FaultInstanceNode owner)
+                {
+                    this.predicates = predicates;
+                    this.owner = owner;
+                }
+
+                public override FaultPredicate Clone()
+                {
+                    throw new InvalidOperationException();
+                }
+
+                private const bool TestReturnValue = true;
+
+                private bool Test(TestMethod testMethod)
+                {
+                    FaultTemplateNode[] throwing = null;
+                    for (int i = 0; i < predicates.Length; i++)
+                    {
+                        if (testMethod(predicates[i].Key))
+                        {
+                            if (predicates[i].Value.Terminal)
+                            {
+                                if (throwing == null)
+                                {
+                                    throwing = new FaultTemplateNode[1];
+                                }
+                                else
+                                {
+                                    Array.Resize(ref throwing, throwing.Length + 1);
+                                }
+                                throwing[throwing.Length - 1] = predicates[i].Value;
+                            }
+                        }
+                    }
+
+                    if (throwing != null)
+                    {
+                        owner.Throw(throwing);
+                    }
+
+                    return TestReturnValue;
+                }
+
+                public override bool Test()
+                {
+                    if (predicates == null)
+                    {
+                        return TestReturnValue;
+                    }
+                    return Test(delegate(FaultPredicate predicate) { return predicate.Test(); });
+                }
+
+                public override bool Test(long l)
+                {
+                    if (predicates == null)
+                    {
+                        return TestReturnValue;
+                    }
+                    return Test(delegate(FaultPredicate predicate) { return predicate.Test(l); });
+                }
+
+                public override bool Test(string s)
+                {
+                    if (predicates == null)
+                    {
+                        return TestReturnValue;
+                    }
+                    return Test(delegate(FaultPredicate predicate) { return predicate.Test(s); });
+                }
+            }
+        }
+
+        public class FaultTemplateNode
+        {
+            private string tag;
+            private FaultTemplateNode parent;
+            private KeyValuePair<FaultTemplateNode, FaultPredicate>[] children = new KeyValuePair<FaultTemplateNode, FaultPredicate>[0];
+
+            public FaultTemplateNode()
+            {
+            }
+
+            public FaultTemplateNode(string tag, FaultTemplateNode parent)
+            {
+                this.tag = tag;
+                this.parent = parent;
+            }
+
+            public string Tag { get { return tag; } }
+            public FaultTemplateNode Parent { get { return parent; } }
+            public KeyValuePair<FaultTemplateNode, FaultPredicate>[] Children { get { return children; } }
+            public bool Terminal { get { return children.Length == 0; } }
+
+            public void Add(FaultTemplateNode child, FaultPredicate childPredicate)
+            {
+                Array.Resize(ref children, children.Length + 1);
+                children[children.Length - 1] = new KeyValuePair<FaultTemplateNode, FaultPredicate>(child, childPredicate);
+            }
+        }
+
+        public static void ParseFaultInjectionPath(FaultTemplateNode root, string arg)
+        {
+#if false
+            while (!Debugger.IsAttached) Thread.Sleep(10);
+#endif
+
+            if (String.IsNullOrEmpty(arg) || (arg[0] != '/'))
+            {
+                throw new ArgumentException();
+            }
+
+            int start = 1;
+            while (start < arg.Length)
+            {
+                int predicateStart = -1;
+                int predicateEnd = -1;
+
+                int end = start;
+                bool scope = false;
+                while (end < arg.Length)
+                {
+                    if (!scope && (arg[end] == '/'))
+                    {
+                        break;
+                    }
+                    else if (arg[end] == '[')
+                    {
+                        predicateStart = end;
+                        scope = true;
+                    }
+                    else if (arg[end] == ']')
+                    {
+                        predicateEnd = end;
+                        scope = false;
+                    }
+                    end++;
+                }
+
+                if (((predicateStart < 0) != (predicateEnd < 0))
+                    || (predicateStart > predicateEnd)
+                    || ((predicateEnd >= 0) && (predicateEnd != end - 1)))
+                {
+                    throw new ArgumentException();
+                }
+                if (predicateStart < 0)
+                {
+                    predicateStart = end;
+                    predicateEnd = end + 1;
+                }
+
+                string tag = arg.Substring(start, predicateStart - start);
+                string predicateString = predicateStart + 1 <= arg.Length ? arg.Substring(predicateStart + 1, predicateEnd - predicateStart - 1) : String.Empty;
+                int colon = predicateString.IndexOf(':');
+                FaultPredicate predicate = NullFaultPredicate.Null;
+                if (colon > 0)
+                {
+                    switch (predicateString.Substring(0, colon))
+                    {
+                        default:
+                            throw new ArgumentException();
+                        case "count":
+                            predicate = new CountFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            break;
+                        case "limit":
+                            predicate = new LimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            break;
+                        case "sumlimit":
+                            predicate = new SumLimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            break;
+                        case "stringequal":
+                            predicate = new StringEqualFaultPredicate(predicateString.Substring(colon + 1));
+                            break;
+                        case "regex":
+                            predicate = new StringMatchFaultPredicate(predicateString.Substring(colon + 1));
+                            break;
+                    }
+                }
+
+                FaultTemplateNode node = new FaultTemplateNode(tag, root);
+                root.Add(node, predicate);
+
+                root = node;
+
+                start = end + 1;
             }
         }
 
@@ -246,10 +862,6 @@ namespace Backup
 
         public interface ICryptoSystemBlockCipher
         {
-            // optional (throw NotImplementedException to use default implementation)
-            // remove this when TripleDES is removed
-            ICryptoSystemRandomNumberGeneration RandomNumberGenerator { get; set; }
-
             int CipherBlockLengthBytes { get; }
             int CipherKeyLengthBytes { get; }
             int InitialVectorLengthBytes { get; }
@@ -411,26 +1023,6 @@ namespace Backup
 
         // Supported crypto system configurations
 
-        public class CryptoSystemTripleDES : CryptoSystemComposable
-        {
-            private CryptoSystemTripleDES(CryptoSystemDefaultRNG rng)
-                : base(rng, new CryptoSystemBlockCipherTripleDES(rng), new CryptoSystemAuthenticationHMACSHA256(), new CryptoSystemKeyGenerationRfc2898Rfc5869(128/*passwordSaltBits*/, 192/*masterKeyBits*/, 128/*fileSaltBits*/, 4096/*rfc2898 rounds*/))
-            {
-            }
-
-            public CryptoSystemTripleDES()
-                : this(new CryptoSystemDefaultRNG())
-            {
-            }
-
-            public override string Name { get { return "3des"; } }
-            public override string Description { get { return "Triple-DES CBC + random IV, HMAC-SHA-256"; } }
-
-            public override bool Weak { get { return true; } }
-
-            public override string UniquePersistentCiphersuiteIdentifier { get { return "\x01"; } }
-        }
-
         public class CryptoSystemAES128 : CryptoSystemComposable
         {
             // why not 256? see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html
@@ -486,12 +1078,8 @@ namespace Backup
         // are rather critical of systems that provide huge numbers of cipher suites.
         // In that spirit, our goal is to keep the list here to a minimum, trying to
         // provide just a few options to cover most goals.
-        private static ICryptoSystem[] CryptoSystems = new ICryptoSystem[]
+        private readonly static ICryptoSystem[] CryptoSystems = new ICryptoSystem[]
         {
-            // Triple-DES is obsolete and slated to be removed soon. It is interesting
-            // for testing because the key and block size are different.
-            new CryptoSystemTripleDES(),
-
             // AES128 may not be the strongest cipher but has a lot going for it
             // - standardized, and probably the *primary* standard today (2014)
             // - certainly the most scrutinized and attacked cipher today
@@ -503,6 +1091,8 @@ namespace Backup
             // it's age. In particular, Rijndael with 256 bit keys is seen to be flawed.
             // Therefore, Serpent-256 is included here to provide a conservative option for
             // doubling the key length.
+            // Interesting for testing because block length (128 bits) is different from key
+            // length (256 bits).
             new CryptoSystemSerpent256(),
 
             // Threefish 1024 is the only very large block size cipher available at this time
@@ -621,7 +1211,7 @@ namespace Backup
                 }
             }
 
-            private static HKDFTestVector[] TestVectorsHKDFSHA256 = new HKDFTestVector[]
+            private readonly static HKDFTestVector[] TestVectorsHKDFSHA256 = new HKDFTestVector[]
             {
                 // A.1. Test Case 1 - Basic test case with SHA-256
                 new HKDFTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "000102030405060708090a0b0c", "f0f1f2f3f4f5f6f7f8f9", 42, "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5", "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"),
@@ -1013,7 +1603,7 @@ namespace Backup
                 public int OutputLengthBytes { get { return 16; } } // hash algorithm final result length
             }
 
-            private static KeyedHashTestVector[] TestVectorsMD5 = new KeyedHashTestVector[]
+            private readonly static KeyedHashTestVector[] TestVectorsMD5 = new KeyedHashTestVector[]
             {
                 // RFC 2104 appendix "Test Vectors"
                 new KeyedHashTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", HexEncodeASCII("Hi There"), "9294727a3638bb1c13f48ef8158bfc9d"),
@@ -1192,8 +1782,6 @@ namespace Backup
         {
             protected abstract int BlockLengthBits { get; }
 
-            public ICryptoSystemRandomNumberGeneration RandomNumberGenerator { get { throw new NotImplementedException(); } set { throw new NotImplementedException(); } }
-
             public int CipherBlockLengthBytes { get { return BlockLengthBits / 8; } }
             public int CipherKeyLengthBytes { get { return CipherBlockLengthBytes; } }
             public int InitialVectorLengthBytes { get { return CipherBlockLengthBytes; } }
@@ -1244,156 +1832,11 @@ namespace Backup
         }
 
 
-        // Composable module implementing Triple-DES block cipher
-        public class CryptoSystemBlockCipherTripleDES : ICryptoSystemBlockCipher
-        {
-            // TripleDES block size is too small to securely use CTR mode, so CBC with padding
-            // is used instead
-
-            private ICryptoSystemRandomNumberGeneration rng;
-
-            private CryptoSystemBlockCipherTripleDES()
-            {
-            }
-
-            public CryptoSystemBlockCipherTripleDES(ICryptoSystemRandomNumberGeneration rng)
-            {
-                this.rng = rng;
-            }
-
-            public ICryptoSystemRandomNumberGeneration RandomNumberGenerator
-            {
-                get
-                {
-                    return rng;
-                }
-
-                set
-                {
-                    rng = value;
-                }
-            }
-
-            public int CipherBlockLengthBytes { get { return 8; } }
-            public int CipherKeyLengthBytes { get { return 24; } }
-            public int InitialVectorLengthBytes { get { return CipherBlockLengthBytes; } }
-
-            public byte[] CreateIV()
-            {
-                return rng.CreateRandomBytes(InitialVectorLengthBytes);
-            }
-
-            public byte[] CreateRandomKey()
-            {
-                return rng.CreateRandomBytes(CipherKeyLengthBytes);
-            }
-
-            private ICryptoTransform CreateEncryptor(byte[] key, byte[] iv)
-            {
-                SymmetricAlgorithm tdes = GetAlgorithm();
-                tdes.KeySize = CipherKeyLengthBytes * 8;
-                return tdes.CreateEncryptor(key, iv);
-            }
-
-            private ICryptoTransform CreateDecryptor(byte[] key, byte[] iv)
-            {
-                SymmetricAlgorithm tdes = GetAlgorithm();
-                tdes.KeySize = CipherKeyLengthBytes * 8;
-                return tdes.CreateDecryptor(key, iv);
-            }
-
-            private SymmetricAlgorithm GetAlgorithm()
-            {
-                TripleDES tdes = TripleDESCryptoServiceProvider.Create();
-                tdes.KeySize = CipherKeyLengthBytes * 8;
-                tdes.BlockSize = 64;
-                tdes.Mode = CipherMode.CBC;
-                tdes.Padding = PaddingMode.PKCS7;
-                return tdes;
-            }
-
-            public Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] iv)
-            {
-                ICryptoTransform transform = CreateEncryptor(cipherKey, iv);
-
-                // workaround for CryptoStream closing the underlying stream when it is closed.
-                // stream must be kept open in order to remove excess reserved space after writing archive.
-                stream = new CloseBarrierStream(stream);
-
-                return new CryptoStream(stream, transform, CryptoStreamMode.Write);
-            }
-
-            public Stream CreateDecryptStream(Stream stream, byte[] cipherKey, byte[] iv)
-            {
-                ICryptoTransform transform = CreateDecryptor(cipherKey, iv);
-
-                // workaround for CryptoStream closing the underlying stream when it is closed.
-                // stream must be kept open in order to remove excess reserved space after writing archive.
-                stream = new CloseBarrierStream(stream);
-
-                return new CryptoStream(stream, transform, CryptoStreamMode.Read);
-            }
-
-            private sealed class CipherTestVector
-            {
-                internal readonly byte[] key;
-                internal readonly byte[] iv;
-                internal readonly byte[] plainText;
-                internal readonly byte[] cipherText;
-
-                internal CipherTestVector(string key, string iv, string plainText, string cipherText)
-                {
-                    this.key = HexDecode(key);
-                    this.iv = HexDecode(iv);
-                    this.plainText = HexDecode(plainText);
-                    this.cipherText = HexDecode(cipherText);
-                }
-            }
-
-            // from http://csrc.nist.gov/groups/STM/cavp/documents/des/tdesmmt.zip
-            // see also http://csrc.nist.gov/groups/STM/cavp/index.html
-            private static CipherTestVector[] TestVectors3DESCBC = new CipherTestVector[]
-            {
-                // TCBCMMT3.rsp, encrypt #9
-                new CipherTestVector("9b162a0df8ad9b61c88676e3d586434570b902f12a2046e0", "ebd6fefe029ad54b", "f4c1c918e77355c8156f0fd778da52bff121ae5f2f44eaf4d2754946d0e10d1f18ce3a0176e69c18b7d20b6e0d0bee5eb5edfe4bd60e4d92adcd86bce72e76f94ee5cbcaa8b01cfddcea2ade575e66ac", "1ff3c8709f403a8eff291aedf50c010df5c5ff64a8b205f1fce68564798897a390db16ee0d053856b75898009731da290fcc119dad987277aacef694872e880c4bb41471063fae05c89f25e4bd0cad6a" + "d260615855357357"/*padding*/),
-            };
-
-            public void Test()
-            {
-                foreach (CipherTestVector test in TestVectors3DESCBC)
-                {
-                    ICryptoTransform transform;
-                    byte[] result;
-
-                    using (transform = CreateEncryptor(test.key, test.iv))
-                    {
-                        result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
-                        if (!ArrayEqual(test.cipherText, result))
-                        {
-                            throw new ApplicationException("Triple-DES implementation defect");
-                        }
-                    }
-
-                    using (transform = CreateDecryptor(test.key, test.iv))
-                    {
-                        result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
-                        if (!ArrayEqual(test.plainText, result))
-                        {
-                            throw new ApplicationException("Triple-DES implementation defect");
-                        }
-                    }
-                }
-            }
-        }
-
-
         // Composable module implementing AES family of block ciphers
         public abstract class CryptoSystemBlockCipherAES : ICryptoSystemBlockCipher
         {
             protected const int BlockLengthBits = 128;
             protected abstract int KeyLengthBits { get; }
-
-            public ICryptoSystemRandomNumberGeneration RandomNumberGenerator { get { throw new NotImplementedException(); } set { throw new NotImplementedException(); } }
 
             public int CipherBlockLengthBytes { get { return BlockLengthBits / 8; } }
             public int CipherKeyLengthBytes { get { return KeyLengthBits / 8; } }
@@ -1464,12 +1907,12 @@ namespace Backup
 
             // from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
             // see also http://csrc.nist.gov/groups/STM/cavp/index.html
-            private static CipherTestVector[] TestVectorsAES128ECB = new CipherTestVector[]
+            private readonly static CipherTestVector[] TestVectorsAES128ECB = new CipherTestVector[]
             {
                 // ECB-AES128.Encrypt (appendix A section F.1.1 of above, page 24)
                 new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", "000102030405060708090a0b0c0d0e0f", "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4"),
             };
-            private static CipherTestVector[] TestVectorsAES128CTR = new CipherTestVector[]
+            private readonly static CipherTestVector[] TestVectorsAES128CTR = new CipherTestVector[]
             {
                 // CTR-AES128.Encrypt (appendix A section F.5.1 of above, page 55)
                 new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff5ae4df3edbd5d35e5b4f09020db03eab1e031dda2fbe03d1792170a0f3009cee"),
@@ -1542,8 +1985,6 @@ namespace Backup
             protected const int BlockLengthBits = 128;
             protected abstract int KeyLengthBits { get; }
 
-            public ICryptoSystemRandomNumberGeneration RandomNumberGenerator { get { throw new NotImplementedException(); } set { throw new NotImplementedException(); } }
-
             public int CipherBlockLengthBytes { get { return BlockLengthBits / 8; } }
             public int CipherKeyLengthBytes { get { return KeyLengthBits / 8; } }
             public int InitialVectorLengthBytes { get { return CipherBlockLengthBytes; } }
@@ -1614,7 +2055,7 @@ namespace Backup
             }
 
             // test vectors from http://www.cs.technion.ac.il/~biham/Reports/Serpent/
-            private static CipherTestVector[] TestVectorsSerpentMultiKeylenECB = new CipherTestVector[]
+            private readonly static CipherTestVector[] TestVectorsSerpentMultiKeylenECB = new CipherTestVector[]
             {
                 // http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-128-128.verified.test-vectors
                 // Set 4, vector#  0
@@ -2282,7 +2723,7 @@ namespace Backup
             }
 
             // HMAC-SHA-256 test vectors from http://www.rfc-archive.org/getrfc.php?rfc=4231
-            private static TestVector[] TestVectorsSHA256 = new TestVector[]
+            private readonly static TestVector[] TestVectorsSHA256 = new TestVector[]
             {
                 // Test Case 1 (section 4.2)
                 new TestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "4869205468657265", "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"),
@@ -2493,13 +2934,18 @@ namespace Backup
             }
         }
 
-        internal static char WaitReadKey(bool intercept)
+        internal static char WaitReadKey(bool intercept, int timeout)
         {
+            DateTime started = DateTime.Now;
             if (Interactive())
             {
                 while (!Console.KeyAvailable)
                 {
-                    Thread.Sleep(10);
+                    Thread.Sleep(50);
+                    if ((timeout >= 0) && ((DateTime.Now - started).TotalMilliseconds >= timeout))
+                    {
+                        return (char)0;
+                    }
                 }
                 ConsoleKeyInfo info = Console.ReadKey(intercept);
                 return info.KeyChar;
@@ -2508,9 +2954,43 @@ namespace Backup
             {
                 while (Console.In.Peek() < 0)
                 {
-                    Thread.Sleep(10);
+                    Thread.Sleep(50);
+                    if ((timeout >= 0) && ((DateTime.Now - started).TotalMilliseconds >= timeout))
+                    {
+                        return (char)0;
+                    }
                 }
                 return (char)Console.In.Read();
+            }
+        }
+
+        internal static char WaitReadKey(bool intercept)
+        {
+            return WaitReadKey(intercept, -1/*wait forever*/);
+        }
+
+        internal static void Windiff(string oldPath, string newPath, bool waitForExit)
+        {
+            try
+            {
+                using (Process scriptCmd = new Process())
+                {
+                    scriptCmd.StartInfo.Arguments = String.Format(" \"{0}\" \"{1}\" ", oldPath, newPath);
+                    scriptCmd.StartInfo.CreateNoWindow = true;
+                    scriptCmd.StartInfo.FileName = "windiff.exe";
+                    scriptCmd.StartInfo.RedirectStandardOutput = true;
+                    scriptCmd.StartInfo.UseShellExecute = false;
+                    scriptCmd.StartInfo.WorkingDirectory = Path.GetTempPath();
+                    scriptCmd.Start();
+                    if (waitForExit)
+                    {
+                        scriptCmd.WaitForExit();
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine("Windiff failed: {0}", exception.Message);
             }
         }
 
@@ -2639,16 +3119,6 @@ namespace Backup
         {
             Console.Write(prompt);
 
-            bool interactive = true;
-            try
-            {
-                Console.CursorLeft++;
-            }
-            catch (IOException)
-            {
-                interactive = false;
-            }
-
             StringBuilder sb = new StringBuilder();
             while (true)
             {
@@ -2662,7 +3132,7 @@ namespace Backup
                     if (sb.Length > 0)
                     {
                         sb.Remove(sb.Length - 1, 1);
-                        if (interactive)
+                        if (Interactive())
                         {
                             Console.CursorLeft--;
                             Console.Write(" ");
@@ -2677,7 +3147,7 @@ namespace Backup
                 else if (key >= 32)
                 {
                     sb.Append(key);
-                    if (interactive)
+                    if (Interactive())
                     {
                         Console.Write(".");
                     }
@@ -2966,6 +3436,12 @@ namespace Backup
             return ArrayEqual(l, 0, r, 0, l.Length);
         }
 
+        internal static void ArrayRemoveAt<T>(ref T[] a, int index, int count)
+        {
+            Array.Copy(a, index + count, a, index, a.Length - (index + count));
+            Array.Resize(ref a, a.Length - count);
+        }
+
         internal static bool IsDriveRoot(string path)
         {
             Debug.Assert(Path.IsPathRooted(path));
@@ -3005,7 +3481,7 @@ namespace Backup
 
         internal delegate ResultType TryFunctionType<ResultType>();
         internal delegate void ResetFunctionType();
-        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, Context context)
+        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enable, Context context)
         {
             bool tried = false;
             while (true)
@@ -3065,6 +3541,11 @@ namespace Backup
                     }
                 }
             }
+        }
+
+        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, Context context)
+        {
+            return DoRetryable(tryFunction, continueFunction, resetFunction, true/*enable*/, context);
         }
 
         internal static void GetExclusionArguments(string[] args, out InvariantStringSet excludedExtensions, bool relative, out InvariantStringSet excludedItems)
@@ -3133,7 +3614,7 @@ namespace Backup
             }
             catch (ArgumentException)
             {
-                throw new UsageException("invalid program arguments");
+                throw new UsageException();
             }
         }
 
@@ -3143,9 +3624,7 @@ namespace Backup
             if ((args.Length >= 1) && String.Equals(args[0], literal, StringComparison.Ordinal))
             {
                 value = explicitValue;
-                string[] newArgs = new string[args.Length - 1];
-                Array.Copy(args, 1, newArgs, 0, newArgs.Length);
-                args = newArgs;
+                ArrayRemoveAt(ref args, 0, 1);
                 return true;
             }
             return false;
@@ -3158,12 +3637,64 @@ namespace Backup
             if ((args.Length >= 2) && String.Equals(args[0], literal, StringComparison.Ordinal))
             {
                 value = parse(args[1]);
-                string[] newArgs = new string[args.Length - 2];
-                Array.Copy(args, 2, newArgs, 0, newArgs.Length);
-                args = newArgs;
+                ArrayRemoveAt(ref args, 0, 2);
                 return true;
             }
             return false;
+        }
+
+        internal static void GetPasswordArgument(string[] args, ref int i, string prompt, out ICryptoSystem algorithm, out string password)
+        {
+            if (i < args.Length)
+            {
+                string name = args[i];
+                algorithm = Array.Find(CryptoSystems, delegate(ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
+                if (algorithm == null)
+                {
+                    throw new UsageException();
+                }
+            }
+            else
+            {
+                throw new UsageException();
+            }
+            i++;
+
+            if (i < args.Length)
+            {
+                if (String.Equals(args[i], "-protected"))
+                {
+                    i++;
+                    if (i < args.Length)
+                    {
+                        string[] parts = args[i].Split(new char[] { ';' });
+                        if (parts.Length != 2)
+                        {
+                            throw new UsageException();
+                        }
+                        byte[] salt = HexDecode(parts[0]);
+                        byte[] encryptedPassword = HexDecode(parts[1]);
+                        byte[] utf8Password = ProtectedDataStorage.Decrypt(encryptedPassword, 0, encryptedPassword.Length, salt);
+                        password = Encoding.UTF8.GetString(utf8Password);
+                    }
+                    else
+                    {
+                        throw new UsageException();
+                    }
+                }
+                else
+                {
+                    password = args[i];
+                    if (String.IsNullOrEmpty(password) || String.Equals(password, "-prompt"))
+                    {
+                        password = PromptPassword(prompt);
+                    }
+                }
+            }
+            else
+            {
+                throw new UsageException();
+            }
         }
 
         public class OneWaySwitch
@@ -3185,6 +3716,33 @@ namespace Backup
                 {
                     return status;
                 }
+            }
+        }
+
+        private class FileNamePatternMatch
+        {
+            private Regex regex;
+
+            public FileNamePatternMatch(string pattern)
+            {
+                string regexPattern = pattern;
+
+                regexPattern = regexPattern.Replace(".", @"\.");
+                regexPattern = regexPattern.Replace("*", ".*");
+                regexPattern = regexPattern.Replace("?", ".");
+                regexPattern = "^" + regexPattern + "$";
+
+                regex = new Regex(regexPattern);
+            }
+
+            public bool IsMatch(string candidate)
+            {
+                return regex.IsMatch(candidate);
+            }
+
+            public static bool ContainsWildcards(string path)
+            {
+                return path.IndexOfAny(new char[] { '*', '?' }) >= 0;
             }
         }
 
@@ -4179,7 +4737,7 @@ namespace Backup
                 return (int)v;
             }
 
-            public static void EnsureAtEOF(Stream stream)
+            public static void RequireAtEOF(Stream stream)
             {
                 byte[] buffer = new byte[1];
                 int read = stream.Read(buffer, 0, buffer.Length);
@@ -4198,7 +4756,7 @@ namespace Backup
             //    {
             //        throw new InvalidDataException("Unexpected end of stream");
             //    }
-            //    stream.Seek(position, SeekOrigin.Begin);
+            //    stream.Position = position;
             //    return result;
             //}
 
@@ -4218,7 +4776,7 @@ namespace Backup
 
                 if (peek)
                 {
-                    stream.Seek(position, SeekOrigin.Begin);
+                    stream.Position = position;
                 }
             }
         }
@@ -4501,6 +5059,7 @@ namespace Backup
             }
         }
 
+        // this object may be accessed from multiple threads
         public class CryptoMasterKeyCache
         {
             private const int MaxCacheEntries = 10;
@@ -4508,53 +5067,65 @@ namespace Backup
 
             public CryptoMasterKeyCacheEntry Find(byte[] passwordSalt)
             {
-                return masterKeys.Find(delegate(CryptoMasterKeyCacheEntry candidate) { return ArrayEqual(candidate.PasswordSalt, passwordSalt); });
+                lock (this)
+                {
+                    return masterKeys.Find(delegate(CryptoMasterKeyCacheEntry candidate) { return ArrayEqual(candidate.PasswordSalt, passwordSalt); });
+                }
             }
 
             public void Add(CryptoMasterKeyCacheEntry entry)
             {
-                if (null != Find(entry.PasswordSalt))
+                lock (this)
                 {
-                    throw new ArgumentException();
-                }
+                    if (null != Find(entry.PasswordSalt))
+                    {
+                        throw new ArgumentException();
+                    }
 
-                if (masterKeys.Count >= MaxCacheEntries)
-                {
-                    // always keep the first one (the default key)
-                    masterKeys.RemoveRange(1, masterKeys.Count / 2);
-                }
+                    if (masterKeys.Count >= MaxCacheEntries)
+                    {
+                        // always keep the first one (the default key)
+                        masterKeys.RemoveRange(1, masterKeys.Count / 2);
+                    }
 
-                masterKeys.Add(entry);
+                    masterKeys.Add(entry);
+                }
             }
 
             public CryptoMasterKeyCacheEntry Get(string password, byte[] passwordSalt, int rounds, ICryptoSystem system)
             {
-                CryptoMasterKeyCacheEntry entry = Find(passwordSalt);
-                if (entry != null)
+                lock (this)
                 {
+                    CryptoMasterKeyCacheEntry entry = Find(passwordSalt);
+                    if (entry != null)
+                    {
+                        return entry;
+                    }
+
+                    byte[] masterKey;
+                    system.DeriveMasterKey(password, passwordSalt, rounds, out masterKey);
+                    entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
+                    Add(entry);
                     return entry;
                 }
-
-                byte[] masterKey;
-                system.DeriveMasterKey(password, passwordSalt, rounds, out masterKey);
-                entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
-                Add(entry);
-                return entry;
             }
 
             public CryptoMasterKeyCacheEntry GetDefault(string password, ICryptoSystem system, bool forceNewKeys)
             {
-                if (!forceNewKeys && (masterKeys.Count > 0))
+                lock (this)
                 {
-                    return masterKeys[0];
-                }
+                    if (!forceNewKeys && (masterKeys.Count > 0))
+                    {
+                        return masterKeys[0];
+                    }
 
-                byte[] passwordSalt = system.CreateRandomBytes(system.PasswordSaltLengthBytes);
-                byte[] masterKey;
-                system.DeriveMasterKey(password, passwordSalt, system.DefaultRfc2898Rounds, out masterKey);
-                CryptoMasterKeyCacheEntry entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
-                Add(entry);
-                return entry;
+                    byte[] passwordSalt = system.CreateRandomBytes(system.PasswordSaltLengthBytes);
+                    byte[] masterKey;
+                    system.DeriveMasterKey(password, passwordSalt, system.DefaultRfc2898Rounds, out masterKey);
+                    CryptoMasterKeyCacheEntry entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
+                    Add(entry);
+                    return entry;
+                }
             }
         }
 
@@ -4587,6 +5158,7 @@ namespace Backup
             public bool continueOnAccessDenied;
             public bool zeroLengthSpecial;
             public bool beepEnabled;
+            public bool traceEnabled;
 
             public EncryptionOption cryptoOption;
             public CryptoContext encrypt;
@@ -4596,9 +5168,40 @@ namespace Backup
 
             public DateTime now;
 
-            public string refreshTokenPath;
+            public string refreshTokenProtected;
+            public bool overrideRemoteSecurityBlock;
 
             public int? explicitConcurrency;
+
+            public FaultTemplateNode faultInjectionTemplateRoot;
+            public FaultInstanceNode faultInjectionRoot;
+
+            public Context(Context original)
+            {
+                this.compressionOption = original.compressionOption;
+                this.doNotPreValidateMAC = original.doNotPreValidateMAC;
+                this.dirsOnly = original.dirsOnly;
+                this.continueOnAccessDenied = original.continueOnAccessDenied;
+                this.zeroLengthSpecial = original.zeroLengthSpecial;
+                this.beepEnabled = original.beepEnabled;
+                this.traceEnabled = original.traceEnabled;
+
+                this.cryptoOption = original.cryptoOption;
+                this.encrypt = original.encrypt;
+                this.decrypt = original.decrypt;
+
+                this.logPath = original.logPath;
+
+                this.now = original.now;
+
+                this.refreshTokenProtected = original.refreshTokenProtected;
+                this.overrideRemoteSecurityBlock = original.overrideRemoteSecurityBlock;
+
+                this.explicitConcurrency = original.explicitConcurrency;
+
+                this.faultInjectionTemplateRoot = original.faultInjectionTemplateRoot;
+                this.faultInjectionRoot = original.faultInjectionRoot;
+            }
         }
 
         internal class EncryptedFileContainerHeader
@@ -4924,7 +5527,7 @@ namespace Backup
                                     macValidated = true;
                                 }
 
-                                sourceStream.Seek(0, SeekOrigin.Begin);
+                                sourceStream.Position = 0;
 
                                 using (Stream targetStream = new FileStream(target, FileMode.CreateNew))
                                 {
@@ -5604,7 +6207,7 @@ namespace Backup
                 int c = this.stream.Read(b, 0, 3);
                 if ((c < 3) || (b[0] != 0xEF) || (b[1] != 0xBB) || (b[2] != 0xBF))
                 {
-                    this.stream.Seek(0, SeekOrigin.Begin);
+                    this.stream.Position = 0;
                 }
             }
 
@@ -5618,7 +6221,7 @@ namespace Backup
                 this.root = original.root;
                 this.path = original.path;
                 this.stream = new FileStream(this.path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                this.stream.Seek(original.stream.Position, SeekOrigin.Begin);
+                this.stream.Position = original.stream.Position;
                 this.current = original.current;
                 this.currentAttributes = original.currentAttributes;
                 this.currentLastWrite = original.currentLastWrite;
@@ -6125,14 +6728,7 @@ namespace Backup
                                         else if (Char.ToLowerInvariant(key) == 'w')
                                         {
                                             bool flip = key == 'W';
-                                            try
-                                            {
-                                                Process.Start("windiff.exe", String.Format(" \"{0}\" \"{1}\"", Path.Combine(!flip ? rootL : rootR, selected), Path.Combine(!flip ? rootR : rootL, selected)));
-                                            }
-                                            catch (Exception exception)
-                                            {
-                                                Console.WriteLine("Exception: {0}", exception.Message);
-                                            }
+                                            Windiff(Path.Combine(!flip ? rootL : rootR, selected), Path.Combine(!flip ? rootR : rootL, selected), true/*waitForExit*/);
                                         }
                                     }
                                 }
@@ -6239,14 +6835,7 @@ namespace Backup
                                         else if (Char.ToLowerInvariant(key) == 'w')
                                         {
                                             bool flip = key == 'W';
-                                            try
-                                            {
-                                                Process.Start("windiff.exe", String.Format(" \"{0}\" \"{1}\"", Path.Combine(!flip ? rootL : rootR, selected), Path.Combine(!flip ? rootR : rootL, selected)));
-                                            }
-                                            catch (Exception exception)
-                                            {
-                                                Console.WriteLine("Exception: {0}", exception.Message);
-                                            }
+                                            Windiff(Path.Combine(!flip ? rootL : rootR, selected), Path.Combine(!flip ? rootR : rootL, selected), true/*waitForExit*/);
                                         }
                                     }
                                 }
@@ -6369,14 +6958,7 @@ namespace Backup
                                         else if (Char.ToLowerInvariant(key) == 'w')
                                         {
                                             bool flip = key == 'W';
-                                            try
-                                            {
-                                                Process.Start("windiff.exe", String.Format(" \"{0}\" \"{1}\"", Path.Combine(!flip ? rootL : rootR, selected), Path.Combine(!flip ? rootR : rootL, selected)));
-                                            }
-                                            catch (Exception exception)
-                                            {
-                                                Console.WriteLine("Exception: {0}", exception.Message);
-                                            }
+                                            Windiff(Path.Combine(!flip ? rootL : rootR, selected), Path.Combine(!flip ? rootR : rootL, selected), true/*waitForExit*/);
                                         }
                                     }
                                 }
@@ -8354,7 +8936,7 @@ namespace Backup
         internal static void ValidateEncryption(string sourcePattern, Context context)
         {
             string[] sourceFileList = new string[] { sourcePattern };
-            if (sourcePattern.IndexOfAny(new char[] { '*', '?' }) >= 0)
+            if (FileNamePatternMatch.ContainsWildcards(sourcePattern))
             {
                 sourceFileList = Directory.GetFiles(Path.GetDirectoryName(sourcePattern), Path.GetFileName(sourcePattern));
             }
@@ -8988,7 +9570,7 @@ namespace Backup
             }
         }
 
-        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, Context context)
+        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableRetry, Context context)
         {
             bool directory = false;
 
@@ -9011,6 +9593,7 @@ namespace Backup
                 },
                 delegate { return null; },
                 delegate { },
+                enableRetry,
                 context))
             {
                 if ((inputStream != null) || directory)
@@ -9107,7 +9690,7 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            PackOne(file, stream, partialPathPrefix, null/*range*/, context);
+                            PackOne(file, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context);
                             addedCount++;
                         }
                         else
@@ -9129,7 +9712,7 @@ namespace Backup
                     // for subdirectories, only if it is empty add it explicitly
                     if (addedCount == initialAddedCount)
                     {
-                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, context);
+                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context);
                         addedCount++;
                     }
                 }
@@ -9337,41 +9920,130 @@ namespace Backup
             }
         }
 
-        internal enum UnpackMode
+        private class RangeSequenceException : ApplicationException
         {
-            ParseOnly,
-            ParseAndUnpack,
+            public RangeSequenceException(string message)
+                : base(message)
+            {
+            }
         }
 
-        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut)
+        private class DeferredMultiException : ApplicationException
         {
-            bool writeFiles = mode == UnpackMode.ParseAndUnpack;
-            bool displayProgress = mode == UnpackMode.ParseAndUnpack;
+            private Exception[] innerExceptions = new Exception[0];
 
-            ulong segmentSerialNumber = 0;
-            byte[] randomArchiveSignature = new byte[0];
-
-            List<UnpackedFileRecord> unpackedFileRecords = new List<UnpackedFileRecord>();
-
-            if (fileStream.Position != 0)
+            public DeferredMultiException(Exception[] innerExceptions)
             {
-                throw new InvalidOperationException();
+                if (innerExceptions != null)
+                {
+                    this.innerExceptions = innerExceptions;
+                }
             }
 
-
-            CryptoKeygroup keys = null;
-            EncryptedFileContainerHeader fch = null;
-            if (context.cryptoOption == EncryptionOption.Decrypt)
+            public override string Message
             {
-                fch = new EncryptedFileContainerHeader(fileStream, true/*peek*/, context.decrypt);
-                context.decrypt.algorithm.DeriveSessionKeys(context.decrypt.GetMasterKeyEntry(fch.passwordSalt, fch.rfc2898Rounds).MasterKey, fch.fileSalt, out keys);
+                get
+                {
+                    StringBuilder sb = new StringBuilder();
+                    foreach (Exception exception in innerExceptions)
+                    {
+                        string one = exception.ToString().Replace(Environment.NewLine, ";");
+                        sb.AppendLine(one);
+                    }
+                    return sb.ToString();
+                }
             }
 
-            // Using Moxie Marlinspike's "doom principle": validate the MAC before ANY other
-            // action is taken. (http://www.thoughtcrime.org/blog/the-cryptographic-doom-principle/)
-            bool macValidated = false;
-            if (!context.doNotPreValidateMAC && (context.cryptoOption != EncryptionOption.None))
+#if false
+            private static string Combine(Exception[] exceptions)
             {
+                StringBuilder sb = new StringBuilder();
+                if (exceptions != null)
+                {
+                    foreach (Exception exception in exceptions)
+                    {
+                        sb.AppendLine(exception.Message);
+                    }
+                }
+                return sb.ToString();
+            }
+#endif
+        }
+
+        [Flags]
+        internal enum UnpackMode
+        {
+            Parse = 0, // always implied
+
+            SignatureOnly = 1 << 0,
+
+            Unpack = 1 << 1,
+            Resume = 1 << 2,
+            ShowProgress = 1 << 3,
+        }
+
+        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, out ApplicationException[] deferredExceptions)
+        {
+            List<ApplicationException> deferredExceptionsList = new List<ApplicationException>();
+
+            try
+            {
+                bool writeFiles = (mode & UnpackMode.Unpack) == UnpackMode.Unpack;
+                bool displayProgress = (mode & UnpackMode.ShowProgress) == UnpackMode.ShowProgress;
+                bool resume = (mode & UnpackMode.Resume) == UnpackMode.Resume;
+                bool signatureOnly = (mode & UnpackMode.SignatureOnly) == UnpackMode.SignatureOnly;
+                if (signatureOnly && writeFiles)
+                {
+                    throw new ArgumentException();
+                }
+
+                FaultInstanceNode faultUnpackInternal = context.faultInjectionRoot.Select("UnpackInternal");
+
+                ulong segmentSerialNumber = 0;
+                byte[] randomArchiveSignature = new byte[0];
+
+                List<UnpackedFileRecord> unpackedFileRecords = new List<UnpackedFileRecord>();
+
+                if (fileStream.Position != 0)
+                {
+                    throw new InvalidOperationException();
+                }
+
+
+                CryptoKeygroup keys = null;
+                EncryptedFileContainerHeader fch = null;
+                if (context.cryptoOption == EncryptionOption.Decrypt)
+                {
+                    fch = new EncryptedFileContainerHeader(fileStream, true/*peek*/, context.decrypt);
+                    context.decrypt.algorithm.DeriveSessionKeys(context.decrypt.GetMasterKeyEntry(fch.passwordSalt, fch.rfc2898Rounds).MasterKey, fch.fileSalt, out keys);
+                }
+
+                // Using Moxie Marlinspike's "doom principle": validate the MAC before ANY other
+                // action is taken. (http://www.thoughtcrime.org/blog/the-cryptographic-doom-principle/)
+                bool macValidated = false;
+                if (!context.doNotPreValidateMAC && (context.cryptoOption != EncryptionOption.None))
+                {
+                    DoWithStreamStack(
+                        fileStream,
+                        new StreamWrapMethod[]
+                        {
+                            delegate(Stream stream)
+                            {
+                                // see note and references about
+                                // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
+                                return new TaggedReadStream(stream, context.decrypt.algorithm.CreateMACGenerator(keys.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                            },
+                        },
+                        delegate(Stream stream)
+                        {
+                            ReadAndDiscardEntireStream(stream);
+                        });
+
+                    macValidated = true;
+                }
+
+                fileStream.Position = 0;
+
                 DoWithStreamStack(
                     fileStream,
                     new StreamWrapMethod[]
@@ -9380,332 +10052,491 @@ namespace Backup
                         {
                             // see note and references about
                             // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
-                            return new TaggedReadStream(stream, context.decrypt.algorithm.CreateMACGenerator(keys.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                            if (context.cryptoOption == EncryptionOption.Decrypt)
+                            {
+                                if (!macValidated)
+                                {
+                                    return new TaggedReadStream(stream, context.decrypt.algorithm.CreateMACGenerator(keys.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                                }
+                                else
+                                {
+                                    return new ReadStreamHoldShort(stream, context.decrypt.algorithm.MACLengthBytes);
+                                }
+                            }
+                            return null;
                         },
+                        delegate(Stream stream)
+                        {
+                            if (context.cryptoOption == EncryptionOption.Decrypt)
+                            {
+                                // why re-read here? need to read salt within HMAC container
+                                EncryptedFileContainerHeader fch2 = new EncryptedFileContainerHeader(stream, false/*peek*/, context.decrypt);
+                                if (!fch2.Equals(fch))
+                                {
+                                    throw new InvalidOperationException();
+                                }
+                            }
+                            return null;
+                        },
+                        delegate(Stream stream)
+                        {
+                            if (context.cryptoOption == EncryptionOption.Decrypt)
+                            {
+                                return context.decrypt.algorithm.CreateDecryptStream(stream, keys.CipherKey, keys.InitialCounter);
+                            }
+                            return null;
+                        },
+                        delegate(Stream stream)
+                        {
+                            if (context.compressionOption == CompressionOption.Decompress)
+                            {
+                                return new BlockedDecompressStream(stream);
+                            }
+                            return null;
+                        },
+                        delegate(Stream stream)
+                        {
+                            // total file CRC32 check value
+                            return new TaggedReadStream(stream, new CRC32(), "File check values do not match - file is damaged");
+                        }
                     },
                     delegate(Stream stream)
                     {
-                        ReadAndDiscardEntireStream(stream);
-                    });
-
-                macValidated = true;
-            }
-
-            fileStream.Seek(0, SeekOrigin.Begin);
-
-            DoWithStreamStack(
-                fileStream,
-                new StreamWrapMethod[]
-                {
-                    delegate(Stream stream)
-                    {
-                        // see note and references about
-                        // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
-                        if (context.cryptoOption == EncryptionOption.Decrypt)
+                        if (trace != null)
                         {
-                            if (!macValidated)
+                            trace.WriteLine("UnpackInternal writeFiles={0}, resume={1}", writeFiles, resume);
+                        }
+
+                        byte[] headerNumber = BinaryReadUtils.ReadBytes(stream, 1);
+                        if (trace != null)
+                        {
+                            trace.WriteLine("HeaderNumber: {0}", headerNumber[0]);
+                        }
+                        if (headerNumber[0] != PackArchiveFixedHeaderNumber)
+                        {
+                            throw new InvalidDataException(); // unrecognized format
+                        }
+
+                        randomArchiveSignature = BinaryReadUtils.ReadVariableLengthByteArray(stream);
+                        if (trace != null)
+                        {
+                            string hex = HexEncode(randomArchiveSignature);
+                            trace.WriteLine("Signature: {0}...{1}", hex.Substring(0, Math.Min(hex.Length, 4)), hex.Substring(Math.Max(0, hex.Length - 4)));
+                        }
+
+                        segmentSerialNumber = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
+                        if (trace != null)
+                        {
+                            trace.WriteLine("SerialNumber: {0}", segmentSerialNumber);
+                        }
+
+                        if (signatureOnly)
+                        {
+                            ReadAndDiscardEntireStream(stream);
+                            return;
+                        }
+
+                        int structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+                        if (trace != null)
+                        {
+                            trace.WriteLine("StructureType: {0}", structureType);
+                        }
+                        if ((structureType != PackArchiveStructureTypeManifest)
+                            && (structureType != PackArchiveStructureTypeFiles))
+                        {
+                            throw new InvalidDataException(); // unrecognized format
+                        }
+
+                        if (writeFiles)
+                        {
+                            Directory.CreateDirectory(targetDirectory);
+                        }
+
+                        bool fileDataOmitted = false;
+                        string currentSegmentName = null;
+                        ulong currentSegmentSerialNumber = 0;
+                        bool firstHeader = true;
+                        bool firstHeaderWasSegment = false;
+                        string currentDisplayDirectory = null;
+                        //
+                        string lastSubpath = null;
+                        PackedFileHeaderRecord.RangeRecord lastRange = null;
+                        //
+                        while (true)
+                        {
+                            byte[] startToken = BinaryReadUtils.ReadBytes(stream, PackedFileHeaderRecord.HeaderTokenLength);
+                            if (!PackedFileHeaderRecord.ValidFileHeaderToken(startToken))
                             {
-                                return new TaggedReadStream(stream, context.decrypt.algorithm.CreateMACGenerator(keys.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                                throw new InvalidDataException("Unexpected value for start token");
+                            }
+
+                            PackedFileHeaderRecord header = PackedFileHeaderRecord.Read(stream, false/*strict*/, context.now);
+                            if (header == PackedFileHeaderRecord.NullHeaderRecord)
+                            {
+                                if (trace != null)
+                                {
+                                    trace.WriteLine("Header[Terminator]");
+                                }
+                                break;
+                            }
+
+                            // if any segment headers exist (== manifest file), the first record in file must be one
+                            if (firstHeader)
+                            {
+                                if (header.SegmentName != null)
+                                {
+                                    firstHeaderWasSegment = true;
+                                }
                             }
                             else
                             {
-                                return new ReadStreamHoldShort(stream, context.decrypt.algorithm.MACLengthBytes);
+                                if (!firstHeaderWasSegment && (header.SegmentName != null))
+                                {
+                                    throw new InvalidDataException();
+                                }
                             }
-                        }
-                        return null;
-                    },
-                    delegate(Stream stream)
-                    {
-                        if (context.cryptoOption == EncryptionOption.Decrypt)
-                        {
-                            // why re-read here? need to read salt within HMAC container
-                            EncryptedFileContainerHeader fch2 = new EncryptedFileContainerHeader(stream, false/*peek*/, context.decrypt);
-                            if (!fch2.Equals(fch))
-                            {
-                                throw new InvalidOperationException();
-                            }
-                        }
-                        return null;
-                    },
-                    delegate(Stream stream)
-                    {
-                        if (context.cryptoOption == EncryptionOption.Decrypt)
-                        {
-                            return context.decrypt.algorithm.CreateDecryptStream(stream, keys.CipherKey, keys.InitialCounter);
-                        }
-                        return null;
-                    },
-                    delegate(Stream stream)
-                    {
-                        if (context.compressionOption == CompressionOption.Decompress)
-                        {
-                            return new BlockedDecompressStream(stream);
-                        }
-                        return null;
-                    },
-                    delegate(Stream stream)
-                    {
-                        // total file CRC32 check value
-                        return new TaggedReadStream(stream, new CRC32(), "File check values do not match - file is damaged");
-                    }
-                },
-                delegate(Stream stream)
-                {
-                    byte[] headerNumber = BinaryReadUtils.ReadBytes(stream, 1);
-                    if (headerNumber[0] != PackArchiveFixedHeaderNumber)
-                    {
-                        throw new InvalidDataException(); // unrecognized format
-                    }
+                            firstHeader = false;
 
-                    randomArchiveSignature = BinaryReadUtils.ReadVariableLengthByteArray(stream);
-
-                    segmentSerialNumber = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
-
-                    int structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
-                    if ((structureType != PackArchiveStructureTypeManifest)
-                        && (structureType != PackArchiveStructureTypeFiles))
-                    {
-                        throw new InvalidDataException(); // unrecognized format
-                    }
-
-                    if (writeFiles)
-                    {
-                        Directory.CreateDirectory(targetDirectory);
-                    }
-
-                    bool fileDataOmitted = false;
-                    string currentSegmentName = null;
-                    ulong currentSegmentSerialNumber = 0;
-                    bool firstHeader = true;
-                    bool firstHeaderWasSegment = false;
-                    string currentDisplayDirectory = null;
-                    //
-                    string lastSubpath = null;
-                    PackedFileHeaderRecord.RangeRecord lastRange = null;
-                    //
-                    while (true)
-                    {
-                        byte[] startToken = BinaryReadUtils.ReadBytes(stream, PackedFileHeaderRecord.HeaderTokenLength);
-                        if (!PackedFileHeaderRecord.ValidFileHeaderToken(startToken))
-                        {
-                            throw new InvalidDataException("Unexpected value for start token");
-                        }
-
-                        PackedFileHeaderRecord header = PackedFileHeaderRecord.Read(stream, false/*strict*/, context.now);
-                        if (header == PackedFileHeaderRecord.NullHeaderRecord)
-                        {
-                            break;
-                        }
-
-                        // if any segment headers exist (== manifest file), the first record in file must be one
-                        if (firstHeader)
-                        {
+                            // process segment header records differently
                             if (header.SegmentName != null)
                             {
-                                firstHeaderWasSegment = true;
-                            }
-                        }
-                        else
-                        {
-                            if (!firstHeaderWasSegment && (header.SegmentName != null))
-                            {
-                                throw new InvalidDataException();
-                            }
-                        }
-                        firstHeader = false;
-
-                        // process segment header records differently
-                        if (header.SegmentName != null)
-                        {
-                            if (structureType != PackArchiveStructureTypeManifest)
-                            {
-                                throw new InvalidDataException(); // segment records not permitted in files structure
-                            }
-
-                            // do not write any files "archived" in the manifest
-                            writeFiles = false;
-                            fileDataOmitted = true;
-
-                            currentSegmentName = header.SegmentName;
-                            currentSegmentSerialNumber = header.SegmentSerialNumber;
-
-                            continue;
-                        }
-
-                        // normal file header record processing
-
-                        // segment name and serial are written as a special header record.
-                        // this is not exposed to caller; instead, each proper file record is
-                        // annotated with the segment name and serial number.
-                        header.SegmentName = currentSegmentName;
-                        header.SegmentSerialNumber = currentSegmentSerialNumber;
-
-                        string[] pathParts = header.Subpath.Split(new char[] { '\\' });
-                        if (!pathParts[0].Equals("."))
-                        {
-                            throw new ApplicationException("Invalid relative path found in stream");
-                        }
-                        string fullPath = targetDirectory;
-                        for (int i = 1; i < pathParts.Length; i++)
-                        {
-                            string pathPart = pathParts[i];
-                            if (String.IsNullOrEmpty(pathPart) || (pathPart == ".") || (pathPart == ".."))
-                            {
-                                throw new ApplicationException("Illegal step found in path");
-                            }
-                            fullPath = Path.Combine(fullPath, pathPart);
-                            if (i == pathParts.Length - 2) // last directory component
-                            {
-                                if (displayProgress)
+                                if (trace != null)
                                 {
-                                    if (!String.Equals(currentDisplayDirectory, fullPath))
+                                    trace.WriteLine("Header[SegmetName={0}, SegmentSerialNumber={1}]", header.SegmentName, header.SegmentSerialNumber);
+                                }
+
+                                if (structureType != PackArchiveStructureTypeManifest)
+                                {
+                                    throw new InvalidDataException(); // segment records not permitted in files structure
+                                }
+
+                                // do not write any files "archived" in the manifest
+                                writeFiles = false;
+                                fileDataOmitted = true;
+
+                                currentSegmentName = header.SegmentName;
+                                currentSegmentSerialNumber = header.SegmentSerialNumber;
+
+                                continue;
+                            }
+
+                            // normal file header record processing
+
+                            if (trace != null)
+                            {
+                                trace.WriteLine("Header[Path=\"{0}\", ESL={1}, Created={2}, LastWrite={3}, Attr={4}, Range={5}]", header.Subpath, header.EmbeddedStreamLength, header.CreationTimeUtc, header.LastWriteTimeUtc, (int)header.Attributes, header.Range);
+                            }
+
+                            FaultInstanceNode faultFileHeader = faultUnpackInternal.Select("FileHeader", header.Subpath);
+
+                            // segment name and serial are written as a special header record.
+                            // this is not exposed to caller; instead, each proper file record is
+                            // annotated with the segment name and serial number.
+                            header.SegmentName = currentSegmentName;
+                            header.SegmentSerialNumber = currentSegmentSerialNumber;
+
+                            string[] pathParts = header.Subpath.Split(new char[] { '\\' });
+                            if (!pathParts[0].Equals("."))
+                            {
+                                throw new ApplicationException("Invalid relative path found in stream");
+                            }
+                            string fullPath = targetDirectory;
+                            for (int i = 1; i < pathParts.Length; i++)
+                            {
+                                string pathPart = pathParts[i];
+                                if (String.IsNullOrEmpty(pathPart) || (pathPart == ".") || (pathPart == ".."))
+                                {
+                                    throw new ApplicationException("Illegal step found in path");
+                                }
+                                fullPath = Path.Combine(fullPath, pathPart);
+                                if (i == pathParts.Length - 2) // last directory component
+                                {
+                                    if (displayProgress)
                                     {
-                                        currentDisplayDirectory = fullPath;
-                                        WriteStatusLine(currentDisplayDirectory);
+                                        if (!String.Equals(currentDisplayDirectory, fullPath))
+                                        {
+                                            currentDisplayDirectory = fullPath;
+                                            WriteStatusLine(currentDisplayDirectory);
+                                        }
                                     }
+
+                                    if (writeFiles)
+                                    {
+                                        Directory.CreateDirectory(fullPath);
+                                    }
+                                }
+                            }
+
+                            if (String.Equals(header.Subpath, lastSubpath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                // a file split into multiple ranges must have consistent range information
+                                // for each entry.
+                                if (((lastRange == null) != (header.Range == null))
+                                    || (lastRange.TotalFileLength != header.Range.TotalFileLength)
+                                    || (lastRange.End + 1 != header.Range.Start))
+                                {
+                                    if (trace != null)
+                                    {
+                                        trace.WriteLine("Error: inconsistent ranges, last={0}, current={1} (lastSubpath={2}, currentSubpath={3})", lastRange, header.Range, lastSubpath, header.Subpath);
+                                    }
+                                    throw new InvalidDataException();
+                                }
+                            }
+                            lastSubpath = header.Subpath;
+                            lastRange = header.Range;
+
+                            if (!fileDataOmitted) // i.e. not a manifest
+                            {
+                                byte[] fileDataCheckValue;
+                                using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new CRC32()))
+                                {
+                                    bool directory = (header.Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) != 0;
+                                    if (writeFiles && directory)
+                                    {
+                                        Directory.CreateDirectory(fullPath);
+                                    }
+
+                                    Stream output;
+                                    if (writeFiles && !directory)
+                                    {
+                                        if (header.Range == null)
+                                        {
+                                            output = null;
+
+                                            // for simple files - always create (fail if it exists)
+                                            try
+                                            {
+                                                output = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                                                if (trace != null)
+                                                {
+                                                    trace.WriteLine("  [simple] created \"{0}\"", fullPath);
+                                                }
+                                            }
+                                            catch (Exception exception)
+                                            {
+                                                // permit file to exist if "resume" specified - do nothing (outputX remains null)
+                                                if (resume)
+                                                {
+                                                    long length = GetFileLengthNoError(fullPath);
+                                                    if (length != header.EmbeddedStreamLength)
+                                                    {
+                                                        // File may have been written incompletely - rewrite
+                                                        // (It could also be some old or updated version fo the file -
+                                                        // but we're assuming user knows what he's doing of specifying
+                                                        // "resume" mode.)
+                                                        output = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                                                        if (trace != null)
+                                                        {
+                                                            trace.WriteLine("  [simple] replaced \"{0}\" (old length {1}) [resume mode]", fullPath, length);
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        if (trace != null)
+                                                        {
+                                                            trace.WriteLine("  [simple] skipped preexisting \"{0}\" (old length={1}) [resume mode]", fullPath, length);
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    if (trace != null)
+                                                    {
+                                                        trace.WriteLine("  [simple] failed: \"{0}\"", exception.Message);
+                                                    }
+                                                    throw; // for non-"resume": always an error if file already exists
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // for ranged files - create if needed or open existing.
+                                            // it would be nice to use FileMode.CreateNew for the first segment and
+                                            // FileMode.Open for subsequent ones, since that would be more precise,
+                                            // but since ranges span archive segments, this method will exit and be
+                                            // reinvoked between ranges, and plumbing the state up to the top level
+                                            // caller to check for this is not worth it.
+
+                                            // IMPORTANT: for the following to work, all ranged segments applying to a
+                                            // given target file must be done SERIALIZED and IN ORDER, so that the
+                                            // file length is always a correct indicator of what has not been done yet.
+                                            // This is the responsibility of the caller that has specified
+                                            // UnpackMode.Unpack, which is currently ValidateOrUnpackDynamicInternal().
+
+                                            // if "resume" specified, we detect whether the file was completely
+                                            // written by comparing the file's length with the range length.
+                                            // (do not check timestamps because they may be incorrect if code was aborted
+                                            // while in the loop below, i.e. before timestamp setting part is reached.
+                                            // we assume the user knows what he's doing specifying "resume".)
+                                            long length = GetFileLengthNoError(fullPath);
+                                            if (length == header.Range.TotalFileLength)
+                                            {
+                                                if (trace != null)
+                                                {
+                                                    trace.WriteLine("  [ranged] skipped: \"{0}\" (old length={1})", fullPath, length);
+                                                }
+                                                output = null;
+                                            }
+                                            else
+                                            {
+                                                if (File.Exists(fullPath))
+                                                {
+                                                    if ((File.GetAttributes(fullPath) & FileAttributes.ReadOnly) != 0)
+                                                    {
+                                                        File.SetAttributes(fullPath, File.GetAttributes(fullPath) & ~FileAttributes.ReadOnly);
+                                                        // will be restored again at end of this range write pass
+                                                    }
+                                                }
+
+                                                if (trace != null)
+                                                {
+                                                    trace.WriteLine("  [ranged] updating: \"{0}\" (old length={1})", fullPath, length);
+                                                }
+                                                output = new FileStream(fullPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        output = null;
+                                    }
+
+                                    if (writeFiles && (header.Range != null) && (output != null))
+                                    {
+                                        if (output.Length < header.Range.Start)
+                                        {
+                                            if (trace != null)
+                                            {
+                                                trace.WriteLine("Range update failed: file length {0} less than range start {1} [probably previous segment missing or defect in sequencing code]", output.Length, header.Range.Start);
+                                            }
+                                            deferredExceptionsList.Add(new RangeSequenceException(String.Format("Update to file \"{0}\" failed - part of file content is missing", fullPath)));
+
+                                            // cancel writing of this file
+                                            output.Close();
+                                            output = null;
+                                        }
+                                    }
+
+                                    FaultInstanceNode faultWrite = faultFileHeader.Select("Write");
+                                    FaultPredicate faultWritePosition = faultWrite.SelectPredicate("Position");
+
+                                    using (output)
+                                    {
+                                        byte[] buffer = new byte[Constants.BufferSize];
+                                        long length = header.EmbeddedStreamLength;
+                                        if (directory && (length != 0))
+                                        {
+                                            throw new InvalidDataException();
+                                        }
+                                        if (writeFiles && (header.Range != null))
+                                        {
+                                            if (length != header.Range.Length)
+                                            {
+                                                throw new InvalidDataException();
+                                            }
+                                            if (output != null)
+                                            {
+                                                // Do not set file length [output.SetLength(header.Range.TotalFileLength);]
+                                                // that is how we know how much has been written (for "resume" mode - see above)
+                                                output.Position = header.Range.Start;
+                                            }
+                                        }
+                                        while (length > 0)
+                                        {
+                                            long lengthOne = Math.Min(length, buffer.Length);
+                                            int read = checkedStream.Read(buffer, 0, (int)lengthOne);
+                                            if (read != lengthOne)
+                                            {
+                                                throw new IOException("Unexpected end of stream");
+                                            }
+                                            if (output != null)
+                                            {
+                                                output.Write(buffer, 0, (int)lengthOne);
+
+                                                faultWritePosition.Test(output.Position);
+                                            }
+                                            length -= lengthOne;
+                                        }
+
+                                        if (output != null)
+                                        {
+                                            if (trace != null)
+                                            {
+                                                trace.WriteLine("  final: length={0}", output.Length);
+                                            }
+                                        }
+                                    }
+
+                                    checkedStream.Close();
+                                    fileDataCheckValue = checkedStream.CheckValue;
                                 }
 
                                 if (writeFiles)
                                 {
-                                    Directory.CreateDirectory(fullPath);
+                                    try
+                                    {
+                                        if (header.CreationTimeUtc != default(DateTime))
+                                        {
+                                            File.SetCreationTimeUtc(fullPath, header.CreationTimeUtc);
+                                        }
+                                        if (header.LastWriteTimeUtc != default(DateTime))
+                                        {
+                                            File.SetLastWriteTime(fullPath, header.LastWriteTimeUtc);
+                                        }
+                                        // do this last - may include read-only
+                                        File.SetAttributes(fullPath, File.GetAttributes(fullPath) | (PackedFileHeaderRecord.ToFileAttributes(header.Attributes) & ~FileAttributes.Directory));
+                                    }
+                                    catch (Exception exception)
+                                    {
+                                        if (trace != null)
+                                        {
+                                            trace.WriteLine("  exception updating timestamps and attributes: {0}", exception);
+                                        }
+                                    }
+                                }
+
+                                byte[] savedFileDataCheckValue = BinaryReadUtils.ReadBytes(stream, fileDataCheckValue.Length);
+                                if (!ArrayEqual(fileDataCheckValue, savedFileDataCheckValue))
+                                {
+                                    throw new ExitCodeException((int)ExitCodes.ConditionNotSatisfied, "Individual archived file data check values do not match");
                                 }
                             }
+
+                            unpackedFileRecords.Add(new UnpackedFileRecord(fullPath, header));
                         }
 
-                        if (String.Equals(header.Subpath, lastSubpath, StringComparison.OrdinalIgnoreCase))
-                        {
-                            // a file split into multiple ranges must have consistent range information
-                            // for each entry.
-                            if (((lastRange == null) != (header.Range == null))
-                                || (lastRange.TotalFileLength != header.Range.TotalFileLength)
-                                || (lastRange.End + 1 != header.Range.Start))
-                            {
-                                throw new InvalidDataException();
-                            }
-                        }
-                        lastSubpath = header.Subpath;
-                        lastRange = header.Range;
-
-                        if (!fileDataOmitted) // i.e. not a manifest
-                        {
-                            byte[] fileDataCheckValue;
-                            using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new CRC32()))
-                            {
-                                bool directory = (header.Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) != 0;
-                                if (writeFiles && directory)
-                                {
-                                    Directory.CreateDirectory(fullPath);
-                                }
-
-                                Stream outputX;
-                                if (writeFiles && !directory)
-                                {
-                                    if (header.Range == null)
-                                    {
-                                        // for simple files - always create (fail if it exists)
-                                        outputX = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write);
-                                    }
-                                    else
-                                    {
-                                        // for ranged files - create if needed or open existing.
-                                        // it would be nice to use FileMode.CreateNew for the first segment and
-                                        // FileMode.Open for subsequent ones, since that would be more precise,
-                                        // but since ranges span archive segments, this method will exit and be
-                                        // reinvoked between ranges, and plumbing the state up to the top level
-                                        // caller to check for this is not worth it.
-                                        outputX = new FileStream(fullPath, FileMode.OpenOrCreate, FileAccess.Write);
-                                    }
-                                }
-                                else
-                                {
-                                    outputX = null;
-                                }
-
-                                using (Stream output = outputX)
-                                {
-                                    byte[] buffer = new byte[Constants.BufferSize];
-                                    long length = header.EmbeddedStreamLength;
-                                    if (directory && (length != 0))
-                                    {
-                                        throw new InvalidDataException();
-                                    }
-                                    if (writeFiles && (header.Range != null))
-                                    {
-                                        if (length != header.Range.Length)
-                                        {
-                                            throw new InvalidDataException();
-                                        }
-                                        output.SetLength(header.Range.TotalFileLength);
-                                        output.Position = header.Range.Start;
-                                    }
-                                    while (length > 0)
-                                    {
-                                        long lengthOne = Math.Min(length, buffer.Length);
-                                        int read = checkedStream.Read(buffer, 0, (int)lengthOne);
-                                        if (read != lengthOne)
-                                        {
-                                            throw new IOException("Unexpected end of stream");
-                                        }
-                                        if (writeFiles)
-                                        {
-                                            output.Write(buffer, 0, (int)lengthOne);
-                                        }
-                                        length -= lengthOne;
-                                    }
-                                }
-
-                                checkedStream.Close();
-                                fileDataCheckValue = checkedStream.CheckValue;
-                            }
-
-                            if (writeFiles)
-                            {
-                                try
-                                {
-                                    if (header.CreationTimeUtc != default(DateTime))
-                                    {
-                                        File.SetCreationTimeUtc(fullPath, header.CreationTimeUtc);
-                                    }
-                                    if (header.LastWriteTimeUtc != default(DateTime))
-                                    {
-                                        File.SetLastWriteTime(fullPath, header.LastWriteTimeUtc);
-                                    }
-                                    File.SetAttributes(fullPath, File.GetAttributes(fullPath) | (PackedFileHeaderRecord.ToFileAttributes(header.Attributes) & ~FileAttributes.Directory));
-                                }
-                                catch (Exception)
-                                {
-                                }
-                            }
-
-                            byte[] savedFileDataCheckValue = BinaryReadUtils.ReadBytes(stream, fileDataCheckValue.Length);
-                            if (!ArrayEqual(fileDataCheckValue, savedFileDataCheckValue))
-                            {
-                                throw new ExitCodeException((int)ExitCodes.ConditionNotSatisfied, "Individual archived file data check values do not match");
-                            }
-                        }
-
-                        unpackedFileRecords.Add(new UnpackedFileRecord(fullPath, header));
-                    }
-
-                    BinaryReadUtils.EnsureAtEOF(stream);
-                });
+                        BinaryReadUtils.RequireAtEOF(stream);
+                    });
 
 
-            if (displayProgress)
-            {
-                EraseStatusLine();
+                if (displayProgress)
+                {
+                    EraseStatusLine();
+                }
+
+                segmentSerialNumberOut = segmentSerialNumber;
+                randomArchiveSignatureOut = randomArchiveSignature;
+                return unpackedFileRecords.ToArray();
             }
-
-            segmentSerialNumberOut = segmentSerialNumber;
-            randomArchiveSignatureOut = randomArchiveSignature;
-            return unpackedFileRecords.ToArray();
+            catch (Exception exception)
+            {
+                if (trace != null)
+                {
+                    trace.Write("UnpackInternal exception occurred: {0}", exception);
+                }
+                throw;
+            }
+            finally
+            {
+                deferredExceptions = deferredExceptionsList.Count > 0 ? deferredExceptionsList.ToArray() : null;
+            }
         }
 
-        private static UnpackedFileRecord[] UnpackInternal(string sourceFile, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut)
+        private static UnpackedFileRecord[] UnpackInternal(string sourceFile, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, out ApplicationException[] deferredExceptions)
         {
             using (Stream fileStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                return UnpackInternal(fileStream, targetDirectory, context, mode, out segmentSerialNumberOut, out randomArchiveSignatureOut);
+                return UnpackInternal(fileStream, targetDirectory, context, mode, out segmentSerialNumberOut, out randomArchiveSignatureOut, trace, out deferredExceptions);
             }
         }
 
@@ -9713,74 +10544,109 @@ namespace Backup
         {
             ulong segmentSerialNumber;
             byte[] randomArchiveSignature;
-            UnpackInternal(sourceFile, targetDirectory, context, UnpackMode.ParseAndUnpack, out segmentSerialNumber, out randomArchiveSignature);
+            ApplicationException[] deferredExceptions;
+            UnpackInternal(sourceFile, targetDirectory, context, UnpackMode.Unpack | UnpackMode.ShowProgress, out segmentSerialNumber, out randomArchiveSignature, null/*trace*/, out deferredExceptions);
+            if (deferredExceptions != null)
+            {
+                throw new DeferredMultiException(deferredExceptions);
+            }
         }
 
         internal static void Dumppack(string sourcePattern, Context context)
         {
-            string[] sourceFileList = new string[] { sourcePattern };
-            if (sourcePattern.IndexOfAny(new char[] { '*', '?' }) >= 0)
+            string fileName;
+            bool remote;
+            using (IArchiveFileManager fileManager = GetArchiveFileManager(sourcePattern, out fileName, out remote, context))
             {
-                sourceFileList = Directory.GetFiles(Path.GetDirectoryName(sourcePattern), Path.GetFileName(sourcePattern));
-            }
-
-            foreach (string sourceFile in sourceFileList)
-            {
-                if (sourceFileList.Length > 1)
+                List<string> sourceFileList = new List<string>();
+                if (FileNamePatternMatch.ContainsWildcards(sourcePattern))
                 {
-                    Console.WriteLine("FILE: \"{0}\"", sourceFile);
-                }
-
-                ulong serialNumber;
-                byte[] randomArchiveSignature;
-                UnpackedFileRecord[] files = UnpackInternal(sourceFile, ".", context, UnpackMode.ParseOnly, out serialNumber, out randomArchiveSignature);
-                Console.WriteLine("SERIAL: {0}; SIGNATURE: {1}", serialNumber, HexEncode(randomArchiveSignature));
-
-                int index = 0;
-                string lastSegment = null;
-                foreach (UnpackedFileRecord file in files)
-                {
-                    if (!String.Equals(lastSegment, file.SegmentName))
+                    FileNamePatternMatch matcher = new FileNamePatternMatch(Path.GetFileName(sourcePattern));
+                    foreach (string file in fileManager.GetFileNames(null, fileManager.GetMasterTrace()))
                     {
-                        lastSegment = file.SegmentName;
-                        Console.WriteLine(" [{0}: {1}]", lastSegment, file.SegmentSerialNumber);
-                    }
-
-                    string attrs = String.Empty;
-                    foreach (KeyValuePair<PackedFileHeaderRecord.HeaderAttributes, char> symbol in PackedFileHeaderRecord.AttributeSymbolMapping)
-                    {
-                        attrs = attrs + ((file.Attributes & symbol.Key) != 0 ? new String(symbol.Value, 1) : "-");
-                    }
-
-                    const string TimeStampFormat = "s";
-
-                    Console.WriteLine(" {5,8} {0,-6} {1} {2} {3} {4}",
-                        FileSizeString(file.TotalFileLength),
-                        file.CreationTimeUtc.ToLocalTime().ToString(TimeStampFormat),
-                        file.LastWriteTimeUtc.ToLocalTime().ToString(TimeStampFormat),
-                        attrs,
-                        file.ArchivePath,
-                        ++index);
-                    if (file.Range != null)
-                    {
-                        Console.WriteLine("   {0}", file.Range);
+                        if (matcher.IsMatch(file))
+                        {
+                            sourceFileList.Add(file);
+                        }
                     }
                 }
-
-                if (sourceFileList.Length > 1)
+                else
                 {
-                    Console.WriteLine();
+                    sourceFileList.Add(fileName);
+                }
+
+                foreach (string sourceFile in sourceFileList)
+                {
+                    if (sourceFileList.Count > 1)
+                    {
+                        Console.WriteLine("FILE: \"{0}\"", sourceFile);
+                    }
+
+                    ulong serialNumber;
+                    byte[] randomArchiveSignature;
+                    UnpackedFileRecord[] files;
+                    using (ILocalFileCopy fileRef = fileManager.Read(sourceFile, null/*progressTracker*/, fileManager.GetMasterTrace()))
+                    {
+                        using (Stream stream = fileRef.Read())
+                        {
+                            ApplicationException[] deferredExceptions;
+                            files = UnpackInternal(stream, ".", context, UnpackMode.Parse, out serialNumber, out randomArchiveSignature, null/*trace*/, out deferredExceptions);
+                            if (deferredExceptions != null)
+                            {
+                                throw new DeferredMultiException(deferredExceptions);
+                            }
+                        }
+                    }
+
+                    Console.WriteLine("SERIAL: {0}; SIGNATURE: {1}", serialNumber, HexEncode(randomArchiveSignature));
+
+                    int index = 0;
+                    string lastSegment = null;
+                    foreach (UnpackedFileRecord file in files)
+                    {
+                        if (!String.Equals(lastSegment, file.SegmentName))
+                        {
+                            lastSegment = file.SegmentName;
+                            Console.WriteLine(" [{0}: {1}]", lastSegment, file.SegmentSerialNumber);
+                        }
+
+                        string attrs = String.Empty;
+                        foreach (KeyValuePair<PackedFileHeaderRecord.HeaderAttributes, char> symbol in PackedFileHeaderRecord.AttributeSymbolMapping)
+                        {
+                            attrs = attrs + ((file.Attributes & symbol.Key) != 0 ? new String(symbol.Value, 1) : "-");
+                        }
+
+                        const string TimeStampFormat = "s";
+
+                        Console.WriteLine(" {5,8} {0,-6} {1} {2} {3} {4}",
+                            FileSizeString(file.TotalFileLength),
+                            file.CreationTimeUtc.ToLocalTime().ToString(TimeStampFormat),
+                            file.LastWriteTimeUtc.ToLocalTime().ToString(TimeStampFormat),
+                            attrs,
+                            file.ArchivePath,
+                            ++index);
+                        if (file.Range != null)
+                        {
+                            Console.WriteLine("   {0}", file.Range);
+                        }
+                    }
+
+                    if (sourceFileList.Count > 1)
+                    {
+                        Console.WriteLine();
+                    }
                 }
             }
         }
 
+        private const string DynPackManifestName = "0";
+        private const string DynPackManifestNameOld = "-0";
+
         private const string DynPackFileExtension = ".dynpack";
-        private const string DynPackManifestExtension = ".0";
         private const string DynPackTempFileExtension = ".tmp";
 
-        private static readonly bool DynPackDiagnosticTrace = true;
-        private const string DynPackTraceFileTimestampTemplate = "dynpacktrace-{0:yyyy-MM-ddTHH-mm-ss}+{1}.log";
-        private static readonly bool DynPackDiagnosticManifestWindiff = true;
+        private const string DynPackTraceFilePrefix = "dynpacktrace";
+        private const string DynUnpackTraceFilePrefix = "dynunpacktrace";
         private const string DynPackManifestLogFileExtension = ".log";
         private const string DynPackManifestLogFileExtensionOld = ".previous.log";
 
@@ -10201,11 +11067,8 @@ namespace Backup
                         }
                         else
                         {
-                            if (DynPackDiagnosticTrace)
-                            {
-                                EraseStatusLine();
-                                Console.WriteLine("  SKIPPED FILE: {0}", file);
-                            }
+                            EraseStatusLine();
+                            Console.WriteLine("  SKIPPED FILE: {0}", file);
                         }
                     }
                 }
@@ -10227,11 +11090,8 @@ namespace Backup
                 }
                 else
                 {
-                    if (DynPackDiagnosticTrace)
-                    {
-                        EraseStatusLine();
-                        Console.WriteLine("  SKIPPED SUBDIRECTORY: {0}", subdirectory);
-                    }
+                    EraseStatusLine();
+                    Console.WriteLine("  SKIPPED SUBDIRECTORY: {0}", subdirectory);
                 }
             }
         }
@@ -10408,6 +11268,34 @@ namespace Backup
             return ss;
         }
 
+        private static bool FatalPromptContinue(ConcurrentTasks concurrent, ConcurrentMessageLog messagesLog, ConcurrentTasks.WaitIntervalMethod waitIntervalMethod, int waitInterval, ConcurrentMessageLog.PrepareConsoleMethod prepareConsole)
+        {
+            concurrent.Drain(waitIntervalMethod, waitInterval);
+            if (prepareConsole != null)
+            {
+                prepareConsole();
+            }
+            messagesLog.Flush();
+
+            ConsoleColor oldColor = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("q)uit or c)ontinue: ");
+            Console.ForegroundColor = oldColor;
+            while (true)
+            {
+                char key = WaitReadKey(false/*intercept*/);
+                Console.WriteLine();
+                if (key == 'q')
+                {
+                    return false;
+                }
+                else if (key == 'c')
+                {
+                    return true;
+                }
+            }
+        }
+
         internal static void DynamicPack(string source, string targetArchivePathTemplate, long segmentSizeTarget, Context context, string[] args)
         {
             const int WaitInterval = 2000; // milliseconds
@@ -10426,33 +11314,50 @@ namespace Backup
             // encryption padding & IV and potential compression overhead.
 
 
-            long? largeFileSegmentSize = null;
+            // options (and their defaults)
+            bool safe = true;
+            long? largeFileSegmentSize = segmentSizeTarget;
+            bool verifyNonDirtyMetadata = false;
+            string diagnosticPath = null;
+            bool windiff = false;
+
             {
-                bool split;
-                GetAdHocArgument(ref args, "-nosplitlargefiles", true/*default*/, false/*explicit*/, out split);
-                if (split)
+                bool parsed = true;
+                while (parsed && (args.Length > 0))
                 {
-                    largeFileSegmentSize = segmentSizeTarget;
+                    parsed = true;
+                    switch (args[0])
+                    {
+                        default:
+                            parsed = false;
+                            break;
+                        case "-nosplitlargefiles":
+                            {
+                                largeFileSegmentSize = null;
+
+                                bool split;
+                                GetAdHocArgument(ref args, "-nosplitlargefiles", true/*default*/, false/*explicit*/, out split);
+                                if (split)
+                                {
+                                    largeFileSegmentSize = segmentSizeTarget;
+                                }
+                            }
+                            break;
+                        case "-unsafe":
+                            GetAdHocArgument(ref args, "-unsafe", true/*default*/, false/*explicit*/, out safe);
+                            break;
+                        case "-verify":
+                            GetAdHocArgument(ref args, "-verify", false/*default*/, true/*explicit*/, out verifyNonDirtyMetadata);
+                            break;
+                        case "-logpath":
+                            GetAdHocArgument(ref args, "-logpath", null/*default*/, delegate(string s) { return s; }, out diagnosticPath);
+                            break;
+                        case "-windiff":
+                            GetAdHocArgument(ref args, "-windiff", false/*default*/, true/*explicit*/, out windiff);
+                            break;
+                    }
                 }
             }
-
-            bool safe;
-            GetAdHocArgument(ref args, "-unsafe", true/*default*/, false/*explicit*/, out safe);
-
-            bool verifyNonDirtyMetadata;
-            GetAdHocArgument(ref args, "-verify", false/*default*/, true/*explicit*/, out verifyNonDirtyMetadata);
-
-            bool generateHtml;
-            GetAdHocArgument(ref args, "-html", false/*default*/, true/*explicit*/, out generateHtml);
-
-            string diagnosticPath;
-            GetAdHocArgument(ref args, "-logpath", null/*default*/, delegate(string s) { return s; }, out diagnosticPath);
-
-            bool windiff;
-            GetAdHocArgument(ref args, "-windiff", false/*default*/, true/*explicit*/, out windiff);
-
-            bool zeroLengthDeletions; // makes eliminated segments zero-length files rather than removing them
-            GetAdHocArgument(ref args, "-zerodeletes", false/*default*/, true/*explicit*/, out zeroLengthDeletions);
 
             InvariantStringSet excludedExtensions;
             InvariantStringSet excludedItems;
@@ -10464,27 +11369,7 @@ namespace Backup
             }
 
 
-            TextWriter traceDynpack = null;
-            Stream traceDynpackStream = null;
-            if (DynPackDiagnosticTrace)
-            {
-                string traceDynpackPath;
-                while (traceDynpackStream == null)
-                {
-                    // use actual time, not context.now time, for the trace file name
-                    int i = new Random().Next();
-                    traceDynpackPath = Path.Combine(Path.GetTempPath(), String.Format(DynPackTraceFileTimestampTemplate, DateTime.Now, i));
-                    try
-                    {
-                        traceDynpackStream = new FileStream(traceDynpackPath, FileMode.Create, FileAccess.Write, FileShare.Read, 1/*smallest possible buffer*/);
-                    }
-                    catch (IOException)
-                    {
-                        // file in use - try another name
-                    }
-                }
-                traceDynpack = StreamWriter.Synchronized(new StreamWriter(traceDynpackStream, Encoding.UTF8, 1/*smallest possible buffer*/));
-            }
+            TextWriter traceDynpack = context.traceEnabled ? Logging.CreateLogFile(DynPackTraceFilePrefix) : null;
 
 
             // build current file list
@@ -10504,35 +11389,82 @@ namespace Backup
             }
 
             string targetArchiveFileNameTemplate;
-            using (IArchiveFileManager fileManager = GetArchiveFileManager(targetArchivePathTemplate, out targetArchiveFileNameTemplate, context))
+            bool remote;
+            using (IArchiveFileManager fileManager = GetArchiveFileManager(targetArchivePathTemplate, out targetArchiveFileNameTemplate, out remote, context))
             {
+                if (remote && (context.cryptoOption != EncryptionOption.Encrypt) && !context.overrideRemoteSecurityBlock)
+                {
+                    throw new ApplicationException("You have specified storage on a remote service without any encryption. This is regarded as insecure and dangerous and is blocked by default. If you really mean to do this (and if so we suggest you reconsider), use the -overridesecurityblock option to bypass this block.");
+                }
+
                 // Read old manifest (if any)
-                string manifestFileName = targetArchiveFileNameTemplate + DynPackManifestExtension + DynPackFileExtension;
+                //
+                // Note: there's a two-phase commit process that occurs with respect to the manifest
+                // throughout this code.
+                //  1. old segments incl. manifest are renamed, e.g. foo.0.dynpack --> foo.-0.dynpack
+                //  2. new files are generated
+                //  3. old files (foo.-*.dynpack) are deleted.
+                // Even if "!safe", the manifest will still be backed up to foo.-0.dynpack.
+                // This means if the code or system fails after backing up but before writing the new
+                // manifest, the next time the program is run, the old manifest (foo.-0.dynpack) can
+                // be loaded if the new file is missing.
                 List<SegmentRecord> segments = new List<SegmentRecord>();
                 List<FileRecord> previousFiles = new List<FileRecord>();
-                if (fileManager.Exists(manifestFileName, fileManager.GetMasterTrace()))
+                string manifestFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestName, DynPackFileExtension);
                 {
-                    Console.WriteLine("Reading: {0}", manifestFileName);
-
-                    Dictionary<string, SegmentRecord> segmentMap = new Dictionary<string, SegmentRecord>();
-
-                    using (ILocalFileCopy fileRef = fileManager.Read(manifestFileName, null/*progressTracker*/, fileManager.GetMasterTrace()))
+                    string manifestFileNameOld = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestNameOld, DynPackFileExtension);
+                    bool manifestFileNameExists = fileManager.Exists(manifestFileName, fileManager.GetMasterTrace());
+                    bool manifestFileNameOldExists = fileManager.Exists(manifestFileNameOld, fileManager.GetMasterTrace());
+                    if (manifestFileNameExists || manifestFileNameOldExists)
                     {
-                        using (Stream fileStream = fileRef.Read())
+                        string manifestFileNameActual = manifestFileName;
+                        Console.WriteLine("Reading: {0}", manifestFileName);
+                        if (!manifestFileNameExists)
                         {
-                            CryptoKeygroup keysManifest = null;
-                            EncryptedFileContainerHeader fchManifest = null;
-                            if (context.cryptoOption == EncryptionOption.Encrypt)
-                            {
-                                fchManifest = new EncryptedFileContainerHeader(fileStream, true/*peek*/, context.encrypt);
-                                context.encrypt.algorithm.DeriveSessionKeys(context.encrypt.GetMasterKeyEntry(fchManifest.passwordSalt, fchManifest.rfc2898Rounds).MasterKey, fchManifest.fileSalt, out keysManifest);
-                            }
+                            manifestFileNameActual = manifestFileNameOld;
+                            Console.WriteLine("Manifest file {0} does not exist, reading backup copy {1}", manifestFileName, manifestFileNameOld);
+                        }
 
-                            // Using Moxie Marlinspike's "doom principle": validate the MAC before ANY other
-                            // action is taken. (http://www.thoughtcrime.org/blog/the-cryptographic-doom-principle/)
-                            bool macValidated = false;
-                            if (!context.doNotPreValidateMAC && (context.cryptoOption != EncryptionOption.None))
+                        Dictionary<string, SegmentRecord> segmentMap = new Dictionary<string, SegmentRecord>();
+
+                        using (ILocalFileCopy fileRef = fileManager.Read(manifestFileNameActual, null/*progressTracker*/, fileManager.GetMasterTrace()))
+                        {
+                            using (Stream fileStream = fileRef.Read())
                             {
+                                CryptoKeygroup keysManifest = null;
+                                EncryptedFileContainerHeader fchManifest = null;
+                                if (context.cryptoOption == EncryptionOption.Encrypt)
+                                {
+                                    fchManifest = new EncryptedFileContainerHeader(fileStream, true/*peek*/, context.encrypt);
+                                    context.encrypt.algorithm.DeriveSessionKeys(context.encrypt.GetMasterKeyEntry(fchManifest.passwordSalt, fchManifest.rfc2898Rounds).MasterKey, fchManifest.fileSalt, out keysManifest);
+                                }
+
+                                // Using Moxie Marlinspike's "doom principle": validate the MAC before ANY other
+                                // action is taken. (http://www.thoughtcrime.org/blog/the-cryptographic-doom-principle/)
+                                bool macValidated = false;
+                                if (!context.doNotPreValidateMAC && (context.cryptoOption != EncryptionOption.None))
+                                {
+                                    DoWithStreamStack(
+                                        fileStream,
+                                        new StreamWrapMethod[]
+                                        {
+                                            delegate(Stream stream)
+                                            {
+                                                // see note and references about
+                                                // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
+                                                return new TaggedReadStream(stream, context.encrypt.algorithm.CreateMACGenerator(keysManifest.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                                            },
+                                        },
+                                        delegate(Stream stream)
+                                        {
+                                            ReadAndDiscardEntireStream(stream);
+                                        });
+
+                                    macValidated = true;
+                                }
+
+                                fileStream.Position = 0;
+
                                 DoWithStreamStack(
                                     fileStream,
                                     new StreamWrapMethod[]
@@ -10541,185 +11473,165 @@ namespace Backup
                                         {
                                             // see note and references about
                                             // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
-                                            return new TaggedReadStream(stream, context.encrypt.algorithm.CreateMACGenerator(keysManifest.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                                            if (context.cryptoOption == EncryptionOption.Encrypt)
+                                            {
+                                                if (!macValidated)
+                                                {
+                                                    return new TaggedReadStream(stream, context.encrypt.algorithm.CreateMACGenerator(keysManifest.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                                                }
+                                                else
+                                                {
+                                                    return new ReadStreamHoldShort(stream, context.encrypt.algorithm.MACLengthBytes);
+                                                }
+                                            }
+                                            return null;
                                         },
+                                        delegate(Stream stream)
+                                        {
+                                            if (context.cryptoOption == EncryptionOption.Encrypt)
+                                            {
+                                                // why re-read here? need to read salt within HMAC container
+                                                EncryptedFileContainerHeader fch2 = new EncryptedFileContainerHeader(stream, false/*peek*/, context.encrypt);
+                                                if (!fch2.Equals(fchManifest))
+                                                {
+                                                    throw new InvalidOperationException();
+                                                }
+                                            }
+                                            return null;
+                                        },
+                                        delegate(Stream stream)
+                                        {
+                                            if (context.cryptoOption == EncryptionOption.Encrypt)
+                                            {
+                                                return context.encrypt.algorithm.CreateDecryptStream(stream, keysManifest.CipherKey, keysManifest.InitialCounter);
+                                            }
+                                            return null;
+                                        },
+                                        delegate(Stream stream)
+                                        {
+                                            if (context.compressionOption == CompressionOption.Compress)
+                                            {
+                                                return new BlockedDecompressStream(stream);
+                                            }
+                                            return null;
+                                        },
+                                        delegate(Stream stream)
+                                        {
+                                            // total file CRC32 check value
+                                            return new TaggedReadStream(stream, new CRC32(), "File check values do not match - file is damaged");
+                                        }
                                     },
                                     delegate(Stream stream)
                                     {
-                                        ReadAndDiscardEntireStream(stream);
-                                    });
-
-                                macValidated = true;
-                            }
-
-                            fileStream.Seek(0, SeekOrigin.Begin);
-
-                            DoWithStreamStack(
-                                fileStream,
-                                new StreamWrapMethod[]
-                                {
-                                    delegate(Stream stream)
-                                    {
-                                        // see note and references about
-                                        // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
-                                        if (context.cryptoOption == EncryptionOption.Encrypt)
+                                        byte[] headerNumber = BinaryReadUtils.ReadBytes(stream, 1);
+                                        if (headerNumber[0] != PackArchiveFixedHeaderNumber)
                                         {
-                                            if (!macValidated)
+                                            throw new InvalidDataException(); // unrecognized format
+                                        }
+
+                                        randomArchiveSignature = BinaryReadUtils.ReadVariableLengthByteArray(stream);
+
+                                        segmentSerialNumbering = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
+
+                                        int structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+                                        if (structureType != PackArchiveStructureTypeManifest)
+                                        {
+                                            throw new InvalidDataException(); // must be manifest structure
+                                        }
+
+                                        FilePathItem.Factory pathFactory = new FilePathItem.Factory();
+                                        string currentSegmentName = null;
+                                        ulong currentSegmentSerialNumber = 0;
+                                        bool firstHeader = true;
+                                        bool firstHeaderWasSegment = false;
+                                        while (true)
+                                        {
+                                            byte[] startToken = BinaryReadUtils.ReadBytes(stream, PackedFileHeaderRecord.HeaderTokenLength);
+                                            if (!PackedFileHeaderRecord.ValidFileHeaderToken(startToken))
                                             {
-                                                return new TaggedReadStream(stream, context.encrypt.algorithm.CreateMACGenerator(keysManifest.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
+                                                throw new InvalidDataException("Unexpected value for start token");
+                                            }
+
+                                            PackedFileHeaderRecord header = PackedFileHeaderRecord.Read(stream, false/*strict*/, context.now);
+                                            if (header == PackedFileHeaderRecord.NullHeaderRecord)
+                                            {
+                                                break;
+                                            }
+
+                                            // if any segment headers exist (== manifest file), the first record in file must be one
+                                            if (firstHeader)
+                                            {
+                                                if (header.SegmentName != null)
+                                                {
+                                                    firstHeaderWasSegment = true;
+                                                }
                                             }
                                             else
                                             {
-                                                return new ReadStreamHoldShort(stream, context.encrypt.algorithm.MACLengthBytes);
+                                                if (!firstHeaderWasSegment && (header.SegmentName != null))
+                                                {
+                                                    throw new InvalidDataException();
+                                                }
                                             }
-                                        }
-                                        return null;
-                                    },
-                                    delegate(Stream stream)
-                                    {
-                                        if (context.cryptoOption == EncryptionOption.Encrypt)
-                                        {
-                                            // why re-read here? need to read salt within HMAC container
-                                            EncryptedFileContainerHeader fch2 = new EncryptedFileContainerHeader(stream, false/*peek*/, context.encrypt);
-                                            if (!fch2.Equals(fchManifest))
-                                            {
-                                                throw new InvalidOperationException();
-                                            }
-                                        }
-                                        return null;
-                                    },
-                                    delegate(Stream stream)
-                                    {
-                                        if (context.cryptoOption == EncryptionOption.Encrypt)
-                                        {
-                                            return context.encrypt.algorithm.CreateDecryptStream(stream, keysManifest.CipherKey, keysManifest.InitialCounter);
-                                        }
-                                        return null;
-                                    },
-                                    delegate(Stream stream)
-                                    {
-                                        if (context.compressionOption == CompressionOption.Compress)
-                                        {
-                                            return new BlockedDecompressStream(stream);
-                                        }
-                                        return null;
-                                    },
-                                    delegate(Stream stream)
-                                    {
-                                        // total file CRC32 check value
-                                        return new TaggedReadStream(stream, new CRC32(), "File check values do not match - file is damaged");
-                                    }
-                                },
-                                delegate(Stream stream)
-                                {
-                                    byte[] headerNumber = BinaryReadUtils.ReadBytes(stream, 1);
-                                    if (headerNumber[0] != PackArchiveFixedHeaderNumber)
-                                    {
-                                        throw new InvalidDataException(); // unrecognized format
-                                    }
+                                            firstHeader = false;
 
-                                    randomArchiveSignature = BinaryReadUtils.ReadVariableLengthByteArray(stream);
-
-                                    segmentSerialNumbering = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
-
-                                    int structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
-                                    if (structureType != PackArchiveStructureTypeManifest)
-                                    {
-                                        throw new InvalidDataException(); // must be manifest structure
-                                    }
-
-                                    FilePathItem.Factory pathFactory = new FilePathItem.Factory();
-                                    string currentSegmentName = null;
-                                    ulong currentSegmentSerialNumber = 0;
-                                    bool firstHeader = true;
-                                    bool firstHeaderWasSegment = false;
-                                    while (true)
-                                    {
-                                        byte[] startToken = BinaryReadUtils.ReadBytes(stream, PackedFileHeaderRecord.HeaderTokenLength);
-                                        if (!PackedFileHeaderRecord.ValidFileHeaderToken(startToken))
-                                        {
-                                            throw new InvalidDataException("Unexpected value for start token");
-                                        }
-
-                                        PackedFileHeaderRecord header = PackedFileHeaderRecord.Read(stream, false/*strict*/, context.now);
-                                        if (header == PackedFileHeaderRecord.NullHeaderRecord)
-                                        {
-                                            break;
-                                        }
-
-                                        // if any segment headers exist (== manifest file), the first record in file must be one
-                                        if (firstHeader)
-                                        {
+                                            // process segment header records differently
                                             if (header.SegmentName != null)
                                             {
-                                                firstHeaderWasSegment = true;
+                                                currentSegmentName = header.SegmentName;
+                                                currentSegmentSerialNumber = header.SegmentSerialNumber;
+
+                                                continue;
                                             }
-                                        }
-                                        else
-                                        {
-                                            if (!firstHeaderWasSegment && (header.SegmentName != null))
+
+                                            // normal file header record processing
+
+                                            // segment name and serial are written as a special header record.
+                                            // this is not exposed to caller; instead, each proper file record is
+                                            // annotated with the segment name and serial number.
+                                            header.SegmentName = currentSegmentName;
+                                            header.SegmentSerialNumber = currentSegmentSerialNumber;
+
+                                            const string ExpectedPathPrefix = @".\";
+                                            if (!header.Subpath.StartsWith(ExpectedPathPrefix))
                                             {
-                                                throw new InvalidDataException();
+                                                throw new InvalidDataException("Invalid relative path found in manifest");
                                             }
-                                        }
-                                        firstHeader = false;
 
-                                        // process segment header records differently
-                                        if (header.SegmentName != null)
-                                        {
-                                            currentSegmentName = header.SegmentName;
-                                            currentSegmentSerialNumber = header.SegmentSerialNumber;
+                                            // this code really ought to be folded in with "currentSegmentName"
+                                            // code above, but has been tested, so is left unchanged for now.
+                                            string segmentName = header.SegmentName;
+                                            if (segmentName == null)
+                                            {
+                                                throw new InvalidDataException("Missing segment name in manifest");
+                                            }
+                                            ulong segmentSerialNumber = header.SegmentSerialNumber;
+                                            if (segmentSerialNumber == 0)
+                                            {
+                                                throw new InvalidDataException("Segment serial number not initialized");
+                                            }
+                                            if (segmentSerialNumber >= segmentSerialNumbering)
+                                            {
+                                                throw new InvalidDataException("Invalid segment serial number");
+                                            }
+                                            SegmentRecord segment;
+                                            if (!segmentMap.TryGetValue(segmentName, out segment))
+                                            {
+                                                segment = new SegmentRecord(segmentName, segmentSerialNumber);
+                                                segments.Add(segment);
+                                                segmentMap.Add(segmentName, segment);
+                                            }
+                                            if (segment.SerialNumber != segmentSerialNumber)
+                                            {
+                                                throw new InvalidDataException("Segment serial number inconsistent");
+                                            }
 
-                                            continue;
-                                        }
-
-                                        // normal file header record processing
-
-                                        // segment name and serial are written as a special header record.
-                                        // this is not exposed to caller; instead, each proper file record is
-                                        // annotated with the segment name and serial number.
-                                        header.SegmentName = currentSegmentName;
-                                        header.SegmentSerialNumber = currentSegmentSerialNumber;
-
-                                        const string ExpectedPathPrefix = @".\";
-                                        if (!header.Subpath.StartsWith(ExpectedPathPrefix))
-                                        {
-                                            throw new InvalidDataException("Invalid relative path found in manifest");
-                                        }
-
-                                        // this code really ought to be folded in with "currentSegmentName"
-                                        // code above, but has been tested, so is left unchanged for now.
-                                        string segmentName = header.SegmentName;
-                                        if (segmentName == null)
-                                        {
-                                            throw new InvalidDataException("Missing segment name in manifest");
-                                        }
-                                        ulong segmentSerialNumber = header.SegmentSerialNumber;
-                                        if (segmentSerialNumber == 0)
-                                        {
-                                            throw new InvalidDataException("Segment serial number not initialized");
-                                        }
-                                        if (segmentSerialNumber >= segmentSerialNumbering)
-                                        {
-                                            throw new InvalidDataException("Invalid segment serial number");
-                                        }
-                                        SegmentRecord segment;
-                                        if (!segmentMap.TryGetValue(segmentName, out segment))
-                                        {
-                                            segment = new SegmentRecord(segmentName, segmentSerialNumber);
-                                            segments.Add(segment);
-                                            segmentMap.Add(segmentName, segment);
-                                        }
-                                        if (segment.SerialNumber != segmentSerialNumber)
-                                        {
-                                            throw new InvalidDataException("Segment serial number inconsistent");
+                                            previousFiles.Add(new FileRecord(segment, pathFactory.Create(header.Subpath), header.CreationTimeUtc, header.LastWriteTimeUtc, header.Attributes, header.EmbeddedStreamLength, header.Range));
                                         }
 
-                                        previousFiles.Add(new FileRecord(segment, pathFactory.Create(header.Subpath), header.CreationTimeUtc, header.LastWriteTimeUtc, header.Attributes, header.EmbeddedStreamLength, header.Range));
-                                    }
-
-                                    BinaryReadUtils.EnsureAtEOF(stream);
-                                });
+                                        BinaryReadUtils.RequireAtEOF(stream);
+                                    });
+                            }
                         }
                     }
                 }
@@ -11286,77 +12198,100 @@ namespace Backup
 
                 using (ConcurrentMessageLog messagesLog = new ConcurrentMessageLog(Interactive(), true/*enableSequencing*/))
                 {
-                    int threadCount;
-                    if (context.explicitConcurrency.HasValue)
-                    {
-                        threadCount = context.explicitConcurrency.Value;
-                    }
-                    else if (!(fileManager is LocalArchiveFileManager))
-                    {
-                        threadCount = Constants.ConcurrencyForNetworkBound;
-                    }
-                    else if ((context.cryptoOption != EncryptionOption.None)
-                        || (context.compressionOption != CompressionOption.None))
-                    {
-                        threadCount = Constants.ConcurrencyForComputeBound;
-                    }
-                    else
-                    {
-                        threadCount = Constants.ConcurrencyForDiskBound;
-                    }
-
-                    using (ConcurrentTasks concurrent = new ConcurrentTasks(threadCount, messagesLog, traceDynpack != null ? traceDynpack : fileManager.GetMasterTrace()))
+                    int threadCount = GetConcurrency(fileManager, context);
+                    using (ConcurrentTasks concurrent = new ConcurrentTasks(threadCount, 0, messagesLog, traceDynpack != null ? traceDynpack : fileManager.GetMasterTrace()))
                     {
                         bool fatal;
+                        bool abort = false;
 
 
                         // begin concurrent region
 
 
                         // remove abandoned temp files
+                        fatal = false;
                         {
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
-                            foreach (string nameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
+                            foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
+                                concurrent.WaitQueueEmpty();
+                                if (fatal)
+                                {
+                                    if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                                    {
+                                        abort = true;
+                                        break;
+                                    }
+                                    fatal = false;
+                                }
+
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
                                 // variable) in order to capture each value in the anonymous method.
                                 // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
-                                string name = nameEnum;
+                                string segmentFileName = segmentFileNameEnum;
 
-                                Debug.Assert(name.StartsWith(targetFileNamePrefix, StringComparison.OrdinalIgnoreCase));
+                                Debug.Assert(segmentFileName.StartsWith(targetFileNamePrefix, StringComparison.OrdinalIgnoreCase));
 
-                                if (name.EndsWith(DynPackTempFileExtension))
+                                if (segmentFileName.EndsWith(DynPackTempFileExtension))
                                 {
                                     long sequenceNumber = messagesLog.GetSequenceNumber();
                                     concurrent.Do(
-                                        String.Format("delete-tempfile:{0}", name),
+                                        String.Format("delete-tempfile:{0}", segmentFileName),
                                         delegate(ConcurrentTasks.ITaskContext taskContext)
                                         {
-                                            using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                            using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
                                             {
                                                 using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                 {
-                                                    messages.WriteLine("Deleting (old temporary file): {0}", name);
-                                                    fileManager.Delete(name, threadTraceFileManager);
+                                                    try
+                                                    {
+                                                        using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                        {
+                                                            messages.WriteLine("Deleting (old temporary file): {0}", segmentFileName);
+                                                            fileManager.Delete(segmentFileName, threadTraceFileManager);
+                                                        }
+                                                    }
+                                                    catch (Exception exception)
+                                                    {
+                                                        if (threadTraceDynPack != null)
+                                                        {
+                                                            threadTraceDynPack.WriteLine("Exception deleting {0}: {1}", segmentFileName, exception);
+                                                        }
+                                                        messages.WriteLine("Error deleting {0}: {1}", segmentFileName, exception.Message);
+
+                                                        fatal = true;
+                                                        throw;
+                                                    }
                                                 }
                                             }
-                                        },
-                                        false/*desireCompletionObject*/);
+                                        });
                                 }
 
                                 messagesLog.Flush();
                             }
                         }
 
+                        // state of "fatal" continues into this region
+
                         // verify integrity of non-dirty segments - note this validates metadata
                         // (i.e. the structure of the segment pack file) but DOES NOT verify content
                         // of each file.
-                        fatal = false;
-                        int badSegments = 0; // multi-threaded: use Interlocked for this
+                        List<string> badSegments = new List<string>(); // multi-threaded: lock this!
                         if (verifyNonDirtyMetadata)
                         {
-                            for (int iEnum = 0; !fatal && (iEnum < segments.Count); iEnum++)
+                            for (int iEnum = 0; iEnum < segments.Count; iEnum++)
                             {
+                                concurrent.WaitQueueEmpty();
+                                if (fatal)
+                                {
+                                    if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                                    {
+                                        abort = true;
+                                        break;
+                                    }
+                                    fatal = false;
+                                }
+
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
                                 // variable) in order to capture each value in the anonymous method.
                                 // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
@@ -11389,20 +12324,17 @@ namespace Backup
 
                                                         using (ILocalFileCopy fileRef = fileManager.Read(segmentFileName, null/*progressTracker*/, threadTraceFileManager))
                                                         {
-                                                            Context unpackContext = new Context();
-                                                            if (context.compressionOption == CompressionOption.Compress)
+                                                            Context unpackContext = new Context(context);
+                                                            if (unpackContext.compressionOption == CompressionOption.Compress)
                                                             {
                                                                 unpackContext.compressionOption = CompressionOption.Decompress;
                                                             }
-                                                            if (context.cryptoOption == EncryptionOption.Encrypt)
+                                                            if (unpackContext.cryptoOption == EncryptionOption.Encrypt)
                                                             {
                                                                 unpackContext.cryptoOption = EncryptionOption.Decrypt;
-                                                                unpackContext.decrypt = context.encrypt;
+                                                                unpackContext.decrypt = unpackContext.encrypt;
+                                                                unpackContext.encrypt = null;
                                                             }
-                                                            unpackContext.doNotPreValidateMAC = context.doNotPreValidateMAC;
-                                                            unpackContext.dirsOnly = context.dirsOnly;
-                                                            unpackContext.continueOnAccessDenied = context.continueOnAccessDenied;
-                                                            unpackContext.refreshTokenPath = context.refreshTokenPath;
                                                             ulong segmentSerialNumber = 0;
                                                             byte[] segmentRandomArchiveSignature = new byte[0];
                                                             UnpackedFileRecord[] archiveFiles = null;
@@ -11410,7 +12342,9 @@ namespace Backup
                                                             {
                                                                 using (Stream segmentStream = fileRef.Read())
                                                                 {
-                                                                    archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.ParseOnly, out segmentSerialNumber, out segmentRandomArchiveSignature);
+                                                                    ApplicationException[] deferredExceptions;
+                                                                    archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, out deferredExceptions);
+                                                                    Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                                                                 }
                                                             }
                                                             catch (Exception exception)
@@ -11419,13 +12353,9 @@ namespace Backup
 
                                                                 if (traceDynpack != null)
                                                                 {
-                                                                    traceDynpack.WriteLine("Segment corrupt, could not be read: {0}", exception.ToString());
+                                                                    traceDynpack.WriteLine("Segment corrupt, could not be read: {0}", exception);
                                                                 }
-                                                                messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (segment corrupt, could not be read): {1}", segment.Name, exception.ToString());
-                                                                if (context.beepEnabled)
-                                                                {
-                                                                    Console.Beep(440, 500);
-                                                                }
+                                                                messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (segment corrupt, could not be read): {1}", segment.Name, exception);
                                                             }
 
                                                             if (!ArrayEqual(segmentRandomArchiveSignature, randomArchiveSignature))
@@ -11437,10 +12367,6 @@ namespace Backup
                                                                     traceDynpack.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", HexEncode(randomArchiveSignature), HexEncode(segmentRandomArchiveSignature));
                                                                 }
                                                                 messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
-                                                                if (context.beepEnabled)
-                                                                {
-                                                                    Console.Beep(440, 500);
-                                                                }
                                                             }
 
                                                             if (segmentSerialNumber != segment.SerialNumber)
@@ -11452,10 +12378,6 @@ namespace Backup
                                                                     traceDynpack.WriteLine("Segment serial number mismatch: manfest-ref={0}, actual={1}", segment.SerialNumber, segmentSerialNumber);
                                                                 }
                                                                 messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
-                                                                if (context.beepEnabled)
-                                                                {
-                                                                    Console.Beep(440, 500);
-                                                                }
                                                             }
 
                                                             if (archiveFiles != null)
@@ -11471,10 +12393,6 @@ namespace Backup
                                                                         traceDynpack.WriteLine("Length mismatch: {0}, {1}", segmentLength, archiveFiles.Length);
                                                                     }
                                                                     messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (length mismatch): {1}", segment.Name, segmentFileName);
-                                                                    if (context.beepEnabled)
-                                                                    {
-                                                                        Console.Beep(440, 500);
-                                                                    }
                                                                 }
 
                                                                 bool stop = false;
@@ -11490,10 +12408,6 @@ namespace Backup
                                                                             traceDynpack.WriteLine("File added or removed: {0} : {1}", archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
                                                                         }
                                                                         messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file added or removed): {1} : {2}", segment.Name, archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
-                                                                        if (context.beepEnabled)
-                                                                        {
-                                                                            Console.Beep(440, 500);
-                                                                        }
                                                                     }
                                                                     else if ((archiveFiles[j].EmbeddedStreamLength != mergedFiles[j + segmentStart].EmbeddedStreamLength) ||
                                                                         (archiveFiles[j].CreationTimeUtc != mergedFiles[j + segmentStart].CreationTimeUtc) ||
@@ -11506,17 +12420,13 @@ namespace Backup
                                                                             traceDynpack.WriteLine("File different: {0}", archiveFiles[j].ArchivePath);
                                                                         }
                                                                         messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file different): {1}", segment.Name, archiveFiles[j].ArchivePath);
-                                                                        if (context.beepEnabled)
-                                                                        {
-                                                                            Console.Beep(440, 500);
-                                                                        }
                                                                         break;
                                                                     }
                                                                 }
                                                                 if (invalid)
                                                                 {
                                                                     segment.Dirty.Set();
-                                                                    // dirty segment will be removed in following pass
+                                                                    // dirty segment will be removed in subsequent pass
 
                                                                     try
                                                                     {
@@ -11531,6 +12441,10 @@ namespace Backup
                                                                     }
                                                                     catch (IOException exception)
                                                                     {
+                                                                        if (threadTraceDynPack != null)
+                                                                        {
+                                                                            threadTraceDynPack.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
+                                                                        }
                                                                         messages.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
                                                                         uint hr = (uint)Marshal.GetHRForException(exception);
                                                                         if (hr != 0x80070070/*out of disk space*/)
@@ -11538,20 +12452,23 @@ namespace Backup
                                                                             fatal = true;
                                                                             throw;
                                                                         }
+                                                                        // running out of disk space saving the invalid segment was regarded as non-fatal
                                                                     }
                                                                 }
                                                             }
 
                                                             if (invalid)
                                                             {
-                                                                Interlocked.Increment(ref badSegments);
+                                                                lock (badSegments)
+                                                                {
+                                                                    badSegments.Add(segmentFileName);
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
-                                        },
-                                        false/*desireCompletionObject*/);
+                                        });
                                 }
 
                                 messagesLog.Flush();
@@ -11565,7 +12482,10 @@ namespace Backup
                         messagesLog.Flush();
                         if (fatal)
                         {
-                            throw new ApplicationException("Unable to continue after last error");
+                            if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                            {
+                                throw new ApplicationException("Unable to continue after last error");
+                            }
                         }
 
                         // Assign new serial numbers for dirty segments
@@ -11578,67 +12498,96 @@ namespace Backup
                             }
                         }
 
-                        // Backup (or remove if !safe) dirty segments, and
+                        // Backup (or remove if !safe) dirty segments
                         fatal = false;
-                        foreach (SegmentRecord segmentEnum in segments)
                         {
-                            // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
-                            // variable) in order to capture each value in the anonymous method.
-                            // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
-                            SegmentRecord segment = segmentEnum;
-
-                            if (segment.Dirty.Value)
+                            List<string> namesToBackupOrRemove = new List<string>(segments.Count + 1);
+                            namesToBackupOrRemove.Add(DynPackManifestName);
+                            foreach (SegmentRecord segment in segments)
                             {
+                                if (segment.Dirty.Value)
+                                {
+                                    namesToBackupOrRemove.Add(segment.Name);
+                                }
+                            }
+                            foreach (string nameEnum in namesToBackupOrRemove)
+                            {
+                                concurrent.WaitQueueEmpty();
+                                if (fatal)
+                                {
+                                    if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                                    {
+                                        abort = true;
+                                        break;
+                                    }
+                                    fatal = false;
+                                }
+
+                                // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
+                                // variable) in order to capture each value in the anonymous method.
+                                // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
+                                string name = nameEnum;
+
                                 long sequenceNumber = messagesLog.GetSequenceNumber();
                                 concurrent.Do(
-                                    String.Format("preserve-old-segment:{0}", segment.Name),
+                                    String.Format("rename-old-segment:{0}", name),
                                     delegate(ConcurrentTasks.ITaskContext taskContext)
                                     {
-                                        try
+                                        string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", name, DynPackFileExtension);
+                                        string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".-", name, DynPackFileExtension);
+
+                                        using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
                                         {
-                                            using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                            using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                             {
-                                                using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
+                                                try
                                                 {
-                                                    string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
-                                                    string segmentBackupFileName = targetArchiveFileNameTemplate + ".-" + segment.Name + DynPackFileExtension;
-
-                                                    if (fileManager.Exists(segmentFileName, threadTraceFileManager))
+                                                    using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
                                                     {
-                                                        if (safe && !fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
+                                                        if (fileManager.Exists(segmentFileName, threadTraceFileManager))
                                                         {
-                                                            messages.WriteLine("Renaming (segment dirty): {0} to {1}", segmentFileName, segmentBackupFileName);
-                                                            fileManager.Rename(segmentFileName, segmentBackupFileName, threadTraceFileManager);
-                                                        }
-                                                        else
-                                                        {
-                                                            messages.WriteLine("Deleting (segment dirty): {0}", segmentFileName);
-                                                            fileManager.Delete(segmentFileName, threadTraceFileManager);
-                                                        }
+                                                            bool manifest = name.Equals(DynPackManifestName);
 
-                                                        // for zero-deletions mode, ensure zero-length copy of actual file exists
-                                                        // (will be overwritten later when this segment is eventually written)
-                                                        if (zeroLengthDeletions)
-                                                        {
-                                                            using (ILocalFileCopy fileRef = fileManager.WriteTemp(segmentFileName, threadTraceFileManager))
+                                                            // Always back up manifest. Back up segments if "safe"
+                                                            // But only back up if no backup exists. Otherwise, retain the older backup files
+                                                            // so that the backup is a consistent picture. They will be cleared when a
+                                                            // run finally completes. (Which means delete the "newer" to keep the backup.)
+                                                            if ((!manifest && !safe) || fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
                                                             {
-                                                                fileManager.Commit(fileRef, segmentFileName, segmentFileName, false/*overwrite*/, null/*progressTracker*/, threadTraceFileManager);
+                                                                messages.WriteLine("Deleting (segment dirty): {0}", segmentFileName);
+                                                                fileManager.Delete(segmentFileName, threadTraceFileManager);
+                                                            }
+                                                            else
+                                                            {
+                                                                messages.WriteLine("Renaming (segment dirty): {0} to {1}", segmentFileName, segmentBackupFileName);
+                                                                fileManager.Rename(segmentFileName, segmentBackupFileName, threadTraceFileManager);
                                                             }
                                                         }
                                                     }
                                                 }
+                                                catch (Exception exception)
+                                                {
+                                                    if (threadTraceDynPack != null)
+                                                    {
+                                                        threadTraceDynPack.WriteLine("Exception renaming or deleting old segment {0}{1}: {2}", segmentFileName, segmentBackupFileName != null ? " to " + segmentBackupFileName : String.Empty, exception);
+                                                    }
+                                                    messages.WriteLine("Error renaming/deleting {0}: {1}", segmentFileName, exception.Message);
+
+                                                    // Failure is fatal because it interferes with the integrity of backup
+                                                    // files. If process were allowed to continue and files overwritten, the
+                                                    // archive could be inconsistent (e.g. if old segments are not removed or
+                                                    // renamed but new manifest is written, then program fails before writing
+                                                    // new versions of the segments - old segment will remain while manifest
+                                                    // will claim it is the new one, resulting in serial number inconsistency)
+                                                    fatal = true;
+                                                    throw;
+                                                }
                                             }
                                         }
-                                        catch (Exception)
-                                        {
-                                            fatal = true;
-                                            throw;
-                                        }
-                                    },
-                                    false/*desireCompletionObject*/);
-                            }
+                                    });
 
-                            messagesLog.Flush();
+                                messagesLog.Flush();
+                            }
                         }
 
                         // Drain all rename/delete of old segment files so that uploads can be
@@ -11648,7 +12597,10 @@ namespace Backup
                         messagesLog.Flush();
                         if (fatal)
                         {
-                            throw new ApplicationException("Unable to continue after last error");
+                            if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                            {
+                                throw new ApplicationException("Unable to continue after last error");
+                            }
                         }
 
 
@@ -11682,7 +12634,7 @@ namespace Backup
                         // these tasks are done synchronously since they represent a small fraction of
                         // run time for a large job.
                         {
-                            if (DynPackDiagnosticManifestWindiff && (diagnosticPath != null))
+                            if (diagnosticPath != null)
                             {
                                 string newDiagnosticFile = Path.Combine(diagnosticPath, manifestFileName + DynPackManifestLogFileExtension);
                                 string oldDiagnosticFile = Path.Combine(diagnosticPath, manifestFileName + DynPackManifestLogFileExtensionOld);
@@ -11744,9 +12696,13 @@ namespace Backup
                                     if (verifyNonDirtyMetadata)
                                     {
                                         writer.WriteLine("[Non-dirty segment verification enabled]");
-                                        if (badSegments != 0)
+                                        if (badSegments.Count != 0)
                                         {
-                                            writer.WriteLine("{0} BAD SEGMENTS DETECTED DURING VERIFICATION", badSegments);
+                                            writer.WriteLine("{0} BAD SEGMENTS DETECTED DURING VERIFICATION:", badSegments.Count);
+                                            foreach (string badSegment in badSegments)
+                                            {
+                                                writer.WriteLine("  {1}", badSegment);
+                                            }
                                         }
                                     }
                                     else
@@ -11782,64 +12738,7 @@ namespace Backup
 
                                 if (windiff && File.Exists(newDiagnosticFile) && File.Exists(oldDiagnosticFile))
                                 {
-                                    try
-                                    {
-                                        using (Process scriptCmd = new Process())
-                                        {
-                                            scriptCmd.StartInfo.Arguments = String.Format("\"{0}\" \"{1}\"", oldDiagnosticFile, newDiagnosticFile);
-                                            scriptCmd.StartInfo.CreateNoWindow = true;
-                                            scriptCmd.StartInfo.FileName = "windiff.exe";
-                                            scriptCmd.StartInfo.RedirectStandardOutput = true;
-                                            scriptCmd.StartInfo.UseShellExecute = false;
-                                            scriptCmd.StartInfo.WorkingDirectory = Path.GetTempPath();
-                                            scriptCmd.Start();
-                                            //scriptCmd.WaitForExit();
-                                        }
-                                    }
-                                    catch (Exception exception)
-                                    {
-                                        Console.WriteLine("WINDIFF FAILED: {0}", exception.Message);
-                                    }
-                                }
-                            }
-
-
-                            // write html "manifest" - intended for scenarios where archive is uploaded to
-                            // website, to allow easier finding and downloading of each segment.
-                            // DEPRECATED - must be enabled by option
-                            if (generateHtml)
-                            {
-                                string htmlManifestFileName = manifestFileName + ".html";
-                                string htmlTempManifestFileName = manifestFileName + DynPackTempFileExtension;
-                                if (traceDynpack != null)
-                                {
-                                    traceDynpack.WriteLine("Writing: {0}", htmlManifestFileName);
-                                }
-                                Console.WriteLine("Writing: {0}", htmlManifestFileName);
-                                using (ILocalFileCopy fileRef = fileManager.WriteTemp(htmlTempManifestFileName, fileManager.GetMasterTrace()))
-                                {
-                                    using (Stream tempHtmlManifestStream = fileRef.Write())
-                                    {
-                                        using (TextWriter writer = new StreamWriter(tempHtmlManifestStream))
-                                        {
-                                            writer.WriteLine("<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">");
-                                            writer.WriteLine("<html xmlns=\"http://www.w3.org/1999/xhtml\">");
-                                            writer.WriteLine("<head>");
-                                            writer.WriteLine("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf8\">");
-                                            writer.WriteLine("</head>");
-                                            writer.WriteLine("<body>");
-                                            const string ItemTemplate = "<div><a href=\"{0}\">{0}</a></div>";
-                                            writer.WriteLine(ItemTemplate, manifestFileName);
-                                            foreach (SegmentRecord segment in segments)
-                                            {
-                                                string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
-                                                writer.WriteLine(ItemTemplate, segmentFileName);
-                                            }
-                                            writer.WriteLine("</body>");
-                                            writer.WriteLine("</html>");
-                                        }
-                                    }
-                                    fileManager.Commit(fileRef, htmlTempManifestFileName, htmlManifestFileName, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
+                                    Windiff(oldDiagnosticFile, newDiagnosticFile, false/*waitForExit*/);
                                 }
                             }
 
@@ -11850,7 +12749,7 @@ namespace Backup
                                 traceDynpack.WriteLine("Writing: {0}", manifestFileName);
                             }
                             Console.WriteLine("Writing: {0}", manifestFileName);
-                            string manifestTempFileName = targetArchiveFileNameTemplate + DynPackManifestExtension + DynPackTempFileExtension;
+                            string manifestTempFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestName, DynPackTempFileExtension);
                             using (ILocalFileCopy fileRef = fileManager.WriteTemp(manifestTempFileName, fileManager.GetMasterTrace()))
                             {
                                 using (Stream fileStream = fileRef.Write())
@@ -11939,13 +12838,14 @@ namespace Backup
                                             PackedFileHeaderRecord.WriteNullHeader(stream);
                                         });
                                 }
+
                                 fileManager.Commit(fileRef, manifestTempFileName, manifestFileName, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
                             }
                         }
 
 
                         List<ProgressTracker> progressTrackers = new List<ProgressTracker>(); // Use lock() on this!
-                        int maxProgressTrackers = 0;
+                        int maxStatusLines = 0;
                         bool progressVisible = false;
                         DateTime lastProgressUpdate = default(DateTime);
                         ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
@@ -11956,17 +12856,21 @@ namespace Backup
                                 {
                                     if (progressVisible)
                                     {
-                                        for (int i = 0; i < maxProgressTrackers; i++)
+                                        for (int i = 0; i < maxStatusLines; i++)
                                         {
                                             Console.WriteLine(new String(' ', Math.Max(0, Console.BufferWidth - 1)));
                                         }
-                                        Console.CursorTop -= maxProgressTrackers;
+                                        Console.CursorTop -= maxStatusLines;
 
                                         progressVisible = false;
                                         lastProgressUpdate = default(DateTime);
                                     }
                                 }
                             }
+                        };
+                        ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
+                        {
+                            eraseProgress();
                         };
                         ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
                         {
@@ -11975,7 +12879,7 @@ namespace Backup
                                 traceDynpack.Flush();
                             }
 
-                            messagesLog.Flush(delegate() { eraseProgress(); });
+                            messagesLog.Flush(prepareConsole);
 
                             if (Interactive())
                             {
@@ -11983,31 +12887,41 @@ namespace Backup
                                 {
                                     lock (progressTrackers)
                                     {
+                                        List<string> lines = new List<string>();
+
+                                        if (fatal)
+                                        {
+                                            lines.Add("  [fatal error pending]");
+                                        }
+
                                         ProgressTracker[] progressTrackers2 = progressTrackers.ToArray();
                                         Array.Sort(progressTrackers2, delegate(ProgressTracker l, ProgressTracker r) { return l.Tag.CompareTo(r.Tag); });
-                                        maxProgressTrackers = Math.Max(maxProgressTrackers, progressTrackers.Count);
-                                        for (int i = 0; i < maxProgressTrackers; i++)
+                                        for (int i = 0; i < progressTrackers.Count; i++)
                                         {
-                                            string line = String.Empty;
-                                            if (i < progressTrackers.Count)
+                                            ProgressTracker progressTracker = progressTrackers2[i];
+                                            string progress;
+                                            if (progressTracker.Total >= 0)
                                             {
-                                                ProgressTracker progressTracker = progressTrackers2[i];
-                                                string progress;
-                                                if (progressTracker.Total >= 0)
-                                                {
-                                                    progress = String.Format("{0}% of {1}", progressTracker.Current * 100 / progressTracker.Total, FileSizeString(progressTracker.Total));
-                                                }
-                                                else
-                                                {
-                                                    progress = "creating";
-                                                }
-                                                line = String.Format("  [{0}: {1}]", progressTracker.Tag, progress);
+                                                progress = String.Format("{0}% of {1}", progressTracker.Current * 100 / progressTracker.Total, FileSizeString(progressTracker.Total));
                                             }
-                                            line = line + new String(' ', Math.Max(0, Console.BufferWidth - 1 - line.Length));
-                                            Console.WriteLine(line);
+                                            else
+                                            {
+                                                progress = "creating";
+                                            }
+                                            lines.Add(String.Format("  [{0}: {1}]", progressTracker.Tag, progress));
                                         }
-                                        Console.CursorTop -= maxProgressTrackers;
 
+                                        while (lines.Count < maxStatusLines)
+                                        {
+                                            lines.Add(String.Empty);
+                                        }
+                                        maxStatusLines = lines.Count;
+
+                                        foreach (string line in lines)
+                                        {
+                                            Console.WriteLine(line + new String(' ', Math.Max(0, Console.BufferWidth - 1 - line.Length)));
+                                        }
+                                        Console.CursorTop -= lines.Count;
                                         progressVisible = true;
                                     }
 
@@ -12019,9 +12933,24 @@ namespace Backup
 
                         // Archive modified segments (concurrently)
                         long sharedSequenceNumber = messagesLog.GetSequenceNumber();
-                        fatal = false;
-                        for (int iEnum = 0; !fatal && (iEnum < segments.Count); iEnum++)
+                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sharedSequenceNumber))
                         {
+                            // ensure this shared sequence number is used at least once.
+                        }
+                        fatal = false;
+                        for (int iEnum = 0; iEnum < segments.Count; iEnum++)
+                        {
+                            concurrent.WaitQueueEmpty(showProgress, WaitInterval);
+                            if (fatal)
+                            {
+                                if (abort || !FatalPromptContinue(concurrent, messagesLog, showProgress, WaitInterval, prepareConsole))
+                                {
+                                    abort = true;
+                                    break;
+                                }
+                                fatal = false;
+                            }
+
                             // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
                             // variable) in order to capture each value in the anonymous method.
                             // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
@@ -12060,169 +12989,157 @@ namespace Backup
                                                             progressTrackers.Add(progressTracker);
                                                         }
 
-                                                        bool succeeded = false;
-                                                        using (ILocalFileCopy fileRef = fileManager.WriteTemp(segmentTempFileName, threadTraceFileManager))
+                                                        try
                                                         {
-                                                            try
+                                                            bool succeeded = false;
+                                                            using (ILocalFileCopy fileRef = fileManager.WriteTemp(segmentTempFileName, threadTraceFileManager))
                                                             {
-                                                                if (threadTraceDynPack != null)
+                                                                try
                                                                 {
-                                                                    threadTraceDynPack.WriteLine("Writing: {0}", segmentFileName);
-                                                                }
-                                                                using (Stream fileStream = fileRef.Write())
-                                                                {
-                                                                    // reserve estimated file size now, to reduce file system fragmentation
-                                                                    try
+                                                                    if (threadTraceDynPack != null)
                                                                     {
-                                                                        long estimatedSegmentSize = segmentSizeTarget;
-                                                                        int start = segment.start.Value;
-                                                                        int end = (i + 1 < segments.Count) ? segments[i + 1].start.Value : mergedFiles.Count;
-                                                                        int count = end - start;
-                                                                        if (count == 1)
-                                                                        {
-                                                                            if (estimatedSegmentSize < mergedFiles[start].EmbeddedStreamLength)
-                                                                            {
-                                                                                estimatedSegmentSize = mergedFiles[start].EmbeddedStreamLength;
-                                                                            }
-                                                                        }
-                                                                        fileStream.SetLength(estimatedSegmentSize);
+                                                                        threadTraceDynPack.WriteLine("Writing: {0}", segmentFileName);
                                                                     }
-                                                                    catch (IOException)
+                                                                    using (Stream fileStream = fileRef.Write())
                                                                     {
-                                                                    }
-
-                                                                    CryptoKeygroup keys = null;
-                                                                    EncryptedFileContainerHeader fch = null;
-                                                                    if (context.cryptoOption == EncryptionOption.Encrypt)
-                                                                    {
-                                                                        CryptoMasterKeyCacheEntry entry = context.encrypt.GetDefaultMasterKeyEntry();
-                                                                        fch = new EncryptedFileContainerHeader(context.encrypt);
-                                                                        fch.passwordSalt = entry.PasswordSalt;
-                                                                        context.encrypt.algorithm.DeriveNewSessionKeys(entry.MasterKey, out fch.fileSalt, out keys);
-                                                                    }
-
-                                                                    DoWithStreamStack(
-                                                                        fileStream,
-                                                                        new StreamWrapMethod[]
+                                                                        // reserve estimated file size now, to reduce file system fragmentation
+                                                                        try
                                                                         {
-                                                                            delegate(Stream stream)
-                                                                            {
-                                                                                // see note and references about
-                                                                                // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
-                                                                                if (context.cryptoOption == EncryptionOption.Encrypt)
-                                                                                {
-                                                                                    return new TaggedWriteStream(stream, context.encrypt.algorithm.CreateMACGenerator(keys.SigningKey));
-                                                                                }
-                                                                                return null;
-                                                                            },
-                                                                            delegate(Stream stream)
-                                                                            {
-                                                                                if (context.cryptoOption == EncryptionOption.Encrypt)
-                                                                                {
-                                                                                    // why write here? need to write salt within HMAC container
-                                                                                    fch.Write(stream);
-                                                                                }
-                                                                                return null;
-                                                                            },
-                                                                            delegate(Stream stream)
-                                                                            {
-                                                                                if (context.cryptoOption == EncryptionOption.Encrypt)
-                                                                                {
-                                                                                    return context.encrypt.algorithm.CreateEncryptStream(stream, keys.CipherKey, keys.InitialCounter);
-                                                                                }
-                                                                                return null;
-                                                                            },
-                                                                            delegate(Stream stream)
-                                                                            {
-                                                                                if (context.compressionOption == CompressionOption.Compress)
-                                                                                {
-                                                                                    return new BlockedCompressStream(stream);
-                                                                                }
-                                                                                return null;
-                                                                            },
-                                                                            delegate(Stream stream)
-                                                                            {
-                                                                                // total file CRC32 check value
-                                                                                return new TaggedWriteStream(stream, new CRC32());
-                                                                            }
-                                                                        },
-                                                                        delegate(Stream stream)
-                                                                        {
-                                                                            BinaryWriteUtils.WriteBytes(stream, new byte[1] { PackArchiveFixedHeaderNumber });
-
-                                                                            BinaryWriteUtils.WriteVariableLengthByteArray(stream, randomArchiveSignature);
-
-                                                                            BinaryWriteUtils.WriteVariableLengthQuantity(stream, segment.SerialNumber);
-
-                                                                            BinaryWriteUtils.WriteVariableLengthQuantity(stream, PackArchiveStructureTypeFiles);
-
+                                                                            long estimatedSegmentSize = segmentSizeTarget;
                                                                             int start = segment.start.Value;
                                                                             int end = (i + 1 < segments.Count) ? segments[i + 1].start.Value : mergedFiles.Count;
                                                                             int count = end - start;
-                                                                            for (int j = 0; j < count; j++)
+                                                                            if (count == 1)
                                                                             {
-                                                                                const string NoOpPrefix = ".\\";
-                                                                                string fullPath = mergedFiles[j + start].PartialPath.ToString();
-                                                                                if (fullPath.StartsWith(NoOpPrefix))
+                                                                                if (estimatedSegmentSize < mergedFiles[start].EmbeddedStreamLength)
                                                                                 {
-                                                                                    // remove .\ from path because Path.Combine() doesn't do it,
-                                                                                    // and a path that is exactly the maximum length will become
-                                                                                    // too long as a result.
-                                                                                    fullPath = fullPath.Substring(NoOpPrefix.Length);
+                                                                                    estimatedSegmentSize = mergedFiles[start].EmbeddedStreamLength;
                                                                                 }
-                                                                                fullPath = Path.Combine(source, fullPath);
-                                                                                PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, context);
                                                                             }
+                                                                            fileStream.SetLength(estimatedSegmentSize);
+                                                                        }
+                                                                        catch (IOException)
+                                                                        {
+                                                                        }
 
-                                                                            PackedFileHeaderRecord.WriteNullHeader(stream);
-                                                                        });
+                                                                        CryptoKeygroup keys = null;
+                                                                        EncryptedFileContainerHeader fch = null;
+                                                                        if (context.cryptoOption == EncryptionOption.Encrypt)
+                                                                        {
+                                                                            CryptoMasterKeyCacheEntry entry = context.encrypt.GetDefaultMasterKeyEntry();
+                                                                            fch = new EncryptedFileContainerHeader(context.encrypt);
+                                                                            fch.passwordSalt = entry.PasswordSalt;
+                                                                            context.encrypt.algorithm.DeriveNewSessionKeys(entry.MasterKey, out fch.fileSalt, out keys);
+                                                                        }
 
-                                                                    // remove any reserved space that turned out to be unneeded
-                                                                    if (fileStream.Position < fileStream.Length)
-                                                                    {
-                                                                        fileStream.SetLength(fileStream.Position);
+                                                                        DoWithStreamStack(
+                                                                            fileStream,
+                                                                            new StreamWrapMethod[]
+                                                                            {
+                                                                                delegate(Stream stream)
+                                                                                {
+                                                                                    // see note and references about
+                                                                                    // "Colin Percival, 2009, advocates encryption (CTR mode) followed by appending an HMAC of encrypted text"
+                                                                                    if (context.cryptoOption == EncryptionOption.Encrypt)
+                                                                                    {
+                                                                                        return new TaggedWriteStream(stream, context.encrypt.algorithm.CreateMACGenerator(keys.SigningKey));
+                                                                                    }
+                                                                                    return null;
+                                                                                },
+                                                                                delegate(Stream stream)
+                                                                                {
+                                                                                    if (context.cryptoOption == EncryptionOption.Encrypt)
+                                                                                    {
+                                                                                        // why write here? need to write salt within HMAC container
+                                                                                        fch.Write(stream);
+                                                                                    }
+                                                                                    return null;
+                                                                                },
+                                                                                delegate(Stream stream)
+                                                                                {
+                                                                                    if (context.cryptoOption == EncryptionOption.Encrypt)
+                                                                                    {
+                                                                                        return context.encrypt.algorithm.CreateEncryptStream(stream, keys.CipherKey, keys.InitialCounter);
+                                                                                    }
+                                                                                    return null;
+                                                                                },
+                                                                                delegate(Stream stream)
+                                                                                {
+                                                                                    if (context.compressionOption == CompressionOption.Compress)
+                                                                                    {
+                                                                                        return new BlockedCompressStream(stream);
+                                                                                    }
+                                                                                    return null;
+                                                                                },
+                                                                                delegate(Stream stream)
+                                                                                {
+                                                                                    // total file CRC32 check value
+                                                                                    return new TaggedWriteStream(stream, new CRC32());
+                                                                                }
+                                                                            },
+                                                                            delegate(Stream stream)
+                                                                            {
+                                                                                BinaryWriteUtils.WriteBytes(stream, new byte[1] { PackArchiveFixedHeaderNumber });
+
+                                                                                BinaryWriteUtils.WriteVariableLengthByteArray(stream, randomArchiveSignature);
+
+                                                                                BinaryWriteUtils.WriteVariableLengthQuantity(stream, segment.SerialNumber);
+
+                                                                                BinaryWriteUtils.WriteVariableLengthQuantity(stream, PackArchiveStructureTypeFiles);
+
+                                                                                int start = segment.start.Value;
+                                                                                int end = (i + 1 < segments.Count) ? segments[i + 1].start.Value : mergedFiles.Count;
+                                                                                int count = end - start;
+                                                                                for (int j = 0; j < count; j++)
+                                                                                {
+                                                                                    const string NoOpPrefix = ".\\";
+                                                                                    string fullPath = mergedFiles[j + start].PartialPath.ToString();
+                                                                                    if (fullPath.StartsWith(NoOpPrefix))
+                                                                                    {
+                                                                                        // remove .\ from path because Path.Combine() doesn't do it,
+                                                                                        // and a path that is exactly the maximum length will become
+                                                                                        // too long as a result.
+                                                                                        fullPath = fullPath.Substring(NoOpPrefix.Length);
+                                                                                    }
+                                                                                    fullPath = Path.Combine(source, fullPath);
+                                                                                    PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount > 0/*enableRetry*/, context);
+                                                                                }
+
+                                                                                PackedFileHeaderRecord.WriteNullHeader(stream);
+                                                                            });
+
+                                                                        // remove any reserved space that turned out to be unneeded
+                                                                        if (fileStream.Position < fileStream.Length)
+                                                                        {
+                                                                            fileStream.SetLength(fileStream.Position);
+                                                                        }
+
+                                                                        succeeded = true;
                                                                     }
-
-                                                                    succeeded = true;
+                                                                }
+                                                                finally
+                                                                {
+                                                                    if (!succeeded)
+                                                                    {
+                                                                        fileManager.Abandon(fileRef, segmentTempFileName, threadTraceFileManager);
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        fileManager.Commit(fileRef, segmentTempFileName, segmentFileName, false/*overwrite*/, progressTracker, threadTraceFileManager);
+                                                                    }
                                                                 }
                                                             }
-                                                            catch (Exception exception)
+                                                        }
+                                                        catch (Exception exception)
+                                                        {
+                                                            if (threadTraceDynPack != null)
                                                             {
-                                                                if (threadTraceDynPack != null)
-                                                                {
-                                                                    threadTraceDynPack.WriteLine("exception: {0}", exception);
-                                                                }
-                                                                messages.WriteLine("Error: {0}", exception.Message);
+                                                                threadTraceDynPack.WriteLine("Exception archiving {0}: {1}", segmentFileName, exception);
+                                                            }
+                                                            messages.WriteLine("Error archiving {0}: {1}", segmentFileName, exception.Message);
 
-                                                                fatal = true; // TODO: for now - want smarter recovery
-#if false // TODO: figure out how to do recovery
-                                                                Console.Write("q)uit or c)ontinue: ");
-                                                                while (true)
-                                                                {
-                                                                    char key = WaitReadKey(false/*intercept*/);
-                                                                    Console.WriteLine();
-                                                                    if (key == 'q')
-                                                                    {
-                                                                        throw;
-                                                                    }
-                                                                    else if (key == 'c')
-                                                                    {
-                                                                        break;
-                                                                    }
-                                                                }
-#endif
-                                                            }
-                                                            finally
-                                                            {
-                                                                if (!succeeded)
-                                                                {
-                                                                    fileManager.Abandon(fileRef, segmentTempFileName, threadTraceFileManager);
-                                                                }
-                                                                else
-                                                                {
-                                                                    fileManager.Commit(fileRef, segmentTempFileName, segmentFileName, false/*overwrite*/, progressTracker, threadTraceFileManager);
-                                                                }
-                                                            }
+                                                            fatal = true;
+                                                            throw;
                                                         }
                                                     }
                                                 }
@@ -12240,20 +13157,23 @@ namespace Backup
                                         }
                                     },
                                     showProgress,
-                                    WaitInterval,
-                                    false/*desireCompletionObject*/);
+                                    WaitInterval);
                             }
 
-                            messagesLog.Flush(delegate() { eraseProgress(); });
+                            messagesLog.Flush(prepareConsole);
                             showProgress();
                         }
 
-                        // Finish creating (or upload) segments
+                        // Finish creating (or uploading) segments
                         concurrent.Drain(showProgress, WaitInterval);
-                        messagesLog.Flush(delegate() { eraseProgress(); });
+                        messagesLog.Flush(prepareConsole);
+                        eraseProgress();
                         if (fatal)
                         {
-                            throw new ApplicationException("Unable to continue after last error");
+                            if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                            {
+                                throw new ApplicationException("Unable to continue after last error");
+                            }
                         }
 
 
@@ -12261,58 +13181,64 @@ namespace Backup
                         fatal = false;
                         {
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
-                            foreach (string nameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
+                            foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
+                                concurrent.WaitQueueEmpty(showProgress, WaitInterval);
                                 if (fatal)
                                 {
-                                    break;
+                                    if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                                    {
+                                        abort = true;
+                                        break;
+                                    }
+                                    fatal = false;
                                 }
 
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
                                 // variable) in order to capture each value in the anonymous method.
                                 // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
-                                string name = nameEnum;
+                                string segmentFileName = segmentFileNameEnum;
 
-                                Debug.Assert(name.StartsWith(targetFileNamePrefix, StringComparison.OrdinalIgnoreCase));
+                                Debug.Assert(segmentFileName.StartsWith(targetFileNamePrefix, StringComparison.OrdinalIgnoreCase));
 
-                                string suffix = name.Substring(targetFileNamePrefix.Length);
+                                string suffix = segmentFileName.Substring(targetFileNamePrefix.Length);
                                 if (suffix.EndsWith(DynPackFileExtension))
                                 {
                                     suffix = suffix.Substring(0, suffix.Length - DynPackFileExtension.Length);
-                                    if (("." + suffix != DynPackManifestExtension) &&
-                                        (null == segments.Find(delegate(SegmentRecord a) { return a.Name == suffix; })))
+                                    if ((suffix != DynPackManifestName)
+                                        && (null == segments.Find(delegate(SegmentRecord a) { return a.Name == suffix; })))
                                     {
                                         long sequenceNumber = messagesLog.GetSequenceNumber();
                                         concurrent.Do(
-                                            String.Format("cleanup:{0}", name),
+                                            String.Format("cleanup:{0}", segmentFileName),
                                             delegate(ConcurrentTasks.ITaskContext taskContext)
                                             {
-                                                using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
+                                                using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
                                                 {
-                                                    messages.WriteLine("Deleting ({0} file): {1}", suffix.StartsWith("-") ? "backup" : "unreferenced", name);
-                                                    try
+                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                     {
-                                                        using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                        messages.WriteLine("Deleting ({0} file): {1}", suffix.StartsWith("-") ? "backup" : "unreferenced", segmentFileName);
+                                                        try
                                                         {
-                                                            fileManager.Delete(name, threadTraceFileManager);
-                                                            if (zeroLengthDeletions && !suffix.StartsWith("-"))
+                                                            using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
                                                             {
-                                                                using (ILocalFileCopy fileRef = fileManager.WriteTemp(name, threadTraceFileManager))
-                                                                {
-                                                                    fileManager.Commit(fileRef, name, name, false/*overwrite*/, null/*progressTracker*/, threadTraceFileManager);
-                                                                }
+                                                                fileManager.Delete(segmentFileName, threadTraceFileManager);
                                                             }
                                                         }
-                                                    }
-                                                    catch (Exception exception)
-                                                    {
-                                                        messages.WriteLine("Exception deleting {0}: {1}", name, exception);
-                                                        fatal = true;
-                                                        throw;
+                                                        catch (Exception exception)
+                                                        {
+                                                            if (threadTraceDynPack != null)
+                                                            {
+                                                                threadTraceDynPack.WriteLine("Exception deleting {0}: {1}", segmentFileName, exception);
+                                                            }
+                                                            messages.WriteLine("Exception deleting {0}: {1}", segmentFileName, exception);
+
+                                                            fatal = true;
+                                                            throw;
+                                                        }
                                                     }
                                                 }
-                                            },
-                                            false/*desireCompletionObject*/);
+                                            });
                                     }
                                 }
 
@@ -12325,7 +13251,11 @@ namespace Backup
                         messagesLog.Flush();
                         if (fatal)
                         {
-                            throw new ApplicationException("Unable to continue after last error");
+                            if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
+                            {
+                                throw new ApplicationException("Unable to continue after last error");
+                            }
+                            fatal = false;
                         }
 
 
@@ -12337,17 +13267,36 @@ namespace Backup
             if (traceDynpack != null)
             {
                 traceDynpack.Dispose();
-                traceDynpackStream.Dispose();
-#if false
-                File.SetCreationTime(tracePathDynPack, context.now);
-                File.SetLastWriteTime(tracePathDynPack, context.now);
-#endif
             }
 
             Console.WriteLine();
         }
 
-        private static IArchiveFileManager GetArchiveFileManager(string archivePathTemplate, out string archiveFileNameTemplate, Context context)
+        private static int GetConcurrency(IArchiveFileManager fileManager, Context context)
+        {
+            int threadCount;
+            if (context.explicitConcurrency.HasValue)
+            {
+                threadCount = context.explicitConcurrency.Value;
+            }
+            else
+            {
+                threadCount = Constants.ConcurrencyForDiskBound;
+                if (!(fileManager is LocalArchiveFileManager))
+                {
+                    threadCount = Math.Max(threadCount, Constants.ConcurrencyForNetworkBound);
+                }
+                if ((context.cryptoOption != EncryptionOption.None)
+                    || (context.compressionOption != CompressionOption.None))
+                {
+                    threadCount = Math.Max(threadCount, Constants.ConcurrencyForComputeBound);
+                }
+            }
+            WebMethodsBase.EnsureConcurrency(threadCount);
+            return threadCount;
+        }
+
+        private static IArchiveFileManager GetArchiveFileManager(string archivePathTemplate, out string archiveFileNameTemplate, out bool remote, Context context)
         {
             archiveFileNameTemplate = null;
 
@@ -12361,7 +13310,8 @@ namespace Backup
                     {
                         int lastSlash = uri.PathAndQuery.LastIndexOf('/');
                         archiveFileNameTemplate = uri.PathAndQuery.Substring(lastSlash + 1);
-                        return new RemoteArchiveFileManager(uri.Scheme + "://" + uri.Host, uri.PathAndQuery.Substring(0, lastSlash), context.refreshTokenPath, context);
+                        remote = true;
+                        return new RemoteArchiveFileManager(uri.Scheme + "://" + uri.Host, uri.PathAndQuery.Substring(0, lastSlash), context.refreshTokenProtected, context);
                     }
                     catch (NotSupportedException)
                     {
@@ -12373,11 +13323,13 @@ namespace Backup
             // else fall through to local filesystem manager
 
             archiveFileNameTemplate = Path.GetFileName(archivePathTemplate);
+            remote = false;
             return new LocalArchiveFileManager(context, Path.GetDirectoryName(Path.IsPathRooted(archivePathTemplate) ? archivePathTemplate : Path.Combine(Environment.CurrentDirectory, archivePathTemplate)));
         }
 
         private class LocalArchiveFileManager : IArchiveFileManager
         {
+            // all members should be threadsafe, read-only, or protected with lock() in class code
             private Context context;
             private string root;
             private Dictionary<string, DateTime> stickyCreationTimestamps = new Dictionary<string, DateTime>();
@@ -12421,11 +13373,14 @@ namespace Backup
 
             private void RememberTimestamps(string name)
             {
-                if (!stickyCreationTimestamps.ContainsKey(name))
+                lock (stickyCreationTimestamps)
                 {
-                    string path = Path.Combine(root, name);
-                    DateTime creationTime = File.GetCreationTime(path);
-                    stickyCreationTimestamps.Add(name, creationTime);
+                    if (!stickyCreationTimestamps.ContainsKey(name))
+                    {
+                        string path = Path.Combine(root, name);
+                        DateTime creationTime = File.GetCreationTime(path);
+                        stickyCreationTimestamps.Add(name, creationTime);
+                    }
                 }
             }
 
@@ -12435,9 +13390,12 @@ namespace Backup
 
                 File.SetLastWriteTime(path, context.now);
                 DateTime created;
-                if (!stickyCreationTimestamps.TryGetValue(name, out created))
+                lock (stickyCreationTimestamps)
                 {
-                    created = context.now;
+                    if (!stickyCreationTimestamps.TryGetValue(name, out created))
+                    {
+                        created = context.now;
+                    }
                 }
                 File.SetCreationTime(path, created);
             }
@@ -12458,9 +13416,54 @@ namespace Backup
                     File.Delete(pathTemp);
                 }
 
-                LocalFileCopy localCopy = new LocalFileCopy(pathTemp, true/*writable*/, false/*delete*/);
-                uncommittedLocalTempFiles.Add(nameTemp, localCopy);
-                return localCopy.AddRef();
+                using (LocalFileCopy localCopy = new LocalFileCopy(pathTemp, true/*writable*/, false/*delete*/))
+                {
+                    // refcount == 1, owned by using()
+
+                    lock (uncommittedLocalTempFiles)
+                    {
+                        // Could throw if nameTemp is already used
+                        uncommittedLocalTempFiles.Add(nameTemp, localCopy);
+                        localCopy.AddRef(); // refcount++ for uncommittedLocalTempFiles's reference
+                    }
+
+                    return localCopy.AddRef(); // refcount++ for callee's using() reference
+                }
+            }
+
+            public ILocalFileCopy GetTempExisting(string localPath, string nameTemp, TextWriter trace)
+            {
+                CheckSimpleName(nameTemp);
+                string pathTemp = Path.Combine(root, nameTemp);
+
+                using (Stream tempStream = new FileStream(pathTemp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    using (Stream localStream = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        tempStream.SetLength(localStream.Length);
+
+                        byte[] buffer = new byte[Constants.BufferSize];
+                        int read;
+                        while ((read = localStream.Read(buffer, 0, buffer.Length)) != 0)
+                        {
+                            tempStream.Write(buffer, 0, read);
+                        }
+                    }
+                }
+
+                using (LocalFileCopy localCopy = new LocalFileCopy(pathTemp, false/*writable*/, false/*delete*/))
+                {
+                    // refcount == 1, owned by using()
+
+                    lock (uncommittedLocalTempFiles)
+                    {
+                        // Could throw if nameTemp is already used
+                        uncommittedLocalTempFiles.Add(nameTemp, localCopy);
+                        localCopy.AddRef(); // refcount++ for uncommittedLocalTempFiles's reference
+                    }
+
+                    return localCopy.AddRef(); // refcount++ for callee's using() reference
+                }
             }
 
             public void Commit(ILocalFileCopy localFile, string nameTemp, string name, bool overwrite, ProgressTracker progressTracker, TextWriter trace)
@@ -12486,25 +13489,32 @@ namespace Backup
                 }
 
                 LocalFileCopy uncommitted;
-                if (!uncommittedLocalTempFiles.TryGetValue(nameTemp, out uncommitted)
-                    || (uncommitted != localFile))
+                lock (uncommittedLocalTempFiles)
                 {
-                    throw new InvalidOperationException();
-                }
-                uncommittedLocalTempFiles.Remove(nameTemp);
-                uncommitted.Vacate(); // give up ownership - file will survive program termination
-
-                if (!name.Equals(nameTemp))
-                {
-                    if (Exists(name, trace))
+                    if (!uncommittedLocalTempFiles.TryGetValue(nameTemp, out uncommitted)
+                        || (uncommitted != localFile))
                     {
-                        Delete(name, trace); // use our version - records creation timestamp
+                        throw new InvalidOperationException();
                     }
 
-                    File.Move(pathTemp, path);
+                    uncommittedLocalTempFiles.Remove(nameTemp); // transfer ownership to using()
                 }
+                using (uncommitted) // refcount-- at end of scope
+                {
 
-                EnsureTimestamps(name);
+                    if (!name.Equals(nameTemp))
+                    {
+                        if (Exists(name, trace))
+                        {
+                            Delete(name, trace); // use our version - records creation timestamp
+                        }
+
+                        uncommitted.Vacate(); // give up ownership - file will survive program termination
+                        File.Move(pathTemp, path); // move file to final permanent location
+                    }
+
+                    EnsureTimestamps(name);
+                }
             }
 
             public void Abandon(ILocalFileCopy localFile, string nameTemp, TextWriter trace)
@@ -12518,12 +13528,15 @@ namespace Backup
                 }
 
                 LocalFileCopy uncommitted;
-                if (!uncommittedLocalTempFiles.TryGetValue(nameTemp, out uncommitted)
-                    || (uncommitted != localFile))
+                lock (uncommittedLocalTempFiles)
                 {
-                    throw new InvalidOperationException();
+                    if (!uncommittedLocalTempFiles.TryGetValue(nameTemp, out uncommitted)
+                        || (uncommitted != localFile))
+                    {
+                        throw new InvalidOperationException();
+                    }
+                    uncommittedLocalTempFiles.Remove(nameTemp);
                 }
-                uncommittedLocalTempFiles.Remove(nameTemp);
                 uncommitted.Release();
 
                 File.Delete(pathTemp);
@@ -12539,10 +13552,13 @@ namespace Backup
                     throw new FileNotFoundException(name);
                 }
 
-                if (!stickyCreationTimestamps.ContainsKey(name))
+                lock (stickyCreationTimestamps)
                 {
-                    DateTime creationTime = File.GetCreationTime(path);
-                    stickyCreationTimestamps.Add(name, creationTime);
+                    if (!stickyCreationTimestamps.ContainsKey(name))
+                    {
+                        DateTime creationTime = File.GetCreationTime(path);
+                        stickyCreationTimestamps.Add(name, creationTime);
+                    }
                 }
 
                 File.Delete(path);
@@ -12556,7 +13572,8 @@ namespace Backup
             public bool Exists(string name, TextWriter trace)
             {
                 CheckSimpleName(name);
-                return File.Exists(Path.Combine(root, name));
+                string path = Path.Combine(root, name);
+                return File.Exists(path) || Directory.Exists(path);
             }
 
             public void Rename(string oldName, string newName, TextWriter trace)
@@ -12575,7 +13592,15 @@ namespace Backup
 
             public string[] GetFileNames(string prefix, TextWriter trace)
             {
-                Debug.Assert(prefix.IndexOfAny(new char[] { '*', '?' }) < 0);
+                if (prefix == null)
+                {
+                    prefix = String.Empty;
+                }
+                if (FileNamePatternMatch.ContainsWildcards(prefix))
+                {
+                    throw new ArgumentException();
+                }
+
                 string[] files = Directory.GetFileSystemEntries(root, prefix + "*");
                 for (int i = 0; i < files.Length; i++)
                 {
@@ -12601,61 +13626,178 @@ namespace Backup
                 size = File.Exists(path) ? GetFileLength(path) : -1;
             }
 
+            public void GetFileInfo(string name, out bool directory, TextWriter trace)
+            {
+                string id;
+                DateTime created, modified;
+                long size;
+                GetFileInfo(name, out id, out directory, out created, out modified, out size, trace);
+            }
+
+            public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace)
+            {
+                quotaTotal = Int64.MaxValue;
+                quotaUsed = 0;
+            }
+
             public TextWriter GetMasterTrace() // TextWriter is threadsafe; remains owned - do not Dispose()
             {
                 return null;
             }
         }
 
-        internal static void DynamicUnpack(string manifestPrefix, string targetDirectory, Context context)
+        private struct DynUnpackJournalEntry
         {
-            if ((context.cryptoOption != EncryptionOption.None) && !context.doNotPreValidateMAC)
+            public readonly string segmentName;
+            public readonly ulong segmentSerialNumber;
+
+            public DynUnpackJournalEntry(string segmentName, ulong segmentSerialNumber)
             {
-                ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.ParseOnly);
-                // throws ExitCodeException()
+                this.segmentName = segmentName;
+                this.segmentSerialNumber = segmentSerialNumber;
             }
 
-            ValidateOrUnpackDynamicInternal(manifestPrefix, targetDirectory, context, UnpackMode.ParseAndUnpack);
-            // throws ExitCodeException()
+            public DynUnpackJournalEntry(string line)
+            {
+                string[] parts = line.Split(new char[] { '(', ',', ')' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length != 2)
+                {
+                    throw new InvalidDataException();
+                }
+                this.segmentName = parts[0];
+                this.segmentSerialNumber = UInt64.Parse(parts[1]);
+            }
+
+            public void WriteLine(TextWriter writer)
+            {
+                writer.WriteLine("({0}, {1})", segmentName, segmentSerialNumber);
+            }
         }
 
-        internal static void ValidateDynamicPack(string manifestPrefix, Context context)
+        internal static void ValidateOrUnpackDynamicInternal(string archivePathTemplate, string targetDirectory, Context context, UnpackMode mode, string journalPath)
         {
-            ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.ParseOnly);
-            // throws ExitCodeException()
-        }
-
-        internal static void ValidateOrUnpackDynamicInternal(string archivePathTemplate, string targetDirectory, Context context, UnpackMode mode)
-        {
+            bool fatal = false;
             OneWaySwitch invalid = new OneWaySwitch();
+            ConcurrentTasks.CompletionObject[] completionTable = null;
 
-            const string ExpectedManifestExtension = DynPackManifestExtension + DynPackFileExtension;
+            const string ExpectedManifestExtension = "." + DynPackManifestName + DynPackFileExtension;
             string manifestPath = archivePathTemplate + ExpectedManifestExtension;
+
+            Dictionary<string, DynUnpackJournalEntry> journal = new Dictionary<string, DynUnpackJournalEntry>();
+            ulong journalManifestSerialNumber = 0;
+            byte[] journalRandomArchiveSignature = null;
+            if ((mode & UnpackMode.Resume) == UnpackMode.Resume)
+            {
+                if (File.Exists(journalPath))
+                {
+                    using (TextReader reader = new StreamReader(journalPath, Encoding.UTF8))
+                    {
+                        string line;
+
+                        line = reader.ReadLine();
+                        if (line != null)
+                        {
+                            journalRandomArchiveSignature = HexDecode(line);
+                        }
+
+                        line = reader.ReadLine();
+                        if (line != null)
+                        {
+                            journalManifestSerialNumber = UInt64.Parse(line);
+                        }
+
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            try
+                            {
+                                DynUnpackJournalEntry journalEntry = new DynUnpackJournalEntry(line);
+                                journal.Add(journalEntry.segmentName, journalEntry);
+                            }
+                            catch (Exception)
+                            {
+                                // ignore improperly formatted entries - file may have been truncated
+                                Console.WriteLine("Journal: ignoring improperly formatted entry");
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (File.Exists(journalPath))
+                {
+                    throw new UsageException("Journal already exists, but -resume not specified");
+                }
+            }
+
+            TextWriter traceDynunpack = context.traceEnabled ? Logging.CreateLogFile(DynUnpackTraceFilePrefix) : null;
 
             string archiveFileNameTemplate;
             string manifestFileName = Path.GetFileName(manifestPath);
-            using (IArchiveFileManager fileManager = GetArchiveFileManager(archivePathTemplate, out archiveFileNameTemplate, context))
+            bool remote;
+            using (IArchiveFileManager fileManager = GetArchiveFileManager(archivePathTemplate, out archiveFileNameTemplate, out remote, context))
             {
+                string targetFileNamePrefix = archiveFileNameTemplate + ".";
+
+
+                Dictionary<ulong, bool> usedMapping = new Dictionary<ulong, bool>(); // use lock() on this!
+
+
                 if (!fileManager.Exists(manifestFileName, fileManager.GetMasterTrace()))
                 {
                     Console.WriteLine("Manifest file \"{0}\" could not be found", manifestFileName);
                     throw new UsageException();
                 }
 
+
+                // read manifest
                 ulong manifestSerialNumber;
                 byte[] randomArchiveSignature;
                 UnpackedFileRecord[] manifestFileList;
+                Console.WriteLine("Reading {0}", manifestFileName);
                 using (ILocalFileCopy fileRef = fileManager.Read(manifestFileName, null/*progressTracker*/, fileManager.GetMasterTrace()))
                 {
                     using (Stream manifestStream = fileRef.Read())
                     {
-                        manifestFileList = UnpackInternal(manifestStream, targetDirectory, context, UnpackMode.ParseOnly, out manifestSerialNumber, out randomArchiveSignature);
+                        ApplicationException[] deferredExceptions;
+                        manifestFileList = UnpackInternal(manifestStream, targetDirectory, context, UnpackMode.Parse, out manifestSerialNumber, out randomArchiveSignature, traceDynunpack, out deferredExceptions);
+                        Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                     }
                 }
 
-                // process manifest
+                if (journalRandomArchiveSignature != null)
+                {
+                    if (!ArrayEqual(journalRandomArchiveSignature, randomArchiveSignature))
+                    {
+                        throw new UsageException("Journal appears to be for a different archive.");
+                    }
+
+                    if (journalManifestSerialNumber != manifestSerialNumber)
+                    {
+                        ConsoleWriteLineColor("Journal was generated with older version of manifest. Updated segments will be re-unpacked. Files that were extracted from previous version and do not exist in new version may be left behind on disk. Continue? [y/n]", ConsoleColor.Yellow);
+                        while (true)
+                        {
+                            char key = WaitReadKey(false/*intercept*/);
+                            Console.WriteLine();
+                            if (key == 'y')
+                            {
+                                break;
+                            }
+                            else if (key == 'n')
+                            {
+                                throw new ApplicationException("The user cancelled the operation");
+                            }
+                        }
+                    }
+                }
+
+                journalRandomArchiveSignature = null;
+                journalManifestSerialNumber = 0;
+
+
+                // process manifest contents
                 Dictionary<string, ulong> serialNumberMapping = new Dictionary<string, ulong>();
-                Dictionary<ulong, bool> usedMapping = new Dictionary<ulong, bool>();
+                List<string> segmentNameList = new List<string>();
                 foreach (UnpackedFileRecord file in manifestFileList)
                 {
                     string segmentName = file.SegmentName;
@@ -12664,7 +13806,7 @@ namespace Backup
                     {
                         ConsoleWriteLineColor(String.Format("Manifest segment {0}: serial number {1} is invalid", segmentName, segmentSerialNumber), ConsoleColor.Yellow);
                         invalid.Set();
-                        if (mode == UnpackMode.ParseAndUnpack)
+                        if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                         {
                             goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
                         }
@@ -12676,7 +13818,7 @@ namespace Backup
                         {
                             ConsoleWriteLineColor(String.Format("Manifest segment {0}: wrong serial number (is {1}, should be {2})", segmentName, segmentSerialNumber, expectedSerialNumber), ConsoleColor.Yellow);
                             invalid.Set();
-                            if (mode == UnpackMode.ParseAndUnpack)
+                            if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                             {
                                 goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
                             }
@@ -12686,127 +13828,675 @@ namespace Backup
                     {
                         serialNumberMapping.Add(segmentName, segmentSerialNumber);
                         usedMapping.Add(segmentSerialNumber, false);
+                        segmentNameList.Add(segmentName);
+
+                        DynUnpackJournalEntry journalEntry;
+                        if (journal.TryGetValue(segmentName, out journalEntry))
+                        {
+                            if (journalEntry.segmentSerialNumber != segmentSerialNumber)
+                            {
+                                Console.WriteLine("Journal: segment {0} changed since last run", segmentName);
+                                journal.Remove(segmentName);
+                            }
+                        }
                     }
+                }
+
+                Dictionary<string, string> dependencyGraph = new Dictionary<string, string>();
+                Dictionary<string, int> completionIndexTable = new Dictionary<string, int>();
+                {
+                    int completionCounter = 0;
+                    if (traceDynunpack != null)
+                    {
+                        traceDynunpack.WriteLine("Dependency graph (for ranged segment serialization):");
+                    }
+                    for (int i = 1; i < manifestFileList.Length; i++)
+                    {
+                        if ((manifestFileList[i].Range != null)
+                            && String.Equals(manifestFileList[i].FullPath, manifestFileList[i - 1].FullPath)
+                            && (manifestFileList[i].SegmentSerialNumber != manifestFileList[i - 1].SegmentSerialNumber))
+                        {
+                            dependencyGraph.Add(manifestFileList[i].SegmentName, manifestFileList[i - 1].SegmentName);
+                            completionIndexTable.Add(manifestFileList[i - 1].SegmentName, completionCounter);
+                            if (traceDynunpack != null)
+                            {
+                                traceDynunpack.WriteLine("{0} --> {1} (completion-index={2})", manifestFileList[i].SegmentName, manifestFileList[i - 1].SegmentName, completionCounter);
+                            }
+                            completionCounter++;
+                        }
+                    }
+                    if (traceDynunpack != null)
+                    {
+                        traceDynunpack.WriteLine();
+                    }
+                    completionTable = new ConcurrentTasks.CompletionObject[completionCounter];
                 }
 
                 manifestFileList = null;
 
-                // process files
-                Directory.CreateDirectory(targetDirectory);
-                string targetFileNamePrefix = archiveFileNameTemplate + ".";
-                foreach (string name in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
+                if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                 {
-                    if (String.Equals(name, manifestFileName, StringComparison.OrdinalIgnoreCase)
-                        || !name.EndsWith(DynPackFileExtension, StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
+                    Directory.CreateDirectory(targetDirectory);
+                }
 
-                    string segmentName = name.Substring(targetFileNamePrefix.Length, name.Length - targetFileNamePrefix.Length - DynPackFileExtension.Length);
 
-                    ulong segmentSerialNumber = 0;
-                    byte[] segmentRandomArchiveSignature;
-                    UnpackedFileRecord[] segmentFileList = null;
-                    try
+                // enumerate invalid files
+                foreach (string segmentFileName in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
+                {
+                    string name = segmentFileName.Substring(targetFileNamePrefix.Length, segmentFileName.Length - targetFileNamePrefix.Length - DynPackFileExtension.Length);
+
+                    bool manifest = String.Equals(segmentFileName, manifestFileName, StringComparison.OrdinalIgnoreCase);
+                    bool eligible = !manifest
+                        && segmentFileName.EndsWith(DynPackFileExtension, StringComparison.OrdinalIgnoreCase);
+
+                    if (!eligible && !manifest)
                     {
-                        if (mode == UnpackMode.ParseAndUnpack)
+                        if (traceDynunpack != null)
                         {
-                            Console.WriteLine("Unpacking {0}:", name);
-                        }
-                        TextWriter threadTraceFileManager = fileManager.GetMasterTrace(); // TODO switch fileManager.GetMasterTrace() to local when concurrency added
-                        using (ILocalFileCopy fileRef = fileManager.Read(name, null/*progressTracker*/, threadTraceFileManager))
-                        {
-                            using (Stream segmentStream = fileRef.Read())
-                            {
-                                segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, mode, out segmentSerialNumber, out segmentRandomArchiveSignature);
-                            }
+                            traceDynunpack.WriteLine("skipping {0} - invalid extension", segmentFileName);
                         }
                     }
-                    catch (Exception exception)
-                    {
-                        if (!(exception is TaggedReadStream.TagInvalidException)
-                           && !(exception is InvalidDataException))
-                        {
-                            throw;
-                        }
 
-                        ConsoleWriteLineColor(String.Format("Segment {0}: {1}", segmentName, exception.Message), ConsoleColor.Yellow);
+                    bool member = serialNumberMapping.ContainsKey(name);
+                    if (eligible && !member && !manifest)
+                    {
+                        if (traceDynunpack != null)
+                        {
+                            traceDynunpack.WriteLine("Validation error: {0} not a member of this archive", segmentFileName);
+                        }
+                        ConsoleWriteLineColor(String.Format("Error: {0} is not a member of this archive", segmentFileName), ConsoleColor.Yellow);
+
+                        // it is considered a validation error (because someone could "unpack *") but continue
+                        // to look for other errors or proceed with unpack (this method won't unpack extraneous
+                        // files such as this one).
                         invalid.Set();
-                        if (mode == UnpackMode.ParseAndUnpack)
-                        {
-                            goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
-                        }
-                        // do nothing further with cryptographically inauthentic segments
-                        continue;
-                    }
-
-                    if (!ArrayEqual(segmentRandomArchiveSignature, randomArchiveSignature))
-                    {
-                        ConsoleWriteLineColor(String.Format("Segment {0}: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!", segmentName), ConsoleColor.Yellow);
-                        invalid.Set();
-                        if (mode == UnpackMode.ParseAndUnpack)
-                        {
-                            goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
-                        }
-                    }
-
-                    if ((segmentSerialNumber == 0) || (segmentSerialNumber >= manifestSerialNumber))
-                    {
-                        ConsoleWriteLineColor(String.Format("Segment {0}: serial number {1} is invalid", segmentName, segmentSerialNumber), ConsoleColor.Yellow);
-                        invalid.Set();
-                        if (mode == UnpackMode.ParseAndUnpack)
-                        {
-                            goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
-                        }
-                    }
-
-                    ulong expectedSerialNumber;
-                    if (serialNumberMapping.TryGetValue(segmentName.ToLowerInvariant(), out expectedSerialNumber))
-                    {
-                        if (expectedSerialNumber != segmentSerialNumber)
-                        {
-                            ConsoleWriteLineColor(String.Format("Segment {0}: wrong serial number (is {1}, should be {2})", segmentName, segmentSerialNumber, expectedSerialNumber), ConsoleColor.Yellow);
-                            invalid.Set();
-                            if (mode == UnpackMode.ParseAndUnpack)
-                            {
-                                goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
-                            }
-                        }
-                        else
-                        {
-                            usedMapping[segmentSerialNumber] = true;
-                        }
-                    }
-                    else
-                    {
-                        ConsoleWriteLineColor(String.Format("Segment {0}: segment is extraneous (not referenced from manifest)", segmentName), ConsoleColor.Yellow);
-                        invalid.Set();
-                        if (mode == UnpackMode.ParseAndUnpack)
-                        {
-                            goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
-                        }
                     }
                 }
 
-                foreach (KeyValuePair<string, ulong> declaredSegments in serialNumberMapping)
+
+                using (TextWriter journalWriter = journalPath != null ? TextWriter.Synchronized(new StreamWriter(journalPath, false/*append*/, Encoding.UTF8)) : null)
                 {
-                    if (!usedMapping[declaredSegments.Value])
+                    if (journalWriter != null)
                     {
-                        ConsoleWriteLineColor(String.Format("Segment {0}: missing segment (referenced in manifest, serial number {1})", declaredSegments.Key, declaredSegments.Value), ConsoleColor.Yellow);
-                        invalid.Set();
-                        if (mode == UnpackMode.ParseAndUnpack)
+                        journalWriter.WriteLine(HexEncode(randomArchiveSignature));
+                        journalWriter.WriteLine(manifestSerialNumber);
+                        foreach (KeyValuePair<string, DynUnpackJournalEntry> journalEntry in journal)
                         {
-                            goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
+                            journalEntry.Value.WriteLine(journalWriter);
+                        }
+                        journalWriter.Flush(); // ensure data is pushed out of process in case of failure in manifest loading code (next)
+                    }
+
+
+                    // set up concurrency status reporting
+                    using (ConcurrentMessageLog messagesLog = new ConcurrentMessageLog(Interactive(), true/*enableSequencing*/))
+                    {
+                        int threadCount = GetConcurrency(fileManager, context);
+                        using (ConcurrentTasks concurrent = new ConcurrentTasks(threadCount, 0, messagesLog, fileManager.GetMasterTrace()))
+                        {
+                            const int WaitInterval = 2000; // milliseconds
+                            List<ProgressTracker> progressTrackers = new List<ProgressTracker>(); // Use lock() on this!
+                            int maxStatusLines = 0;
+                            bool progressVisible = false;
+                            DateTime lastProgressUpdate = default(DateTime);
+                            ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
+                            {
+                                if (Interactive())
+                                {
+                                    lock (progressTrackers)
+                                    {
+                                        if (progressVisible)
+                                        {
+                                            for (int i = 0; i < maxStatusLines; i++)
+                                            {
+                                                Console.WriteLine(new String(' ', Math.Max(0, Console.BufferWidth - 1)));
+                                            }
+                                            Console.CursorTop -= maxStatusLines;
+
+                                            progressVisible = false;
+                                            lastProgressUpdate = default(DateTime);
+                                        }
+                                    }
+                                }
+                            };
+                            ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
+                            {
+                                eraseProgress();
+                            };
+                            ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
+                            {
+                                messagesLog.Flush(prepareConsole);
+
+                                if (Interactive())
+                                {
+                                    if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
+                                    {
+                                        lock (progressTrackers)
+                                        {
+                                            List<string> lines = new List<string>();
+
+                                            if (fatal)
+                                            {
+                                                lines.Add("  [fatal error pending]");
+                                            }
+
+                                            ProgressTracker[] progressTrackers2 = progressTrackers.ToArray();
+                                            Array.Sort(progressTrackers2, delegate(ProgressTracker l, ProgressTracker r) { return l.Tag.CompareTo(r.Tag); });
+                                            for (int i = 0; i < progressTrackers.Count; i++)
+                                            {
+                                                ProgressTracker progressTracker = progressTrackers2[i];
+                                                string progress;
+                                                if ((progressTracker.Current == 0) || (progressTracker.Total >= 0))
+                                                {
+                                                    progress = String.Format("{0}%{1}", progressTracker.Current * 100 / Math.Max(progressTracker.Total, 1), progressTracker.Total > 0 ? String.Format(" of {0}", FileSizeString(Math.Max(progressTracker.Total, 0))) : String.Empty);
+                                                }
+                                                else
+                                                {
+                                                    progress = "processing";
+                                                }
+                                                lines.Add(String.Format("  [{0}: {1}]", progressTracker.Tag, progress));
+                                            }
+
+                                            while (lines.Count < maxStatusLines)
+                                            {
+                                                lines.Add(String.Empty);
+                                            }
+                                            maxStatusLines = lines.Count;
+
+                                            foreach (string line in lines)
+                                            {
+                                                Console.WriteLine(line + new String(' ', Math.Max(0, Console.BufferWidth - 1 - line.Length)));
+                                            }
+                                            Console.CursorTop -= lines.Count;
+                                            progressVisible = true;
+                                        }
+
+                                        lastProgressUpdate = DateTime.Now;
+                                    }
+                                }
+                            };
+
+
+                            // process segments (concurrently)
+                            long sharedSequenceNumber = messagesLog.GetSequenceNumber();
+                            using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sharedSequenceNumber))
+                            {
+                                // ensure this shared sequence number is used at least once.
+                            }
+#if false
+                            foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
+#endif
+                            foreach (String segmentNameEnum in segmentNameList)
+                            {
+                                concurrent.WaitQueueEmpty(showProgress, WaitInterval);
+                                if (fatal)
+                                {
+                                    break;
+                                }
+
+
+                                // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
+                                // variable) in order to capture each value in the anonymous method.
+                                // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
+                                string name = segmentNameEnum;
+
+                                string segmentFileName = String.Concat(targetFileNamePrefix, name, DynPackFileExtension);
+
+#if false
+                                bool eligible = !String.Equals(segmentFileName, manifestFileName, StringComparison.OrdinalIgnoreCase)
+                                    && segmentFileName.EndsWith(DynPackFileExtension, StringComparison.OrdinalIgnoreCase);
+#endif
+                                bool exists = fileManager.Exists(segmentFileName, fileManager.GetMasterTrace());
+#if false
+                                bool member = serialNumberMapping.ContainsKey(name);
+#endif
+                                bool processedPreviousRun;
+                                lock (journal)
+                                {
+                                    processedPreviousRun = journal.ContainsKey(name);
+                                }
+                                if (
+#if false
+                                    !eligible || 
+                                    !member || 
+#endif
+processedPreviousRun || !exists)
+                                {
+#if false
+                                    if (!eligible)
+                                    {
+                                        if (traceDynunpack != null)
+                                        {
+                                            traceDynunpack.WriteLine("skipping {0} - either manifest or invalid extension", segmentFileName);
+                                        }
+                                    }
+#endif
+#if false
+                                    if (!member)
+                                    {
+                                        if (traceDynunpack != null)
+                                        {
+                                            traceDynunpack.WriteLine("Skipping {0}: not a member of this archive", segmentFileName);
+                                        }
+                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                        {
+                                            messages.WriteLine(ConsoleColor.Yellow, "Skipping {0}: not a member of this archive", segmentFileName);
+                                        }
+                                    }
+#endif
+                                    if (processedPreviousRun)
+                                    {
+                                        if (traceDynunpack != null)
+                                        {
+                                            traceDynunpack.WriteLine("Journal: skipping {0} - processed during previous run", segmentFileName);
+                                        }
+                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                        {
+                                            messages.WriteLine("Journal: skipping {0} - processed during previous run", segmentFileName);
+                                        }
+                                    }
+                                    if (!exists)
+                                    {
+                                        if (traceDynunpack != null)
+                                        {
+                                            traceDynunpack.WriteLine("Skipping {0}: file does not exist", segmentFileName);
+                                        }
+                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                        {
+                                            messages.WriteLine(ConsoleColor.Yellow, "Skipping {0}: file does not exist", segmentFileName);
+                                        }
+                                    }
+
+                                    int completionIndex;
+                                    if (completionIndexTable.TryGetValue(name, out completionIndex))
+                                    {
+                                        Debug.Assert(completionTable[completionIndex] == null);
+                                        completionTable[completionIndex] = new ConcurrentTasks.NullCompletionObject();
+                                        completionTable[completionIndex].SetSucceeded();
+                                        if (traceDynunpack != null)
+                                        {
+                                            traceDynunpack.WriteLine("  dependency exists: creating NullCompletionObject for task {0} index {1}; setting succeeded", name, completionIndex);
+                                        }
+                                    }
+
+                                    continue;
+                                }
+
+                                if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                {
+                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                    {
+                                        messages.WriteLine("Unpacking {0}", segmentFileName);
+                                    }
+                                }
+
+                                long sequenceNumber = sharedSequenceNumber;
+
+                                // if task has dependency, ask for completion object
+                                bool needCompletionObject = false;
+                                int completionIndex2 = 0;
+                                ConcurrentTasks.CompletionObject[] completionObjectReceiver = new ConcurrentTasks.CompletionObject[1];
+                                if (needCompletionObject = completionIndexTable.TryGetValue(name, out completionIndex2))
+                                {
+                                    completionObjectReceiver = completionTable;
+                                    Debug.Assert(completionTable[completionIndex2] == null);
+                                    if (traceDynunpack != null)
+                                    {
+                                        traceDynunpack.WriteLine("  [dependency exists: preparing to receive CompletionObject for task {0} index {1}", name, completionIndex2);
+                                    }
+                                }
+
+                                concurrent.Do(
+                                    String.Format("unpack:{0}", segmentFileName),
+                                    needCompletionObject,
+                                    out completionObjectReceiver[completionIndex2],
+                                    delegate(ConcurrentTasks.ITaskContext taskContext)
+                                    {
+                                        using (TextWriter threadTraceDynunpack = TaskWriter.Create(traceDynunpack))
+                                        {
+                                            if (threadTraceDynunpack != null)
+                                            {
+                                                threadTraceDynunpack.WriteLine("unpack:{0}", segmentFileName);
+                                            }
+
+                                            using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                            {
+                                                if (threadTraceFileManager != null)
+                                                {
+                                                    threadTraceFileManager.WriteLine("unpack:{0}", segmentFileName);
+                                                }
+
+                                                ProgressTracker progressTracker = null;
+
+                                                try
+                                                {
+                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
+                                                    {
+                                                        progressTracker = new ProgressTracker(segmentFileName);
+                                                        lock (progressTrackers)
+                                                        {
+                                                            progressTrackers.Add(progressTracker);
+                                                        }
+
+                                                        ulong segmentSerialNumber = 0;
+                                                        try
+                                                        {
+                                                            using (ILocalFileCopy fileRef = fileManager.Read(segmentFileName, progressTracker, threadTraceFileManager))
+                                                            {
+                                                                using (Stream segmentStream = fileRef.Read())
+                                                                {
+                                                                    progressTracker.Reset();
+
+
+                                                                    // wait on dependency - before unpacking data
+
+                                                                    string dependentOnName;
+                                                                    if (dependencyGraph.TryGetValue(name, out dependentOnName))
+                                                                    {
+                                                                        if (threadTraceDynunpack != null)
+                                                                        {
+                                                                            threadTraceDynunpack.WriteLine("dependency: waiting for completion of {0}", dependentOnName);
+                                                                        }
+
+                                                                        int completionIndex;
+                                                                        if (!completionIndexTable.TryGetValue(dependentOnName, out completionIndex))
+                                                                        {
+                                                                            if (threadTraceDynunpack != null)
+                                                                            {
+                                                                                threadTraceDynunpack.WriteLine("  completion object missing for required dependency {0}", dependentOnName);
+                                                                            }
+                                                                            fatal = true;
+                                                                            throw new InvalidOperationException();
+                                                                        }
+
+                                                                        ConcurrentTasks.CompletionObject completionObject = completionTable[completionIndex];
+                                                                        if (completionObject == null)
+                                                                        {
+                                                                            if (threadTraceDynunpack != null)
+                                                                            {
+                                                                                threadTraceDynunpack.WriteLine("  completion object null for index={0}", completionIndex);
+                                                                            }
+                                                                            fatal = true;
+                                                                            throw new InvalidOperationException();
+                                                                        }
+
+                                                                        completionObject.Wait();
+
+                                                                        if (threadTraceDynunpack != null)
+                                                                        {
+                                                                            threadTraceDynunpack.WriteLine("  wait completed, proceeding");
+                                                                        }
+
+                                                                        if (!completionObject.Succeeded)
+                                                                        {
+                                                                            if (threadTraceDynunpack != null)
+                                                                            {
+                                                                                threadTraceDynunpack.WriteLine("  dependency task failed, aborting");
+                                                                            }
+                                                                            fatal = true;
+                                                                            throw new InvalidOperationException();
+                                                                        }
+                                                                    }
+
+
+                                                                    // membership and MAC validation
+
+                                                                    byte[] segmentRandomArchiveSignature;
+
+                                                                    ApplicationException[] deferredExceptions;
+                                                                    UnpackedFileRecord[] segmentFileList;
+
+                                                                    UnpackMode firstPassMode;
+                                                                    if (((mode & UnpackMode.Unpack) != UnpackMode.Unpack) || !context.doNotPreValidateMAC)
+                                                                    {
+                                                                        firstPassMode = (mode & ~UnpackMode.Unpack) | UnpackMode.SignatureOnly;
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        firstPassMode = mode;
+                                                                    }
+                                                                    segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, firstPassMode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, out deferredExceptions);
+                                                                    if (deferredExceptions != null)
+                                                                    {
+                                                                        throw new DeferredMultiException(deferredExceptions);
+                                                                    }
+
+                                                                    if (!ArrayEqual(segmentRandomArchiveSignature, randomArchiveSignature))
+                                                                    {
+                                                                        messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!", name);
+                                                                        invalid.Set();
+                                                                        if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                                                        {
+                                                                            fatal = true;
+                                                                            return; // if unpacking, abort, otherwise continue to see what else is wrong
+                                                                        }
+                                                                    }
+
+                                                                    if ((segmentSerialNumber == 0) || (segmentSerialNumber >= manifestSerialNumber))
+                                                                    {
+                                                                        messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: serial number {1} is invalid", name, segmentSerialNumber);
+                                                                        invalid.Set();
+                                                                        if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                                                        {
+                                                                            fatal = true;
+                                                                            return; // if unpacking, abort, otherwise continue to see what else is wrong
+                                                                        }
+                                                                    }
+
+                                                                    ulong expectedSerialNumber;
+                                                                    if (serialNumberMapping.TryGetValue(name.ToLowerInvariant(), out expectedSerialNumber))
+                                                                    {
+                                                                        if (expectedSerialNumber != segmentSerialNumber)
+                                                                        {
+                                                                            messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: wrong serial number (is {1}, should be {2})", name, segmentSerialNumber, expectedSerialNumber);
+                                                                            invalid.Set();
+                                                                            if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                                                            {
+                                                                                fatal = true;
+                                                                                return; // if unpacking, abort, otherwise continue to see what else is wrong
+                                                                            }
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            lock (usedMapping)
+                                                                            {
+                                                                                usedMapping[segmentSerialNumber] = true;
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: segment is extraneous (not referenced from manifest)", name);
+                                                                        invalid.Set();
+                                                                        if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                                                        {
+                                                                            fatal = true;
+                                                                            return; // if unpacking, abort, otherwise continue to see what else is wrong
+                                                                        }
+                                                                    }
+
+
+                                                                    // content validation or unpacking pass, if not done earlier
+
+                                                                    if (((mode & UnpackMode.Unpack) == UnpackMode.Unpack) && ((firstPassMode & UnpackMode.Unpack) != UnpackMode.Unpack))
+                                                                    {
+                                                                        segmentStream.Position = 0; // rewind
+                                                                        segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, mode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, out deferredExceptions);
+                                                                        if (deferredExceptions != null)
+                                                                        {
+                                                                            throw new DeferredMultiException(deferredExceptions);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        catch (DeferredMultiException exception)
+                                                        {
+                                                            messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: {1}", name, exception);
+                                                            invalid.Set();
+                                                            // continue processing remaining files
+                                                        }
+                                                        catch (Exception exception)
+                                                        {
+                                                            if (!(exception is TaggedReadStream.TagInvalidException)
+                                                               && !(exception is InvalidDataException))
+                                                            {
+                                                                messages.WriteLine("Exception processing {0}: {1}", segmentFileName, exception);
+                                                                fatal = true;
+                                                                throw;
+                                                            }
+
+                                                            messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: {1}", name, exception.Message);
+                                                            invalid.Set();
+                                                            if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                                            {
+                                                                fatal = true;
+                                                                return; // if unpacking, abort, otherwise continue to see what else is wrong
+                                                            }
+                                                            // do nothing further with cryptographically inauthentic segments
+                                                            return;
+                                                        }
+
+                                                        DynUnpackJournalEntry journalEntry = new DynUnpackJournalEntry(name, segmentSerialNumber);
+                                                        lock (journal)
+                                                        {
+                                                            journal.Add(journalEntry.segmentName, journalEntry);
+                                                        }
+                                                        if (journalWriter != null)
+                                                        {
+                                                            journalEntry.WriteLine(journalWriter);
+                                                            journalWriter.Flush();
+                                                        }
+
+                                                        taskContext.SetSucceeded();
+                                                    }
+                                                }
+                                                finally
+                                                {
+                                                    if (progressTracker != null)
+                                                    {
+                                                        lock (progressTrackers)
+                                                        {
+                                                            progressTrackers.Remove(progressTracker);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    showProgress,
+                                    WaitInterval);
+
+                                messagesLog.Flush(prepareConsole);
+                                showProgress();
+                            }
+
+                            // Finish parsing or unpacking segments
+                            concurrent.Drain(showProgress, WaitInterval);
+                            messagesLog.Flush(prepareConsole);
+                            eraseProgress();
+                            if (fatal)
+                            {
+                                if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                {
+                                    if (traceDynunpack != null)
+                                    {
+                                        traceDynunpack.WriteLine("aborting");
+                                    }
+                                    goto Abort;
+                                }
+                            }
+
+
+                            // final pass to list missing segments
+                            foreach (KeyValuePair<string, ulong> declaredSegments in serialNumberMapping)
+                            {
+                                if (!usedMapping[declaredSegments.Value])
+                                {
+                                    ConsoleWriteLineColor(String.Format("Segment {0}: missing segment (referenced in manifest, serial number {1})", declaredSegments.Key, declaredSegments.Value), ConsoleColor.Yellow);
+                                    invalid.Set();
+                                    if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
+                                    {
+                                        goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
         Abort:
+
+            if (traceDynunpack != null)
+            {
+                traceDynunpack.Close();
+            }
+
+            if (completionTable != null)
+            {
+                foreach (ConcurrentTasks.CompletionObject completionObject in completionTable)
+                {
+                    if (completionObject != null)
+                    {
+                        completionObject.Dispose();
+                    }
+                }
+            }
+
             if (invalid.Value)
             {
                 throw new ExitCodeException((int)ExitCodes.ConditionNotSatisfied);
             }
+            if (fatal)
+            {
+                throw new ApplicationException();
+            }
+        }
+
+        internal static void DynamicUnpack(string manifestPrefix, string targetDirectory, Context context, string[] args)
+        {
+            UnpackMode mode = UnpackMode.Unpack;
+
+            // options
+            bool resume = false;
+            string journalPath = null;
+
+            while (args.Length > 0)
+            {
+                switch (args[0])
+                {
+                    default:
+                        throw new UsageException();
+                    case "-resume":
+                        GetAdHocArgument(ref args, "-resume", false/*defaultValue*/, true/*explicitValue*/, out resume);
+                        if (resume)
+                        {
+                            mode |= UnpackMode.Resume;
+                        }
+                        break;
+                    case "-journal":
+                        GetAdHocArgument(ref args, "-journal", null/*defaultValue*/, delegate(string s) { return s; }, out journalPath);
+                        break;
+                }
+            }
+
+#if false
+            if ((context.cryptoOption != EncryptionOption.None) && !context.doNotPreValidateMAC)
+            {
+                ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.ParseOnly,args);
+                // throws ExitCodeException()
+            }
+#endif
+
+            ValidateOrUnpackDynamicInternal(manifestPrefix, targetDirectory, context, mode, journalPath);
+            // throws ExitCodeException()
+        }
+
+        internal static void ValidateDynamicPack(string manifestPrefix, Context context)
+        {
+            ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.Parse, null/*journalPath*/);
+            // throws ExitCodeException()
         }
 
 
@@ -12818,217 +14508,563 @@ namespace Backup
 
         public static void RemoteCommand(string[] args, Context context)
         {
-            while (args.Length > 0)
+            IArchiveFileManager fileManager;
+            string path;
+
+            if (args.Length < 1)
             {
-                IArchiveFileManager fileManager;
-                string path;
-                string name;
+                throw new UsageException();
+            }
 
-                if (args.Length < 2)
+            string serviceUrl = args[0];
+            Uri serviceUri;
+            if (Uri.TryCreate(serviceUrl, UriKind.Absolute, out serviceUri)
+                && (serviceUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
+                || serviceUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (!serviceUrl.EndsWith("/"))
                 {
-                    throw new ArgumentException();
+                    throw new UsageException();
                 }
 
-                string serviceUrl = args[1];
-                Uri serviceUri;
-                if (Uri.TryCreate(serviceUrl, UriKind.Absolute, out serviceUri)
-                    && (serviceUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
-                    || serviceUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)))
+                try
                 {
-                    try
-                    {
-                        int lastSlash = serviceUri.PathAndQuery.LastIndexOf('/');
-                        name = serviceUri.PathAndQuery.Substring(lastSlash + 1);
-                        path = serviceUri.PathAndQuery.Substring(0, lastSlash);
-                        fileManager = new RemoteArchiveFileManager(serviceUri.Scheme + "://" + serviceUri.Host, path, context.refreshTokenPath, context);
-                    }
-                    catch (NotSupportedException)
-                    {
-                        throw new UsageException(String.Format("Specified remote storage service is not supported: \"{0}\"", serviceUri.Scheme + "://" + serviceUri.Host));
-                    }
+                    int lastSlash = serviceUri.PathAndQuery.LastIndexOf('/');
+                    string name = serviceUri.PathAndQuery.Substring(lastSlash + 1);
+                    Debug.Assert(String.IsNullOrEmpty(name));
+                    path = serviceUri.PathAndQuery.Substring(0, lastSlash);
+                    fileManager = new RemoteArchiveFileManager(serviceUri.Scheme + "://" + serviceUri.Host, path, context.refreshTokenProtected, context);
                 }
-                else
+                catch (NotSupportedException)
                 {
-                    if (Directory.Exists(serviceUrl))
-                    {
-                        serviceUrl = serviceUrl + "\\";
-                    }
-                    name = Path.GetFileName(serviceUrl);
-                    path = serviceUrl.Substring(0, serviceUrl.Length - name.Length);
-                    fileManager = new LocalArchiveFileManager(context, Path.GetDirectoryName(Path.IsPathRooted(serviceUrl) ? serviceUrl : Path.Combine(Environment.CurrentDirectory, serviceUrl)));
+                    throw new UsageException(String.Format("Specified remote storage service is not supported: \"{0}\"", serviceUri.Scheme + "://" + serviceUri.Host));
+                }
+            }
+            else
+            {
+                if (!Directory.Exists(serviceUrl))
+                {
+                    throw new UsageException();
                 }
 
-                int used;
-
-                using (fileManager)
+                if (!serviceUrl.EndsWith(@"\"))
                 {
-                    switch (args[0])
+                    serviceUrl = serviceUrl + @"\";
+                }
+
+                string name = Path.GetFileName(serviceUrl);
+                Debug.Assert(String.IsNullOrEmpty(name));
+                path = serviceUrl.Substring(0, serviceUrl.Length - name.Length);
+                string fullPath = Path.GetDirectoryName(Path.IsPathRooted(serviceUrl) ? serviceUrl : Path.Combine(Environment.CurrentDirectory, serviceUrl));
+                serviceUri = new Uri(fullPath);
+                fileManager = new LocalArchiveFileManager(context, fullPath);
+            }
+
+            ArrayRemoveAt(ref args, 0, 1);
+
+            using (fileManager)
+            {
+                using (ConcurrentMessageLog messagesLog = new ConcurrentMessageLog(Interactive(), true/*enableSequencing*/))
+                {
+                    using (ConcurrentTasks concurrent = new ConcurrentTasks(context.explicitConcurrency.HasValue ? context.explicitConcurrency.Value : Constants.ConcurrencyForNetworkBound, 0, messagesLog, fileManager.GetMasterTrace()))
                     {
-                        default:
-                            throw new ArgumentException();
+                        bool fatal = false;
 
-                        case "list":
-                            {
-                                Console.WriteLine("list {0}{1}/{2}*", serviceUri.Scheme + "://" + serviceUri.Host, path, name);
-                                string[] names = fileManager.GetFileNames(name, fileManager.GetMasterTrace());
-                                Array.Sort(names, delegate(string l, string r) { return String.Compare(l, r, StringComparison.OrdinalIgnoreCase); });
-                                foreach (string file in names)
-                                {
-                                    string id;
-                                    bool directory;
-                                    DateTime created, modified;
-                                    long size;
+                        while ((args.Length > 0) && !fatal)
+                        {
+                            int used;
 
-                                    fileManager.GetFileInfo(file, out id, out directory, out created, out modified, out size, fileManager.GetMasterTrace());
-
-                                    Console.WriteLine("{0:yyyy-MM-dd HH:mm}  {1:yyyy-MM-dd HH:mm} {2} {3,44} {4}", created, modified, directory ? String.Format("{0,-15}", "<DIR>") : String.Format("{0,15}", size), id, file);
-                                }
-                            }
-                            used = 2;
-                            break;
-
-                        case "rename":
-                            if (args.Length < 3)
+                            switch (args[0])
                             {
-                                throw new ArgumentException();
-                            }
-                            {
-                                string newName = args[2];
-                                Console.WriteLine("rename {0} to {1}", name, newName);
-                                fileManager.Rename(name, newName, fileManager.GetMasterTrace());
-                            }
-                            used = 3;
-                            break;
-
-                        case "rename-id":
-                            if (args.Length < 4)
-                            {
-                                throw new ArgumentException();
-                            }
-                            {
-                                if (!String.IsNullOrEmpty(name))
-                                {
+                                default:
                                     throw new ArgumentException();
-                                }
-                                string id = args[2];
-                                string newName = args[3];
-                                Console.WriteLine("rename id {0} to {1}", id, newName);
-                                fileManager.RenameById(id, newName, fileManager.GetMasterTrace());
-                            }
-                            used = 4;
-                            break;
 
-                        case "delete":
-                            {
-                                Console.WriteLine("delete {0}", name);
-                                fileManager.Delete(name, fileManager.GetMasterTrace());
-                            }
-                            used = 2;
-                            break;
-
-                        case "delete-id":
-                            if (args.Length < 3)
-                            {
-                                throw new ArgumentException();
-                            }
-                            {
-                                if (!String.IsNullOrEmpty(name))
-                                {
-                                    throw new ArgumentException();
-                                }
-                                string id = args[2];
-                                Console.WriteLine("delete id {0}", id);
-                                fileManager.DeleteById(id, fileManager.GetMasterTrace());
-                            }
-                            used = 3;
-                            break;
-
-                        case "rename-stem":
-                            if (args.Length < 3)
-                            {
-                                throw new ArgumentException();
-                            }
-                            {
-                                string newStem = args[2];
-                                Console.WriteLine("rename {0}* to {1}*", name, newStem);
-                                string[] oldNames = fileManager.GetFileNames(name/*prefix*/, fileManager.GetMasterTrace());
-                                string[] newNames = new string[oldNames.Length];
-                                for (int i = 0; i < newNames.Length; i++)
-                                {
-                                    Debug.Assert(oldNames[i].StartsWith(name/*prefix*/));
-                                    string suffix = oldNames[i].Substring(name/*prefix*/.Length);
-                                    newNames[i] = newStem + suffix;
-                                    if (fileManager.Exists(newNames[i], fileManager.GetMasterTrace()))
+                                case "quota":
                                     {
-                                        throw new IOException(String.Format("File exists: remote:{0}", newNames[i]));
+                                        long quotaTotal, quotaUsed;
+                                        fileManager.GetQuota(out quotaTotal, out quotaUsed, fileManager.GetMasterTrace());
+                                        long quotaAvailable = quotaTotal - quotaUsed;
+                                        Console.WriteLine("Quota: total={0}, used={1}, available={2}", FileSizeString(quotaTotal), FileSizeString(quotaUsed), FileSizeString(quotaAvailable));
                                     }
-                                }
-                                for (int i = 0; i < newNames.Length; i++)
-                                {
-                                    fileManager.Rename(oldNames[i], newNames[i], fileManager.GetMasterTrace());
-                                }
-                            }
-                            used = 3;
-                            break;
+                                    used = 1;
+                                    break;
 
-                        case "upload":
-                            if (args.Length < 3)
-                            {
-                                throw new ArgumentException();
-                            }
-                            {
-                                string localFileToUpload = args[2];
-                                Console.WriteLine("upload {0} to {1}", localFileToUpload, name);
-                                Random rnd = new Random();
-                                int i;
-                                do
-                                {
-                                    i = rnd.Next();
-                                } while (fileManager.Exists(i.ToString(), fileManager.GetMasterTrace()));
-                                using (ILocalFileCopy fileRef = fileManager.WriteTemp(i.ToString(), fileManager.GetMasterTrace()))
-                                {
-                                    using (Stream remoteStream = fileRef.Write())
+                                case "list":
                                     {
-                                        using (Stream localStream = new FileStream(localFileToUpload, FileMode.Open, FileAccess.Read, FileShare.Read))
+                                        Console.WriteLine("list {0}{1}/*", String.Concat(serviceUri.Scheme, "://", serviceUri.Host), path);
+                                        string[] names = fileManager.GetFileNames(null, fileManager.GetMasterTrace());
+                                        Array.Sort(names, delegate(string l, string r) { return String.Compare(l, r, StringComparison.OrdinalIgnoreCase); });
+                                        foreach (string file in names)
                                         {
-                                            byte[] buffer = new byte[Constants.BufferSize];
-                                            int read;
-                                            while ((read = localStream.Read(buffer, 0, buffer.Length)) != 0)
+                                            string id;
+                                            bool directory;
+                                            DateTime created, modified;
+                                            long size;
+
+                                            fileManager.GetFileInfo(file, out id, out directory, out created, out modified, out size, fileManager.GetMasterTrace());
+
+                                            Console.WriteLine("{0:yyyy-MM-dd HH:mm}  {1:yyyy-MM-dd HH:mm} {2} {3,44} {4}", created, modified, directory ? String.Format("{0,-15}", "<DIR>") : String.Format("{0,15}", size), id, file);
+                                        }
+                                    }
+                                    used = 1;
+                                    break;
+
+                                case "rename":
+                                    if (args.Length < 3)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    {
+                                        string name = args[1];
+                                        string newName = args[2];
+                                        Console.WriteLine("rename {0} to {1}", name, newName);
+                                        fileManager.Rename(name, newName, fileManager.GetMasterTrace());
+                                    }
+                                    used = 3;
+                                    break;
+
+                                case "rename-id":
+                                    if (args.Length < 3)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    {
+                                        string id = args[1];
+                                        string newName = args[2];
+                                        Console.WriteLine("rename id {0} to {1}", id, newName);
+                                        fileManager.RenameById(id, newName, fileManager.GetMasterTrace());
+                                    }
+                                    used = 3;
+                                    break;
+
+                                case "delete":
+                                case "del":
+                                    if (args.Length < 2)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    if (!FileNamePatternMatch.ContainsWildcards(args[1]))
+                                    {
+                                        string name = args[1];
+                                        if (fileManager.Exists(name, fileManager.GetMasterTrace()))
+                                        {
+                                            Console.WriteLine("delete {0}", name);
+                                            fileManager.Delete(name, fileManager.GetMasterTrace());
+                                        }
+                                    }
+                                    else
+                                    {
+                                        string pattern = args[1];
+                                        FileNamePatternMatch matcher = new FileNamePatternMatch(pattern);
+                                        List<string> names = new List<string>();
+                                        foreach (string name in fileManager.GetFileNames(null, fileManager.GetMasterTrace()))
+                                        {
+                                            if (matcher.IsMatch(name))
                                             {
-                                                remoteStream.Write(buffer, 0, read);
+                                                if (fileManager.Exists(name, fileManager.GetMasterTrace()))
+                                                {
+                                                    bool directory;
+                                                    fileManager.GetFileInfo(name, out directory, fileManager.GetMasterTrace());
+                                                    if (!directory)
+                                                    {
+                                                        names.Add(name);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        foreach (string nameEnum in names)
+                                        {
+                                            if (fatal)
+                                            {
+                                                break;
+                                            }
+
+                                            // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
+                                            // variable) in order to capture each value in the anonymous method.
+                                            // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
+                                            string name = nameEnum;
+
+                                            concurrent.Do(
+                                                String.Empty,
+                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                {
+                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    {
+                                                        try
+                                                        {
+                                                            messages.WriteLine("delete {0}", name);
+                                                            fileManager.Delete(name, fileManager.GetMasterTrace());
+                                                        }
+                                                        catch (Exception exception)
+                                                        {
+                                                            fatal = true;
+                                                            messages.WriteLine("Exception: {0}", exception);
+                                                        }
+                                                    }
+                                                });
+
+                                            messagesLog.Flush();
+                                        }
+                                    }
+                                    used = 2;
+                                    break;
+
+                                case "delete-id":
+                                case "del-id":
+                                    if (args.Length < 2)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    {
+                                        string id = args[1];
+                                        Console.WriteLine("delete id {0}", id);
+                                        fileManager.DeleteById(id, fileManager.GetMasterTrace());
+                                    }
+                                    used = 2;
+                                    break;
+
+                                case "rename-stem":
+                                    if (args.Length < 2)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    {
+                                        string oldStem = args[1];
+                                        string newStem = args[2];
+                                        Console.WriteLine("rename {0}* to {1}*", oldStem, newStem);
+                                        string[] oldNames = fileManager.GetFileNames(oldStem/*prefix*/, fileManager.GetMasterTrace());
+                                        string[] newNames = new string[oldNames.Length];
+                                        for (int i = 0; i < newNames.Length; i++)
+                                        {
+                                            Debug.Assert(oldNames[i].StartsWith(oldStem/*prefix*/));
+                                            string suffix = oldNames[i].Substring(oldStem/*prefix*/.Length);
+                                            newNames[i] = newStem + suffix;
+                                            if (fileManager.Exists(newNames[i], fileManager.GetMasterTrace()))
+                                            {
+                                                throw new IOException(String.Format("File exists: remote:{0}", newNames[i]));
+                                            }
+                                        }
+                                        for (int iEnum = 0; iEnum < newNames.Length; iEnum++)
+                                        {
+                                            if (fatal)
+                                            {
+                                                break;
+                                            }
+
+                                            // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
+                                            // variable) in order to capture each value in the anonymous method.
+                                            // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
+                                            int i = iEnum;
+
+                                            concurrent.Do(
+                                                "rename",
+                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                {
+                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    {
+                                                        try
+                                                        {
+                                                            fileManager.Rename(oldNames[i], newNames[i], fileManager.GetMasterTrace());
+                                                        }
+                                                        catch (Exception exception)
+                                                        {
+                                                            fatal = true;
+                                                            messages.WriteLine("Exception: {0}", exception);
+                                                        }
+                                                    }
+                                                });
+
+                                            messagesLog.Flush();
+                                        }
+                                    }
+                                    used = 3;
+                                    break;
+
+                                case "upload":
+                                    if (!FileNamePatternMatch.ContainsWildcards(args[1]))
+                                    {
+                                        // single file, explicit names
+                                        if (args.Length < 3)
+                                        {
+                                            throw new ArgumentException();
+                                        }
+                                        string localFileToUpload = args[1];
+                                        string targetName = args[2];
+                                        Console.WriteLine("upload {0} to {1}", localFileToUpload, targetName);
+                                        Random rnd = new Random();
+                                        string nameTemp = null;
+                                        ILocalFileCopy fileRef = null;
+                                        while (fileRef == null)
+                                        {
+                                            nameTemp = rnd.Next().ToString();
+                                            try
+                                            {
+                                                fileRef = fileManager.GetTempExisting(localFileToUpload, nameTemp, fileManager.GetMasterTrace());
+                                            }
+                                            catch (Exception)
+                                            {
+                                            }
+                                        }
+                                        using (fileRef)
+                                        {
+                                            fileManager.Commit(fileRef, nameTemp, targetName, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
+                                        }
+                                        used = 3;
+                                    }
+                                    else
+                                    {
+                                        // multiple files
+                                        if (args.Length < 2)
+                                        {
+                                            throw new ArgumentException();
+                                        }
+                                        string pattern = args[1];
+                                        string directory = Path.GetDirectoryName(pattern);
+                                        if (String.IsNullOrEmpty(directory))
+                                        {
+                                            directory = ".";
+                                        }
+                                        if (!Directory.Exists(directory))
+                                        {
+                                            throw new UsageException();
+                                        }
+                                        FileNamePatternMatch matcher = new FileNamePatternMatch(pattern);
+                                        List<string> names = new List<string>();
+                                        foreach (string sourcePath in Directory.GetFiles(directory))
+                                        {
+                                            string sourceName = Path.GetFileName(sourcePath);
+                                            if (matcher.IsMatch(sourceName))
+                                            {
+                                                names.Add(sourceName);
+                                            }
+                                            if (fileManager.Exists(sourceName, fileManager.GetMasterTrace()))
+                                            {
+                                                throw new IOException(String.Format("File exists: remote:{0}", sourceName));
+                                            }
+                                        }
+                                        foreach (string nameEnum in names)
+                                        {
+                                            if (fatal)
+                                            {
+                                                break;
+                                            }
+
+                                            // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
+                                            // variable) in order to capture each value in the anonymous method.
+                                            // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
+                                            string name = nameEnum;
+
+                                            concurrent.Do(
+                                                "upload",
+                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                {
+                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    {
+                                                        try
+                                                        {
+                                                            messages.WriteLine("upload {0}", name);
+                                                            Random rnd = new Random();
+                                                            string nameTemp = null;
+                                                            ILocalFileCopy fileRef = null;
+                                                            while (fileRef == null)
+                                                            {
+                                                                nameTemp = rnd.Next().ToString();
+                                                                try
+                                                                {
+                                                                    fileRef = fileManager.GetTempExisting(Path.Combine(directory, name), nameTemp, fileManager.GetMasterTrace());
+                                                                }
+                                                                catch (Exception)
+                                                                {
+                                                                }
+                                                            }
+                                                            using (fileRef)
+                                                            {
+                                                                fileManager.Commit(fileRef, nameTemp, name, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
+                                                            }
+                                                        }
+                                                        catch (Exception exception)
+                                                        {
+                                                            fatal = true;
+                                                            messages.WriteLine("Exception: {0}", exception);
+                                                        }
+                                                    }
+                                                });
+
+                                            messagesLog.Flush();
+                                        }
+                                        used = 2;
+                                    }
+                                    break;
+
+                                case "download":
+                                    if (args.Length < 3)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    if (!FileNamePatternMatch.ContainsWildcards(args[1]))
+                                    {
+                                        // single file, explicit names
+                                        string sourceName = args[1];
+                                        string localFileToSaveInto = args[2];
+                                        if (File.Exists(localFileToSaveInto))
+                                        {
+                                            throw new IOException(String.Format("File exists: {0}", localFileToSaveInto));
+                                        }
+                                        Console.WriteLine("download {0} to {1}", sourceName, localFileToSaveInto);
+                                        using (ILocalFileCopy fileRef = fileManager.Read(sourceName, null/*progressTracker*/, fileManager.GetMasterTrace()))
+                                        {
+                                            fileRef.CopyLocal(localFileToSaveInto, true/*overwrite*/);
+                                        }
+                                        File.SetCreationTime(localFileToSaveInto, context.now);
+                                        File.SetLastWriteTime(localFileToSaveInto, context.now);
+                                    }
+                                    else
+                                    {
+                                        // multiple files
+                                        if (args.Length < 3)
+                                        {
+                                            throw new ArgumentException();
+                                        }
+                                        string pattern = args[1];
+                                        string directory = args[2];
+                                        if (!Directory.Exists(directory))
+                                        {
+                                            throw new UsageException();
+                                        }
+                                        FileNamePatternMatch matcher = new FileNamePatternMatch(pattern);
+                                        List<string> names = new List<string>();
+                                        foreach (string sourceName in fileManager.GetFileNames(null, fileManager.GetMasterTrace()))
+                                        {
+                                            if (matcher.IsMatch(sourceName))
+                                            {
+                                                names.Add(sourceName);
+                                            }
+                                            string localPath = Path.Combine(directory, sourceName);
+                                            if (File.Exists(localPath) || Directory.Exists(localPath))
+                                            {
+                                                throw new IOException(String.Format("File or directory exists: {0}", localPath));
+                                            }
+                                        }
+                                        foreach (string nameEnum in names)
+                                        {
+                                            if (fatal)
+                                            {
+                                                break;
+                                            }
+
+                                            // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
+                                            // variable) in order to capture each value in the anonymous method.
+                                            // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
+                                            string name = nameEnum;
+
+                                            concurrent.Do(
+                                                "download",
+                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                {
+                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    {
+                                                        try
+                                                        {
+                                                            messages.WriteLine("download {0}", name);
+                                                            string localFileToSaveInto = Path.Combine(directory, name);
+                                                            using (ILocalFileCopy fileRef = fileManager.Read(name, null/*progressTracker*/, fileManager.GetMasterTrace()))
+                                                            {
+                                                                fileRef.CopyLocal(localFileToSaveInto, true/*overwrite*/);
+                                                            }
+                                                            File.SetCreationTime(localFileToSaveInto, context.now);
+                                                            File.SetLastWriteTime(localFileToSaveInto, context.now);
+                                                        }
+                                                        catch (Exception exception)
+                                                        {
+                                                            fatal = true;
+                                                            messages.WriteLine("Exception: {0}", exception);
+                                                        }
+                                                    }
+                                                });
+
+                                            messagesLog.Flush();
+                                        }
+                                    }
+                                    used = 3;
+                                    break;
+
+                                // specialized command for undoing a failed/incomplete partial dynpack update
+                                case "dynpack-rollback":
+                                    if (args.Length < 3)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    used = 2;
+                                    {
+                                        string targetArchiveFileNameTemplate = args[1];
+
+                                        string manifestFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestName, DynPackFileExtension);
+                                        string manifestFileNameOld = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestNameOld, DynPackFileExtension);
+                                        if (!fileManager.Exists(manifestFileNameOld, fileManager.GetMasterTrace()))
+                                        {
+                                            Console.WriteLine("Old manifest does not exist ({0}), rollback not possible.", manifestFileNameOld);
+                                            break;
+                                        }
+                                        if (fileManager.Exists(manifestFileName, fileManager.GetMasterTrace()))
+                                        {
+                                            Console.Write("A newer manifest also exists ({0}). Are you sure you want to roll back? [y/n] ", manifestFileName);
+                                            bool accepted;
+                                            while (true)
+                                            {
+                                                char key = WaitReadKey(false/*intercept*/);
+                                                if (key == 'n')
+                                                {
+                                                    accepted = false;
+                                                    break;
+                                                }
+                                                else if (key == 'y')
+                                                {
+                                                    accepted = true;
+                                                    break;
+                                                }
+                                            }
+                                            Console.WriteLine();
+                                            if (!accepted)
+                                            {
+                                                break;
+                                            }
+                                        }
+
+                                        string targetArchiveFileNameTemplateDot = targetArchiveFileNameTemplate + ".";
+                                        foreach (string file in fileManager.GetFileNames(targetArchiveFileNameTemplateDot, fileManager.GetMasterTrace()))
+                                        {
+                                            Debug.Assert(file.StartsWith(targetArchiveFileNameTemplateDot, StringComparison.OrdinalIgnoreCase));
+                                            string suffix = file.Substring(targetArchiveFileNameTemplateDot.Length);
+                                            if (suffix.StartsWith("-"))
+                                            {
+                                                string targetSuffix = suffix.Substring(1);
+
+                                                string targetFile = targetArchiveFileNameTemplateDot + targetSuffix;
+                                                if (fileManager.Exists(targetFile, fileManager.GetMasterTrace()))
+                                                {
+                                                    Console.WriteLine("deleting {0}", targetFile);
+                                                    fileManager.Delete(targetFile, fileManager.GetMasterTrace());
+                                                }
+                                                Console.WriteLine("renaming {0} to {1}", file, targetFile);
+                                                fileManager.Rename(file, targetFile, fileManager.GetMasterTrace());
                                             }
                                         }
                                     }
-                                    fileManager.Commit(fileRef, i.ToString(), name, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
-                                }
+                                    break;
                             }
-                            used = 3;
-                            break;
 
-                        case "download":
-                            if (args.Length < 3)
-                            {
-                                throw new ArgumentException();
-                            }
-                            {
-                                string localFileToSaveInto = args[2];
-                                if (File.Exists(localFileToSaveInto))
-                                {
-                                    throw new IOException(String.Format("File exists: {0}", localFileToSaveInto));
-                                }
-                                Console.WriteLine("download {0} to {1}", name, localFileToSaveInto);
-                                using (ILocalFileCopy fileRef = fileManager.Read(name, null/*progressTracker*/, fileManager.GetMasterTrace()))
-                                {
-                                    fileRef.CopyLocal(localFileToSaveInto, false/*overwrite*/);
-                                }
-                            }
-                            used = 3;
-                            break;
+                            concurrent.Drain();
+                            messagesLog.Flush();
+
+                            ArrayRemoveAt(ref args, 0, used);
+                        }
+
+                        if (fatal)
+                        {
+                            throw new ExitCodeException((int)ExitCodes.ProgramFailure);
+                        }
                     }
                 }
-
-                Array.Copy(args, used, args, 0, args.Length - used);
-                Array.Resize(ref args, args.Length - used);
             }
         }
 
@@ -13227,6 +15263,8 @@ namespace Backup
         {
             int exitCode = (int)ExitCodes.Success;
             Context context = new Context();
+            context.faultInjectionTemplateRoot = new FaultTemplateNode();
+
 
 
             // implementation validations
@@ -13264,6 +15302,10 @@ namespace Backup
                     {
                         waitDebugger = true;
                     }
+                    else if (args[i] == "-trace")
+                    {
+                        context.traceEnabled = true;
+                    }
                     else if (args[i] == "-dirsonly")
                     {
                         context.dirsOnly = true;
@@ -13277,7 +15319,7 @@ namespace Backup
                         i++;
                         if (!(i < args.Length))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         context.now = DateTime.Parse(args[i]);
                     }
@@ -13286,15 +15328,15 @@ namespace Backup
                         i++;
                         if (!(i < args.Length))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
-                        context.logPath = args[i];
+                        context.logPath = EnsureRootedLocalPath(args[i]);
                     }
                     else if (args[i] == "-compress")
                     {
                         if (context.compressionOption != CompressionOption.None)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         context.compressionOption = CompressionOption.Compress;
                     }
@@ -13302,7 +15344,7 @@ namespace Backup
                     {
                         if (context.compressionOption != CompressionOption.None)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         context.compressionOption = CompressionOption.Decompress;
                     }
@@ -13310,7 +15352,7 @@ namespace Backup
                     {
                         if (context.compressionOption != CompressionOption.None)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         context.compressionOption = CompressionOption.Recompress;
                     }
@@ -13318,83 +15360,33 @@ namespace Backup
                     {
                         if (context.cryptoOption != EncryptionOption.None)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         i++;
 
                         context.cryptoOption = EncryptionOption.Encrypt;
                         context.encrypt = new CryptoContext();
-                        if (i < args.Length)
-                        {
-                            string name = args[i];
-                            context.encrypt.algorithm = Array.Find(CryptoSystems, delegate(ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
-                            if (context.encrypt.algorithm == null)
-                            {
-                                throw new UsageException("invalid program arguments");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
-                        i++;
 
-                        if (i < args.Length)
-                        {
-                            context.encrypt.password = args[i];
-                            if (String.IsNullOrEmpty(context.encrypt.password))
-                            {
-                                context.encrypt.password = PromptPassword("Password:");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
+                        GetPasswordArgument(args, ref i, "Password:", out context.encrypt.algorithm, out context.encrypt.password);
                     }
                     else if (args[i] == "-decrypt")
                     {
                         if (context.cryptoOption != EncryptionOption.None)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         i++;
 
                         context.cryptoOption = EncryptionOption.Decrypt;
                         context.decrypt = new CryptoContext();
-                        if (i < args.Length)
-                        {
-                            string name = args[i];
-                            context.decrypt.algorithm = Array.Find(CryptoSystems, delegate(ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
-                            if (context.decrypt.algorithm == null)
-                            {
-                                throw new UsageException("invalid program arguments");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
-                        i++;
 
-                        if (i < args.Length)
-                        {
-                            context.decrypt.password = args[i];
-                            if (String.IsNullOrEmpty(context.decrypt.password))
-                            {
-                                context.decrypt.password = PromptPassword("Password:");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
+                        GetPasswordArgument(args, ref i, "Password:", out context.decrypt.algorithm, out context.decrypt.password);
                     }
                     else if (args[i] == "-recrypt")
                     {
                         if (context.cryptoOption != EncryptionOption.None)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         i++;
 
@@ -13402,62 +15394,10 @@ namespace Backup
                         context.encrypt = new CryptoContext();
                         context.decrypt = new CryptoContext();
 
-                        if (i < args.Length)
-                        {
-                            string name = args[i];
-                            context.decrypt.algorithm = Array.Find(CryptoSystems, delegate(ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
-                            if (context.decrypt.algorithm == null)
-                            {
-                                throw new UsageException("invalid program arguments");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
+                        GetPasswordArgument(args, ref i, "Password 1:", out context.decrypt.algorithm, out context.decrypt.password);
                         i++;
 
-                        if (i < args.Length)
-                        {
-                            context.decrypt.password = args[i];
-                            if (String.IsNullOrEmpty(context.decrypt.password))
-                            {
-                                context.decrypt.password = PromptPassword("Password 1:");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
-                        i++;
-
-                        if (i < args.Length)
-                        {
-                            string name = args[i];
-                            context.encrypt.algorithm = Array.Find(CryptoSystems, delegate(ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
-                            if (context.encrypt.algorithm == null)
-                            {
-                                throw new UsageException("invalid program arguments");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
-                        i++;
-
-                        if (i < args.Length)
-                        {
-                            context.encrypt.password = args[i];
-                            if (String.IsNullOrEmpty(context.encrypt.password))
-                            {
-                                context.encrypt.password = PromptPassword("Password 2:");
-                            }
-                        }
-                        else
-                        {
-                            throw new UsageException("invalid program arguments");
-                        }
+                        GetPasswordArgument(args, ref i, "Password 2:", out context.encrypt.algorithm, out context.encrypt.password);
                     }
                     else if (args[i] == "-zerolen")
                     {
@@ -13487,7 +15427,7 @@ namespace Backup
                             switch (args[i].ToLowerInvariant())
                             {
                                 default:
-                                    throw new UsageException("invalid program arguments");
+                                    throw new UsageException();
                                 case "-":
                                 case "belownormal":
                                     Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
@@ -13513,19 +15453,19 @@ namespace Backup
                         }
                         else
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                     }
-                    else if (args[i] == "-reuserefreshtoken")
+                    else if (args[i] == "-refreshtoken")
                     {
                         i++;
                         if (i < args.Length)
                         {
-                            context.refreshTokenPath = args[i];
+                            context.refreshTokenProtected = args[i];
                         }
                         else
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                     }
                     else if (args[i] == "-concurrency")
@@ -13533,11 +15473,42 @@ namespace Backup
                         i++;
                         if (i < args.Length)
                         {
-                            context.explicitConcurrency = Int32.Parse(args[i]);
+                            if (args[i].Equals("default"))
+                            {
+                                context.explicitConcurrency = null;
+                            }
+                            else
+                            {
+                                context.explicitConcurrency = Int32.Parse(args[i]);
+                                if (context.explicitConcurrency.Value == 1)
+                                {
+                                    context.explicitConcurrency = 0; // see ConcurrentTasks constructor for why
+                                }
+                                if ((context.explicitConcurrency.Value < 0) || (context.explicitConcurrency.Value > 64))
+                                {
+                                    throw new UsageException();
+                                }
+                            }
                         }
                         else
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
+                        }
+                    }
+                    else if (args[i] == "-overridesecurityblock")
+                    {
+                        context.overrideRemoteSecurityBlock = true;
+                    }
+                    else if (args[i] == "-injectfault")
+                    {
+                        i++;
+                        if (i < args.Length)
+                        {
+                            ParseFaultInjectionPath(context.faultInjectionTemplateRoot, args[i]);
+                        }
+                        else
+                        {
+                            throw new UsageException();
                         }
                     }
                     else
@@ -13546,6 +15517,8 @@ namespace Backup
                     }
                     i++;
                 }
+
+                context.faultInjectionRoot = new FaultInstanceNode(context.faultInjectionTemplateRoot).Select(null);
 
                 if (waitDebugger)
                 {
@@ -13564,25 +15537,21 @@ namespace Backup
                 switch (args[i++])
                 {
                     default:
-                        throw new UsageException("invalid program arguments");
+                        throw new UsageException();
 
                     case "copy":
                         if (i + 1 > args.Length)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             string[] argsExtra = new string[args.Length - (i + 2)];
                             Array.Copy(args, i + 2, argsExtra, 0, argsExtra.Length);
                             Copy(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
+                                EnsureRootedLocalPath(args[i]),
                                 i + 1 < args.Length
-                                    ? (Path.IsPathRooted(args[i + 1])
-                                        ? args[i + 1]
-                                        : Path.Combine(Environment.CurrentDirectory, args[i + 1]))
+                                    ? EnsureRootedLocalPath(args[i + 1])
                                     : Environment.CurrentDirectory,
                                 context,
                                 argsExtra);
@@ -13592,17 +15561,13 @@ namespace Backup
                     case "compare":
                         if ((i + 2 > args.Length) || context.dirsOnly)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Compare(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                Path.IsPathRooted(args[i + 1])
-                                    ? args[i + 1]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                EnsureRootedLocalPath(args[i]),
+                                EnsureRootedLocalPath(args[i + 1]),
                                 context);
                         }
                         break;
@@ -13615,7 +15580,7 @@ namespace Backup
                             ((context.cryptoOption != EncryptionOption.None) &&
                             (context.cryptoOption != EncryptionOption.Encrypt)))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
@@ -13626,12 +15591,8 @@ namespace Backup
                                 ConsoleWriteLineColor("WARNING: Use of encryption in \"backup\" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.", ConsoleColor.Yellow);
                             }
                             Backup(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                Path.IsPathRooted(args[i + 1])
-                                    ? args[i + 1]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                EnsureRootedLocalPath(args[i]),
+                                EnsureRootedLocalPath(args[i + 1]),
                                 context,
                                 argsExtra);
                         }
@@ -13645,17 +15606,13 @@ namespace Backup
                             ((context.cryptoOption != EncryptionOption.None) &&
                             (context.cryptoOption != EncryptionOption.Encrypt)))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Verify(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                Path.IsPathRooted(args[i + 1])
-                                    ? args[i + 1]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                EnsureRootedLocalPath(args[i]),
+                                EnsureRootedLocalPath(args[i + 1]),
                                 context);
                         }
                         break;
@@ -13670,14 +15627,12 @@ namespace Backup
                             Path.IsPathRooted(args[i + 2]) ||
                             (args[i + 2] != Path.GetFileName(args[i + 2])))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Purge(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
+                                EnsureRootedLocalPath(args[i]),
                                 args[i + 1],
                                 args[i + 2],
                                 context);
@@ -13690,14 +15645,12 @@ namespace Backup
                             (context.compressionOption != CompressionOption.None) ||
                             (context.cryptoOption != EncryptionOption.None))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Prune(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
+                                EnsureRootedLocalPath(args[i]),
                                 context);
                         }
                         break;
@@ -13707,18 +15660,14 @@ namespace Backup
                             context.dirsOnly ||
                             Path.IsPathRooted(args[i + 1]))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Restore(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
+                                EnsureRootedLocalPath(args[i]),
                                 args[i + 1],
-                                Path.IsPathRooted(args[i + 2])
-                                    ? args[i + 2]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 2]),
+                                EnsureRootedLocalPath(args[i + 2]),
                                 context);
                         }
                         break;
@@ -13731,19 +15680,15 @@ namespace Backup
                             ((context.cryptoOption != EncryptionOption.None) &&
                             (context.cryptoOption != EncryptionOption.Encrypt)))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             string[] argsExtra = new string[args.Length - (i + 2)];
                             Array.Copy(args, i + 2, argsExtra, 0, argsExtra.Length);
                             Pack(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                Path.IsPathRooted(args[i + 1])
-                                    ? args[i + 1]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                EnsureRootedLocalPath(args[i]),
+                                EnsureRootedLocalPath(args[i + 1]),
                                 context,
                                 argsExtra);
                         }
@@ -13757,17 +15702,13 @@ namespace Backup
                             ((context.cryptoOption != EncryptionOption.None) &&
                             (context.cryptoOption != EncryptionOption.Decrypt)))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Unpack(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                Path.IsPathRooted(args[i + 1])
-                                    ? args[i + 1]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                EnsureRootedLocalPath(args[i]),
+                                EnsureRootedLocalPath(args[i + 1]),
                                 context);
                         }
                         break;
@@ -13780,14 +15721,12 @@ namespace Backup
                             ((context.cryptoOption != EncryptionOption.None) &&
                             (context.cryptoOption != EncryptionOption.Decrypt)))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Dumppack(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
+                                EnsureRootedRemotablePath(args[i]),
                                 context);
                         }
                         break;
@@ -13798,14 +15737,12 @@ namespace Backup
                             (context.compressionOption != CompressionOption.None) ||
                             (context.cryptoOption != EncryptionOption.Decrypt))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             ValidateEncryption(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
+                                EnsureRootedLocalPath(args[i]),
                                 context);
                         }
                         break;
@@ -13817,14 +15754,12 @@ namespace Backup
                             (context.compressionOption != CompressionOption.Decompress)) ||
                             (context.cryptoOption != EncryptionOption.Decrypt))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             ValidateDynamicPack(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
+                                EnsureRootedRemotablePath(args[i]),
                                 context);
                         }
                         break;
@@ -13838,17 +15773,13 @@ namespace Backup
                                 (context.cryptoOption != EncryptionOption.None) ||
                                 !Int32.TryParse(args[i + 2], out size))
                             {
-                                throw new UsageException("invalid program arguments");
+                                throw new UsageException();
                             }
                             else
                             {
                                 Split(
-                                    Path.IsPathRooted(args[i])
-                                        ? args[i]
-                                        : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                    Path.IsPathRooted(args[i + 1])
-                                        ? args[i + 1]
-                                        : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                    EnsureRootedLocalPath(args[i]),
+                                    EnsureRootedLocalPath(args[i + 1]),
                                     size,
                                     context);
                             }
@@ -13861,17 +15792,13 @@ namespace Backup
                             (context.compressionOption != CompressionOption.None) ||
                             (context.cryptoOption != EncryptionOption.None))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             Unsplit(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                Path.IsPathRooted(args[i + 1])
-                                    ? args[i + 1]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                EnsureRootedLocalPath(args[i]),
+                                EnsureRootedLocalPath(args[i + 1]),
                                 context);
                         }
                         break;
@@ -13879,19 +15806,15 @@ namespace Backup
                     case "sync":
                         if ((i + 2 > args.Length) || context.dirsOnly)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
                             string[] argsExtra = new string[args.Length - (i + 2)];
                             Array.Copy(args, i + 2, argsExtra, 0, argsExtra.Length);
                             Sync(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]),
-                                Path.IsPathRooted(args[i + 1])
-                                    ? args[i + 1]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i + 1]),
+                                EnsureRootedLocalPath(args[i]),
+                                EnsureRootedLocalPath(args[i + 1]),
                                 context,
                                 argsExtra);
                         }
@@ -13905,7 +15828,7 @@ namespace Backup
                             ((context.cryptoOption != EncryptionOption.None) &&
                             (context.cryptoOption != EncryptionOption.Encrypt)))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
@@ -13928,28 +15851,28 @@ namespace Backup
                             ((context.cryptoOption != EncryptionOption.None) &&
                             (context.cryptoOption != EncryptionOption.Decrypt)))
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
+                            string[] argsExtra = new string[args.Length - (i + 2)];
+                            Array.Copy(args, i + 2, argsExtra, 0, argsExtra.Length);
                             DynamicUnpack(
                                 EnsureRootedRemotablePath(args[i]),
                                 EnsureRootedLocalPath(args[i + 1]),
-                                context);
+                                context,
+                                argsExtra);
                         }
                         break;
 
                     case "dir":
                         if (i + 1 > args.Length)
                         {
-                            throw new UsageException("invalid program arguments");
+                            throw new UsageException();
                         }
                         else
                         {
-                            Dir(
-                                Path.IsPathRooted(args[i])
-                                    ? args[i]
-                                    : Path.Combine(Environment.CurrentDirectory, args[i]));
+                            Dir(EnsureRootedLocalPath(args[i]));
                         }
                         break;
 

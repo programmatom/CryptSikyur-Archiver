@@ -1,7 +1,7 @@
 /*
  *  Copyright © 2014 Thomas R. Lawrence
- *    except: "SkeinFish 0.5.0/*.cs", which are Copyright 2010 Alberto Fajardo
- *    except: "SerpentEngine.cs", which is Copyright 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
+ *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
+ *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  * 
  *  GNU General Public License
  * 
@@ -24,6 +24,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -38,6 +39,12 @@ using Backup;
 
 namespace RemoteDriveAuth
 {
+    public class Constants
+    {
+        public const int SecondaryEntropyLengthBytes = 256 / 8;
+    }
+
+
     ////////////////////////////////////////////////////////////////////////////
     //
     // OAuth2.0 remote service definitions
@@ -113,10 +120,9 @@ namespace RemoteDriveAuth
 
         // Scopes: https://developers.google.com/drive/web/scopes
         // openid - required
-        // profile email - at least one is required
-        // https://www.googleapis.com/auth/drive.file - per-file drive access
+        // profile email - docs claim at least one is required, but apparently not
         // https://www.googleapis.com/auth/drive - full, permissive access 
-        public override string Scopes(bool enableRefreshToken) { return "openid profile https://www.googleapis.com/auth/drive"; }
+        public override string Scopes(bool enableRefreshToken) { return "openid " + /*"profile " +*/ "https://www.googleapis.com/auth/drive"; }
 
         public override string RequestAuthorizationUrl(ClientIdentities.ClientIdentity clientIdentity, bool enableRefreshToken) { return String.Concat("https://accounts.google.com/o/oauth2/auth?client_id=", clientIdentity.ClientId, "&scope=", HttpUtility.UrlEncode(Scopes(enableRefreshToken)), "&response_type=code", enableRefreshToken ? "&access_type=offline" : String.Empty, "&redirect_uri=", AuthorizedRedirectUrl); }
         // HACK for Google: "http://localhost" should have worked, but isn't. Instead, using urn:ietf:wg:oauth:2.0:oob:
@@ -143,7 +149,7 @@ namespace RemoteDriveAuth
 
         public static OAuth20RemoteService FindService(Uri requestedServiceUri)
         {
-            return Array.Find(Services.SupportedServices, delegate(OAuth20RemoteService candidate) { return requestedServiceUri.Equals(candidate.ServiceUri); });
+            return Array.Find(Services.SupportedServices, delegate(OAuth20RemoteService candidate) { return requestedServiceUri.Host.Equals(candidate.ServiceUri.Host, StringComparison.OrdinalIgnoreCase); });
         }
     }
 
@@ -481,7 +487,7 @@ namespace RemoteDriveAuth
             {
                 webBrowser1.Navigate(new Uri(address));
             }
-            catch (System.UriFormatException)
+            catch (UriFormatException)
             {
                 return;
             }
@@ -685,12 +691,12 @@ namespace RemoteDriveAuth
 
             printToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.P;
 
-            saveAsToolStripMenuItem.Click += new System.EventHandler(saveAsToolStripMenuItem_Click);
-            pageSetupToolStripMenuItem.Click += new System.EventHandler(pageSetupToolStripMenuItem_Click);
-            printToolStripMenuItem.Click += new System.EventHandler(printToolStripMenuItem_Click);
-            printPreviewToolStripMenuItem.Click += new System.EventHandler(printPreviewToolStripMenuItem_Click);
-            propertiesToolStripMenuItem.Click += new System.EventHandler(propertiesToolStripMenuItem_Click);
-            exitToolStripMenuItem.Click += new System.EventHandler(exitToolStripMenuItem_Click);
+            saveAsToolStripMenuItem.Click += new EventHandler(saveAsToolStripMenuItem_Click);
+            pageSetupToolStripMenuItem.Click += new EventHandler(pageSetupToolStripMenuItem_Click);
+            printToolStripMenuItem.Click += new EventHandler(printToolStripMenuItem_Click);
+            printPreviewToolStripMenuItem.Click += new EventHandler(printPreviewToolStripMenuItem_Click);
+            propertiesToolStripMenuItem.Click += new EventHandler(propertiesToolStripMenuItem_Click);
+            exitToolStripMenuItem.Click += new EventHandler(exitToolStripMenuItem_Click);
 
             toolStrip1.Items.AddRange(new ToolStripItem[] { goButton, backButton, forwardButton, stopButton, refreshButton, homeButton, searchButton, printButton });
 
@@ -706,19 +712,19 @@ namespace RemoteDriveAuth
             backButton.Enabled = false;
             forwardButton.Enabled = false;
 
-            goButton.Click += new System.EventHandler(goButton_Click);
-            backButton.Click += new System.EventHandler(backButton_Click);
-            forwardButton.Click += new System.EventHandler(forwardButton_Click);
-            stopButton.Click += new System.EventHandler(stopButton_Click);
-            refreshButton.Click += new System.EventHandler(refreshButton_Click);
-            homeButton.Click += new System.EventHandler(homeButton_Click);
-            searchButton.Click += new System.EventHandler(searchButton_Click);
-            printButton.Click += new System.EventHandler(printButton_Click);
+            goButton.Click += new EventHandler(goButton_Click);
+            backButton.Click += new EventHandler(backButton_Click);
+            forwardButton.Click += new EventHandler(forwardButton_Click);
+            stopButton.Click += new EventHandler(stopButton_Click);
+            refreshButton.Click += new EventHandler(refreshButton_Click);
+            homeButton.Click += new EventHandler(homeButton_Click);
+            searchButton.Click += new EventHandler(searchButton_Click);
+            printButton.Click += new EventHandler(printButton_Click);
 
             toolStrip2.Items.Add(toolStripTextBox1);
-            toolStripTextBox1.Size = new System.Drawing.Size(Width - 50, 25); // TODO: magic width???
+            toolStripTextBox1.Size = new Size(Width - 50, 25); // TODO: magic width???
             toolStripTextBox1.KeyDown += new KeyEventHandler(toolStripTextBox1_KeyDown);
-            toolStripTextBox1.Click += new System.EventHandler(toolStripTextBox1_Click);
+            toolStripTextBox1.Click += new EventHandler(toolStripTextBox1_Click);
 
             statusStrip1.Items.Add(toolStripStatusLabel1);
 
@@ -728,6 +734,124 @@ namespace RemoteDriveAuth
             this.Activated += new EventHandler(Form1_Activated);
 
             Controls.AddRange(new Control[] { webBrowser1, toolStrip2, toolStrip1, menuStrip1, statusStrip1, menuStrip1 });
+        }
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // Windows .NET Form for password entry
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    [PermissionSet(SecurityAction.Demand, Name = "FullTrust")]
+    public class PasswordEntryForm : Form
+    {
+        public PasswordEntryForm(string prompt)
+        {
+            this.prompt = prompt;
+
+            InitializeForm();
+        }
+
+        private string prompt;
+
+        // Selects all the text in the text box when the user clicks it.  
+        private void PasswordTextBox_Click(object sender, EventArgs e)
+        {
+            passwordTextBox.SelectAll();
+        }
+
+        private string password;
+        internal string Password { get { return password; } }
+
+        // Captures password text and closes box when
+        // the ENTER key is pressed while the ToolStripTextBox has focus. 
+        private void PasswordTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                password = passwordTextBox.Text;
+                this.Close();
+                return;
+            }
+        }
+
+        // Captures password text and closes box when
+        // the Go button is clicked. 
+        private void AcceptButton_Click(object sender, EventArgs e)
+        {
+            password = passwordTextBox.Text;
+            this.Close();
+        }
+
+        // Ensures focus is in the textbox when window is brought to front. This recovers
+        // focus to the input control when a user is using something like, e.g.
+        // Password Safe (https://www.schneier.com/passsafe.html) to enter passwords,
+        // which usually involve changing focus and immediately using SendKeys. Without
+        // this event handler, focus is lost when window is raised and approach fails.
+        void Form_Activated(object sender, EventArgs e)
+        {
+            passwordTextBox.Focus();
+        }
+
+        // The remaining code in this file provides basic form initialization and  
+        // includes a Main method. If you use the Visual Studio designer to create 
+        // your form, you can use the designer generated code instead of this code,  
+        // but be sure to use the names shown in the variable declarations here, 
+        // and be sure to attach the event handlers to the associated events.  
+
+        private Label passwordLabel;
+        private TextBox passwordTextBox;
+        private Button acceptButton;
+
+        private void InitializeForm()
+        {
+            this.passwordLabel = new Label();
+            this.passwordTextBox = new TextBox();
+            this.acceptButton = new Button();
+            this.SuspendLayout();
+
+
+            this.passwordLabel.AutoSize = true;
+            this.passwordLabel.Location = new Point(12, 15);
+            this.passwordLabel.Size = new Size(56, 13);
+            this.passwordLabel.TabIndex = 0;
+            this.passwordLabel.Text = "Password:";
+
+
+            this.passwordTextBox.Location = new Point(74, 12);
+            this.passwordTextBox.Size = new Size(324, 20);
+            this.passwordTextBox.TabIndex = 1;
+
+            this.passwordTextBox.KeyDown += new KeyEventHandler(PasswordTextBox_KeyDown);
+            this.passwordTextBox.Click += new EventHandler(PasswordTextBox_Click);
+
+            this.passwordTextBox.PasswordChar = '\x25cf'; // bullet: '\x2022', large black circle: '\x25cf'
+
+
+            this.acceptButton.Location = new Point(174, 49);
+            this.acceptButton.Size = new Size(75, 23);
+            this.acceptButton.TabIndex = 2;
+            this.acceptButton.Text = "OK";
+            this.acceptButton.UseVisualStyleBackColor = true;
+
+            this.acceptButton.Click += new EventHandler(AcceptButton_Click);
+
+
+            this.AutoScaleDimensions = new SizeF(6F, 13F);
+            this.AutoScaleMode = AutoScaleMode.Font;
+            this.ClientSize = new Size(423, 91);
+            this.Controls.Add(this.acceptButton);
+            this.Controls.Add(this.passwordTextBox);
+            this.Controls.Add(this.passwordLabel);
+            this.Name = String.IsNullOrEmpty(prompt) ? ProductName : String.Format("{0} - {1}", ProductName, prompt);
+            this.Text = this.Name;
+            this.ResumeLayout(false);
+            this.PerformLayout();
+
+
+            this.Activated += new EventHandler(Form_Activated);
         }
     }
 
@@ -871,6 +995,8 @@ namespace RemoteDriveAuth
 
             try
             {
+                RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+
                 if (args.Length == 0)
                 {
                     Console.WriteLine("Usage:");
@@ -922,12 +1048,50 @@ namespace RemoteDriveAuth
 
                     clientIdentities.Save(clientIdentitiesPath);
                 }
+                else if (args[0].Equals("-promptpassword"))
+                {
+                    // This option enables shell scripts to prompt for password in a way that is
+                    // compatible with applications like Password Safe, and without displaying the
+                    // entered text on screen. The password is written to stdout in a way that
+                    // shell scripts can read into a variable, which can then be passed in as an
+                    // argument to Backup.exe. It uses the -protected option which uses the Windows
+                    // data protection api to encrypt the password text with the user's login
+                    // credential so that if the output is leaked an attacker would need to
+                    // compromise the user's Windows login or OS credentials store in order to
+                    // decrypt the password.
+
+                    string prompt = null;
+                    for (int i = 1; i < args.Length; i++)
+                    {
+                        prompt = String.Concat(prompt, prompt != null ? " " : null, args[i]);
+                    }
+
+                    string password;
+                    using (PasswordEntryForm form = new PasswordEntryForm(prompt))
+                    {
+                        Application.EnableVisualStyles();
+                        Application.Run(form);
+
+                        password = form.Password;
+                    }
+
+                    if (!String.IsNullOrEmpty(password))
+                    {
+                        byte[] salt = new byte[Constants.SecondaryEntropyLengthBytes];
+                        rng.GetBytes(salt);
+
+                        byte[] utf8Password = Encoding.UTF8.GetBytes(password);
+                        byte[] encryptedPassword = ProtectedDataStorage.Encrypt(utf8Password, 0, utf8Password.Length, salt);
+
+                        Console.WriteLine("-protected \"{0};{1}\"", HexUtility.HexEncode(salt), HexUtility.HexEncode(encryptedPassword));
+                    }
+                }
                 else if (args[0].Equals("-auth"))
                 {
-                    byte[] secondaryEntropy;
-                    bool enableRefreshToken;
-                    string refreshToken;
-                    Uri remoteService;
+                    bool refreshTokenOnly = false;
+                    bool enableRefreshToken = false;
+                    string refreshToken = null;
+                    Uri remoteService = null;
 
                     OAuth20RemoteService authService;
 
@@ -936,34 +1100,40 @@ namespace RemoteDriveAuth
                         throw new ArgumentException("Invalid program arguments");
                     }
 
-                    try
+                    if (!args[1].Equals("-refreshtoken"))
                     {
-                        secondaryEntropy = HexUtility.HexDecode(args[1]);
+                        throw new ArgumentException("args[1]: expected -refreshtoken");
                     }
-                    catch (Exception)
-                    {
-                        throw new ArgumentException("args[1]: secondary entropy");
-                    }
-                    if (args[2].Equals("refresh-token=yes"))
+
+                    if (args[2].Equals("yes"))
                     {
                         enableRefreshToken = true;
                     }
-                    else if (args[2].Equals("refresh-token=no"))
+                    else if (args[2].Equals("no"))
                     {
+                    }
+                    else if (args[2].Equals("only"))
+                    {
+                        refreshTokenOnly = true;
                         enableRefreshToken = true;
                     }
                     else
                     {
-                        throw new ArgumentException("args[2]: refresh-token option");
+                        throw new ArgumentException("args[2]: -refreshtoken option");
                     }
+
                     try
                     {
-                        refreshToken = Encoding.ASCII.GetString(HexUtility.HexDecode(args[3]));
+                        if (!args[3].Equals("-"))
+                        {
+                            refreshToken = Encoding.ASCII.GetString(HexUtility.HexDecode(args[3]));
+                        }
                     }
                     catch (Exception)
                     {
-                        throw new ArgumentException("args[3]: refresh-token");
+                        throw new ArgumentException("args[3]: old refresh-token");
                     }
+
                     try
                     {
                         remoteService = new Uri(args[4]);
@@ -977,11 +1147,13 @@ namespace RemoteDriveAuth
                         {
                             throw new ArgumentException("args[4]: remote-service");
                         }
+                        remoteService = authService.ServiceUri;
                     }
                     catch (UriFormatException)
                     {
                         throw new ArgumentException("args[4]: remote-service");
                     }
+
 
                     ClientIdentities.ClientIdentity clientIdentity = clientIdentities.GetClientIdentity(remoteService);
                     if (clientIdentity == null)
@@ -1021,22 +1193,35 @@ namespace RemoteDriveAuth
                             throw new ApplicationException("Unable to convert authorization code to access token");
                         }
                     }
+                    string tokenGlob = tokensJSON;
 
-                    byte[] tokensBytes = Encoding.ASCII.GetBytes(tokensJSON);
+
+                    if (refreshTokenOnly)
+                    {
+                        JSONDictionary json = new JSONDictionary(tokenGlob);
+                        json.TryGetValueAs("refresh_token", out tokenGlob);
+                    }
+
+
+                    byte[] secondaryEntropy = new byte[Constants.SecondaryEntropyLengthBytes];
+                    rng.GetBytes(secondaryEntropy);
+
+                    byte[] tokensBytes = Encoding.ASCII.GetBytes(tokenGlob);
                     byte[] tokensBytesEncrypted = ProtectedDataStorage.Encrypt(tokensBytes, 0, tokensBytes.Length, secondaryEntropy);
-                    Console.WriteLine(HexUtility.HexEncode(tokensBytesEncrypted));
+
+                    Console.WriteLine(String.Concat(HexUtility.HexEncode(secondaryEntropy), ";", HexUtility.HexEncode(tokensBytesEncrypted)));
                 }
 
                 Environment.ExitCode = 0;
             }
             catch (ExitCodeException exception)
             {
-                Console.WriteLine(exception.Message);
+                Console.Error.WriteLine(exception.Message);
                 Environment.ExitCode = exception.ExitCode;
             }
             catch (Exception exception)
             {
-                Console.WriteLine(exception);
+                Console.Error.WriteLine(exception);
             }
         }
     }

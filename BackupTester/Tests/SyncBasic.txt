@@ -1572,7 +1572,7 @@ lastoutput-verify -workspacepathhack
 .
 .CONFLICT 'm' modified both, unreadable
 .  L: keep "%WORKSPACE%\a\x\m"
-.  R: keep "%WORKSPACE%\a\y\m" [more recent]
+.  R: keep "%WORKSPACE%\a\y\m"
 .  I: ignore
 .  N: ignore all
 .  W: windiff (Shift-W to reverse)
@@ -1770,7 +1770,7 @@ lastoutput-verify -workspacepathhack
 .m
 .
 .CONFLICT 'm' modified both, unreadable
-.  L: keep "%WORKSPACE%\a\x\m" [more recent]
+.  L: keep "%WORKSPACE%\a\x\m"
 .  R: keep "%WORKSPACE%\a\y\m"
 .  I: ignore
 .  N: ignore all

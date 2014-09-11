@@ -1,0 +1,239 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module validate range fault recovery (with -resume)
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 1000
+create source\b -size 1000
+create source\c -size 1000
+create source\file -size 4500000
+create source\h -size 1000
+create source\i -size 1000
+create source\j -size 1000
+qlist .
+call backup -date %DATE% dynpack source archive 2500000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- archive.0.dynpack [8]
+.          2014-01-01          2014-01-01 -A---- archive.a.dynpack [9]
+.          2014-01-01          2014-01-01 -A---- archive.m.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive.s.dynpack [11]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\file [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\j [7]
+endlist
+# sanity check
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 1]
+.        1 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\a
+.        2 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\b
+.        3 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\c
+. [m: 2]
+.        4 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\file
+.   0-2499963/4500000
+. [s: 3]
+.        5 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\file
+.   2499964-4499999/4500000
+.        6 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\h
+.        7 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\i
+.        8 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\j
+endoutput
+
+test fail large file extraction 1
+call backup -concurrency 0 -date %DATE% -injectfault "/UnpackInternal/FileHeader[stringequal:.\file]/Write/Position[limit:500000]" dynunpack archive target
+exitcode-verify not 0
+list-verify target
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-01          2014-01-01 -A---- b [2]
+.          2014-01-01          2014-01-01 -A---- c [3]
+*          [0-9]*\-[0-9]*\-[0-9]*          [0-9]*\-[0-9]*\-[0-9]* \-A\-\-\-\- file \[12\]$
+endlist
+
+test [resume] fail large file extraction 2
+call backup -concurrency 0 -date %DATE% -injectfault "/UnpackInternal/FileHeader[stringequal:.\file]/Write/Position[limit:2000000]" dynunpack archive target -resume
+exitcode-verify not 0
+list-verify target
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-01          2014-01-01 -A---- b [2]
+.          2014-01-01          2014-01-01 -A---- c [3]
+*          [0-9]*\-[0-9]*\-[0-9]*          [0-9]*\-[0-9]*\-[0-9]* \-A\-\-\-\- file \[13\]$
+endlist
+
+test [resume] fail large file extraction 3
+call backup -concurrency 0 -date %DATE% -injectfault "/UnpackInternal/FileHeader[stringequal:.\file]/Write/Position[limit:3000000]" dynunpack archive target -resume
+exitcode-verify not 0
+list-verify target
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-01          2014-01-01 -A---- b [2]
+.          2014-01-01          2014-01-01 -A---- c [3]
+*          [0-9]*\-[0-9]*\-[0-9]*          [0-9]*\-[0-9]*\-[0-9]* \-A\-\-\-\- file \[14\]$
+endlist
+
+test [resume] finish large file extraction
+call backup -concurrency 0 -date %DATE% dynunpack archive target -resume
+exitcode-verify 0
+list-verify target
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-01          2014-01-01 -A---- b [2]
+.          2014-01-01          2014-01-01 -A---- c [3]
+# after all the retries, expect hash [4] to be same as original file
+.          2014-01-01          2014-01-01 -A---- file [4]
+.          2014-01-01          2014-01-01 -A---- h [5]
+.          2014-01-01          2014-01-01 -A---- i [6]
+.          2014-01-01          2014-01-01 -A---- j [7]
+endlist
+
+
+module validate graceful failure if early range segment is deleted
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 1000
+create source\b -size 1000
+create source\c -size 1000
+create source\file -size 4500000
+create source\h -size 1000
+create source\i -size 1000
+create source\j -size 1000
+create source\k -size 2000000
+qlist .
+call backup -date %DATE% dynpack source archive 2500000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- archive.0.dynpack [9]
+.          2014-01-01          2014-01-01 -A---- archive.a.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive.g.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\file [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\j [7]
+.          2014-01-01          2014-01-01 -A---- source\k [8]
+endlist
+# sanity check
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 5\; SIGNATURE\: .*$
+. [a: 1]
+.        1 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\a
+.        2 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\b
+.        3 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\c
+. [g: 2]
+# make sure segment "g" is the one with the early part of "file"
+.        4 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\file
+.   0-2499963/4500000
+. [m: 3]
+.        5 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\file
+.   2499964-4499999/4500000
+.        6 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\h
+. [s: 4]
+.        7 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\i
+.        8 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\j
+.        9 1.91MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\k
+endoutput
+
+test remove early segment of ranged file
+# delete the early part - "g"
+delete archive.g.dynpack
+call backup -concurrency 0 -date %DATE% dynunpack archive target
+exitcode-verify not 0
+list-verify target
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-01          2014-01-01 -A---- b [2]
+.          2014-01-01          2014-01-01 -A---- c [3]
+# file is created, but zero length
+.          2014-01-01          2014-01-01 -A--Z- file [0]
+# following files from segment are extracted
+.          2014-01-01          2014-01-01 -A---- h [5]
+.          2014-01-01          2014-01-01 -A---- i [6]
+.          2014-01-01          2014-01-01 -A---- j [7]
+# remaining segments are extracted
+.          2014-01-01          2014-01-01 -A---- k [8]
+endlist
+
+
+module range extraction of read-only file
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 1000
+create source\b -size 1000
+create source\c -size 1000
+create source\file -size 4500000
+attrib source\file +r
+create source\h -size 1000
+create source\i -size 1000
+create source\j -size 1000
+qlist .
+call backup -date %DATE% dynpack source archive 2500000 -verify
+exitcode-verify 0
+list-verify .
+.          2014-01-01          2014-01-01 -A---- archive.0.dynpack [8]
+.          2014-01-01          2014-01-01 -A---- archive.a.dynpack [9]
+.          2014-01-01          2014-01-01 -A---- archive.m.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive.s.dynpack [11]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 RA---- source\file [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\j [7]
+endlist
+# sanity check
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 1]
+.        1 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\a
+.        2 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\b
+.        3 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\c
+. [m: 2]
+.        4 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 r- .\file
+.   0-2499963/4500000
+. [s: 3]
+.        5 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 r- .\file
+.   2499964-4499999/4500000
+.        6 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\h
+.        7 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\i
+.        8 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\j
+endoutput
+
+test extraction
+call backup -concurrency 0 -date %DATE% dynunpack archive target
+exitcode-verify 0
+list-verify target
+.          2014-01-01          2014-01-01 -A---- a [1]
+.          2014-01-01          2014-01-01 -A---- b [2]
+.          2014-01-01          2014-01-01 -A---- c [3]
+.          2014-01-01          2014-01-01 RA---- file [4]
+.          2014-01-01          2014-01-01 -A---- h [5]
+.          2014-01-01          2014-01-01 -A---- i [6]
+.          2014-01-01          2014-01-01 -A---- j [7]
+endlist

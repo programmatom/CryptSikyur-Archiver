@@ -36,7 +36,9 @@
     <Compile Include="Concurrency.cs" />
     <Compile Include="IArchiveFileManager.cs" />
     <Compile Include="Backup.cs" />
+    <Compile Include="ParseJSON.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ProtectedDataStorage.cs" />
     <Compile Include="RemoteStorage.cs" />
     <Compile Include="Serpent\SerpentEngine.cs" />
     <Compile Include="Serpent\SerpentTest.cs" />

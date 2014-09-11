@@ -1,7 +1,7 @@
 /*
  *  Copyright © 2014 Thomas R. Lawrence
- *    except: "SkeinFish 0.5.0/*.cs", which are Copyright 2010 Alberto Fajardo
- *    except: "SerpentEngine.cs", which is Copyright 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
+ *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
+ *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  * 
  *  GNU General Public License
  * 
@@ -27,6 +27,12 @@ using System.Text;
 
 namespace Backup
 {
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // Windows Protected Storage (DPAPI)
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
     static class ProtectedDataStorage
     {
         // http://www.pinvoke.net/default.aspx/crypt32/CryptProtectData.html

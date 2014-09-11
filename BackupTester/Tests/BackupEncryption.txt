@@ -6,7 +6,7 @@ date-format yyyy-MM-dd
 fail-pause on
 
 
-module encryption roundtrip
+module encryption roundtrip - aes-128
 
 test setup
 date 2014-01-01
@@ -45,38 +45,19 @@ list-verify .
 .                                         -----D target1\
 .          2014-01-01          2014-01-01 -A---- target1\file [1]
 endlist
-rmdir archive
-rmdir target1
 
-test 3des
-mkdir archive
-call backup -date %DATE% -encrypt 3des pA55w0Rd backup source archive
-exitcode-verify 0
+
+module encryption roundtrip - threefish-1024
+
+test setup
+date 2014-01-01
+mkdir source
+create source\file -size 50000
+date + 1
 list-verify .
-.                                         -----D archive\
-.                                         -----D archive\2014-01-02T00+00+00\
-.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [4]
-.          2014-01-02          2014-01-02 -A---- archive\check.bin [5]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\file [1]
 endlist
-call backup -date %DATE% -encrypt 3des pA55w0Rd verify source archive
-exitcode-verify 0
-call backup -date %DATE% -decrypt 3des pA55w0Rd restore archive 2014-01-02T00+00+00 target2
-exitcode-verify 0
-dirs-equal-verify source target2
-list-verify .
-.                                         -----D archive\
-.                                         -----D archive\2014-01-02T00+00+00\
-.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [4]
-.          2014-01-02          2014-01-02 -A---- archive\check.bin [5]
-.                                         -----D source\
-.          2014-01-01          2014-01-01 -A---- source\file [1]
-.                                         -----D target2\
-.          2014-01-01          2014-01-01 -A---- target2\file [1]
-endlist
-rmdir archive
-rmdir target2
 
 test 3fish
 mkdir archive
@@ -85,8 +66,8 @@ exitcode-verify 0
 list-verify .
 .                                         -----D archive\
 .                                         -----D archive\2014-01-02T00+00+00\
-.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [6]
-.          2014-01-02          2014-01-02 -A---- archive\check.bin [7]
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [2]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [3]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\file [1]
 endlist
@@ -98,8 +79,8 @@ dirs-equal-verify source target3
 list-verify .
 .                                         -----D archive\
 .                                         -----D archive\2014-01-02T00+00+00\
-.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [6]
-.          2014-01-02          2014-01-02 -A---- archive\check.bin [7]
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [2]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [3]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\file [1]
 .                                         -----D target3\
@@ -108,6 +89,20 @@ endlist
 rmdir archive
 rmdir target3
 
+
+module encryption roundtrip - serpent-256
+
+test setup
+date 2014-01-01
+mkdir source
+create source\file -size 50000
+date + 1
+list-verify .
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\file [1]
+endlist
+
+
 test serpent
 mkdir archive
 call backup -date %DATE% -encrypt serpent256 PA5sW1rD backup source archive
@@ -115,8 +110,8 @@ exitcode-verify 0
 list-verify .
 .                                         -----D archive\
 .                                         -----D archive\2014-01-02T00+00+00\
-.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [8]
-.          2014-01-02          2014-01-02 -A---- archive\check.bin [9]
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [2]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [3]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\file [1]
 endlist
@@ -128,8 +123,8 @@ dirs-equal-verify source target4
 list-verify .
 .                                         -----D archive\
 .                                         -----D archive\2014-01-02T00+00+00\
-.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [8]
-.          2014-01-02          2014-01-02 -A---- archive\check.bin [9]
+.          2014-01-01          2014-01-01 -A---- archive\2014-01-02T00+00+00\file [2]
+.          2014-01-02          2014-01-02 -A---- archive\check.bin [3]
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\file [1]
 .                                         -----D target4\

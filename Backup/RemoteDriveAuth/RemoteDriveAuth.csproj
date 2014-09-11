@@ -34,7 +34,8 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ProtectedDataStorage.cs" />
+    <Compile Include="..\Backup\ProtectedDataStorage.cs" />
+    <Compile Include="..\Backup\ParseJSON.cs" />
     <Compile Include="RemoteDriveAuth.cs">
       <SubType>Form</SubType>
     </Compile>
