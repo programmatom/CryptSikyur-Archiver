@@ -38,6 +38,8 @@ namespace Backup
         // http://www.pinvoke.net/default.aspx/crypt32/CryptProtectData.html
         // http://msdn.microsoft.com/en-us/library/ms995355.aspx
 
+        // From WinCrypt.h
+
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct DATA_BLOB
         {
@@ -100,7 +102,10 @@ namespace Backup
             CRYPTPROTECT_NO_RECOVERY = 0x20,
 
             // Verify the protection of a protected blob
-            CRYPTPROTECT_VERIFY_PROTECTION = 0x40
+            CRYPTPROTECT_VERIFY_PROTECTION = 0x40,
+
+            // Regenerate the local machine protection
+            CRYPTPROTECT_CRED_REGENERATE = 0x80,
         }
 
         [Flags]
@@ -110,7 +115,13 @@ namespace Backup
             CRYPTPROTECT_PROMPT_ON_UNPROTECT = 0x1,
 
             // prompt on protect
-            CRYPTPROTECT_PROMPT_ON_PROTECT = 0x2
+            CRYPTPROTECT_PROMPT_ON_PROTECT = 0x2,
+
+            // default to strong variant UI protection (user supplied password currently).
+            CRYPTPROTECT_PROMPT_STRONG = 0x08,
+
+            // require strong variant UI protection (user supplied password currently).
+            CRYPTPROTECT_PROMPT_REQUIRE_STRONG = 0x10,
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -143,6 +154,40 @@ namespace Backup
             ref CRYPTPROTECT_PROMPTSTRUCT pPromptStruct,
             CryptProtectFlags dwFlags,
             ref DATA_BLOB pDataOut);
+
+
+        private const Int32 CRYPTPROTECTMEMORY_BLOCK_SIZE = 16;
+
+        [Flags]
+        private enum CryptProtectMemoryFlags
+        {
+
+            // Encrypt/Decrypt within current process context.
+            CRYPTPROTECTMEMORY_SAME_PROCESS = 0x00,
+
+            // Encrypt/Decrypt across process boundaries.
+            // eg: encrypted buffer passed across LPC to another process which calls CryptUnprotectMemory.
+            CRYPTPROTECTMEMORY_CROSS_PROCESS = 0x01,
+
+            // Encrypt/Decrypt across callers with same LogonId.
+            // eg: encrypted buffer passed across LPC to another process which calls CryptUnprotectMemory whilst impersonating.
+            CRYPTPROTECTMEMORY_SAME_LOGON = 0x02,
+        }
+
+        [DllImport("Crypt32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CryptProtectMemory(
+            byte[] pData,
+            Int32 cbData,
+            CryptProtectMemoryFlags dwFlags);
+
+        [DllImport("Crypt32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CryptUnprotectMemory(
+            byte[] pData,
+            Int32 cbData,
+            CryptProtectMemoryFlags dwFlags);
+
 
         internal static byte[] Encrypt(byte[] plaintext, int index, int count, byte[] secondaryEntropy)
         {

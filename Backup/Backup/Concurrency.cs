@@ -255,7 +255,7 @@ namespace Backup
             {
                 if (interactive)
                 {
-                    lastWidth = Console.BufferWidth; // Int32 interlocked not needed
+                    lastWidth = Console.BufferWidth;
                 }
 
                 // "records" is essentially a priority queue. It is anticipated that the
@@ -325,7 +325,7 @@ namespace Backup
         {
             get
             {
-                return lastWidth; // Int32 interlocked not needed
+                return lastWidth;
             }
         }
 
@@ -474,8 +474,6 @@ namespace Backup
         {
             throw new NotSupportedException();
         }
-
-        public int MaxTasksInProgress { get { return threadCount/*potentially running*/ + maxQueuedTasksCount /*potentially waiting*/; } }
 
         public void Drain(WaitIntervalMethod waitIntervalMethod, int waitInterval)
         {

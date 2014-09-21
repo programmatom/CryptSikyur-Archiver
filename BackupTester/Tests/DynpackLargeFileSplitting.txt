@@ -535,3 +535,290 @@ list-verify . -sizes
 .          2014-01-06          2014-01-07 -A----        1000 target2\z [3]
 endlist
 rmdir target2
+
+
+module allow splitting or merging for segments that don't exist yet I (files unchanged)
+# this test is for segments that contain an un-ranged too-large file
+
+test setup
+date 2014-01-01
+mkdir source
+create source\00-smallish -size 1500000
+create source\01-large -size 9000000
+create source\02-medium -size 3000000
+create source\03-small -size 1000
+qlist .
+date + 1
+call backup -date %DATE% dynpack source archive 10000000
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target1
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [5]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\00-smallish [1]
+.          2014-01-01          2014-01-01 -A---- source\01-large [2]
+.          2014-01-01          2014-01-01 -A---- source\02-medium [3]
+.          2014-01-01          2014-01-01 -A---- source\03-small [4]
+.                                         -----D target1\
+.          2014-01-01          2014-01-01 -A---- target1\00-smallish [1]
+.          2014-01-01          2014-01-01 -A---- target1\01-large [2]
+.          2014-01-01          2014-01-01 -A---- target1\02-medium [3]
+.          2014-01-01          2014-01-01 -A---- target1\03-small [4]
+endlist
+rmdir target1
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 1]
+.        1 1.43MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\00-smallish
+. [m: 2]
+.        2 8.58MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-large
+. [s: 3]
+.        3 2.86MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02-medium
+.        4 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03-small
+endoutput
+
+test drop target size, expected no change
+date + 1
+call backup -date %DATE% dynpack source archive 5000000
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target2
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [6]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\00-smallish [1]
+.          2014-01-01          2014-01-01 -A---- source\01-large [2]
+.          2014-01-01          2014-01-01 -A---- source\02-medium [3]
+.          2014-01-01          2014-01-01 -A---- source\03-small [4]
+.                                         -----D target2\
+.          2014-01-01          2014-01-01 -A---- target2\00-smallish [1]
+.          2014-01-01          2014-01-01 -A---- target2\01-large [2]
+.          2014-01-01          2014-01-01 -A---- target2\02-medium [3]
+.          2014-01-01          2014-01-01 -A---- target2\03-small [4]
+endlist
+rmdir target2
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 5\; SIGNATURE\: .*$
+. [a: 1]
+.        1 1.43MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\00-smallish
+. [m: 2]
+.        2 8.58MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-large
+. [s: 3]
+.        3 2.86MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02-medium
+.        4 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03-small
+endoutput
+
+test drop target size and delete segment, expected splitting
+date + 1
+delete archive.m.dynpack
+call backup -date %DATE% dynpack source archive 5000000
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target3
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [10]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [6]
+.          2014-01-04          2014-01-04 -A---- archive.m.dynpack [11]
+.          2014-01-04          2014-01-04 -A---- archive.p.dynpack [12]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\00-smallish [1]
+.          2014-01-01          2014-01-01 -A---- source\01-large [2]
+.          2014-01-01          2014-01-01 -A---- source\02-medium [3]
+.          2014-01-01          2014-01-01 -A---- source\03-small [4]
+.                                         -----D target3\
+.          2014-01-01          2014-01-01 -A---- target3\00-smallish [1]
+.          2014-01-01          2014-01-01 -A---- target3\01-large [2]
+.          2014-01-01          2014-01-01 -A---- target3\02-medium [3]
+.          2014-01-01          2014-01-01 -A---- target3\03-small [4]
+endlist
+rmdir target3
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 8\; SIGNATURE\: .*$
+. [a: 1]
+.        1 1.43MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\00-smallish
+. [m: 6]
+.        2 8.58MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-large
+.   0-4999963/9000000
+. [p: 7]
+.        3 8.58MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-large
+.   4999964-8999999/9000000
+. [s: 3]
+.        4 2.86MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02-medium
+.        5 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03-small
+endoutput
+
+
+module allow splitting or merging for segments that don't exist yet II (files unchanged)
+# this test is for too-large segments containing smallish files
+
+test setup
+date 2014-01-01
+mkdir source
+create source\00-medium1 -size 4500000
+create source\01-medium2 -size 4500000
+create source\02-smallpart -size 2400000
+create source\03-smallpart -size 2400000
+create source\04-smallpart -size 2400000
+create source\05-smallpart -size 2400000
+create source\06-medium3 -size 4500000
+create source\07-medium4 -size 4500000
+qlist .
+date + 1
+call backup -date %DATE% dynpack source archive 10000000
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target1
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [10]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [11]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [12]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\00-medium1 [1]
+.          2014-01-01          2014-01-01 -A---- source\01-medium2 [2]
+.          2014-01-01          2014-01-01 -A---- source\02-smallpart [3]
+.          2014-01-01          2014-01-01 -A---- source\03-smallpart [4]
+.          2014-01-01          2014-01-01 -A---- source\04-smallpart [5]
+.          2014-01-01          2014-01-01 -A---- source\05-smallpart [6]
+.          2014-01-01          2014-01-01 -A---- source\06-medium3 [7]
+.          2014-01-01          2014-01-01 -A---- source\07-medium4 [8]
+.                                         -----D target1\
+.          2014-01-01          2014-01-01 -A---- target1\00-medium1 [1]
+.          2014-01-01          2014-01-01 -A---- target1\01-medium2 [2]
+.          2014-01-01          2014-01-01 -A---- target1\02-smallpart [3]
+.          2014-01-01          2014-01-01 -A---- target1\03-smallpart [4]
+.          2014-01-01          2014-01-01 -A---- target1\04-smallpart [5]
+.          2014-01-01          2014-01-01 -A---- target1\05-smallpart [6]
+.          2014-01-01          2014-01-01 -A---- target1\06-medium3 [7]
+.          2014-01-01          2014-01-01 -A---- target1\07-medium4 [8]
+endlist
+rmdir target1
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 1]
+.        1 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\00-medium1
+.        2 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-medium2
+. [m: 2]
+.        3 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02-smallpart
+.        4 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03-smallpart
+.        5 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\04-smallpart
+.        6 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\05-smallpart
+. [s: 3]
+.        7 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\06-medium3
+.        8 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\07-medium4
+endoutput
+
+test drop target size, expected no change
+date + 1
+call backup -date %DATE% dynpack source archive 5000000
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target2
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [13]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [10]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [11]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [12]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\00-medium1 [1]
+.          2014-01-01          2014-01-01 -A---- source\01-medium2 [2]
+.          2014-01-01          2014-01-01 -A---- source\02-smallpart [3]
+.          2014-01-01          2014-01-01 -A---- source\03-smallpart [4]
+.          2014-01-01          2014-01-01 -A---- source\04-smallpart [5]
+.          2014-01-01          2014-01-01 -A---- source\05-smallpart [6]
+.          2014-01-01          2014-01-01 -A---- source\06-medium3 [7]
+.          2014-01-01          2014-01-01 -A---- source\07-medium4 [8]
+.                                         -----D target2\
+.          2014-01-01          2014-01-01 -A---- target2\00-medium1 [1]
+.          2014-01-01          2014-01-01 -A---- target2\01-medium2 [2]
+.          2014-01-01          2014-01-01 -A---- target2\02-smallpart [3]
+.          2014-01-01          2014-01-01 -A---- target2\03-smallpart [4]
+.          2014-01-01          2014-01-01 -A---- target2\04-smallpart [5]
+.          2014-01-01          2014-01-01 -A---- target2\05-smallpart [6]
+.          2014-01-01          2014-01-01 -A---- target2\06-medium3 [7]
+.          2014-01-01          2014-01-01 -A---- target2\07-medium4 [8]
+endlist
+rmdir target2
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 5\; SIGNATURE\: .*$
+. [a: 1]
+.        1 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\00-medium1
+.        2 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-medium2
+. [m: 2]
+.        3 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02-smallpart
+.        4 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03-smallpart
+.        5 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\04-smallpart
+.        6 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\05-smallpart
+. [s: 3]
+.        7 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\06-medium3
+.        8 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\07-medium4
+endoutput
+
+test drop target size and delete segment, expected splitting
+date + 1
+delete archive.m.dynpack
+call backup -date %DATE% dynpack source archive 5000000
+exitcode-verify 0
+call backup -date %DATE% dynunpack archive target3
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [14]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [10]
+.          2014-01-04          2014-01-04 -A---- archive.m.dynpack [15]
+.          2014-01-04          2014-01-04 -A---- archive.p.dynpack [16]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [12]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\00-medium1 [1]
+.          2014-01-01          2014-01-01 -A---- source\01-medium2 [2]
+.          2014-01-01          2014-01-01 -A---- source\02-smallpart [3]
+.          2014-01-01          2014-01-01 -A---- source\03-smallpart [4]
+.          2014-01-01          2014-01-01 -A---- source\04-smallpart [5]
+.          2014-01-01          2014-01-01 -A---- source\05-smallpart [6]
+.          2014-01-01          2014-01-01 -A---- source\06-medium3 [7]
+.          2014-01-01          2014-01-01 -A---- source\07-medium4 [8]
+.                                         -----D target3\
+.          2014-01-01          2014-01-01 -A---- target3\00-medium1 [1]
+.          2014-01-01          2014-01-01 -A---- target3\01-medium2 [2]
+.          2014-01-01          2014-01-01 -A---- target3\02-smallpart [3]
+.          2014-01-01          2014-01-01 -A---- target3\03-smallpart [4]
+.          2014-01-01          2014-01-01 -A---- target3\04-smallpart [5]
+.          2014-01-01          2014-01-01 -A---- target3\05-smallpart [6]
+.          2014-01-01          2014-01-01 -A---- target3\06-medium3 [7]
+.          2014-01-01          2014-01-01 -A---- target3\07-medium4 [8]
+endlist
+rmdir target3
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 8\; SIGNATURE\: .*$
+. [a: 1]
+.        1 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\00-medium1
+.        2 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-medium2
+. [m: 6]
+.        3 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02-smallpart
+.        4 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03-smallpart
+. [p: 7]
+.        5 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\04-smallpart
+.        6 2.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\05-smallpart
+. [s: 3]
+.        7 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\06-medium3
+.        8 4.29MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\07-medium4
+endoutput

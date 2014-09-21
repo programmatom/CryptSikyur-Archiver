@@ -77,11 +77,11 @@ file-verify logs\archive.0.dynpack.log
 .[Non-dirty segment verification enabled]
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
-.0 dirty
-*SEGMENT m \d+ [0-9a-fA-F]{8}$
 .1 dirty
-*SEGMENT s \d+ [0-9a-fA-F]{8}$
+*SEGMENT m \d+ [0-9a-fA-F]{8}$
 .2 dirty
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+.3 dirty
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
 *  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
@@ -229,9 +229,9 @@ file-verify logs\archive.0.dynpack.log
 .[Non-dirty segment verification enabled]
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
-.0 not-dirty
+.1 not-dirty
 *SEGMENT s \d+ [0-9a-fA-F]{8}$
-.2 not-dirty
+.3 not-dirty
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
 *  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
@@ -307,11 +307,11 @@ file-verify logs\archive.0.dynpack.log
 .[Non-dirty segment verification enabled]
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
-.0 not-dirty
-*SEGMENT s \d+ [0-9a-fA-F]{8}$
 .1 not-dirty
+*SEGMENT s \d+ [0-9a-fA-F]{8}$
+.3 not-dirty
 *SEGMENT v \d+ [0-9a-fA-F]{8}$
-.2 dirty
+.6 dirty
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
 *  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$

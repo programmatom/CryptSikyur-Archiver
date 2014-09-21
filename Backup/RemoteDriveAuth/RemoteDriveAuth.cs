@@ -280,6 +280,7 @@ namespace RemoteDriveAuth
             Success = 0,
             Error = 1,
             ErrorUserMessage = 2, // used to notify invoking process to show exception.Message to user
+            RetriableError = 3,
         }
 
         public readonly int ExitCode;
@@ -945,16 +946,12 @@ namespace RemoteDriveAuth
         }
 
         const string LocalApplicationDirectoryName = "Backup-RemoteDriveAuth";
-        static string GetLocalAppDataPath(bool create)
+        static string GetLocalAppDataPath(bool create, bool roaming)
         {
-            string localAppDataPath = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+            string localAppDataPath = Environment.GetEnvironmentVariable(roaming ? "APPDATA" : "LOCALAPPDATA");
             if (localAppDataPath == null)
             {
-                localAppDataPath = Environment.GetEnvironmentVariable("APPDATA");
-            }
-            if (localAppDataPath == null)
-            {
-                localAppDataPath = Environment.ExpandEnvironmentVariables("%USERPROFILE%\\Application Data");
+                localAppDataPath = Environment.ExpandEnvironmentVariables("%USERPROFILE%\\Application Data"); // Windows XP fallback
             }
             localAppDataPath = Path.Combine(localAppDataPath, LocalApplicationDirectoryName);
             if (create && !Directory.Exists(localAppDataPath))
@@ -989,7 +986,7 @@ namespace RemoteDriveAuth
                 Debugger.Break();
             }
 
-            string localAppDataPath = GetLocalAppDataPath(false/*create*/);
+            string localAppDataPath = GetLocalAppDataPath(false/*create*/, true/*roaming*/);
             string clientIdentitiesPath = Path.Combine(localAppDataPath, "client-identities.txt");
             ClientIdentities clientIdentities = new ClientIdentities(clientIdentitiesPath);
 
@@ -1218,6 +1215,30 @@ namespace RemoteDriveAuth
             {
                 Console.Error.WriteLine(exception.Message);
                 Environment.ExitCode = exception.ExitCode;
+            }
+            catch (WebException exception)
+            {
+                Console.Error.WriteLine(exception);
+                if (exception.Status != WebExceptionStatus.ProtocolError)
+                {
+                    Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
+                }
+                else if (exception.Status == WebExceptionStatus.ProtocolError)
+                {
+                    WebResponse response = exception.Response;
+                    if (response != null)
+                    {
+                        HttpWebResponse httpWebResponse;
+                        if ((httpWebResponse = response as HttpWebResponse) != null)
+                        {
+                            if ((httpWebResponse.StatusCode >= (HttpStatusCode)500)
+                                && (httpWebResponse.StatusCode < (HttpStatusCode)599))
+                            {
+                                Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
+                            }
+                        }
+                    }
+                }
             }
             catch (Exception exception)
             {

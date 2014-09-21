@@ -434,3 +434,132 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- target\m.txt [1]
 .          2014-01-04          2014-01-04 -A---- target\o.bar [3]
 endlist
+
+
+module bug - change exclusion causes discontiguous segment
+
+test setup
+date 2014-01-01
+mkdir source
+mkdir source\01
+create source\01\one -size 95000
+mkdir source\02
+create source\02\two -size 32000
+mkdir source\03
+create source\03\three -size 32000
+mkdir source\04
+create source\04\large -size 295000
+mkdir source\05
+create source\05\five -size 32000
+mkdir source\06
+create source\06\six -size 95000
+qlist .
+
+test initial pack
+date + 1
+call backup -date %DATE% dynpack source archive 100000 -nosplitlargefiles -exclude source\04
+exitcode-verify 0
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 1]
+.        1 92.8KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01\one
+. [m: 2]
+.        2 31.3KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02\two
+.        3 31.3KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03\three
+.        4 31.3KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\05\five
+. [s: 3]
+.        5 92.8KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\06\six
+endoutput
+call backup -date %DATE% dynunpack archive target1
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.          2014-01-02          2014-01-02 -A---- archive.m.dynpack [9]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [10]
+.                                         -----D source\
+.                                         -----D source\01\
+.          2014-01-01          2014-01-01 -A---- source\01\one [1]
+.                                         -----D source\02\
+.          2014-01-01          2014-01-01 -A---- source\02\two [2]
+.                                         -----D source\03\
+.          2014-01-01          2014-01-01 -A---- source\03\three [3]
+.                                         -----D source\04\
+.          2014-01-01          2014-01-01 -A---- source\04\large [4]
+.                                         -----D source\05\
+.          2014-01-01          2014-01-01 -A---- source\05\five [5]
+.                                         -----D source\06\
+.          2014-01-01          2014-01-01 -A---- source\06\six [6]
+.                                         -----D target1\
+.                                         -----D target1\01\
+.          2014-01-01          2014-01-01 -A---- target1\01\one [1]
+.                                         -----D target1\02\
+.          2014-01-01          2014-01-01 -A---- target1\02\two [2]
+.                                         -----D target1\03\
+.          2014-01-01          2014-01-01 -A---- target1\03\three [3]
+.                                         -----D target1\05\
+.          2014-01-01          2014-01-01 -A---- target1\05\five [5]
+.                                         -----D target1\06\
+.          2014-01-01          2014-01-01 -A---- target1\06\six [6]
+endlist
+rmdir target1
+
+test update pack
+date + 1
+call backup -date %DATE% dynpack source archive 100000 -nosplitlargefiles
+exitcode-verify 0
+call backup -date %DATE% dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 8\; SIGNATURE\: .*$
+. [a: 1]
+.        1 92.8KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01\one
+. [m: 5]
+.        2 31.3KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02\two
+.        3 31.3KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03\three
+. [p: 6]
+.        4 288KB  2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\04\large
+. [q: 7]
+.        5 31.3KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\05\five
+. [s: 3]
+.        6 92.8KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\06\six
+endoutput
+call backup -date %DATE% dynunpack archive target2
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [11]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.          2014-01-02          2014-01-03 -A---- archive.m.dynpack [12]
+.          2014-01-03          2014-01-03 -A---- archive.p.dynpack [13]
+.          2014-01-03          2014-01-03 -A---- archive.q.dynpack [14]
+.          2014-01-02          2014-01-02 -A---- archive.s.dynpack [10]
+.                                         -----D source\
+.                                         -----D source\01\
+.          2014-01-01          2014-01-01 -A---- source\01\one [1]
+.                                         -----D source\02\
+.          2014-01-01          2014-01-01 -A---- source\02\two [2]
+.                                         -----D source\03\
+.          2014-01-01          2014-01-01 -A---- source\03\three [3]
+.                                         -----D source\04\
+.          2014-01-01          2014-01-01 -A---- source\04\large [4]
+.                                         -----D source\05\
+.          2014-01-01          2014-01-01 -A---- source\05\five [5]
+.                                         -----D source\06\
+.          2014-01-01          2014-01-01 -A---- source\06\six [6]
+.                                         -----D target2\
+.                                         -----D target2\01\
+.          2014-01-01          2014-01-01 -A---- target2\01\one [1]
+.                                         -----D target2\02\
+.          2014-01-01          2014-01-01 -A---- target2\02\two [2]
+.                                         -----D target2\03\
+.          2014-01-01          2014-01-01 -A---- target2\03\three [3]
+.                                         -----D target2\04\
+.          2014-01-01          2014-01-01 -A---- target2\04\large [4]
+.                                         -----D target2\05\
+.          2014-01-01          2014-01-01 -A---- target2\05\five [5]
+.                                         -----D target2\06\
+.          2014-01-01          2014-01-01 -A---- target2\06\six [6]
+endlist
+rmdir target2

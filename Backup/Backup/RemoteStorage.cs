@@ -80,6 +80,56 @@ namespace Backup
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    // Utilities
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    public static class RetryHelper
+    {
+        private static int maxRetries = 5;
+        private static readonly Random random = new Random();
+
+        public static int MaxRetries
+        {
+            get
+            {
+                return maxRetries;
+            }
+        }
+
+        public static void SetMaxRetries(int newMaxRetries)
+        {
+            maxRetries = newMaxRetries;
+        }
+
+        public static int ThreadsafeRandomNext(int limit)
+        {
+            lock (random)
+            {
+                return random.Next(limit);
+            }
+        }
+
+        public static void WaitExponentialBackoff(int retry, TextWriter trace)
+        {
+            if (retry > 0)
+            {
+                int w = 500 * (1 << retry);
+                int delay = w + ThreadsafeRandomNext(w);
+
+                if (trace != null)
+                {
+                    trace.WriteLine(" exponential backoff: waiting {0} milliseconds and retrying (#{1})", delay, retry);
+                }
+
+                Thread.Sleep(delay);
+            }
+        }
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     // Resource Owner Authentication
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -93,12 +143,8 @@ namespace Backup
         private readonly bool enableRefreshToken;
 
         private string accessToken; // null if not initialized or invalidated
-        private const int TokenExpirationGracePeriodSeconds = 60;
-        private DateTime accessTokenExpiry;
         private string refreshToken; // null if not enabled
         private string userId;
-
-        private readonly TextWriter masterTrace;
 
         // All accesses are through critical section to prevent multiple re-authorizations
         // from occurring simultaneously if access token has expired.
@@ -108,27 +154,21 @@ namespace Backup
             throw new NotSupportedException();
         }
 
-        private RemoteAccessControl(TextWriter masterTrace)
-        {
-            this.masterTrace = masterTrace;
-        }
-
         public RemoteAccessControl(string remoteServiceUrl, bool enableRefreshToken, string initialRefreshTokenProtected, TextWriter trace)
-            : this(trace)
         {
             if (!enableRefreshToken && !String.IsNullOrEmpty(initialRefreshTokenProtected))
             {
                 throw new ArgumentException();
             }
 
-            lock (this)
+            lock (this) // not actually needed in constructor
             {
                 this.remoteServiceUrl = remoteServiceUrl;
 
                 this.enableRefreshToken = enableRefreshToken;
                 this.refreshToken = UnprotectRefreshToken(initialRefreshTokenProtected);
 
-                Authenticate();
+                Authenticate(trace);
             }
         }
 
@@ -143,152 +183,159 @@ namespace Backup
             }
         }
 
-        public string AccessToken
-        {
-            get
-            {
-                lock (this)
-                {
-                    if (DateTime.Now >= accessTokenExpiry)
-                    {
-                        if (masterTrace != null)
-                        {
-                            masterTrace.WriteLine("[access token expiring {0}]", DateTime.Now);
-                        }
-                        InvalidateAccessToken();
-                    }
-
-                    if (accessToken == null)
-                    {
-                        Authenticate();
-                    }
-
-                    return accessToken;
-                }
-            }
-        }
-
-        public bool AccessTokenExpirationImminent
-        {
-            get
-            {
-                lock (this)
-                {
-                    return (DateTime.Now >= accessTokenExpiry);
-                }
-            }
-        }
-
-        public void InvalidateAccessToken()
+        public string GetAccessToken(TextWriter trace)
         {
             lock (this)
             {
-                if (masterTrace != null)
+                if (trace != null)
                 {
-                    masterTrace.WriteLine("*InvalidateAccessToken() - {0}", DateTime.Now);
+                    trace.WriteLine("+RemoteAccessControl.GetAccessToken");
                 }
 
-                accessToken = null;
-                accessTokenExpiry = DateTime.MinValue;
+                if (accessToken == null)
+                {
+                    Authenticate(trace);
+                }
+
+                if (trace != null)
+                {
+                    trace.WriteLine("-RemoteAccessControl.GetAccessToken returns {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                }
+                return accessToken;
+            }
+        }
+
+        public void InvalidateAccessToken(string callerAccessToken, TextWriter trace)
+        {
+            lock (this)
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine("+RemoteAccessControl.InvalidateOldAccessToken: {0}", Core.Logging.ScrubSecuritySensitiveValue(callerAccessToken));
+                }
+
+                if (String.Equals(callerAccessToken, accessToken))
+                {
+                    accessToken = null;
+
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" caller posesses current token - marking expired");
+                    }
+                }
+                else
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" doing nothing - not the current token {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                    }
+                }
+
+                if (trace != null)
+                {
+                    trace.WriteLine("-RemoteAccessControl.InvalidateOldAccessToken");
+                }
             }
         }
 
         private const string LoginProgramName = "RemoteDriveAuth.exe";
         private const int SecondaryEntropyLengthBytes = 256 / 8;
-        private void Authenticate()
+        private void Authenticate(TextWriter trace)
         {
             // caller should have already locked object for this invocation
 
-            using (TextWriter batchTrace = Core.TaskWriter.Create(masterTrace))
+            if (trace != null)
             {
-                if (batchTrace != null)
-                {
-                    batchTrace.WriteLine("+RemoteAccessControl.Authenticate() - {0}", DateTime.Now);
-                }
+                trace.WriteLine("+RemoteAccessControl.Authenticate() - {0}", DateTime.Now);
+            }
 
-                string arg0 = "-auth";
-                string arg1 = "-refreshtoken";
-                string arg2 = enableRefreshToken ? "yes" : "no";
-                string arg3 = enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? Core.HexEncodeASCII(refreshToken) : "\"\"";
-                string arg4 = remoteServiceUrl;
-                string args = String.Concat(arg0, " ", arg1, " ", arg2, " ", arg3, " ", arg4);
-                int exitCode;
-                string output;
-                Exec(LoginProgramName, args, null, null/*timeout*/, out exitCode, out output);
-                if (output.EndsWith(Environment.NewLine))
-                {
-                    output = output.Substring(0, output.Length - Environment.NewLine.Length);
-                }
-                if (batchTrace != null)
-                {
-                    batchTrace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/(enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? String.Concat(refreshToken.Substring(0, 4), "...", refreshToken.Substring(refreshToken.Length - 4)) : "\"\""), arg4);
-                    batchTrace.WriteLine("exit code: {0}", exitCode);
-                    batchTrace.WriteLine("output:");
-                    batchTrace.WriteLine((output.IndexOf(';') >= 0) && (output.IndexOf(Environment.NewLine) < 0) ? String.Concat(output.Substring(0, 4), "...", output.Substring(output.Length - 4, 4)) : output);
-                    batchTrace.WriteLine();
-                }
+            int retries = 0;
+        Retry:
+            string arg0 = "-auth";
+            string arg1 = "-refreshtoken";
+            string arg2 = enableRefreshToken ? "yes" : "no";
+            string arg3 = enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? Core.HexEncodeASCII(refreshToken) : "\"\"";
+            string arg4 = remoteServiceUrl;
+            string args = String.Concat(arg0, " ", arg1, " ", arg2, " ", arg3, " ", arg4);
+            int exitCode;
+            string output;
+            Exec(LoginProgramName, args, null, null/*timeout*/, out exitCode, out output);
+            if (output.EndsWith(Environment.NewLine))
+            {
+                output = output.Substring(0, output.Length - Environment.NewLine.Length);
+            }
+            if (trace != null)
+            {
+                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/Core.Logging.ScrubSecuritySensitiveValue(refreshToken), arg4);
+                trace.WriteLine("exit code: {0}", exitCode);
+                trace.WriteLine("output:");
+                trace.WriteLine((output.IndexOf(';') >= 0) && (output.IndexOf(Environment.NewLine) < 0) ? Core.Logging.ScrubSecuritySensitiveValue(output) : output);
+                trace.WriteLine();
+            }
 
-                if (exitCode != 0)
+            if (exitCode != 0)
+            {
+                if (exitCode == 2)
                 {
-                    if (exitCode == 2)
+                    throw new ApplicationException(String.Format("Authentication to remote service failed with message: {0}", output));
+                }
+                if (exitCode == 3)
+                {
+                    retries++;
+                    if (retries <= RetryHelper.MaxRetries)
                     {
-                        throw new ApplicationException(String.Format("Authentication to remote service failed with message: {0}", output));
+                        RetryHelper.WaitExponentialBackoff(retries, trace);
+                        goto Retry;
                     }
-                    throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
                 }
+                throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+            }
 
-                string oldRefreshToken = refreshToken;
+            string oldRefreshToken = refreshToken;
 
-                string[] outputParts = output.Split(new char[] { ';' });
-                if (outputParts.Length != 2)
-                {
-                    throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
-                }
+            string[] outputParts = output.Split(new char[] { ';' });
+            if (outputParts.Length != 2)
+            {
+                throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+            }
 
-                byte[] secondaryEntropy = Core.HexDecode(outputParts[0].Trim());
-                byte[] outputBytes = Core.HexDecode(outputParts[1].Trim());
-                byte[] decryptedOutput = ProtectedDataStorage.Decrypt(outputBytes, 0, outputBytes.Length, secondaryEntropy);
-                JSONDictionary tokenJSON = new JSONDictionary(Encoding.ASCII.GetString(decryptedOutput));
-                string token_type, scope;
-                long expires_in;
-                if (!tokenJSON.TryGetValueAs("token_type", out token_type)
-                    || !tokenJSON.TryGetValueAs("expires_in", out expires_in)
-                    || !tokenJSON.TryGetValueAs("access_token", out accessToken))
-                {
-                    throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
-                }
-                tokenJSON.TryGetValueAs("scope", out scope); // not needed - in any case only returned by Microsoft, not returned by Google
-                tokenJSON.TryGetValueAs("refresh_token", out refreshToken); // may be absent (--> null)
-                tokenJSON.TryGetValueAs("user_id", out userId); // not needed
-                if (batchTrace != null)
-                {
-                    batchTrace.WriteLine("Acquired tokens:");
-                    batchTrace.WriteLine("  access_token={0}", !String.IsNullOrEmpty(accessToken) ? "(omitted)" : "no");
-                    batchTrace.WriteLine("  refresh_token={0}", !String.IsNullOrEmpty(refreshToken) ? "(omitted)" : "no");
-                    batchTrace.WriteLine("  user_id={0}", !String.IsNullOrEmpty(userId) ? "(omitted)" : "no");
-                    batchTrace.WriteLine("  other: token_type={0}, expires_in={1}, scope=\"{2}\"", token_type, expires_in, scope);
-                    batchTrace.WriteLine();
-                }
-                if (!token_type.Equals("bearer", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new ArgumentException("token_type");
-                }
-                // subtract a grace period from expiration to force proactive renewal
-                accessTokenExpiry = DateTime.Now.AddSeconds(expires_in).AddSeconds(-TokenExpirationGracePeriodSeconds);
-                if (batchTrace != null)
-                {
-                    batchTrace.WriteLine("Token expiration set to: {0}", accessTokenExpiry);
-                }
+            byte[] secondaryEntropy = Core.HexDecode(outputParts[0].Trim());
+            byte[] outputBytes = Core.HexDecode(outputParts[1].Trim());
+            byte[] decryptedOutput = ProtectedDataStorage.Decrypt(outputBytes, 0, outputBytes.Length, secondaryEntropy);
+            JSONDictionary tokenJSON = new JSONDictionary(Encoding.ASCII.GetString(decryptedOutput));
+            string token_type, scope;
+            long expires_in;
+            if (!tokenJSON.TryGetValueAs("token_type", out token_type)
+                || !tokenJSON.TryGetValueAs("expires_in", out expires_in)
+                || !tokenJSON.TryGetValueAs("access_token", out accessToken))
+            {
+                throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+            }
+            tokenJSON.TryGetValueAs("scope", out scope); // not needed - in any case only returned by Microsoft, not returned by Google
+            tokenJSON.TryGetValueAs("refresh_token", out refreshToken); // may be absent (--> null)
+            tokenJSON.TryGetValueAs("user_id", out userId); // not needed
+            if (trace != null)
+            {
+                trace.WriteLine("Acquired tokens:");
+                trace.WriteLine("  access_token={0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                trace.WriteLine("  refresh_token={0}", Core.Logging.ScrubSecuritySensitiveValue(refreshToken));
+                trace.WriteLine("  user_id={0}", Core.Logging.ScrubSecuritySensitiveValue(userId));
+                trace.WriteLine("  other: token_type={0}, expires_in={1}, scope=\"{2}\"", token_type, expires_in, scope);
+                trace.WriteLine();
+            }
+            if (!token_type.Equals("bearer", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("token_type");
+            }
 
-                if (refreshToken == null)
-                {
-                    refreshToken = oldRefreshToken;
-                }
+            if (refreshToken == null)
+            {
+                refreshToken = oldRefreshToken;
+            }
 
-                if (batchTrace != null)
-                {
-                    batchTrace.WriteLine("-RemoteAccessControl.Authenticate - {0}", DateTime.Now);
-                }
+            if (trace != null)
+            {
+                trace.WriteLine("-RemoteAccessControl.Authenticate - {0}", DateTime.Now);
             }
         }
 
@@ -455,15 +502,16 @@ namespace Backup
         private const int MaxBytesPerWebRequest = 50 * 1024 * 1024; // force upload fail & resumable after this many bytes (to exercise the resume code)
         private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
 
-        // TODO: decide:
-        // .NET HttpWebRequest seems plagued by hangs and race conditions for long-running
-        // requests. Preferred to use my own simpler implementation.
-        private readonly bool? UseCustomHttpImplementation = null; // null == both (arbitrarily selected), false == HttpWebRequest, true == custom
+        // .NET HttpWebRequest (2.0 anyway) seems plagued by hangs and race conditions for long-running
+        // requests or spotty networks. Prefer to use my own simpler implementation.
+        private readonly bool? UseCustomHttpImplementation = true; // null == both (arbitrarily selected), false == HttpWebRequest, true == custom
 
-        private readonly RemoteAccessControl remoteAccessControl;
-        private readonly bool enableResumableUploads;
+        protected readonly RemoteAccessControl remoteAccessControl;
+        protected readonly bool enableResumableUploads;
 
         protected readonly Random random = new Random(); // for exponential backoff retry delays
+
+        private static NetworkThrottle networkThrottle = new NetworkThrottle();
 
         private WebMethodsBase()
         {
@@ -485,6 +533,54 @@ namespace Backup
             {
                 ServicePointManager.DefaultConnectionLimit = threadCount;
             }
+        }
+
+        private class NetworkThrottle
+        {
+            public virtual void WaitBytes(int count)
+            {
+            }
+        }
+
+        private class ActiveNetworkThrottle : NetworkThrottle
+        {
+            private const int MinApproximateBytesPerSecond = 100;
+            private int approximateBytesPerSecond;
+
+            public ActiveNetworkThrottle(int approximateBytesPerSecond)
+            {
+                if (approximateBytesPerSecond < MinApproximateBytesPerSecond)
+                {
+                    throw new ArgumentException();
+                }
+                this.approximateBytesPerSecond = approximateBytesPerSecond;
+            }
+
+            public override void WaitBytes(int count)
+            {
+                lock (this)
+                {
+                    long milliseconds = (1000L * count) / approximateBytesPerSecond;
+                    Thread.Sleep((int)milliseconds);
+                }
+            }
+        }
+
+        public static void SetThrottle(int approximateBytesPerSecond)
+        {
+            if (approximateBytesPerSecond == 0)
+            {
+                networkThrottle = new NetworkThrottle();
+            }
+            else
+            {
+                networkThrottle = new ActiveNetworkThrottle(approximateBytesPerSecond);
+            }
+        }
+
+        public static void ThrottleOff()
+        {
+            SetThrottle(0);
         }
 
         private static string StreamReadLine(Stream stream)
@@ -530,9 +626,6 @@ namespace Backup
                         {
                             SslStream ssl = (SslStream)socketStream;
 
-#if false
-                            //ssl.AuthenticateAsClient(uri.Host, new X509Certificate2Collection(clientCertificate), SslProtocols.Default, true/*checkCertificateRevocation*/);
-#endif
                             ssl.AuthenticateAsClient(uri.Host);
 
                             if (trace != null)
@@ -564,19 +657,29 @@ namespace Backup
                         // write request header
 
                         socketStream.Write(requestHeaderBytes, 0, requestHeaderBytes.Length);
+                        networkThrottle.WaitBytes(requestHeaderBytes.Length);
 
                         // wait for 100-continue if two-stage request in use
 
                         if (twoStageRequest)
                         {
+                            if (trace != null)
+                            {
+                                trace.WriteLine("two-stage request - waiting for 100-Continue:");
+                            }
+
                             string line2;
                             List<string> headers2 = new List<string>();
                             while (!String.IsNullOrEmpty(line2 = StreamReadLine(socketStream)))
                             {
                                 headers2.Add(line2);
+                                if (trace != null)
+                                {
+                                    trace.WriteLine("  {0}", line2);
+                                }
                             }
                             string[] line2Parts;
-                            int code;
+                            int code = -1;
                             if ((headers2.Count < 1)
                                 || String.IsNullOrEmpty(headers2[0])
                                 || ((line2Parts = headers2[0].Split(new char[] { ' ' })).Length < 2)
@@ -584,7 +687,23 @@ namespace Backup
                                 || !Int32.TryParse(line2Parts[1], out code)
                                 || (code != 100))
                             {
-                                return WebExceptionStatus.ServerProtocolViolation;
+                                if (trace != null)
+                                {
+                                    trace.WriteLine("did not receive 100-Continue, aborting.");
+                                }
+
+                                if (code != -1)
+                                {
+                                    if (trace != null)
+                                    {
+                                        trace.WriteLine("  server returned status code: {0} ({1})", (int)code, (HttpStatusCode)code);
+                                    }
+
+                                    responseHeaders = headers2.ToArray();
+                                    return WebExceptionStatus.Success; // caller will handle header
+                                }
+
+                                return WebExceptionStatus.ServerProtocolViolation; // unintelligible response
                             }
                         }
 
@@ -597,6 +716,8 @@ namespace Backup
                             int read;
                             while ((read = requestBodySource.Read(buffer, 0, buffer.Length)) != 0)
                             {
+                                networkThrottle.WaitBytes(read);
+
                                 socketStream.Write(buffer, 0, read);
                                 requestBytesSent += read;
 
@@ -609,24 +730,9 @@ namespace Backup
                                 {
                                     // If the remote service supports restartable uploads (indicated by the
                                     // subclass constructor setting enableRestartableUploads), then we can do
-                                    // two things:
-                                    // 1. If access token is nearing expiration, abort the upload and resume it
-                                    //    after re-authenticating. That helps prevent a long upload becoming a
-                                    //    waste of time because the token was valid when it started but had
-                                    //    expired by the time it finished. (Some services seem to validate the
-                                    //    token on request completion, even when Expect: 100-continue is used.)
-                                    // 2. The upload can be aborted as a matter of course after a decent number
+                                    // the following:
+                                    // 1. The upload can be aborted as a matter of course after a decent number
                                     //    of bytes for the purpose of exercising the resume branch of the code.
-
-                                    if (remoteAccessControl.AccessTokenExpirationImminent)
-                                    {
-                                        if (trace != null)
-                                        {
-                                            trace.WriteLine("Token expiration imminent. Invalidating token and triggering upload resume.");
-                                        }
-                                        remoteAccessControl.InvalidateAccessToken();
-                                        return WebExceptionStatus.ReceiveFailure;
-                                    }
 
                                     if (requestBytesSent > MaxBytesPerWebRequest)
                                     {
@@ -668,6 +774,16 @@ namespace Backup
                             }
                         }
                         responseHeaders = headers.ToArray();
+
+                        // only needs to be approximate
+                        {
+                            int approximateResponseHeadersBytes = 0;
+                            foreach (string header in responseHeaders)
+                            {
+                                approximateResponseHeadersBytes += header.Length + Environment.NewLine.Length;
+                            }
+                            networkThrottle.WaitBytes(approximateResponseHeadersBytes);
+                        }
 
                         long responseBodyTotalRead = 0;
                         int chunkRemaining = 0;
@@ -715,6 +831,7 @@ namespace Backup
                             needed = Math.Min(buffer.Length, needed);
                             Debug.Assert(needed >= 0);
                             int read = socketStream.Read(buffer, 0, (int)needed);
+                            networkThrottle.WaitBytes(read);
                             responseBodyDestination.Write(buffer, 0, read);
                             chunkRemaining -= read;
                             responseBodyTotalRead += read;
@@ -746,7 +863,20 @@ namespace Backup
 
             if (trace != null)
             {
-                trace.WriteLine("{0}: {1}", key, Array.IndexOf(SecuritySensitiveHeaders, key) < 0 ? value : "(scrubbed)");
+                string traceValue1 = null;
+                string traceValue2 = value;
+                if (Array.IndexOf(SecuritySensitiveHeaders, key) >= 0)
+                {
+                    traceValue2 = !String.IsNullOrEmpty(traceValue2) ? traceValue2 : String.Empty;
+                    const string BearerPrefix = "Bearer ";
+                    if (traceValue2.StartsWith(BearerPrefix))
+                    {
+                        traceValue1 = traceValue2.Substring(0, BearerPrefix.Length);
+                        traceValue2 = traceValue2.Substring(BearerPrefix.Length);
+                    }
+                    traceValue2 = Core.Logging.ScrubSecuritySensitiveValue(traceValue2.Trim());
+                }
+                trace.WriteLine("  {0}: {1}{2}", key, traceValue1, traceValue2);
             }
         }
 
@@ -772,9 +902,6 @@ namespace Backup
 
             // Use "Expect: 100-continue" method if larger than this - gives remote server a chance
             // to reject request if Content-Length is exceeds service's max file size.
-            // (Although, it seems some services happily say "100 CONTINUE" and then fail the upload
-            // _at_the_end_ after the bandwidth has been wasted, despite knowing full well the
-            // transfer would exceed the max file size. Yeah, that's you, Microsoft Live.)
             const int MaxOneStagePutBodyLength = 5 * 1024 * 1024;
             bool twoStageRequest = (verb == "PUT") && (requestBodySource != null) && (requestBodySource.Length > MaxOneStagePutBodyLength);
 
@@ -798,7 +925,7 @@ namespace Backup
                     if (trace != null)
                     {
                         trace.WriteLine("Request headers:");
-                        trace.WriteLine(firstLine);
+                        trace.WriteLine("  {0}", firstLine);
                     }
 
                     WriteHeader("Host", uri.Host, writer, trace);
@@ -832,7 +959,7 @@ namespace Backup
                 trace.WriteLine("Response headers:");
                 foreach (string s in responseHeadersLines)
                 {
-                    trace.WriteLine(s);
+                    trace.WriteLine("  {0}", s);
                 }
             }
 
@@ -884,56 +1011,59 @@ namespace Backup
                 }
             }
 
-            int contentEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Encoding"); });
-            if (contentEncodingHeaderIndex >= 0)
+            if (responseBodyDestination != null)
             {
-                bool gzip = responseHeaders[contentEncodingHeaderIndex].Value.Equals("gzip", StringComparison.OrdinalIgnoreCase);
-                bool deflate = responseHeaders[contentEncodingHeaderIndex].Value.Equals("deflate", StringComparison.OrdinalIgnoreCase);
-                if (!gzip && !deflate)
+                int contentEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Encoding"); });
+                if (contentEncodingHeaderIndex >= 0)
                 {
-                    throw new NotSupportedException(String.Format("Content-Encoding: {0}", responseHeaders[contentLengthHeaderIndex].Value));
-                }
-
-                byte[] buffer = new byte[Core.Constants.BufferSize];
-
-                string tempPath = Path.GetTempFileName();
-                using (Stream tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                {
-                    responseBodyDestination.Position = responseBodyDestinationStart;
-
-                    while (responseBodyDestinationEnd > responseBodyDestination.Position)
+                    bool gzip = responseHeaders[contentEncodingHeaderIndex].Value.Equals("gzip", StringComparison.OrdinalIgnoreCase);
+                    bool deflate = responseHeaders[contentEncodingHeaderIndex].Value.Equals("deflate", StringComparison.OrdinalIgnoreCase);
+                    if (!gzip && !deflate)
                     {
-                        int needed = (int)Math.Min(buffer.Length, responseBodyDestinationEnd - responseBodyDestination.Position);
-                        int read;
-                        read = responseBodyDestination.Read(buffer, 0, needed);
-                        tempStream.Write(buffer, 0, read);
+                        throw new NotSupportedException(String.Format("Content-Encoding: {0}", responseHeaders[contentLengthHeaderIndex].Value));
                     }
 
-                    tempStream.Position = 0;
+                    byte[] buffer = new byte[Core.Constants.BufferSize];
 
-                    responseBodyDestination.Position = responseBodyDestinationStart;
-                    responseBodyDestination.SetLength(responseBodyDestinationStart);
-
-                    using (Stream inputStream = gzip ? (Stream)new GZipStream(tempStream, CompressionMode.Decompress) : (Stream)new DeflateStream(tempStream, CompressionMode.Decompress))
+                    string tempPath = Path.GetTempFileName();
+                    using (Stream tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                     {
-                        int read;
-                        while ((read = inputStream.Read(buffer, 0, buffer.Length)) != 0)
+                        responseBodyDestination.Position = responseBodyDestinationStart;
+
+                        while (responseBodyDestinationEnd > responseBodyDestination.Position)
                         {
-                            responseBodyDestination.Write(buffer, 0, read);
+                            int needed = (int)Math.Min(buffer.Length, responseBodyDestinationEnd - responseBodyDestination.Position);
+                            int read;
+                            read = responseBodyDestination.Read(buffer, 0, needed);
+                            tempStream.Write(buffer, 0, read);
+                        }
+
+                        tempStream.Position = 0;
+
+                        responseBodyDestination.Position = responseBodyDestinationStart;
+                        responseBodyDestination.SetLength(responseBodyDestinationStart);
+
+                        using (Stream inputStream = gzip ? (Stream)new GZipStream(tempStream, CompressionMode.Decompress) : (Stream)new DeflateStream(tempStream, CompressionMode.Decompress))
+                        {
+                            int read;
+                            while ((read = inputStream.Read(buffer, 0, buffer.Length)) != 0)
+                            {
+                                responseBodyDestination.Write(buffer, 0, read);
+                            }
+                        }
+
+                        responseBodyDestinationEnd = responseBodyDestination.Position;
+                        responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
+
+                        if (contentLengthHeaderIndex >= 0)
+                        {
+                            responseHeaders[contentLengthHeaderIndex] = new KeyValuePair<string, string>("Content-Length", responseBodyBytesReceived.ToString());
                         }
                     }
+                    File.Delete(tempPath);
 
-                    responseBodyDestinationEnd = responseBodyDestination.Position;
-                    responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
-
-                    if (contentLengthHeaderIndex >= 0)
-                    {
-                        responseHeaders[contentLengthHeaderIndex] = new KeyValuePair<string, string>("Content-Length", responseBodyBytesReceived.ToString());
-                    }
+                    responseHeaders[contentEncodingHeaderIndex] = new KeyValuePair<string, string>();
                 }
-                File.Delete(tempPath);
-
-                responseHeaders[contentEncodingHeaderIndex] = new KeyValuePair<string, string>();
             }
 
             int locationHeaderIndex = -1;
@@ -1004,7 +1134,7 @@ namespace Backup
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
         private static readonly string[] SupportedVerbs = new string[] { "GET", "PUT", "POST", "DELETE", "PATCH" };
         private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", "Content-Length", "Accept-Encoding", "Expect", "Authorization" };
-        protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace)
+        protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, TextWriter trace)
         {
             bool useCustomHttpImplementation = UseCustomHttpImplementation.HasValue ? UseCustomHttpImplementation.Value : ((DateTime.Now.Minute % 5) % 2 != 0); // how'd-ya like dem apples?
 
@@ -1151,6 +1281,27 @@ namespace Backup
                 }
             }
 
+            string accessToken;
+            if (accessTokenOverride == null)
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine("Acquiring access token (RemoteAccessControl.AccessToken)");
+                }
+                accessToken = remoteAccessControl.GetAccessToken(trace);
+                if (trace != null)
+                {
+                    trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                }
+            }
+            else
+            {
+                accessToken = accessTokenOverride;
+                if (trace != null)
+                {
+                    trace.WriteLine("Acquiring access token (using same token for all requests): {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                }
+            }
 
             if (trace != null)
             {
@@ -1177,7 +1328,7 @@ namespace Backup
                 // generally, headers in ForbiddenRequestHeaders[] are managed by SocketHttpRequest
                 Dictionary<string, bool> requestHeadersSeen = new Dictionary<string, bool>();
                 List<KeyValuePair<string, string>> requestHeadersList = new List<KeyValuePair<string, string>>();
-                requestHeadersList.Add(new KeyValuePair<string, string>("Authorization", String.Format("{0} {1}", "Bearer", remoteAccessControl.AccessToken)));
+                requestHeadersList.Add(new KeyValuePair<string, string>("Authorization", String.Format("{0} {1}", "Bearer", accessToken)));
                 foreach (KeyValuePair<string, string> header in requestHeaders)
                 {
                     Debug.Assert(Array.IndexOf(ForbiddenHeaders, header.Key) < 0);
@@ -1209,9 +1360,23 @@ namespace Backup
 
                 if ((httpStatusCode == (HttpStatusCode)401) && !accessDeniedRetried)
                 {
-                    accessDeniedRetried = true; // retry only once for failed auth
-                    remoteAccessControl.InvalidateAccessToken();
-                    goto RetryAuthFailure;
+                    if (accessTokenOverride == null)
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine("Received access denied (401); invalidating access token and retrying");
+                        }
+                        accessDeniedRetried = true; // retry only once for failed auth
+                        remoteAccessControl.InvalidateAccessToken(accessToken, trace);
+                        goto RetryAuthFailure;
+                    }
+                    else
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine("Received access denied (401); accessTokenOverride exists, so failing to caller");
+                        }
+                    }
                 }
             }
             else
@@ -1225,16 +1390,6 @@ namespace Backup
                 TextWriter traceInner = trace;
                 using (ManualResetEvent finished = new ManualResetEvent(false))
                 {
-#if false
-                    if (progressTrackerUpload == null)
-                    {
-                        progressTrackerUpload = new ProgressTracker(
-                            requestBodySource != null ? requestBodySource.Length : 0,
-                            requestBodySource != null ? requestBodySource.Position : 0,
-                            null);
-                    }
-#endif
-
                     AsyncCallback responseAction = delegate(IAsyncResult asyncResult)
                     {
                         progress = true;
@@ -1282,6 +1437,8 @@ namespace Backup
                                         int read;
                                         while ((read = responseStream.Read(buffer, 0, buffer.Length)) != 0)
                                         {
+                                            networkThrottle.WaitBytes(read);
+
                                             progress = true;
                                             responseBodyDestination.Write(buffer, 0, read);
 
@@ -1359,6 +1516,7 @@ namespace Backup
                                         progress = true;
 
                                         requestStream.Write(buffer, 0, read);
+                                        networkThrottle.WaitBytes(read);
 
                                         requestBytesSentTotal += read;
                                         requestBytesSentThisRequest += read;
@@ -1372,24 +1530,9 @@ namespace Backup
                                         {
                                             // If the remote service supports restartable uploads (indicated by the
                                             // subclass constructor setting enableRestartableUploads), then we can do
-                                            // two things:
-                                            // 1. If access token is nearing expiration, abort the upload and resume it
-                                            //    after re-authenticating. That helps prevent a long upload becoming a
-                                            //    waste of time because the token was valid when it started but had
-                                            //    expired by the time it finished. (Some services seem to validate the
-                                            //    token on request completion, even when Expect: 100-continue is used.)
-                                            // 2. The upload can be aborted as a matter of course after a decent number
+                                            // the following:
+                                            // 1. The upload can be aborted as a matter of course after a decent number
                                             //    of bytes for the purpose of exercising the resume branch of the code.
-
-                                            if (remoteAccessControl.AccessTokenExpirationImminent)
-                                            {
-                                                if (trace != null)
-                                                {
-                                                    trace.WriteLine("Token expiration imminent. Invalidating token and triggering upload resume.");
-                                                }
-                                                remoteAccessControl.InvalidateAccessToken();
-                                                throw new TimeoutException();
-                                            }
 
                                             if (requestBytesSentThisRequest > MaxBytesPerWebRequest)
                                             {
@@ -1435,7 +1578,7 @@ namespace Backup
 
                         // Use of Authorization header is considered better than use of url query parameter
                         // because it avoids the possibility of access tokens being written to server/proxy logs
-                        requestTop.Headers["Authorization"] = String.Format("{0} {1}", "Bearer", remoteAccessControl.AccessToken);
+                        requestTop.Headers["Authorization"] = String.Format("{0} {1}", "Bearer", accessToken);
 
                         // Is there any harm in always writing Content-Length header?
                         requestTop.ContentLength = requestBodySource != null ? requestBodySource.Length - requestBodySource.Position : 0;
@@ -1587,14 +1730,23 @@ namespace Backup
                                 {
                                     if (!accessDeniedRetried)
                                     {
-                                        if (trace != null)
+                                        if (accessTokenOverride == null)
                                         {
-                                            trace.WriteLine(" access denied - invalidating access token and trying again");
+                                            if (trace != null)
+                                            {
+                                                trace.WriteLine("Received access denied (401); invalidating access token and retrying");
+                                            }
+                                            accessDeniedRetried = true; // retry only once for failed auth
+                                            remoteAccessControl.InvalidateAccessToken(accessToken, trace);
+                                            goto RetryAuthFailure;
                                         }
-
-                                        accessDeniedRetried = true; // retry only once for failed auth
-                                        remoteAccessControl.InvalidateAccessToken();
-                                        goto RetryAuthFailure;
+                                        else
+                                        {
+                                            if (trace != null)
+                                            {
+                                                trace.WriteLine("Received access denied (401); accessTokenOverride exists, so failing to caller");
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1639,7 +1791,7 @@ namespace Backup
 
         // Throws exceptions for program defects and unrecoverable errors
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
-        protected bool DoWebActionWithRetry(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, TextWriter trace)
+        protected bool DoWebActionWithRetry(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, string accessTokenOverride, TextWriter trace)
         {
             if (trace != null)
             {
@@ -1650,29 +1802,18 @@ namespace Backup
             long responseBodyDestinationPosition = responseBodyDestination != null ? responseBodyDestination.Position : 0;
 
 
-            const int NetworkErrorMaxRetries = 5;
             int networkErrorRetries = 0;
         Retry:
 
-            DoWebActionOnce(url, verb, requestBodySource, responseBodyDestination, requestHeaders, responseHeadersOut, out webStatusCodeOut, out httpStatusCodeOut, progressTrackerUpload, null/*progressTrackerDownload*/, trace);
+            DoWebActionOnce(url, verb, requestBodySource, responseBodyDestination, requestHeaders, responseHeadersOut, out webStatusCodeOut, out httpStatusCodeOut, progressTrackerUpload, null/*progressTrackerDownload*/, accessTokenOverride, trace);
 
             if ((webStatusCodeOut != WebExceptionStatus.Success) ||
                 (((int)httpStatusCodeOut >= 500) && ((int)httpStatusCodeOut <= 599)))
             {
                 networkErrorRetries++;
-                if (networkErrorRetries <= NetworkErrorMaxRetries)
+                if (networkErrorRetries <= RetryHelper.MaxRetries)
                 {
-                    // exponential backoff
-
-                    int w = 500 * (1 << networkErrorRetries);
-                    int delay = w + random.Next(w);
-
-                    if (trace != null)
-                    {
-                        trace.WriteLine(" DoWebActionWithRetry failure, waiting {5} milliseconds and retrying (#{6}); result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", false, (int)webStatusCodeOut, webStatusCodeOut, (int)httpStatusCodeOut, httpStatusCodeOut, delay, networkErrorRetries);
-                    }
-
-                    Thread.Sleep(delay);
+                    RetryHelper.WaitExponentialBackoff(networkErrorRetries, trace);
 
                     // reset state
                     if ((requestBodySource != null) && (requestBodySource.Position != requestBodySourcePosition))
@@ -1721,28 +1862,7 @@ namespace Backup
             return result;
         }
 
-        protected bool DoWebActionPostFormWithRetry(string url, string formDataRequestBody, Stream responseBodyDestination, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace)
-        {
-            KeyValuePair<string, string>[] requestHeadersExtra = new KeyValuePair<string, string>[]
-            {
-                new KeyValuePair<string, string>("Content-Type", "application/x-www-form-urlencoded"),
-            };
-
-            return DoWebActionWithRetry(
-                url,
-                "POST",
-                new MemoryStream(Encoding.ASCII.GetBytes(formDataRequestBody)),
-                responseBodyDestination,
-                requestHeadersExtra,
-                null/*extraHeadersOut*/
-                                       ,
-                out webStatusCodeOut,
-                out httpStatusCodeOut,
-                null/*progressTracker*/,
-                trace);
-        }
-
-        protected bool DoWebActionPostJSONWithRetry(string url, string jsonRequestBody, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersExtraOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace)
+        protected bool DoWebActionPostJSONOnce(string url, string jsonRequestBody, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersExtraOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, string accessTokenOverride, TextWriter trace)
         {
             List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(requestHeaders);
             if (jsonRequestBody != null)
@@ -1752,7 +1872,7 @@ namespace Backup
 
             using (Stream requestStream = new MemoryStream(Encoding.UTF8.GetBytes(jsonRequestBody)))
             {
-                return DoWebActionWithRetry(
+                return DoWebActionOnce(
                     url,
                     "POST",
                     requestStream,
@@ -1761,7 +1881,9 @@ namespace Backup
                     responseHeadersExtraOut,
                     out webStatusCodeOut,
                     out httpStatusCodeOut,
-                    null/*progressTracker*/,
+                    null/*progressTrackerUpload*/,
+                    null/*progressTrackerDownload*/,
+                    accessTokenOverride,
                     trace);
             }
         }
@@ -1792,6 +1914,7 @@ namespace Backup
                         out webStatusCodeOut,
                         out httpStatusCodeOut,
                         null/*progressTracker*/,
+                        null/*accessTokenOverride*/,
                         trace);
 
                     jsonResponseBody = null;
@@ -1831,6 +1954,7 @@ namespace Backup
                     out httpStatusCodeOut,
                     null/*progressTrackerUpload*/,
                     progressTrackerDownload,
+                    null/*accessTokenOverride*/,
                     trace);
                 return result;
             }
@@ -1846,7 +1970,6 @@ namespace Backup
                 trace.WriteLine("+DownloadFileWithResume(url={0})", url);
             }
 
-            const int MaxRetries = 5;
             int retry = 0;
         Retry1:
             KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
@@ -1874,19 +1997,9 @@ namespace Backup
             if (!result && ((httpStatusCode == (HttpStatusCode)404) || ((responseHeaders[0].Value == null) && (responseHeaders[1].Value == null) && (responseHeaders[2].Value == null))))
             {
                 retry++;
-                if (retry <= MaxRetries)
+                if (retry <= RetryHelper.MaxRetries)
                 {
-                    // exponential backoff
-                    int w = 500 * (1 << retry);
-                    int delay = w + random.Next(w);
-
-                    if (trace != null)
-                    {
-                        trace.WriteLine(" initial request failure ocured, delaying {0} milliseconds and retrying (#{1})", delay, retry);
-                    }
-
-                    Thread.Sleep(delay);
-
+                    RetryHelper.WaitExponentialBackoff(retry, trace);
                     goto Retry1;
                 }
             }
@@ -1908,7 +2021,7 @@ namespace Backup
                     retry = 0;
                     result = false;
                     while (!result
-                        && (retry <= MaxRetries)
+                        && (retry <= RetryHelper.MaxRetries)
                         && (streamDownloadInto.Length < contentLength))
                     {
                         // transport error - retry with range
@@ -1920,10 +2033,7 @@ namespace Backup
                         }
                         else
                         {
-                            // exponential backoff
-                            int w = 500 * (1 << retry);
-                            int delay = w + random.Next(w);
-                            Thread.Sleep(delay);
+                            RetryHelper.WaitExponentialBackoff(retry, trace);
                         }
                         previousLengthSoFar = streamDownloadInto.Length;
 
@@ -2079,9 +2189,6 @@ namespace Backup
 
             if (trace != null)
             {
-#if false
-                trace.WriteLine("  json={0}", response);
-#endif
                 trace.WriteLine("  return {0} items", items.Length);
                 for (int i = 0; i < items.Length; i++)
                 {
@@ -2191,6 +2298,7 @@ namespace Backup
                     out webStatusCode,
                     out httpStatusCode,
                     progressTracker,
+                    null/*accessTokenOverride*/,
                     trace);
                 if (!result)
                 {
@@ -2198,6 +2306,12 @@ namespace Backup
                     {
                         trace.WriteLine("-UploadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
+
+                    if (httpStatusCode == (HttpStatusCode)413)
+                    {
+                        throw new ApplicationException("The file is larger than permitted by the remote service. Reduce the target segment size or turn off the -nosplitlargefiles option if enabled.");
+                    }
+
                     throw new ApplicationException("Failure occurred accessing remote service");
                 }
 
@@ -2210,13 +2324,6 @@ namespace Backup
                     throw new InvalidDataException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeaders[0].Value, "application/json; charset=UTF-8"));
                 }
             }
-
-#if false
-            if (trace != null)
-            {
-                trace.WriteLine("  json={0}", response);
-            }
-#endif
 
             JSONDictionary metadata = new JSONDictionary(response);
             string fileId, name;
@@ -2268,13 +2375,6 @@ namespace Backup
                 throw new ApplicationException("Failure occurred accessing remote service");
             }
 
-#if false
-            if (trace != null)
-            {
-                trace.WriteLine("  json={0}", response);
-            }
-#endif
-
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
 
@@ -2310,6 +2410,7 @@ namespace Backup
                 out webStatusCode,
                 out httpStatusCode,
                 null/*progressTracker*/,
+                null/*accessTokenOverride*/,
                 trace);
             if (!result)
             {
@@ -2366,13 +2467,6 @@ namespace Backup
                 throw new ApplicationException("Failure occurred accessing remote service");
             }
 
-#if false
-            if (trace != null)
-            {
-                trace.WriteLine("  json={0}", response);
-            }
-#endif
-
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
 
@@ -2400,7 +2494,8 @@ namespace Backup
             bool result = DoWebActionJSON2JSONWithRetry(
                 url,
                 "GET",
-                null/*requestBody*/,
+                null/*requestBody*/
+                                   ,
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
@@ -2413,13 +2508,6 @@ namespace Backup
                 }
                 throw new ApplicationException("Failure occurred accessing remote service");
             }
-
-#if false
-            if (trace != null)
-            {
-                trace.WriteLine("  json={0}", response);
-            }
-#endif
 
             JSONDictionary metadata = new JSONDictionary(response);
             long total, available;
@@ -2458,7 +2546,7 @@ namespace Backup
 
             // Google doesn't have a method to get the listing of files for a given folder -
             // children listing only has IDs, requiring a separate HTTP request for each
-            // child to find out the filename ("title") property.
+            // child to find out the filename ("title") property. (https://developers.google.com/drive/v2/reference/children#resource)
             // So here we get the listing of *all* files and use the parent collections on
             // each file to construct the hierarchy. (Also, files can be put into multiple
             // folders - like hard links.)
@@ -2483,6 +2571,14 @@ namespace Backup
                 }
             }
 
+            if (trace != null)
+            {
+                trace.WriteLine("root folder count: {0}", roots.Count);
+                foreach (KeyValuePair<string, bool> root in roots)
+                {
+                    trace.WriteLine("  {0}", root.Key);
+                }
+            }
             if (roots.Count != 1)
             {
                 throw new InvalidDataException("Multiple root folders not supported");
@@ -2611,7 +2707,7 @@ namespace Backup
                 // to just the relevant ones. These are consumed in the code below in this method,
                 // but see also GoogleDriveWebMethods.FileSystemEntryFromJSON().
                 // (see https://developers.google.com/drive/web/performance#partial-response)
-                const string fields = "items(id,title,mimeType,createdDate,modifiedDate,fileSize,labels/hidden,labels/trashed,parents(id,parentLink,isRoot))";
+                const string fields = "nextPageToken,items(id,title,mimeType,createdDate,modifiedDate,fileSize,labels/hidden,labels/trashed,parents(id,parentLink,isRoot))";
                 if (!String.IsNullOrEmpty(fields))
                 {
                     url = String.Concat(url, url.IndexOf('?') < 0 ? "?" : "&", "fields=", fields);
@@ -2698,9 +2794,6 @@ namespace Backup
 
                 if (trace != null)
                 {
-#if false
-                    trace.WriteLine("  json={0}", response);
-#endif
                     trace.WriteLine("  create {0} items", items.Length);
                     for (int i = 0; i < items.Length; i++)
                     {
@@ -2849,13 +2942,6 @@ namespace Backup
                 throw new ApplicationException("Failure occurred accessing remote service");
             }
 
-#if false
-            if (trace != null)
-            {
-                trace.WriteLine("  json={0}", response);
-            }
-#endif
-
             JSONDictionary metadata = new JSONDictionary(response);
             string downloadUrl;
             if (!metadata.TryGetValueAs("downloadUrl", out downloadUrl))
@@ -2881,7 +2967,7 @@ namespace Backup
             }
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace)
+        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTrackerUpload, TextWriter trace)
         {
             if (remoteName.IndexOf('"') >= 0)
             {
@@ -2893,23 +2979,61 @@ namespace Backup
                 trace.WriteLine("+UploadFile(folderId={0}, name={1})", folderId, remoteName);
             }
 
-            if (progressTracker != null)
+            if (progressTrackerUpload != null)
             {
-                progressTracker.UpdateTotal(streamUploadFrom.Length);
+                progressTrackerUpload.UpdateTotal(streamUploadFrom.Length);
             }
 
             // https://developers.google.com/drive/v2/reference/files/insert
             // https://developers.google.com/drive/web/manage-uploads
 
-            const int MaxStartOvers = 5;
-            int startOver = 0;
-        // per documentation - 404 during resumable upload should be handled by starting over
+            string accessTokenOverride = null;
+            WebExceptionStatus webStatusCode = (WebExceptionStatus)0;
+            HttpStatusCode httpStatusCode = (HttpStatusCode)0;
+            bool result = false;
+
+            int startOver = -1;
         StartOver:
+            // per documentation - 404 during resumable upload should be handled by starting over
             startOver++;
-            if (startOver > MaxStartOvers)
+            if (trace != null)
             {
-                throw new ApplicationException();
+                trace.WriteLine(" entering StartOver region (startOver={0})", startOver);
             }
+            if (startOver > RetryHelper.MaxRetries)
+            {
+                const string SurrenderMessage = "Upload failed to finish after max start-overs; giving up.";
+                if (trace != null)
+                {
+                    trace.WriteLine("-UploadFile throws: {0}", SurrenderMessage);
+                }
+                throw new ApplicationException(SurrenderMessage);
+            }
+            else
+            {
+                RetryHelper.WaitExponentialBackoff(startOver, trace);
+            }
+
+            if (httpStatusCode == (HttpStatusCode)401)
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine("Last http response was 401; asking to invalidating access token");
+                }
+                remoteAccessControl.InvalidateAccessToken(accessTokenOverride, trace);
+            }
+            if (trace != null)
+            {
+                trace.WriteLine("Acquiring access token (RemoteAccessControl.AccessToken)");
+            }
+            accessTokenOverride = remoteAccessControl.GetAccessToken(trace);
+            if (trace != null)
+            {
+                trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Core.Logging.ScrubSecuritySensitiveValue(accessTokenOverride));
+            }
+
+            streamUploadFrom.Position = 0;
+
 
             // 1. initiate resumable upload session
 
@@ -2941,9 +3065,7 @@ namespace Backup
                 {
                     new KeyValuePair<string, string>("Location", null),
                 };
-                WebExceptionStatus webStatusCode;
-                HttpStatusCode httpStatusCode;
-                bool result = DoWebActionPostJSONWithRetry(
+                result = DoWebActionPostJSONOnce(
                     url,
                     message/*jsonRequestBody*/,
                     null/*responseBodyDestination*/,
@@ -2951,14 +3073,15 @@ namespace Backup
                     responseHeaders,
                     out webStatusCode,
                     out httpStatusCode,
+                    accessTokenOverride,
                     trace);
                 if (!result)
                 {
                     if (trace != null)
                     {
-                        trace.WriteLine("-UploadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine(" DoWebActionPostJSONOnce failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    goto StartOver;
                 }
 
                 sessionLocation = responseHeaders[0].Value;
@@ -2966,116 +3089,53 @@ namespace Backup
 
             bool resuming = false;
             long previousLengthSoFar = 0;
-            const int MaxRetries = 5;
-            int retry = 0;
-            while (true)
+            int retry = -1;
+        Retry:
+            retry++;
+            if (trace != null)
             {
-                if (!resuming)
+                trace.WriteLine(" entering Retry region (retry={0})", retry);
+            }
+            if (retry > RetryHelper.MaxRetries)
+            {
+                const string SurrenderMessage = "Upload failed to make progress after max retries; giving up.";
+                if (trace != null)
                 {
-                    // 2a. put data to the session uri
-
-                    {
-                        string url = sessionLocation;
-                        KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
-                        {
-                            new KeyValuePair<string, string>("Content-Type", null),
-                        };
-                        using (MemoryStream responseStream = new MemoryStream())
-                        {
-                            WebExceptionStatus webStatusCode;
-                            HttpStatusCode httpStatusCode;
-                            bool result = DoWebActionOnce(
-                                url,
-                                "PUT",
-                                streamUploadFrom,
-                                responseStream,
-                                null/*requestHeaders*/,
-                                responseHeaders,
-                                out webStatusCode,
-                                out httpStatusCode,
-                                progressTracker,
-                                null/*progressTrackerDownload*/,
-                                trace);
-
-                            if (result)
-                            {
-                                if (responseHeaders[0].Value == "application/json; charset=UTF-8")
-                                {
-                                    response = Encoding.UTF8.GetString(responseStream.ToArray());
-                                }
-                                else
-                                {
-                                    throw new InvalidDataException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeaders[0].Value, "application/json; charset=UTF-8"));
-                                }
-
-                                break;
-                            }
-                            else
-                            {
-                                if (trace != null)
-                                {
-                                    trace.WriteLine(" DoWebAction failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
-                                }
-
-                                if (httpStatusCode == (HttpStatusCode)404)
-                                {
-                                    goto StartOver;
-                                }
-
-                                resuming = true; // trigger resume logic
-                            }
-                        }
-                    }
+                    trace.WriteLine("-UploadFile throws: {0}", SurrenderMessage);
                 }
-                else
+                throw new ApplicationException(SurrenderMessage);
+            }
+            else
+            {
+                RetryHelper.WaitExponentialBackoff(retry, trace);
+            }
+            if (!resuming)
+            {
+                // 2a. put data to the session uri (unranged)
+
                 {
-                    // 2b. handle upload resume
-
-                    // https://developers.google.com/drive/web/manage-uploads#resume-upload
-
-                    if (trace != null)
+                    string url = sessionLocation;
+                    KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
                     {
-                        trace.WriteLine(" attempting to resume upload");
-                    }
-
-                    // 2b-1&2. request status and number of bytes uploaded so far
-
-                    string rangeResponseHeader;
-
+                        new KeyValuePair<string, string>("Content-Type", null),
+                    };
                     using (MemoryStream responseStream = new MemoryStream())
                     {
-                        string url = sessionLocation;
-                        KeyValuePair<string, string>[] requestHeaders = new KeyValuePair<string, string>[]
-                        {
-                            new KeyValuePair<string, string>("Content-Range", String.Format("bytes */{0}", streamUploadFrom.Length)),
-                            // Content-Length: 0 added by DoWebAction
-                        };
-                        KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
-                        {
-                            new KeyValuePair<string, string>("Content-Type", null), // for completed upload - expecting application/json
-                            new KeyValuePair<string, string>("Range", null), // for resumed upload
-                        };
-                        WebExceptionStatus webStatusCode;
-                        HttpStatusCode httpStatusCode;
-                        DoWebActionWithRetry(
+                        result = DoWebActionOnce(
                             url,
                             "PUT",
-                            null,
+                            streamUploadFrom,
                             responseStream,
-                            requestHeaders,
+                            null/*requestHeaders*/,
                             responseHeaders,
                             out webStatusCode,
                             out httpStatusCode,
-                            null/*progressTracker*/,
+                            progressTrackerUpload,
+                            null/*progressTrackerDownload*/,
+                            accessTokenOverride,
                             trace);
 
-                        if (httpStatusCode == (HttpStatusCode)404)
-                        {
-                            goto StartOver;
-                        }
-
-                        if ((httpStatusCode == (HttpStatusCode)200)
-                            || (httpStatusCode == (HttpStatusCode)200))
+                        if (result)
                         {
                             if (responseHeaders[0].Value == "application/json; charset=UTF-8")
                             {
@@ -3085,21 +3145,124 @@ namespace Backup
                             {
                                 throw new InvalidDataException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeaders[0].Value, "application/json; charset=UTF-8"));
                             }
-
-                            break; // actually done (all bytes managed to make it to the server)
                         }
-
-                        if (httpStatusCode != (HttpStatusCode)308)
+                        else
                         {
                             if (trace != null)
                             {
-                                trace.WriteLine("-DoWebAction throw: unexpected HTTP result code: webStatusCode={0} ({1}), httpStatusCode={2} ({3})", (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                                trace.WriteLine(" DoWebActionOnce failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                             }
-                            throw new InvalidDataException();
-                        }
 
-                        rangeResponseHeader = responseHeaders[1].Value;
+                            if ((httpStatusCode >= (HttpStatusCode)400) && (httpStatusCode <= (HttpStatusCode)499))
+                            {
+                                goto StartOver;
+                            }
+
+                            resuming = true; // trigger resume logic
+                            goto Retry;
+                        }
                     }
+                }
+            }
+            else
+            {
+                // 2b. handle upload resume
+
+                // https://developers.google.com/drive/web/manage-uploads#resume-upload
+
+                if (trace != null)
+                {
+                    trace.WriteLine(" attempting to resume upload");
+                }
+
+                // 2b-1&2. request status and number of bytes uploaded so far
+
+                string rangeResponseHeader;
+
+                KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
+                {
+                    new KeyValuePair<string, string>("Content-Type", null), // for completed upload - expecting application/json
+                    new KeyValuePair<string, string>("Range", null), // for resumed upload
+                };
+                using (MemoryStream responseStream = new MemoryStream())
+                {
+                    string url = sessionLocation;
+                    KeyValuePair<string, string>[] requestHeaders = new KeyValuePair<string, string>[]
+                    {
+                        new KeyValuePair<string, string>("Content-Range", String.Format("bytes */{0}", streamUploadFrom.Length)),
+                        // Content-Length: 0 added by DoWebAction
+                    };
+                    result = DoWebActionOnce(
+                        url,
+                        "PUT",
+                        null,
+                        responseStream,
+                        requestHeaders,
+                        responseHeaders,
+                        out webStatusCode,
+                        out httpStatusCode,
+                        null/*progressTrackerUpload*/,
+                        null/*progressTrackerDownload*/,
+                        accessTokenOverride,
+                        trace);
+
+                    response = Encoding.UTF8.GetString(responseStream.ToArray());
+                }
+
+                if ((httpStatusCode == (HttpStatusCode)0) || ((httpStatusCode >= (HttpStatusCode)500) && (httpStatusCode <= (HttpStatusCode)599)))
+                {
+                    goto Retry;
+                }
+                if ((httpStatusCode >= (HttpStatusCode)400) && (httpStatusCode <= (HttpStatusCode)499))
+                {
+                    goto StartOver;
+                }
+                else if ((httpStatusCode == (HttpStatusCode)200) || (httpStatusCode == (HttpStatusCode)201))
+                {
+                    if (responseHeaders[0].Value == "application/json; charset=UTF-8")
+                    {
+                        // "response" variable already set above
+                    }
+                    else
+                    {
+                        throw new InvalidDataException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeaders[0].Value, "application/json; charset=UTF-8"));
+                    }
+
+                    // actually done (all bytes managed to make it to the server)
+                }
+                else if (httpStatusCode != (HttpStatusCode)308)
+                {
+                    try
+                    {
+                        JSONDictionary json = new JSONDictionary(response);
+                        JSONDictionary error;
+                        long code;
+                        if (json.TryGetValueAs("error", out error)
+                            && error.TryGetValueAs("code", out code))
+                        {
+                            if ((code >= 500) && (code <= 599))
+                            {
+                                goto StartOver;
+                            }
+                            else
+                            {
+                                httpStatusCode = (HttpStatusCode)code;
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-DoWebAction throw: unexpected HTTP result code: webStatusCode={0} ({1}), httpStatusCode={2} ({3})", (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    }
+                    throw new InvalidDataException();
+                }
+                else // httpStatusCode == (HttpStatusCode)308
+                {
+                    rangeResponseHeader = responseHeaders[1].Value;
 
                     // 2b-3. upload remaining data
 
@@ -3153,25 +3316,11 @@ namespace Backup
                         previousLengthSoFar = streamUploadFrom.Position;
                         retry = 0;
                     }
-                    else
+
+                    responseHeaders = new KeyValuePair<string, string>[]
                     {
-                        retry++;
-                        if (retry > MaxRetries)
-                        {
-                            const string SurrenderMessage = "Upload failed to make progress after max retries; giving up.";
-                            if (trace != null)
-                            {
-                                trace.WriteLine("-UploadFile throws: {0}", SurrenderMessage);
-                            }
-                            throw new ApplicationException(SurrenderMessage);
-                        }
-
-                        // exponential backoff
-                        int w = 500 * (1 << retry);
-                        int delay = w + random.Next(w);
-                        Thread.Sleep(delay);
-                    }
-
+                        new KeyValuePair<string, string>("Content-Type", null),
+                    };
                     using (MemoryStream responseStream = new MemoryStream())
                     {
                         string url = sessionLocation;
@@ -3180,13 +3329,7 @@ namespace Backup
                             new KeyValuePair<string, string>("Content-Range", String.Format("bytes {0}-{1}/{2}", streamUploadFrom.Position, streamUploadFrom.Length - 1, streamUploadFrom.Length)),
                             // Content-Length computed by DoWebAction based on stream length and position
                         };
-                        KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
-                        {
-                            new KeyValuePair<string, string>("Content-Type", null),
-                        };
-                        WebExceptionStatus webStatusCode;
-                        HttpStatusCode httpStatusCode;
-                        bool result = DoWebActionOnce(
+                        result = DoWebActionOnce(
                             url,
                             "PUT",
                             streamUploadFrom,
@@ -3195,47 +3338,49 @@ namespace Backup
                             responseHeaders,
                             out webStatusCode,
                             out httpStatusCode,
-                            progressTracker,
+                            progressTrackerUpload,
                             null/*progressTrackerDownload*/,
+                            accessTokenOverride,
                             trace);
+                        response = Encoding.UTF8.GetString(responseStream.ToArray());
+                    }
 
-                        if (result)
+                    if (result)
+                    {
+                        if (responseHeaders[0].Value == "application/json; charset=UTF-8")
                         {
-                            if (responseHeaders[0].Value == "application/json; charset=UTF-8")
-                            {
-                                response = Encoding.UTF8.GetString(responseStream.ToArray());
-                            }
-                            else
-                            {
-                                throw new InvalidDataException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeaders[0].Value, "application/json; charset=UTF-8"));
-                            }
-
-                            break;
+                            // response variable set above
                         }
                         else
                         {
-                            if (trace != null)
-                            {
-                                trace.WriteLine(" DoWebAction failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
-                            }
-
-                            if (httpStatusCode == (HttpStatusCode)404)
-                            {
-                                goto StartOver;
-                            }
-
-                            resuming = true; // trigger resume logic
+                            throw new InvalidDataException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeaders[0].Value, "application/json; charset=UTF-8"));
                         }
+
+                        // finished
+                    }
+                    else
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" DoWebAction failure - result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        }
+
+                        if (httpStatusCode == (HttpStatusCode)404)
+                        {
+                            goto StartOver;
+                        }
+
+                        resuming = true; // trigger resume logic
+                        goto Retry;
                     }
                 }
             }
 
-#if false
+
             if (trace != null)
             {
-                trace.WriteLine("  json={0}", response);
+                trace.WriteLine(" entering post-processing region");
             }
-#endif
 
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
@@ -3268,55 +3413,6 @@ namespace Backup
             return entry;
         }
 
-#if false
-        public RemoteFileSystemEntry GetFileMetadata(string fileId, TextWriter trace)
-        {
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLine("+GetFileMetadata(id={0})", fileId);
-            }
-
-            string url = String.Format("https://www.googleapis.com/drive/v2/files/{0}", fileId);
-
-            string response;
-            WebExceptionStatus webStatusCode;
-            HttpStatusCode httpStatusCode;
-            bool result = DoWebActionJSON2JSON(
-                url,
-                "GET",
-                null/*jsonRequestBody*/,
-                out response,
-                out webStatusCode,
-                out httpStatusCode);
-            if (!result)
-            {
-                if (Logging.EnableLogging)
-                {
-                    Logging.WriteLine("-GetFileMetadata result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
-                }
-                throw new ApplicationException("Failure occurred accessing remote service");
-            }
-
-#if false
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLine("  json={0}", response);
-            }
-#endif
-
-            JSONDictionary metadata = new JSONDictionary(response);
-            RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
-
-            if (Logging.EnableLogging)
-            {
-                Logging.WriteLine("-GetFileMetadata returns {0}", entry);
-                Logging.WriteLine();
-            }
-
-            return entry;
-        }
-#endif
-
         public void DeleteFile(string fileId, TextWriter trace)
         {
             if (trace != null)
@@ -3338,6 +3434,7 @@ namespace Backup
                 out webStatusCode,
                 out httpStatusCode,
                 null/*progressTracker*/,
+                null/*accessTokenOverride*/,
                 trace);
             if (!result)
             {
@@ -3396,13 +3493,6 @@ namespace Backup
                 throw new ApplicationException("Failure occurred accessing remote service");
             }
 
-#if false
-            if (trace != null)
-            {
-                trace.WriteLine("  json={0}", response);
-            }
-#endif
-
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
 
@@ -3443,13 +3533,6 @@ namespace Backup
                 }
                 throw new ApplicationException("Failure occurred accessing remote service");
             }
-
-#if false
-            if (trace != null)
-            {
-                trace.WriteLine("  json={0}", response);
-            }
-#endif
 
             JSONDictionary metadata = new JSONDictionary(response);
             string quotaBytesTotal, quotaBytesUsed;

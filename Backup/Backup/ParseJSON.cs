@@ -45,8 +45,7 @@ namespace Backup
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    // TODO: Replace with System.Web.Script.Serialization.JavaScriptSerializer
-    // when I move out of the stone age (i.e. to .NET Framework 3.5 or later)
+    // http://json.org or http://www.ietf.org/rfc/rfc4627.txt
     public class JSONDictionary
     {
         private KeyValuePair<string, object>[] items;
@@ -135,6 +134,8 @@ namespace Backup
             throw new NotImplementedException();
         }
 
+        private const string Delimiters = "[{]}:,";
+        private const string ExtraLiteralDelimiters = ".+-";
         private static string NextToken(string s, ref int i)
         {
             while ((i < s.Length) && Char.IsWhiteSpace(s[i]))
@@ -149,36 +150,80 @@ namespace Backup
             {
                 StringBuilder sb = new StringBuilder();
                 sb.Append(s[i]);
-                bool escapedQuote;
-                do
+                while (true)
                 {
                     i++;
-                    escapedQuote = false;
-                    if ((s[i] == '\\') && (s[i + 1] == '"'))
+                    if (s[i] == '"')
+                    {
+                        sb.Append(s[i]);
+                        break;
+                    }
+                    else if (s[i] != '\\')
+                    {
+                        sb.Append(s[i]);
+                    }
+                    else
                     {
                         i++;
-                        escapedQuote = true;
+                        switch (s[i])
+                        {
+                            default:
+                                throw new InvalidDataException();
+                            case '"':
+                            case '\\':
+                            case '/':
+                                sb.Append(s[i]);
+                                break;
+                            case 'b':
+                                sb.Append((char)0x0008);
+                                break;
+                            case 'f':
+                                sb.Append((char)0x000c);
+                                break;
+                            case 'n':
+                                sb.Append((char)0x000a);
+                                break;
+                            case 'r':
+                                sb.Append((char)0x000d);
+                                break;
+                            case 't':
+                                sb.Append((char)0x0009);
+                                break;
+                            case 'u':
+                                char c = (char)0;
+                                for (int j = 1; j <= 4; j++)
+                                {
+                                    int k = "0123456789abcdef".IndexOf(Char.ToLowerInvariant(s[i + j]));
+                                    if (k < 0)
+                                    {
+                                        throw new InvalidDataException();
+                                    }
+                                    c = (char)((c << 4) | k);
+                                }
+                                sb.Append(c);
+                                i += 4;
+                                break;
+                        }
                     }
-                    sb.Append(s[i]);
-                } while (escapedQuote || (s[i] != '"'));
+                }
                 i++;
                 return sb.ToString();
             }
-            else if (Char.IsLetterOrDigit(s[i]) || (s[i] == '_') || (s[i] == '.'))
+            else if (Delimiters.IndexOf(s[i]) >= 0)
+            {
+                string r = new String(s[i], 1);
+                i++;
+                return r;
+            }
+            else if (Char.IsLetterOrDigit(s[i]) || (ExtraLiteralDelimiters.IndexOf(s[i]) >= 0))
             {
                 StringBuilder sb = new StringBuilder();
-                while (Char.IsLetterOrDigit(s[i]) || (s[i] == '_') || (s[i] == '.'))
+                while (Char.IsLetterOrDigit(s[i]) || (ExtraLiteralDelimiters.IndexOf(s[i]) >= 0))
                 {
                     sb.Append(s[i]);
                     i++;
                 }
                 return sb.ToString();
-            }
-            else if (":{},[]".IndexOf(s[i]) >= 0)
-            {
-                string r = new String(s[i], 1);
-                i++;
-                return r;
             }
             else
             {
@@ -313,6 +358,10 @@ namespace Backup
             {
                 return false;
             }
+            else if (t == "null")
+            {
+                return null;
+            }
             else if (Int64.TryParse(t, out l))
             {
                 return l;
@@ -326,44 +375,5 @@ namespace Backup
                 throw new InvalidDataException();
             }
         }
-
-#if false
-        private static void Dump(JSONDictionary json, int indent, TextWriter writer)
-        {
-            for (int i = 0; i < json.Count; i++)
-            {
-                KeyValuePair<string, object> item = json[i];
-                const int Spaces = 4;
-                string spacer = new String(' ', indent * Spaces);
-                writer.WriteLine("{0}{1}: {2}", spacer, item.Key, !(item.Value is JSONDictionary || item.Value is JSONDictionary[]) ? (item.Value != null ? item.Value : "<null>") : String.Empty);
-                if (item.Value is JSONDictionary)
-                {
-                    Dump((JSONDictionary)item.Value, indent + 1, writer);
-                }
-                else if (item.Value is JSONDictionary[])
-                {
-                    writer.WriteLine("{0}[", spacer);
-                    foreach (JSONDictionary o in (JSONDictionary[])item.Value)
-                    {
-                        if (o is JSONDictionary)
-                        {
-                            Dump((JSONDictionary)o, indent + 1, writer);
-                            writer.WriteLine("{0},", spacer);
-                        }
-                        else
-                        {
-                            writer.WriteLine("{0}{1},", spacer, o);
-                        }
-                    }
-                    writer.WriteLine("{0}]", spacer);
-                }
-            }
-        }
-
-        internal void Dump(TextWriter writer)
-        {
-            Dump(this, 0, writer);
-        }
-#endif
     }
 }

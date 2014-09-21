@@ -88,15 +88,38 @@ namespace Backup
                 }
                 return StreamWriter.Synchronized(new StreamWriter(traceStream, Encoding.UTF8, 1/*smallest possible buffer*/));
             }
+
+            public static string ScrubSecuritySensitiveValue(byte[] value)
+            {
+                string hashText;
+                if (value != null)
+                {
+                    SHA1 sha1 = SHA1.Create();
+                    hashText = String.Format("length={0} sha1={1}", value.Length, HexEncode(sha1.ComputeHash(value)));
+                }
+                else
+                {
+                    hashText = "null";
+                }
+                return String.Format("[scrubbed, {0}]", hashText);
+            }
+
+            public static string ScrubSecuritySensitiveValue(string value)
+            {
+                return ScrubSecuritySensitiveValue(value != null ? Encoding.UTF8.GetBytes(value) : null);
+            }
         }
 
-        public class TaskWriter : StringWriter
+        public class TaskWriter : TextWriter
         {
             private static int taskSerialNumberGenerator;
             private int taskSerialNumber = Interlocked.Increment(ref taskSerialNumberGenerator);
             private TextWriter finalDestination;
+            private List<string> lines = new List<string>();
+            private string current = String.Empty;
+            private string lastTimestamp;
+            private int lastTimestampSequenceNumber;
 
-            // finalDestination must be threadsafe - obtain from TextWriter.Synchronized()
             public TaskWriter(TextWriter finalDestination)
             {
                 this.finalDestination = finalDestination;
@@ -108,19 +131,74 @@ namespace Backup
                 return finalDestination != null ? new TaskWriter(finalDestination) : null;
             }
 
+            public override Encoding Encoding
+            {
+                get
+                {
+                    return Encoding.Unicode;
+                }
+            }
+
             protected override void Dispose(bool disposing)
             {
                 this.WriteLine("*** TASK LOG END ***");
-                base.WriteLine();
+                lines.Add(String.Empty);
                 base.Dispose(disposing);
-                finalDestination.Write(GetStringBuilder().ToString());
+
+                StringBuilder sb = new StringBuilder();
+                foreach (string line in lines)
+                {
+                    sb.AppendLine(line);
+                }
+                finalDestination.Write(sb.ToString());
                 finalDestination.Flush();
             }
 
-            public override void WriteLine(string value)
+            private void FlushLine(int oldEnd)
             {
-                string prefix = String.Format(" {0} {1:HH:mm:ss+ffff} ", taskSerialNumber, DateTime.Now);
-                base.WriteLine(prefix + value);
+                string timestamp = null;
+
+                int start = Math.Max(0, oldEnd - Environment.NewLine.Length);
+                int index;
+                while ((index = current.IndexOf(Environment.NewLine, start)) >= 0)
+                {
+                    if (timestamp == null)
+                    {
+                        timestamp = DateTime.Now.ToString("HH:mm:ss+ffff");
+                        if (!String.Equals(timestamp, lastTimestamp))
+                        {
+                            lastTimestamp = timestamp;
+                            lastTimestampSequenceNumber = 0;
+                        }
+                    }
+
+                    string prefix = String.Format(" {0}.{1:0000} {2} ", timestamp, lastTimestampSequenceNumber++, taskSerialNumber);
+                    lines.Add(String.Concat(prefix, current.Substring(0, index)));
+                    index += Environment.NewLine.Length;
+                    current = current.Substring(index, current.Length - index);
+                    start = 0;
+                }
+            }
+
+            public override void Write(char value)
+            {
+                int oldEnd = current.Length;
+                current = current + new String(value, 1);
+                FlushLine(oldEnd);
+            }
+
+            public override void Write(char[] buffer, int index, int count)
+            {
+                int oldEnd = current.Length;
+                current = current + new String(buffer, index, count);
+                FlushLine(oldEnd);
+            }
+
+            public override void Write(string value)
+            {
+                int oldEnd = current.Length;
+                current = current + value;
+                FlushLine(oldEnd);
             }
         }
 
@@ -382,9 +460,19 @@ namespace Backup
             }
         }
 
+        public enum FaultMethod
+        {
+            None = 0,
+
+            Throw,
+            Kill,
+        }
+
         public class FaultInstanceNode
         {
-            private KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
+            private readonly KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
+
+            public static readonly FaultInstanceNode Null = new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
 
             public FaultInstanceNode(FaultTemplateNode templateNode)
             {
@@ -395,6 +483,137 @@ namespace Backup
             private FaultInstanceNode(KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates)
             {
                 this.predicates = predicates;
+            }
+
+
+            // Use Select() to descend one path step and match predicates either by count or explicit value test
+
+            public FaultInstanceNode Select(string tag)
+            {
+                if (predicates == null)
+                {
+                    return Null;
+                }
+                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(); });
+            }
+
+            public FaultInstanceNode Select(string tag, long l)
+            {
+                if (predicates == null)
+                {
+                    return Null;
+                }
+                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(l); });
+            }
+
+            public FaultInstanceNode Select(string tag, string s)
+            {
+                if (predicates == null)
+                {
+                    return Null;
+                }
+                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(s); });
+            }
+
+
+            // Use SelectPredicate() to descend a path without evaluating predicates. Evaluation is
+            // performed by explicit invocation of Test() on the returned FaultPredicate object.
+            // Use this approach for performance-sensitive code in order to hoist path string match
+            // portion of operation out of loops.
+
+            public FaultPredicate SelectPredicate(string tag)
+            {
+                if (predicates == null)
+                {
+                    return FaultInstancePredicate.Null;
+                }
+
+                KeyValuePair<FaultPredicate, FaultTemplateNode>[] matchingPredicates = null;
+                for (int i = 0; i < predicates.Length; i++)
+                {
+                    if (String.Equals(tag, predicates[i].Value.Tag))
+                    {
+                        if (matchingPredicates == null)
+                        {
+                            matchingPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
+                        }
+                        else
+                        {
+                            Array.Resize(ref matchingPredicates, matchingPredicates.Length + 1);
+                        }
+                        matchingPredicates[matchingPredicates.Length - 1] = predicates[i];
+                    }
+                }
+                return new FaultInstancePredicate(matchingPredicates, this);
+            }
+
+
+            // Internals
+
+            private delegate bool TestMethod(FaultPredicate predicate);
+            private FaultInstanceNode Select(string tag, TestMethod testMethod)
+            {
+                // caller optimizes case where predicates == null
+
+                KeyValuePair<FaultPredicate, FaultTemplateNode>[] childPredicates = null;
+                FaultTemplateNode[] throwing = null;
+                for (int i = 0; i < predicates.Length; i++)
+                {
+                    if (String.Equals(tag, predicates[i].Value.Tag) && testMethod(predicates[i].Key))
+                    {
+                        if (predicates[i].Value.Terminal)
+                        {
+                            switch (predicates[i].Value.Method)
+                            {
+                                default:
+                                    throw new InvalidOperationException();
+
+                                case FaultMethod.None:
+                                    break;
+
+                                case FaultMethod.Throw:
+                                    if (throwing == null)
+                                    {
+                                        throwing = new FaultTemplateNode[1];
+                                    }
+                                    else
+                                    {
+                                        Array.Resize(ref throwing, throwing.Length + 1);
+                                    }
+                                    throwing[throwing.Length - 1] = predicates[i].Value;
+                                    break;
+
+                                case FaultMethod.Kill:
+                                    Environment.ExitCode = (int)ExitCodes.ProgramFailure;
+                                    Process.GetCurrentProcess().Kill(); // no finalizers!
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            KeyValuePair<FaultTemplateNode, FaultPredicate>[] children = predicates[i].Value.Children;
+                            for (int j = 0; j < children.Length; j++)
+                            {
+                                if (childPredicates == null)
+                                {
+                                    childPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
+                                }
+                                else
+                                {
+                                    Array.Resize(ref childPredicates, childPredicates.Length + 1);
+                                }
+                                childPredicates[childPredicates.Length - 1] = new KeyValuePair<FaultPredicate, FaultTemplateNode>(children[j].Value.Clone(), children[j].Key);
+                            }
+                        }
+                    }
+                }
+
+                if (throwing != null)
+                {
+                    Throw(throwing);
+                }
+
+                return new FaultInstanceNode(childPredicates);
             }
 
             private void Throw(FaultTemplateNode[] throwing)
@@ -425,109 +644,14 @@ namespace Backup
                 throw new FaultInjectionException(message.ToString());
             }
 
-            private delegate bool TestMethod(FaultPredicate predicate);
-            private FaultInstanceNode Select(string tag, TestMethod testMethod)
-            {
-                KeyValuePair<FaultPredicate, FaultTemplateNode>[] childPredicates = null;
-                FaultTemplateNode[] throwing = null;
-                for (int i = 0; i < predicates.Length; i++)
-                {
-                    if (String.Equals(tag, predicates[i].Value.Tag) && testMethod(predicates[i].Key))
-                    {
-                        if (predicates[i].Value.Terminal && (predicates[i].Value.Parent != null))
-                        {
-                            if (throwing == null)
-                            {
-                                throwing = new FaultTemplateNode[1];
-                            }
-                            else
-                            {
-                                Array.Resize(ref throwing, throwing.Length + 1);
-                            }
-                            throwing[throwing.Length - 1] = predicates[i].Value;
-                        }
-                        else
-                        {
-                            KeyValuePair<FaultTemplateNode, FaultPredicate>[] children = predicates[i].Value.Children;
-                            for (int j = 0; j < children.Length; j++)
-                            {
-                                if (childPredicates == null)
-                                {
-                                    childPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
-                                }
-                                else
-                                {
-                                    Array.Resize(ref childPredicates, childPredicates.Length + 1);
-                                }
-                                childPredicates[childPredicates.Length - 1] = new KeyValuePair<FaultPredicate, FaultTemplateNode>(children[j].Value.Clone(), children[j].Key);
-                            }
-                        }
-                    }
-                }
 
-                if (throwing != null)
-                {
-                    Throw(throwing);
-                }
-
-                return new FaultInstanceNode(childPredicates);
-            }
-
-            public FaultPredicate SelectPredicate(string tag)
-            {
-                KeyValuePair<FaultPredicate, FaultTemplateNode>[] matchingPredicates = null;
-                if (predicates != null)
-                {
-                    for (int i = 0; i < predicates.Length; i++)
-                    {
-                        if (String.Equals(tag, predicates[i].Value.Tag))
-                        {
-                            if (matchingPredicates == null)
-                            {
-                                matchingPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
-                            }
-                            else
-                            {
-                                Array.Resize(ref matchingPredicates, matchingPredicates.Length + 1);
-                            }
-                            matchingPredicates[matchingPredicates.Length - 1] = predicates[i];
-                        }
-                    }
-                }
-                return new FaultInstancePredicate(matchingPredicates, this);
-            }
-
-            public FaultInstanceNode Select(string tag)
-            {
-                if (predicates == null)
-                {
-                    return new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
-                }
-                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(); });
-            }
-
-            public FaultInstanceNode Select(string tag, long l)
-            {
-                if (predicates == null)
-                {
-                    return new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
-                }
-                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(l); });
-            }
-
-            public FaultInstanceNode Select(string tag, string s)
-            {
-                if (predicates == null)
-                {
-                    return new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
-                }
-                return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(s); });
-            }
-
+            // Fast predicate evaluator for performance-sensitive code
             private class FaultInstancePredicate : FaultPredicate
             {
-                private KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
-                private FaultInstanceNode owner;
+                private readonly KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
+                private readonly FaultInstanceNode owner;
+
+                public static readonly FaultInstancePredicate Null = new FaultInstancePredicate(null, null);
 
                 public FaultInstancePredicate(KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates, FaultInstanceNode owner)
                 {
@@ -540,10 +664,12 @@ namespace Backup
                     throw new InvalidOperationException();
                 }
 
-                private const bool TestReturnValue = true;
+                private const bool TestReturnValue = true; // implementing FaultPredicate iterface means having to return a value, but it means nothing in the use-case for FaultInstancePredicate
 
                 private bool Test(TestMethod testMethod)
                 {
+                    // caller optimizes case where predicates == null
+
                     FaultTemplateNode[] throwing = null;
                     for (int i = 0; i < predicates.Length; i++)
                     {
@@ -551,15 +677,31 @@ namespace Backup
                         {
                             if (predicates[i].Value.Terminal)
                             {
-                                if (throwing == null)
+                                switch (predicates[i].Value.Method)
                                 {
-                                    throwing = new FaultTemplateNode[1];
+                                    default:
+                                        throw new InvalidOperationException();
+
+                                    case FaultMethod.None:
+                                        break;
+
+                                    case FaultMethod.Throw:
+                                        if (throwing == null)
+                                        {
+                                            throwing = new FaultTemplateNode[1];
+                                        }
+                                        else
+                                        {
+                                            Array.Resize(ref throwing, throwing.Length + 1);
+                                        }
+                                        throwing[throwing.Length - 1] = predicates[i].Value;
+                                        break;
+
+                                    case FaultMethod.Kill:
+                                        Environment.ExitCode = (int)ExitCodes.ProgramFailure;
+                                        Process.GetCurrentProcess().Kill(); // no finalizers!
+                                        break;
                                 }
-                                else
-                                {
-                                    Array.Resize(ref throwing, throwing.Length + 1);
-                                }
-                                throwing[throwing.Length - 1] = predicates[i].Value;
                             }
                         }
                     }
@@ -605,22 +747,25 @@ namespace Backup
         {
             private string tag;
             private FaultTemplateNode parent;
+            private FaultMethod method;
             private KeyValuePair<FaultTemplateNode, FaultPredicate>[] children = new KeyValuePair<FaultTemplateNode, FaultPredicate>[0];
 
             public FaultTemplateNode()
             {
             }
 
-            public FaultTemplateNode(string tag, FaultTemplateNode parent)
+            public FaultTemplateNode(string tag, FaultTemplateNode parent, FaultMethod method)
             {
                 this.tag = tag;
                 this.parent = parent;
+                this.method = method;
             }
 
             public string Tag { get { return tag; } }
             public FaultTemplateNode Parent { get { return parent; } }
             public KeyValuePair<FaultTemplateNode, FaultPredicate>[] Children { get { return children; } }
             public bool Terminal { get { return children.Length == 0; } }
+            public FaultMethod Method { get { return method; } }
 
             public void Add(FaultTemplateNode child, FaultPredicate childPredicate)
             {
@@ -629,15 +774,23 @@ namespace Backup
             }
         }
 
-        public static void ParseFaultInjectionPath(FaultTemplateNode root, string arg)
+        public static void ParseFaultInjectionPath(FaultTemplateNode root, string method, string arg)
         {
-#if false
-            while (!Debugger.IsAttached) Thread.Sleep(10);
-#endif
-
             if (String.IsNullOrEmpty(arg) || (arg[0] != '/'))
             {
                 throw new ArgumentException();
+            }
+            FaultMethod faultMethod;
+            switch (method)
+            {
+                default:
+                    throw new ArgumentException();
+                case "throw":
+                    faultMethod = FaultMethod.Throw;
+                    break;
+                case "kill":
+                    faultMethod = FaultMethod.Kill;
+                    break;
             }
 
             int start = 1;
@@ -707,12 +860,14 @@ namespace Backup
                     }
                 }
 
-                FaultTemplateNode node = new FaultTemplateNode(tag, root);
+                int nextStart = end + 1;
+
+                FaultTemplateNode node = new FaultTemplateNode(tag, root, nextStart < arg.Length ? FaultMethod.None : faultMethod);
                 root.Add(node, predicate);
 
                 root = node;
 
-                start = end + 1;
+                start = nextStart;
             }
         }
 
@@ -998,7 +1153,7 @@ namespace Backup
                     firstEncrypt = false;
                     if (Weak)
                     {
-                        ConsoleWriteLineColor(String.Format("Cryptosystem {0} is considered weak. Encrypting new data with it is not recommended", Name), ConsoleColor.Yellow);
+                        ConsoleWriteLineColor(ConsoleColor.Yellow, "Ciphersuite {0} is considered weak. Encrypting new data with it is not recommended", Name);
                     }
                 }
 
@@ -2896,11 +3051,19 @@ namespace Backup
             return interactive.Value;
         }
 
-        public static void ConsoleWriteLineColor(string s, ConsoleColor color)
+        public static void ConsoleWriteLineColor(ConsoleColor color, string line)
         {
             ConsoleColor colorOld = Console.ForegroundColor;
             Console.ForegroundColor = color;
-            Console.WriteLine(s);
+            Console.WriteLine(line);
+            Console.ForegroundColor = colorOld;
+        }
+
+        public static void ConsoleWriteLineColor(ConsoleColor color, string format, params object[] arg)
+        {
+            ConsoleColor colorOld = Console.ForegroundColor;
+            Console.ForegroundColor = color;
+            Console.WriteLine(format, arg);
             Console.ForegroundColor = colorOld;
         }
 
@@ -5899,7 +6062,7 @@ namespace Backup
                         }
                         if (red)
                         {
-                            ConsoleWriteLineColor("  " + message, ConsoleColor.Red);
+                            ConsoleWriteLineColor(ConsoleColor.Red, "  " + message);
                         }
                         else
                         {
@@ -5937,7 +6100,7 @@ namespace Backup
                         }
                         if (red)
                         {
-                            ConsoleWriteLineColor("  " + message, ConsoleColor.Red);
+                            ConsoleWriteLineColor(ConsoleColor.Red, "  " + message);
                         }
                         else
                         {
@@ -6481,7 +6644,7 @@ namespace Backup
                 {
                     log.WriteLine("  {0} {2}", "EXCEPTION", String.Empty, exception.Message);
                 }
-                ConsoleWriteLineColor(String.Format("EXCEPTION at \"{0}\": {1}", path, exception.Message), ConsoleColor.Red);
+                ConsoleWriteLineColor(ConsoleColor.Red, "EXCEPTION at \"{0}\": {1}", path, exception.Message);
                 throw;
             }
         }
@@ -6681,20 +6844,20 @@ namespace Backup
                                     log.Flush();
                                 }
                                 Console.WriteLine();
-                                ConsoleWriteLineColor(String.Format("CONFLICT '{0}' modified '{1}', deleted '{2}'", selected, rootL, rootR), ConsoleColor.Red);
+                                ConsoleWriteLineColor(ConsoleColor.Red, "CONFLICT '{0}' modified '{1}', deleted '{2}'", selected, rootL, rootR);
                                 if (!resolveSkip)
                                 {
-                                    ConsoleWriteLineColor(String.Format("  L: keep \"{0}\"", Path.Combine(rootL, selected)), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  R: delete \"{0}\"", Path.Combine(rootL, selected)), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  I: ignore"), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  N: ignore all"), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  W: windiff"), ConsoleColor.Red);
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  L: keep \"{0}\"", Path.Combine(rootL, selected));
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  R: delete \"{0}\"", Path.Combine(rootL, selected));
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  I: ignore");
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  N: ignore all");
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  W: windiff");
                                     while (true)
                                     {
                                         char key = WaitReadKey(true/*intercept*/);
                                         if (key == 'l')
                                         {
-                                            ConsoleWriteLineColor(String.Format("L: keep \"{0}\"", Path.Combine(rootL, selected)), ConsoleColor.Red);
+                                            ConsoleWriteLineColor(ConsoleColor.Red, "L: keep \"{0}\"", Path.Combine(rootL, selected));
                                             codePath = 121;
                                             if (log != null)
                                             {
@@ -6706,7 +6869,7 @@ namespace Backup
                                         }
                                         else if (key == 'r')
                                         {
-                                            ConsoleWriteLineColor(String.Format("R: delete \"{0}\"", Path.Combine(rootL, selected)), ConsoleColor.Red);
+                                            ConsoleWriteLineColor(ConsoleColor.Red, "R: delete \"{0}\"", Path.Combine(rootL, selected));
                                             codePath = 122;
                                             if (log != null)
                                             {
@@ -6788,20 +6951,20 @@ namespace Backup
                                     log.Flush();
                                 }
                                 Console.WriteLine();
-                                ConsoleWriteLineColor(String.Format("CONFLICT '{0}' deleted '{1}', modified '{2}'", selected, rootL, rootR), ConsoleColor.Red);
+                                ConsoleWriteLineColor(ConsoleColor.Red, "CONFLICT '{0}' deleted '{1}', modified '{2}'", selected, rootL, rootR);
                                 if (!resolveSkip)
                                 {
-                                    ConsoleWriteLineColor(String.Format("  L: delete \"{0}\"", Path.Combine(rootR, selected)), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  R: keep \"{0}\"", Path.Combine(rootR, selected)), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  I: ignore"), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  N: ignore all"), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  W: windiff"), ConsoleColor.Red);
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  L: delete \"{0}\"", Path.Combine(rootR, selected));
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  R: keep \"{0}\"", Path.Combine(rootR, selected));
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  I: ignore");
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  N: ignore all");
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  W: windiff");
                                     while (true)
                                     {
                                         char key = WaitReadKey(true/*intercept*/);
                                         if (key == 'l')
                                         {
-                                            ConsoleWriteLineColor(String.Format("L: delete \"{0}\"", Path.Combine(rootR, selected)), ConsoleColor.Red);
+                                            ConsoleWriteLineColor(ConsoleColor.Red, "L: delete \"{0}\"", Path.Combine(rootR, selected));
                                             codePath = 221;
                                             if (log != null)
                                             {
@@ -6813,7 +6976,7 @@ namespace Backup
                                         }
                                         else if (key == 'r')
                                         {
-                                            ConsoleWriteLineColor(String.Format("R: keep \"{0}\"", Path.Combine(rootR, selected)), ConsoleColor.Red);
+                                            ConsoleWriteLineColor(ConsoleColor.Red, "R: keep \"{0}\"", Path.Combine(rootR, selected));
                                             codePath = 222;
                                             if (log != null)
                                             {
@@ -6911,20 +7074,20 @@ namespace Backup
                                 {
                                 }
                                 Console.WriteLine();
-                                ConsoleWriteLineColor(String.Format("CONFLICT '{0}' modified both, {1}", selected, same.HasValue ? (same.Value ? "identical" : "different") : "unreadable"), ConsoleColor.Red);
+                                ConsoleWriteLineColor(ConsoleColor.Red, "CONFLICT '{0}' modified both, {1}", selected, same.HasValue ? (same.Value ? "identical" : "different") : "unreadable");
                                 if (!resolveSkip)
                                 {
-                                    ConsoleWriteLineColor(String.Format("  L: keep \"{0}\"{1}", Path.Combine(rootL, currentEntriesL.Current), currentEntriesL.CurrentLastWrite > currentEntriesR.CurrentLastWrite ? " [more recent]" : String.Empty), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  R: keep \"{0}\"{1}", Path.Combine(rootR, currentEntriesR.Current), currentEntriesL.CurrentLastWrite < currentEntriesR.CurrentLastWrite ? " [more recent]" : String.Empty), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  I: ignore"), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  N: ignore all"), ConsoleColor.Red);
-                                    ConsoleWriteLineColor(String.Format("  W: windiff (Shift-W to reverse)"), ConsoleColor.Red);
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  L: keep \"{0}\"{1}", Path.Combine(rootL, currentEntriesL.Current), currentEntriesL.CurrentLastWrite > currentEntriesR.CurrentLastWrite ? " [more recent]" : String.Empty);
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  R: keep \"{0}\"{1}", Path.Combine(rootR, currentEntriesR.Current), currentEntriesL.CurrentLastWrite < currentEntriesR.CurrentLastWrite ? " [more recent]" : String.Empty);
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  I: ignore");
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  N: ignore all");
+                                    ConsoleWriteLineColor(ConsoleColor.Red, "  W: windiff (Shift-W to reverse)");
                                     while (true)
                                     {
                                         char key = WaitReadKey(true/*intercept*/);
                                         if (key == 'l')
                                         {
-                                            ConsoleWriteLineColor(String.Format("L: keep \"{0}\"", Path.Combine(rootL, currentEntriesL.Current)), ConsoleColor.Red);
+                                            ConsoleWriteLineColor(ConsoleColor.Red, "L: keep \"{0}\"", Path.Combine(rootL, currentEntriesL.Current));
                                             codePath = 321;
                                             if (log != null)
                                             {
@@ -6936,7 +7099,7 @@ namespace Backup
                                         }
                                         else if (key == 'r')
                                         {
-                                            ConsoleWriteLineColor(String.Format("R: keep \"{0}\"", Path.Combine(rootR, currentEntriesR.Current)), ConsoleColor.Red);
+                                            ConsoleWriteLineColor(ConsoleColor.Red, "R: keep \"{0}\"", Path.Combine(rootR, currentEntriesR.Current));
                                             codePath = 322;
                                             if (log != null)
                                             {
@@ -8143,7 +8306,7 @@ namespace Backup
                             header = true;
                             Console.WriteLine(targetRootDirectory);
                         }
-                        ConsoleWriteLineColor("  " + message, ConsoleColor.Red);
+                        ConsoleWriteLineColor(ConsoleColor.Red, "  " + message);
                     }
                 }
 
@@ -8172,14 +8335,14 @@ namespace Backup
                             header = true;
                             Console.WriteLine(targetRootDirectory);
                         }
-                        ConsoleWriteLineColor("  " + message, ConsoleColor.Red);
+                        ConsoleWriteLineColor(ConsoleColor.Red, "  " + message);
                     }
                 }
             }
             catch (Exception exception)
             {
                 different.Set();
-                ConsoleWriteLineColor(String.Format("Exception processing directory '{0}': {1}", sourceRootDirectory, exception.Message), ConsoleColor.Red);
+                ConsoleWriteLineColor(ConsoleColor.Red, "Exception processing directory '{0}': {1}", sourceRootDirectory, exception.Message);
             }
 
             foreach (KeyValuePair<string, bool> item in allFiles)
@@ -8427,7 +8590,7 @@ namespace Backup
                     break;
                 }
 
-                ConsoleWriteLineColor(String.Format("Purging {0}", name), ConsoleColor.Yellow);
+                ConsoleWriteLineColor(ConsoleColor.Yellow, "Purging {0}", name);
                 int movedFiles, discardedFiles, discardedRoots;
                 PurgeRecursive(
                     Path.Combine(archiveRoot, beginCheckpoint),
@@ -8921,7 +9084,7 @@ namespace Backup
                 else
                 {
                     invalid.Set();
-                    ConsoleWriteLineColor(message, ConsoleColor.Yellow);
+                    ConsoleWriteLineColor(ConsoleColor.Yellow, message);
                 }
             }
             else
@@ -9953,21 +10116,6 @@ namespace Backup
                     return sb.ToString();
                 }
             }
-
-#if false
-            private static string Combine(Exception[] exceptions)
-            {
-                StringBuilder sb = new StringBuilder();
-                if (exceptions != null)
-                {
-                    foreach (Exception exception in exceptions)
-                    {
-                        sb.AppendLine(exception.Message);
-                    }
-                }
-                return sb.ToString();
-            }
-#endif
         }
 
         [Flags]
@@ -9982,7 +10130,7 @@ namespace Backup
             ShowProgress = 1 << 3,
         }
 
-        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, out ApplicationException[] deferredExceptions)
+        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, FaultInstanceNode faultContainer, out ApplicationException[] deferredExceptions)
         {
             List<ApplicationException> deferredExceptionsList = new List<ApplicationException>();
 
@@ -9997,7 +10145,7 @@ namespace Backup
                     throw new ArgumentException();
                 }
 
-                FaultInstanceNode faultUnpackInternal = context.faultInjectionRoot.Select("UnpackInternal");
+                FaultInstanceNode faultUnpackInternal = faultContainer.Select("UnpackInternal");
 
                 ulong segmentSerialNumber = 0;
                 byte[] randomArchiveSignature = new byte[0];
@@ -10120,8 +10268,7 @@ namespace Backup
                         randomArchiveSignature = BinaryReadUtils.ReadVariableLengthByteArray(stream);
                         if (trace != null)
                         {
-                            string hex = HexEncode(randomArchiveSignature);
-                            trace.WriteLine("Signature: {0}...{1}", hex.Substring(0, Math.Min(hex.Length, 4)), hex.Substring(Math.Max(0, hex.Length - 4)));
+                            trace.WriteLine("Signature: {0}", Logging.ScrubSecuritySensitiveValue(randomArchiveSignature));
                         }
 
                         segmentSerialNumber = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
@@ -10532,20 +10679,15 @@ namespace Backup
             }
         }
 
-        private static UnpackedFileRecord[] UnpackInternal(string sourceFile, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, out ApplicationException[] deferredExceptions)
-        {
-            using (Stream fileStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
-            {
-                return UnpackInternal(fileStream, targetDirectory, context, mode, out segmentSerialNumberOut, out randomArchiveSignatureOut, trace, out deferredExceptions);
-            }
-        }
-
         internal static void Unpack(string sourceFile, string targetDirectory, Context context)
         {
             ulong segmentSerialNumber;
             byte[] randomArchiveSignature;
             ApplicationException[] deferredExceptions;
-            UnpackInternal(sourceFile, targetDirectory, context, UnpackMode.Unpack | UnpackMode.ShowProgress, out segmentSerialNumber, out randomArchiveSignature, null/*trace*/, out deferredExceptions);
+            using (Stream fileStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                UnpackInternal(fileStream, targetDirectory, context, UnpackMode.Unpack | UnpackMode.ShowProgress, out segmentSerialNumber, out randomArchiveSignature, null/*trace*/, context.faultInjectionRoot.Select("UnpackInternal"), out deferredExceptions);
+            }
             if (deferredExceptions != null)
             {
                 throw new DeferredMultiException(deferredExceptions);
@@ -10554,6 +10696,8 @@ namespace Backup
 
         internal static void Dumppack(string sourcePattern, Context context)
         {
+            FaultInstanceNode faultDumppack = context.faultInjectionRoot.Select("Dumppack");
+
             string fileName;
             bool remote;
             using (IArchiveFileManager fileManager = GetArchiveFileManager(sourcePattern, out fileName, out remote, context))
@@ -10590,7 +10734,7 @@ namespace Backup
                         using (Stream stream = fileRef.Read())
                         {
                             ApplicationException[] deferredExceptions;
-                            files = UnpackInternal(stream, ".", context, UnpackMode.Parse, out serialNumber, out randomArchiveSignature, null/*trace*/, out deferredExceptions);
+                            files = UnpackInternal(stream, ".", context, UnpackMode.Parse, out serialNumber, out randomArchiveSignature, null/*trace*/, faultDumppack, out deferredExceptions);
                             if (deferredExceptions != null)
                             {
                                 throw new DeferredMultiException(deferredExceptions);
@@ -10598,7 +10742,7 @@ namespace Backup
                         }
                     }
 
-                    Console.WriteLine("SERIAL: {0}; SIGNATURE: {1}", serialNumber, HexEncode(randomArchiveSignature));
+                    Console.WriteLine("SERIAL: {0}; SIGNATURE: {1}", serialNumber, Logging.ScrubSecuritySensitiveValue(randomArchiveSignature));
 
                     int index = 0;
                     string lastSegment = null;
@@ -10850,15 +10994,15 @@ namespace Backup
             }
         }
 
+        private static int dynpackDiagnosticSerialNumberGenerator;
+
         private class SegmentRecord
         {
             private string name;
             private OneWaySwitch dirty = new OneWaySwitch();
             internal int? start;
-            internal readonly int diagnosticSerialNumber = diagnosticSerialNumberGenerator++;
+            private readonly int diagnosticSerialNumber = Interlocked.Increment(ref dynpackDiagnosticSerialNumberGenerator);
             private ulong serialNumber;
-
-            private static int diagnosticSerialNumberGenerator;
 
             internal SegmentRecord()
             {
@@ -10909,6 +11053,19 @@ namespace Backup
                     serialNumber = value;
                 }
             }
+
+            internal string DiagnosticSerialNumber
+            {
+                get
+                {
+                    byte[] four = new byte[4];
+                    four[0] = (byte)(diagnosticSerialNumber >> 24);
+                    four[1] = (byte)(diagnosticSerialNumber >> 16);
+                    four[2] = (byte)(diagnosticSerialNumber >> 8);
+                    four[3] = (byte)diagnosticSerialNumber;
+                    return String.Concat("seg0x", HexEncode(four));
+                }
+            }
         }
 
         private class FileRecord
@@ -10916,6 +11073,8 @@ namespace Backup
             private SegmentRecord segment;
             private readonly PackedFileHeaderRecord header;
             private readonly int headerOverhead;
+
+            private readonly int diagnosticSerialNumber = Interlocked.Increment(ref dynpackDiagnosticSerialNumberGenerator);
 
             internal FileRecord(SegmentRecord segment, FilePath partialPath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, PackedFileHeaderRecord.HeaderAttributes attributes, long embeddedStreamLength, PackedFileHeaderRecord.RangeRecord range)
             {
@@ -11009,6 +11168,19 @@ namespace Backup
                 header.SegmentSerialNumber = 0;
 
                 header.Write(stream);
+            }
+
+            internal string DiagnosticSerialNumber
+            {
+                get
+                {
+                    byte[] four = new byte[4];
+                    four[0] = (byte)(diagnosticSerialNumber >> 24);
+                    four[1] = (byte)(diagnosticSerialNumber >> 16);
+                    four[2] = (byte)(diagnosticSerialNumber >> 8);
+                    four[3] = (byte)diagnosticSerialNumber;
+                    return String.Concat("file0x", HexEncode(four));
+                }
             }
         }
 
@@ -11302,6 +11474,8 @@ namespace Backup
             const string DynPackDiagnosticDateTimeFormat = "yyyy-MM-ddTHH:mm:ss";
             const int SegmentFixedOverhead = (256 / 8/*SHA256 length*/) + PackedFileHeaderRecord.HeaderTokenLength;
 
+            FaultInstanceNode faultDynamicPack = context.faultInjectionRoot.Select("DynamicPack");
+
             ulong segmentSerialNumbering = 0;
             byte[] randomArchiveSignature = new byte[PackRandomSignatureLengthBytes];
             {
@@ -11311,7 +11485,7 @@ namespace Backup
 
             segmentSizeTarget -= SegmentFixedOverhead;
             // segmentSizeTarget is only approximate anyway and may be exceeded due to
-            // encryption padding & IV and potential compression overhead.
+            // encryption/validation and compression potential compression overhead.
 
 
             // options (and their defaults)
@@ -11382,7 +11556,7 @@ namespace Backup
                 for (int i = 0; i < currentFiles.Count; i++)
                 {
                     FileRecord record = currentFiles[i];
-                    traceDynpack.WriteLine("    {5,-8} {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i);
+                    traceDynpack.WriteLine("    {5,-8} {6} {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber);
                 }
                 traceDynpack.WriteLine();
                 traceDynpack.Flush();
@@ -11641,7 +11815,7 @@ namespace Backup
                     for (int i = 0; i < previousFiles.Count; i++)
                     {
                         FileRecord record = previousFiles[i];
-                        traceDynpack.WriteLine("    {5,-8}  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i);
+                        traceDynpack.WriteLine("    {5,-8} {6} {7}({8})  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber, record.Segment.DiagnosticSerialNumber, record.Segment.Name);
                     }
                     traceDynpack.WriteLine();
                     traceDynpack.Flush();
@@ -11715,28 +11889,64 @@ namespace Backup
                                 && previousFiles[iPreviousStart].CreationTimeUtc.Equals(currentFiles[iCurrentStart].CreationTimeUtc)
                                 && previousFiles[iPreviousStart].LastWriteTimeUtc.Equals(currentFiles[iCurrentStart].LastWriteTimeUtc))
                             {
+                                bool notDirty = true;
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Gratuitous re-ranging of large files suppressed: previous=(start={0}, length={1}) current=(start={2}, length={3})", iPreviousStart, iPrevious - iPreviousStart, iCurrentStart, iCurrent - iCurrentStart);
-                                    traceDynpack.Flush();
+                                    traceDynpack.WriteLine("[gratuitous re-ranging suppression dirty check begins: previous=(start={0}, length={1}) current=(start={2}, length={3})]", iPreviousStart, iPrevious - iPreviousStart, iCurrentStart, iCurrent - iCurrentStart);
+                                }
+                                for (int i = iPreviousStart; notDirty && (i < iPrevious); i++)
+                                {
+                                    bool segmentAssigned = previousFiles[i].Segment != null;
+                                    bool segmentExist = segmentAssigned && fileManager.Exists(String.Concat(targetArchiveFileNameTemplate, ".", previousFiles[i].Segment.Name, DynPackFileExtension), fileManager.GetMasterTrace());
+                                    bool thisNotDirty = segmentAssigned && segmentExist;
+                                    if (!thisNotDirty)
+                                    {
+                                        if (traceDynpack != null)
+                                        {
+                                            traceDynpack.WriteLine("[gratuitous re-ranging suppression: {0} dirty; segmentAssigned={1}, segmentExist={2}]", previousFiles[i].DiagnosticSerialNumber, segmentAssigned, segmentExist);
+                                        }
+                                    }
+                                    notDirty = notDirty && segmentAssigned && segmentExist;
                                 }
 
-                                // unchanged, and ranges involved in either previous or current
-                                FileRecord[] currentSequenceReplacement = new FileRecord[iPrevious - iPreviousStart];
-                                for (int i = 0; i < iPrevious - iPreviousStart; i++)
+                                if (notDirty)
                                 {
-                                    FileRecord previous = previousFiles[i + iPreviousStart];
-                                    currentSequenceReplacement[i] = new FileRecord(previous);
+                                    // unchanged, and ranges involved in either previous or current
+
+                                    if (traceDynpack != null)
+                                    {
+                                        traceDynpack.WriteLine("Gratuitous re-ranging of large files suppressed: previous=(start={0}, length={1}) current=(start={2}, length={3})", iPreviousStart, iPrevious - iPreviousStart, iCurrentStart, iCurrent - iCurrentStart);
+                                        traceDynpack.Write("  previous={");
+                                        for (int i = iPreviousStart; i < iPrevious; i++)
+                                        {
+                                            traceDynpack.Write("{0},", previousFiles[i].DiagnosticSerialNumber);
+                                        }
+                                        traceDynpack.Write("}  current={");
+                                        for (int i = iCurrentStart; i < iCurrent; i++)
+                                        {
+                                            traceDynpack.Write("{0},", currentFiles[i].DiagnosticSerialNumber);
+                                        }
+                                        traceDynpack.WriteLine("}");
+                                        traceDynpack.Flush();
+                                    }
+
+                                    FileRecord[] currentSequenceReplacement = new FileRecord[iPrevious - iPreviousStart];
+                                    for (int i = 0; i < iPrevious - iPreviousStart; i++)
+                                    {
+                                        FileRecord previous = previousFiles[i + iPreviousStart];
+                                        currentSequenceReplacement[i] = new FileRecord(previous);
+                                    }
+                                    currentFiles.RemoveRange(iCurrentStart, iCurrent - iCurrentStart);
+                                    currentFiles.InsertRange(iCurrentStart, currentSequenceReplacement);
+                                    iCurrent = iCurrentStart + (iPrevious - iPreviousStart);
                                 }
-                                currentFiles.RemoveRange(iCurrentStart, iCurrent - iCurrentStart);
-                                currentFiles.InsertRange(iCurrentStart, currentSequenceReplacement);
-                                iCurrent = iCurrentStart + (iPrevious - iPreviousStart);
                             }
                         }
                     }
                     if (traceDynpack != null)
                     {
                         traceDynpack.WriteLine();
+                        traceDynpack.Flush();
                     }
 
                     // main merge occurs here
@@ -11748,7 +11958,7 @@ namespace Backup
                         {
                             if (traceDynpack != null)
                             {
-                                traceDynpack.WriteLine("Deleted(1): {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty);
+                                traceDynpack.WriteLine("Deleted(1): {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
                             }
 
                             previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
@@ -11758,8 +11968,17 @@ namespace Backup
                         {
                             if (traceDynpack != null)
                             {
-                                traceDynpack.WriteLine("Added(1): {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
+                                traceDynpack.WriteLine("Added(1): {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
                             }
+
+                            // Addition MAY or MAY NOT cause segment to be dirty:
+                            // - If files are added between segments, the code tries to avoid modifying those
+                            // segments, so they do not need to be marked dirty (unless the segments are small
+                            // enough to be merged during the join phase, which marks them dirty).
+                            // - If new files are inserted into the middle of an existing segment, the segment
+                            // must be split in two and the second half renamed, during a fixup pass that
+                            // occurs after merging.
+                            // Therefore, marking dirty is not done here in any case.
 
                             mergedFiles.Add(currentFiles[iCurrent]);
                             iCurrent++;
@@ -11771,8 +11990,10 @@ namespace Backup
                             {
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Added(2): {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
+                                    traceDynpack.WriteLine("Added(2): {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
                                 }
+
+                                // IMPORTANT: see comment in "Added(1)" clause about marking dirty
 
                                 mergedFiles.Add(currentFiles[iCurrent]);
                                 iCurrent++;
@@ -11781,7 +12002,7 @@ namespace Backup
                             {
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Deleted(2): {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty);
+                                    traceDynpack.WriteLine("Deleted(2): {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
                                 }
 
                                 previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
@@ -11800,8 +12021,8 @@ namespace Backup
                                 {
                                     if (traceDynpack != null)
                                     {
-                                        traceDynpack.WriteLine("Changed: {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty);
-                                        traceDynpack.WriteLine("       : {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
+                                        traceDynpack.WriteLine("Changed: {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
+                                        traceDynpack.WriteLine("       : {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
                                         traceDynpack.WriteLine("       (reason: creation-changed={0} lastwrite-changed={1} range-changed={2})", creationChanged, lastWriteChanged, rangeChanged);
                                     }
 
@@ -11811,7 +12032,7 @@ namespace Backup
                                 {
                                     if (traceDynpack != null)
                                     {
-                                        traceDynpack.WriteLine("Unchanged: {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty);
+                                        traceDynpack.WriteLine("Unchanged: {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
                                     }
                                 }
 
@@ -11827,7 +12048,71 @@ namespace Backup
                 if (traceDynpack != null)
                 {
                     traceDynpack.WriteLine();
+                    traceDynpack.WriteLine("Merged Files:");
+                    for (int i = 0; i < mergedFiles.Count; i++)
+                    {
+                        FileRecord record = mergedFiles[i];
+                        traceDynpack.WriteLine("    {5,-8} {6} {7}  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber, record.Segment != null ? record.Segment.DiagnosticSerialNumber : "null");
+                    }
+                    traceDynpack.WriteLine();
                     traceDynpack.Flush();
+                }
+
+                // Fixup pass for files inserted into the middle of segments (breaking segment
+                // ordering invariants) - see also comment in "Added(1)" clause above.
+                {
+                    Dictionary<string, bool> usedSegmentNames = new Dictionary<string, bool>();
+                    string currentSegmentName = String.Empty;
+                    SegmentRecord currentSegment = null;
+                    bool splitSegment = false;
+                    for (int i = 0; i < mergedFiles.Count - 1; i++)
+                    {
+                        if (mergedFiles[i].Segment == null)
+                        {
+                            splitSegment = true;
+                            continue;
+                        }
+
+                        string candidateSegmentName = mergedFiles[i].Segment.Name;
+                        if (splitSegment || !String.Equals(currentSegmentName, candidateSegmentName))
+                        {
+                            int c = DynPackSegmentNameCompare(currentSegmentName, candidateSegmentName);
+                            if ((c > 0) || (splitSegment && (c == 0)))
+                            {
+                                if (traceDynpack != null)
+                                {
+                                    traceDynpack.WriteLine("Insertion: segment name sequence violation:  {0} {5} {2}  [{1},{3}]  ({4})", currentSegmentName, currentSegment.DiagnosticSerialNumber, mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber, splitSegment ? ">=" : ">");
+                                    traceDynpack.WriteLine("  marking segment dirty, then voiding segment from {0}", mergedFiles[i].DiagnosticSerialNumber);
+                                }
+                                mergedFiles[i].Segment.Dirty.Set();
+                                mergedFiles[i].Segment = null;
+                                continue;
+                            }
+
+                            if (usedSegmentNames.ContainsKey(mergedFiles[i].Segment.Name))
+                            {
+                                if (traceDynpack != null)
+                                {
+                                    traceDynpack.WriteLine("Insertion: segment name used more than once for separated regions:  {0} [{1}]  ({2})", mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber);
+                                    traceDynpack.WriteLine("  marking segment dirty, then voiding segment from {0}", mergedFiles[i].DiagnosticSerialNumber);
+                                }
+                                mergedFiles[i].Segment.Dirty.Set();
+                                mergedFiles[i].Segment = null;
+                                continue;
+                            }
+
+                            currentSegment = mergedFiles[i].Segment;
+                            currentSegmentName = mergedFiles[i].Segment.Name;
+                            usedSegmentNames[currentSegmentName] = false;
+                            splitSegment = false;
+                        }
+                    }
+
+                    if (traceDynpack != null)
+                    {
+                        traceDynpack.WriteLine();
+                        traceDynpack.Flush();
+                    }
                 }
 
                 // Ensure segment contiguity and uniqueness
@@ -11845,13 +12130,13 @@ namespace Backup
                             currentSegment = new SegmentRecord();
                             if (traceDynpack != null)
                             {
-                                traceDynpack.WriteLine("New segment: {0}", currentSegment.diagnosticSerialNumber);
+                                traceDynpack.WriteLine("New segment: {0}", currentSegment.DiagnosticSerialNumber);
                             }
                             segments.Add(currentSegment);
                             mergedFiles[0].Segment = currentSegment;
                             if (traceDynpack != null)
                             {
-                                traceDynpack.WriteLine("Segment assign: {0} {2} {1}", currentSegment.diagnosticSerialNumber, mergedFiles[0].PartialPath, mergedFiles[0].Range != null ? String.Format("[{0}]", mergedFiles[0].Range) : String.Empty);
+                                traceDynpack.WriteLine("Segment assign: {0} {2} {1}", currentSegment.DiagnosticSerialNumber, mergedFiles[0].PartialPath, mergedFiles[0].Range != null ? String.Format("[{0}]", mergedFiles[0].Range) : String.Empty);
                             }
                         }
                         usedSegments.Add(currentSegment, false);
@@ -11882,7 +12167,7 @@ namespace Backup
                             }
                             if (traceDynpack != null)
                             {
-                                traceDynpack.WriteLine("Segment assign: {0} {2} {1}", currentSegment.diagnosticSerialNumber, mergedFiles[i].PartialPath, mergedFiles[i].Range != null ? String.Format("[{0}]", mergedFiles[i].Range) : String.Empty);
+                                traceDynpack.WriteLine("Segment assign: {0} {2} {1}", currentSegment.DiagnosticSerialNumber, mergedFiles[i].PartialPath, mergedFiles[i].Range != null ? String.Format("[{0}]", mergedFiles[i].Range) : String.Empty);
                             }
                         }
                         else if (mergedFiles[i].Segment != currentSegment)
@@ -11901,7 +12186,7 @@ namespace Backup
                                 segments.Add(currentSegment);
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("New segment: {0}", currentSegment.diagnosticSerialNumber);
+                                    traceDynpack.WriteLine("New segment: {0}", currentSegment.DiagnosticSerialNumber);
                                 }
                             }
                             usedSegments.Add(currentSegment, false);
@@ -11921,7 +12206,7 @@ namespace Backup
                     traceDynpack.WriteLine("Segments:");
                     foreach (SegmentRecord segment in segments)
                     {
-                        traceDynpack.WriteLine("    {0} {1}", segment.diagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
+                        traceDynpack.WriteLine("    {0} {1}", segment.DiagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceDynpack.WriteLine();
                     traceDynpack.Flush();
@@ -12004,7 +12289,7 @@ namespace Backup
                         newSegment.start = j + start;
                         if (traceDynpack != null)
                         {
-                            traceDynpack.WriteLine("Split: {0} after {1}", segment.diagnosticSerialNumber, mergedFiles[newSegment.start.Value].PartialPath);
+                            traceDynpack.WriteLine("Split: {0} after {1}", segment.DiagnosticSerialNumber, mergedFiles[newSegment.start.Value].PartialPath);
                         }
                         segments.Insert(i + 1, newSegment);
                         for (int k = j; k < count; k++)
@@ -12035,7 +12320,7 @@ namespace Backup
                     {
                         if (traceDynpack != null)
                         {
-                            traceDynpack.WriteLine("Join: {0}, {1}", segments[i].diagnosticSerialNumber, segments[i + 1].diagnosticSerialNumber);
+                            traceDynpack.WriteLine("Join: {0}, {1}", segments[i].DiagnosticSerialNumber, segments[i + 1].DiagnosticSerialNumber);
                         }
 
                         segments[i].Dirty.Set();
@@ -12073,7 +12358,7 @@ namespace Backup
                             segments[0].Name = "a";
                             if (traceDynpack != null)
                             {
-                                traceDynpack.WriteLine("Rename: {0} = {1}", segments[0].diagnosticSerialNumber, segments[0].Name);
+                                traceDynpack.WriteLine("Rename: {0} --> {1}", segments[0].DiagnosticSerialNumber, segments[0].Name);
                             }
                         }
                     }
@@ -12090,7 +12375,7 @@ namespace Backup
                                 segments[i].Name = null;
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Rename: {0} = {1}", segments[i].diagnosticSerialNumber, "<>");
+                                    traceDynpack.WriteLine("Rename: {0} --> {1}", segments[i].DiagnosticSerialNumber, "<>");
                                 }
                             }
                             else
@@ -12115,7 +12400,7 @@ namespace Backup
                                 segments[i + j].Name = newNames[j];
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Rename: {0} = {1}", segments[i + j].diagnosticSerialNumber, segments[i + j].Name);
+                                    traceDynpack.WriteLine("Rename: {0} --> {1}", segments[i + j].DiagnosticSerialNumber, segments[i + j].Name);
                                 }
                             }
                         }
@@ -12132,7 +12417,7 @@ namespace Backup
                                 segments[i].Name = newName;
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Rename: {0} = {1}", segments[i].diagnosticSerialNumber, segments[i].Name);
+                                    traceDynpack.WriteLine("Rename: {0} --> {1}", segments[i].DiagnosticSerialNumber, segments[i].Name);
                                 }
                             }
                         }
@@ -12144,10 +12429,61 @@ namespace Backup
                     traceDynpack.WriteLine("Segments (2):");
                     foreach (SegmentRecord segment in segments)
                     {
-                        traceDynpack.WriteLine("    {0} {1}", segment.diagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
+                        traceDynpack.WriteLine("    {0} {1}", segment.DiagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceDynpack.WriteLine();
                     traceDynpack.Flush();
+                }
+
+                // program logic test - verify segment naming validity
+                {
+                    bool fault1 = false, fault2 = false;
+                    Dictionary<string, bool> usedSegmentNames = new Dictionary<string, bool>();
+                    string currentSegmentName = String.Empty;
+                    SegmentRecord currentSegment = null;
+                    for (int i = 0; i < mergedFiles.Count - 1; i++)
+                    {
+                        if (!String.Equals(currentSegmentName, mergedFiles[i].Segment.Name))
+                        {
+                            if (DynPackSegmentNameCompare(currentSegmentName, mergedFiles[i].Segment.Name) > 0)
+                            {
+                                if (traceDynpack != null)
+                                {
+                                    traceDynpack.WriteLine("Program defect: segment name sequence violation:  {0} > {2}  [{1},{3}]  ({4})", currentSegmentName, currentSegment.DiagnosticSerialNumber, mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber);
+                                    traceDynpack.Flush();
+                                }
+                                fault1 = true;
+                            }
+
+                            if (usedSegmentNames.ContainsKey(mergedFiles[i].Segment.Name))
+                            {
+                                if (traceDynpack != null)
+                                {
+                                    traceDynpack.WriteLine("Program defect: name used more than once for separated regions:  {0} [{1}]  ({2})", mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber);
+                                    traceDynpack.Flush();
+                                }
+                                fault2 = true;
+                            }
+
+                            currentSegment = mergedFiles[i].Segment;
+                            currentSegmentName = mergedFiles[i].Segment.Name;
+                            usedSegmentNames[currentSegmentName] = false;
+                        }
+                    }
+                    if (fault1 || fault2)
+                    {
+                        string message = String.Empty;
+                        if (fault1)
+                        {
+                            message = message + "DEFECT! Segment name sequence violation! ";
+                        }
+                        if (fault2)
+                        {
+                            message = message + "DEFECT! Segment name used more than once for separated regions!";
+                        }
+                        Debugger.Break();
+                        throw new ApplicationException(message);
+                    }
                 }
 
                 // TODO: rename segments (and rename files) if names have become too long for file system
@@ -12162,7 +12498,7 @@ namespace Backup
                     }
                 }
 
-                // debug logging
+                // debug logging - callouts
                 if (traceDynpack != null)
                 {
                     traceDynpack.WriteLine();
@@ -12172,7 +12508,7 @@ namespace Backup
                     {
                         if ((mergedFiles[i].Range == null) && (mergedFiles[i].EmbeddedStreamLength > segmentSizeTarget))
                         {
-                            traceDynpack.WriteLine("[{5}] {0}{4}{6} {1} {2} {3}", mergedFiles[i].EmbeddedStreamLength, mergedFiles[i].CreationTimeUtc, mergedFiles[i].LastWriteTimeUtc, mergedFiles[i].PartialPath, mergedFiles[i].Range != null ? String.Format("[{0}]", mergedFiles[i].Range) : String.Empty, i, mergedFiles[i].Segment.Dirty.Value ? " dirty=true" : String.Empty);
+                            traceDynpack.WriteLine("{7} [{5}] {0}{4}{6} {1} {2} {3}", mergedFiles[i].EmbeddedStreamLength, mergedFiles[i].CreationTimeUtc, mergedFiles[i].LastWriteTimeUtc, mergedFiles[i].PartialPath, mergedFiles[i].Range != null ? String.Format("[{0}]", mergedFiles[i].Range) : String.Empty, i, mergedFiles[i].Segment.Dirty.Value ? " dirty=true" : String.Empty, mergedFiles[i].DiagnosticSerialNumber);
                         }
                     }
                     traceDynpack.WriteLine();
@@ -12182,7 +12518,7 @@ namespace Backup
                     {
                         if (mergedFiles[i].Range != null)
                         {
-                            traceDynpack.WriteLine("[{5}] {0}{4}{6} {1} {2} {3}", mergedFiles[i].EmbeddedStreamLength, mergedFiles[i].CreationTimeUtc, mergedFiles[i].LastWriteTimeUtc, mergedFiles[i].PartialPath, mergedFiles[i].Range != null ? String.Format("[{0}]", mergedFiles[i].Range) : String.Empty, i, mergedFiles[i].Segment.Dirty.Value ? " dirty=true" : String.Empty);
+                            traceDynpack.WriteLine("{7} [{5}] {0}{4}{6} {1} {2} {3}", mergedFiles[i].EmbeddedStreamLength, mergedFiles[i].CreationTimeUtc, mergedFiles[i].LastWriteTimeUtc, mergedFiles[i].PartialPath, mergedFiles[i].Range != null ? String.Format("[{0}]", mergedFiles[i].Range) : String.Empty, i, mergedFiles[i].Segment.Dirty.Value ? " dirty=true" : String.Empty, mergedFiles[i].DiagnosticSerialNumber);
                         }
                     }
                     traceDynpack.WriteLine();
@@ -12201,7 +12537,7 @@ namespace Backup
                     int threadCount = GetConcurrency(fileManager, context);
                     using (ConcurrentTasks concurrent = new ConcurrentTasks(threadCount, 0, messagesLog, traceDynpack != null ? traceDynpack : fileManager.GetMasterTrace()))
                     {
-                        bool fatal;
+                        int fatal;
                         bool abort = false;
 
 
@@ -12209,20 +12545,20 @@ namespace Backup
 
 
                         // remove abandoned temp files
-                        fatal = false;
+                        fatal = 0;
                         {
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
                             foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
                                 concurrent.WaitQueueEmpty();
-                                if (fatal)
+                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
                                         abort = true;
                                         break;
                                     }
-                                    fatal = false;
+                                    fatal = 0;
                                 }
 
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
@@ -12259,7 +12595,7 @@ namespace Backup
                                                         }
                                                         messages.WriteLine("Error deleting {0}: {1}", segmentFileName, exception.Message);
 
-                                                        fatal = true;
+                                                        Interlocked.Exchange(ref fatal, 1);
                                                         throw;
                                                     }
                                                 }
@@ -12282,14 +12618,14 @@ namespace Backup
                             for (int iEnum = 0; iEnum < segments.Count; iEnum++)
                             {
                                 concurrent.WaitQueueEmpty();
-                                if (fatal)
+                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
                                         abort = true;
                                         break;
                                     }
-                                    fatal = false;
+                                    fatal = 0;
                                 }
 
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
@@ -12317,7 +12653,7 @@ namespace Backup
 
                                                         if (threadTraceDynPack != null)
                                                         {
-                                                            threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.diagnosticSerialNumber, segment.Name);
+                                                            threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.DiagnosticSerialNumber, segment.Name);
                                                             threadTraceDynPack.Flush();
                                                         }
                                                         messages.WriteLine("Validating non-dirty segment: {0}", segment.Name);
@@ -12343,7 +12679,7 @@ namespace Backup
                                                                 using (Stream segmentStream = fileRef.Read())
                                                                 {
                                                                     ApplicationException[] deferredExceptions;
-                                                                    archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, out deferredExceptions);
+                                                                    archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, faultDynamicPack.Select("VerifySegment", segmentFileName), out deferredExceptions);
                                                                     Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                                                                 }
                                                             }
@@ -12364,7 +12700,7 @@ namespace Backup
 
                                                                 if (traceDynpack != null)
                                                                 {
-                                                                    traceDynpack.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", HexEncode(randomArchiveSignature), HexEncode(segmentRandomArchiveSignature));
+                                                                    traceDynpack.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", Logging.ScrubSecuritySensitiveValue(randomArchiveSignature), Logging.ScrubSecuritySensitiveValue(segmentRandomArchiveSignature));
                                                                 }
                                                                 messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
                                                             }
@@ -12449,7 +12785,7 @@ namespace Backup
                                                                         uint hr = (uint)Marshal.GetHRForException(exception);
                                                                         if (hr != 0x80070070/*out of disk space*/)
                                                                         {
-                                                                            fatal = true;
+                                                                            Interlocked.Exchange(ref fatal, 1);
                                                                             throw;
                                                                         }
                                                                         // running out of disk space saving the invalid segment was regarded as non-fatal
@@ -12480,7 +12816,7 @@ namespace Backup
                         // under it. therefore, introduce a barrier here.
                         concurrent.Drain(delegate() { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
-                        if (fatal)
+                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
@@ -12499,7 +12835,7 @@ namespace Backup
                         }
 
                         // Backup (or remove if !safe) dirty segments
-                        fatal = false;
+                        fatal = 0;
                         {
                             List<string> namesToBackupOrRemove = new List<string>(segments.Count + 1);
                             namesToBackupOrRemove.Add(DynPackManifestName);
@@ -12513,14 +12849,14 @@ namespace Backup
                             foreach (string nameEnum in namesToBackupOrRemove)
                             {
                                 concurrent.WaitQueueEmpty();
-                                if (fatal)
+                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
                                         abort = true;
                                         break;
                                     }
-                                    fatal = false;
+                                    fatal = 0;
                                 }
 
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
@@ -12579,7 +12915,7 @@ namespace Backup
                                                     // renamed but new manifest is written, then program fails before writing
                                                     // new versions of the segments - old segment will remain while manifest
                                                     // will claim it is the new one, resulting in serial number inconsistency)
-                                                    fatal = true;
+                                                    Interlocked.Exchange(ref fatal, 1);
                                                     throw;
                                                 }
                                             }
@@ -12595,7 +12931,7 @@ namespace Backup
                         // been moved out of the way yet.
                         concurrent.Drain(delegate() { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
-                        if (fatal)
+                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
@@ -12717,7 +13053,7 @@ namespace Backup
                                         if (currentSegment != record.Segment)
                                         {
                                             currentSegment = record.Segment;
-                                            writer.WriteLine("SEGMENT {0} {1} {2:x8}" + Environment.NewLine + "{3} {4}", currentSegment.Name, segmentSizes[currentSegment], segmentDiagnosticCRC32[currentSegment], currentSegment.diagnosticSerialNumber, currentSegment.Dirty.Value ? "dirty" : "not-dirty");
+                                            writer.WriteLine("SEGMENT {0} {1} {2:x8}" + Environment.NewLine + "{3} {4}", currentSegment.Name, segmentSizes[currentSegment], segmentDiagnosticCRC32[currentSegment], currentSegment.SerialNumber, currentSegment.Dirty.Value ? "dirty" : "not-dirty");
                                         }
                                     }
                                     writer.WriteLine();
@@ -12889,7 +13225,7 @@ namespace Backup
                                     {
                                         List<string> lines = new List<string>();
 
-                                        if (fatal)
+                                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                         {
                                             lines.Add("  [fatal error pending]");
                                         }
@@ -12937,18 +13273,18 @@ namespace Backup
                         {
                             // ensure this shared sequence number is used at least once.
                         }
-                        fatal = false;
+                        fatal = 0;
                         for (int iEnum = 0; iEnum < segments.Count; iEnum++)
                         {
                             concurrent.WaitQueueEmpty(showProgress, WaitInterval);
-                            if (fatal)
+                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                             {
                                 if (abort || !FatalPromptContinue(concurrent, messagesLog, showProgress, WaitInterval, prepareConsole))
                                 {
                                     abort = true;
                                     break;
                                 }
-                                fatal = false;
+                                fatal = 0;
                             }
 
                             // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
@@ -13138,7 +13474,7 @@ namespace Backup
                                                             }
                                                             messages.WriteLine("Error archiving {0}: {1}", segmentFileName, exception.Message);
 
-                                                            fatal = true;
+                                                            Interlocked.Exchange(ref fatal, 1);
                                                             throw;
                                                         }
                                                     }
@@ -13168,7 +13504,7 @@ namespace Backup
                         concurrent.Drain(showProgress, WaitInterval);
                         messagesLog.Flush(prepareConsole);
                         eraseProgress();
-                        if (fatal)
+                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
@@ -13178,20 +13514,20 @@ namespace Backup
 
 
                         // upon successful completion - delete unreferenced items (backups and abandoned segments)
-                        fatal = false;
+                        fatal = 0;
                         {
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
                             foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
                                 concurrent.WaitQueueEmpty(showProgress, WaitInterval);
-                                if (fatal)
+                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
                                         abort = true;
                                         break;
                                     }
-                                    fatal = false;
+                                    fatal = 0;
                                 }
 
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
@@ -13233,7 +13569,7 @@ namespace Backup
                                                             }
                                                             messages.WriteLine("Exception deleting {0}: {1}", segmentFileName, exception);
 
-                                                            fatal = true;
+                                                            Interlocked.Exchange(ref fatal, 1);
                                                             throw;
                                                         }
                                                     }
@@ -13249,13 +13585,13 @@ namespace Backup
                         // final flush of tasks and messages
                         concurrent.Drain(delegate() { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
-                        if (fatal)
+                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
                                 throw new ApplicationException("Unable to continue after last error");
                             }
-                            fatal = false;
+                            fatal = 0;
                         }
 
 
@@ -13676,7 +14012,9 @@ namespace Backup
 
         internal static void ValidateOrUnpackDynamicInternal(string archivePathTemplate, string targetDirectory, Context context, UnpackMode mode, string journalPath)
         {
-            bool fatal = false;
+            FaultInstanceNode faultValidateOrUnpackDynamicInternal = context.faultInjectionRoot.Select("ValidateOrUnpackDynamicInternal");
+
+            int fatal = 0;
             OneWaySwitch invalid = new OneWaySwitch();
             ConcurrentTasks.CompletionObject[] completionTable = null;
 
@@ -13685,7 +14023,7 @@ namespace Backup
 
             Dictionary<string, DynUnpackJournalEntry> journal = new Dictionary<string, DynUnpackJournalEntry>();
             ulong journalManifestSerialNumber = 0;
-            byte[] journalRandomArchiveSignature = null;
+            byte[] journalRandomArchiveSignatureDigest = null;
             if ((mode & UnpackMode.Resume) == UnpackMode.Resume)
             {
                 if (File.Exists(journalPath))
@@ -13697,7 +14035,7 @@ namespace Backup
                         line = reader.ReadLine();
                         if (line != null)
                         {
-                            journalRandomArchiveSignature = HexDecode(line);
+                            journalRandomArchiveSignatureDigest = HexDecode(line);
                         }
 
                         line = reader.ReadLine();
@@ -13760,21 +14098,27 @@ namespace Backup
                     using (Stream manifestStream = fileRef.Read())
                     {
                         ApplicationException[] deferredExceptions;
-                        manifestFileList = UnpackInternal(manifestStream, targetDirectory, context, UnpackMode.Parse, out manifestSerialNumber, out randomArchiveSignature, traceDynunpack, out deferredExceptions);
+                        manifestFileList = UnpackInternal(manifestStream, targetDirectory, context, UnpackMode.Parse, out manifestSerialNumber, out randomArchiveSignature, traceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", manifestFileName), out deferredExceptions);
                         Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                     }
                 }
 
-                if (journalRandomArchiveSignature != null)
+                byte[] randomArchiveSignatureDigest;
                 {
-                    if (!ArrayEqual(journalRandomArchiveSignature, randomArchiveSignature))
+                    SHA256 sha256 = SHA256.Create();
+                    randomArchiveSignatureDigest = sha256.ComputeHash(randomArchiveSignature);
+                }
+
+                if (journalRandomArchiveSignatureDigest != null)
+                {
+                    if (!ArrayEqual(journalRandomArchiveSignatureDigest, randomArchiveSignatureDigest))
                     {
                         throw new UsageException("Journal appears to be for a different archive.");
                     }
 
                     if (journalManifestSerialNumber != manifestSerialNumber)
                     {
-                        ConsoleWriteLineColor("Journal was generated with older version of manifest. Updated segments will be re-unpacked. Files that were extracted from previous version and do not exist in new version may be left behind on disk. Continue? [y/n]", ConsoleColor.Yellow);
+                        ConsoleWriteLineColor(ConsoleColor.Yellow, "Journal was generated with older version of manifest. Updated segments will be re-unpacked. Files that were extracted from previous version and do not exist in new version may be left behind on disk. Continue? [y/n]");
                         while (true)
                         {
                             char key = WaitReadKey(false/*intercept*/);
@@ -13791,7 +14135,7 @@ namespace Backup
                     }
                 }
 
-                journalRandomArchiveSignature = null;
+                journalRandomArchiveSignatureDigest = null;
                 journalManifestSerialNumber = 0;
 
 
@@ -13804,7 +14148,7 @@ namespace Backup
                     ulong segmentSerialNumber = file.SegmentSerialNumber;
                     if ((segmentSerialNumber == 0) || (segmentSerialNumber >= manifestSerialNumber))
                     {
-                        ConsoleWriteLineColor(String.Format("Manifest segment {0}: serial number {1} is invalid", segmentName, segmentSerialNumber), ConsoleColor.Yellow);
+                        ConsoleWriteLineColor(ConsoleColor.Yellow, "Manifest segment {0}: serial number {1} is invalid", segmentName, segmentSerialNumber);
                         invalid.Set();
                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                         {
@@ -13816,7 +14160,7 @@ namespace Backup
                     {
                         if (expectedSerialNumber != segmentSerialNumber)
                         {
-                            ConsoleWriteLineColor(String.Format("Manifest segment {0}: wrong serial number (is {1}, should be {2})", segmentName, segmentSerialNumber, expectedSerialNumber), ConsoleColor.Yellow);
+                            ConsoleWriteLineColor(ConsoleColor.Yellow, "Manifest segment {0}: wrong serial number (is {1}, should be {2})", segmentName, segmentSerialNumber, expectedSerialNumber);
                             invalid.Set();
                             if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                             {
@@ -13904,7 +14248,7 @@ namespace Backup
                         {
                             traceDynunpack.WriteLine("Validation error: {0} not a member of this archive", segmentFileName);
                         }
-                        ConsoleWriteLineColor(String.Format("Error: {0} is not a member of this archive", segmentFileName), ConsoleColor.Yellow);
+                        ConsoleWriteLineColor(ConsoleColor.Yellow, "Error: {0} is not a member of this archive", segmentFileName);
 
                         // it is considered a validation error (because someone could "unpack *") but continue
                         // to look for other errors or proceed with unpack (this method won't unpack extraneous
@@ -13918,7 +14262,7 @@ namespace Backup
                 {
                     if (journalWriter != null)
                     {
-                        journalWriter.WriteLine(HexEncode(randomArchiveSignature));
+                        journalWriter.WriteLine(HexEncode(randomArchiveSignatureDigest));
                         journalWriter.WriteLine(manifestSerialNumber);
                         foreach (KeyValuePair<string, DynUnpackJournalEntry> journalEntry in journal)
                         {
@@ -13975,7 +14319,7 @@ namespace Backup
                                         {
                                             List<string> lines = new List<string>();
 
-                                            if (fatal)
+                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                             {
                                                 lines.Add("  [fatal error pending]");
                                             }
@@ -14023,13 +14367,10 @@ namespace Backup
                             {
                                 // ensure this shared sequence number is used at least once.
                             }
-#if false
-                            foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
-#endif
                             foreach (String segmentNameEnum in segmentNameList)
                             {
                                 concurrent.WaitQueueEmpty(showProgress, WaitInterval);
-                                if (fatal)
+                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     break;
                                 }
@@ -14042,48 +14383,14 @@ namespace Backup
 
                                 string segmentFileName = String.Concat(targetFileNamePrefix, name, DynPackFileExtension);
 
-#if false
-                                bool eligible = !String.Equals(segmentFileName, manifestFileName, StringComparison.OrdinalIgnoreCase)
-                                    && segmentFileName.EndsWith(DynPackFileExtension, StringComparison.OrdinalIgnoreCase);
-#endif
                                 bool exists = fileManager.Exists(segmentFileName, fileManager.GetMasterTrace());
-#if false
-                                bool member = serialNumberMapping.ContainsKey(name);
-#endif
                                 bool processedPreviousRun;
                                 lock (journal)
                                 {
                                     processedPreviousRun = journal.ContainsKey(name);
                                 }
-                                if (
-#if false
-                                    !eligible || 
-                                    !member || 
-#endif
-processedPreviousRun || !exists)
+                                if (processedPreviousRun || !exists)
                                 {
-#if false
-                                    if (!eligible)
-                                    {
-                                        if (traceDynunpack != null)
-                                        {
-                                            traceDynunpack.WriteLine("skipping {0} - either manifest or invalid extension", segmentFileName);
-                                        }
-                                    }
-#endif
-#if false
-                                    if (!member)
-                                    {
-                                        if (traceDynunpack != null)
-                                        {
-                                            traceDynunpack.WriteLine("Skipping {0}: not a member of this archive", segmentFileName);
-                                        }
-                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
-                                        {
-                                            messages.WriteLine(ConsoleColor.Yellow, "Skipping {0}: not a member of this archive", segmentFileName);
-                                        }
-                                    }
-#endif
                                     if (processedPreviousRun)
                                     {
                                         if (traceDynunpack != null)
@@ -14205,7 +14512,7 @@ processedPreviousRun || !exists)
                                                                             {
                                                                                 threadTraceDynunpack.WriteLine("  completion object missing for required dependency {0}", dependentOnName);
                                                                             }
-                                                                            fatal = true;
+                                                                            Interlocked.Exchange(ref fatal, 1);
                                                                             throw new InvalidOperationException();
                                                                         }
 
@@ -14216,7 +14523,7 @@ processedPreviousRun || !exists)
                                                                             {
                                                                                 threadTraceDynunpack.WriteLine("  completion object null for index={0}", completionIndex);
                                                                             }
-                                                                            fatal = true;
+                                                                            Interlocked.Exchange(ref fatal, 1);
                                                                             throw new InvalidOperationException();
                                                                         }
 
@@ -14233,7 +14540,7 @@ processedPreviousRun || !exists)
                                                                             {
                                                                                 threadTraceDynunpack.WriteLine("  dependency task failed, aborting");
                                                                             }
-                                                                            fatal = true;
+                                                                            Interlocked.Exchange(ref fatal, 1);
                                                                             throw new InvalidOperationException();
                                                                         }
                                                                     }
@@ -14255,7 +14562,7 @@ processedPreviousRun || !exists)
                                                                     {
                                                                         firstPassMode = mode;
                                                                     }
-                                                                    segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, firstPassMode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, out deferredExceptions);
+                                                                    segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, firstPassMode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", segmentFileName), out deferredExceptions);
                                                                     if (deferredExceptions != null)
                                                                     {
                                                                         throw new DeferredMultiException(deferredExceptions);
@@ -14267,7 +14574,7 @@ processedPreviousRun || !exists)
                                                                         invalid.Set();
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
-                                                                            fatal = true;
+                                                                            Interlocked.Exchange(ref fatal, 1);
                                                                             return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                         }
                                                                     }
@@ -14278,7 +14585,7 @@ processedPreviousRun || !exists)
                                                                         invalid.Set();
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
-                                                                            fatal = true;
+                                                                            Interlocked.Exchange(ref fatal, 1);
                                                                             return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                         }
                                                                     }
@@ -14292,7 +14599,7 @@ processedPreviousRun || !exists)
                                                                             invalid.Set();
                                                                             if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                             {
-                                                                                fatal = true;
+                                                                                Interlocked.Exchange(ref fatal, 1);
                                                                                 return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                             }
                                                                         }
@@ -14310,7 +14617,7 @@ processedPreviousRun || !exists)
                                                                         invalid.Set();
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
-                                                                            fatal = true;
+                                                                            Interlocked.Exchange(ref fatal, 1);
                                                                             return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                         }
                                                                     }
@@ -14321,7 +14628,7 @@ processedPreviousRun || !exists)
                                                                     if (((mode & UnpackMode.Unpack) == UnpackMode.Unpack) && ((firstPassMode & UnpackMode.Unpack) != UnpackMode.Unpack))
                                                                     {
                                                                         segmentStream.Position = 0; // rewind
-                                                                        segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, mode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, out deferredExceptions);
+                                                                        segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, mode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", segmentFileName), out deferredExceptions);
                                                                         if (deferredExceptions != null)
                                                                         {
                                                                             throw new DeferredMultiException(deferredExceptions);
@@ -14342,7 +14649,7 @@ processedPreviousRun || !exists)
                                                                && !(exception is InvalidDataException))
                                                             {
                                                                 messages.WriteLine("Exception processing {0}: {1}", segmentFileName, exception);
-                                                                fatal = true;
+                                                                Interlocked.Exchange(ref fatal, 1);
                                                                 throw;
                                                             }
 
@@ -14350,7 +14657,7 @@ processedPreviousRun || !exists)
                                                             invalid.Set();
                                                             if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                             {
-                                                                fatal = true;
+                                                                Interlocked.Exchange(ref fatal, 1);
                                                                 return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                             }
                                                             // do nothing further with cryptographically inauthentic segments
@@ -14395,7 +14702,7 @@ processedPreviousRun || !exists)
                             concurrent.Drain(showProgress, WaitInterval);
                             messagesLog.Flush(prepareConsole);
                             eraseProgress();
-                            if (fatal)
+                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                             {
                                 if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                 {
@@ -14413,7 +14720,7 @@ processedPreviousRun || !exists)
                             {
                                 if (!usedMapping[declaredSegments.Value])
                                 {
-                                    ConsoleWriteLineColor(String.Format("Segment {0}: missing segment (referenced in manifest, serial number {1})", declaredSegments.Key, declaredSegments.Value), ConsoleColor.Yellow);
+                                    ConsoleWriteLineColor(ConsoleColor.Yellow, "Segment {0}: missing segment (referenced in manifest, serial number {1})", declaredSegments.Key, declaredSegments.Value);
                                     invalid.Set();
                                     if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                     {
@@ -14448,7 +14755,7 @@ processedPreviousRun || !exists)
             {
                 throw new ExitCodeException((int)ExitCodes.ConditionNotSatisfied);
             }
-            if (fatal)
+            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
             {
                 throw new ApplicationException();
             }
@@ -14481,7 +14788,7 @@ processedPreviousRun || !exists)
                 }
             }
 
-#if false
+#if false // In remote case, causes download of all data twice. Per-segment prevalidation still occurs.
             if ((context.cryptoOption != EncryptionOption.None) && !context.doNotPreValidateMAC)
             {
                 ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.ParseOnly,args);
@@ -14568,9 +14875,9 @@ processedPreviousRun || !exists)
                 {
                     using (ConcurrentTasks concurrent = new ConcurrentTasks(context.explicitConcurrency.HasValue ? context.explicitConcurrency.Value : Constants.ConcurrencyForNetworkBound, 0, messagesLog, fileManager.GetMasterTrace()))
                     {
-                        bool fatal = false;
+                        int fatal = 0;
 
-                        while ((args.Length > 0) && !fatal)
+                        while ((args.Length > 0) && (Interlocked.CompareExchange(ref fatal, 1, 1) == 0))
                         {
                             int used;
 
@@ -14674,7 +14981,7 @@ processedPreviousRun || !exists)
                                         }
                                         foreach (string nameEnum in names)
                                         {
-                                            if (fatal)
+                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                             {
                                                 break;
                                             }
@@ -14697,7 +15004,7 @@ processedPreviousRun || !exists)
                                                         }
                                                         catch (Exception exception)
                                                         {
-                                                            fatal = true;
+                                                            Interlocked.Exchange(ref fatal, 1);
                                                             messages.WriteLine("Exception: {0}", exception);
                                                         }
                                                     }
@@ -14746,7 +15053,7 @@ processedPreviousRun || !exists)
                                         }
                                         for (int iEnum = 0; iEnum < newNames.Length; iEnum++)
                                         {
-                                            if (fatal)
+                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                             {
                                                 break;
                                             }
@@ -14768,7 +15075,7 @@ processedPreviousRun || !exists)
                                                         }
                                                         catch (Exception exception)
                                                         {
-                                                            fatal = true;
+                                                            Interlocked.Exchange(ref fatal, 1);
                                                             messages.WriteLine("Exception: {0}", exception);
                                                         }
                                                     }
@@ -14844,7 +15151,7 @@ processedPreviousRun || !exists)
                                         }
                                         foreach (string nameEnum in names)
                                         {
-                                            if (fatal)
+                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                             {
                                                 break;
                                             }
@@ -14884,7 +15191,7 @@ processedPreviousRun || !exists)
                                                         }
                                                         catch (Exception exception)
                                                         {
-                                                            fatal = true;
+                                                            Interlocked.Exchange(ref fatal, 1);
                                                             messages.WriteLine("Exception: {0}", exception);
                                                         }
                                                     }
@@ -14947,7 +15254,7 @@ processedPreviousRun || !exists)
                                         }
                                         foreach (string nameEnum in names)
                                         {
-                                            if (fatal)
+                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                             {
                                                 break;
                                             }
@@ -14976,7 +15283,7 @@ processedPreviousRun || !exists)
                                                         }
                                                         catch (Exception exception)
                                                         {
-                                                            fatal = true;
+                                                            Interlocked.Exchange(ref fatal, 1);
                                                             messages.WriteLine("Exception: {0}", exception);
                                                         }
                                                     }
@@ -15059,7 +15366,7 @@ processedPreviousRun || !exists)
                             ArrayRemoveAt(ref args, 0, used);
                         }
 
-                        if (fatal)
+                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
                             throw new ExitCodeException((int)ExitCodes.ProgramFailure);
                         }
@@ -15502,14 +15809,37 @@ processedPreviousRun || !exists)
                     else if (args[i] == "-injectfault")
                     {
                         i++;
-                        if (i < args.Length)
-                        {
-                            ParseFaultInjectionPath(context.faultInjectionTemplateRoot, args[i]);
-                        }
-                        else
+                        if (!(i < args.Length))
                         {
                             throw new UsageException();
                         }
+                        string method = args[i];
+                        i++;
+                        if (!(i < args.Length))
+                        {
+                            throw new UsageException();
+                        }
+                        ParseFaultInjectionPath(context.faultInjectionTemplateRoot, method, args[i]);
+                    }
+                    else if (args[i] == "-throttle")
+                    {
+                        i++;
+                        if (!(i < args.Length))
+                        {
+                            throw new UsageException();
+                        }
+                        int approximateBytesPerSecond = Int32.Parse(args[i]);
+                        WebMethodsBase.SetThrottle(approximateBytesPerSecond);
+                    }
+                    else if (args[i] == "-maxretries")
+                    {
+                        i++;
+                        if (!(i < args.Length))
+                        {
+                            throw new UsageException();
+                        }
+                        int maxRetries = Int32.Parse(args[i]);
+                        RetryHelper.SetMaxRetries(maxRetries);
                     }
                     else
                     {
@@ -15588,7 +15918,7 @@ processedPreviousRun || !exists)
                             Array.Copy(args, i + 2, argsExtra, 0, argsExtra.Length);
                             if (context.cryptoOption != EncryptionOption.None)
                             {
-                                ConsoleWriteLineColor("WARNING: Use of encryption in \"backup\" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.", ConsoleColor.Yellow);
+                                ConsoleWriteLineColor(ConsoleColor.Yellow, "WARNING: Use of encryption in \"backup\" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.");
                             }
                             Backup(
                                 EnsureRootedLocalPath(args[i]),
@@ -15903,7 +16233,7 @@ processedPreviousRun || !exists)
             {
                 if (!String.IsNullOrEmpty(exception.Message))
                 {
-                    ConsoleWriteLineColor(exception.Message, ConsoleColor.Red);
+                    ConsoleWriteLineColor(ConsoleColor.Red, exception.Message);
                 }
                 exitCode = exception.ExitCode;
             }
@@ -15913,14 +16243,14 @@ processedPreviousRun || !exists)
                 {
                     Console.Beep(440, 500);
                 }
-                ConsoleWriteLineColor("", ConsoleColor.Red);
-                ConsoleWriteLineColor("Error:", ConsoleColor.Red);
-                ConsoleWriteLineColor(exception.Message, ConsoleColor.Red);
+                ConsoleWriteLineColor(ConsoleColor.Red, "");
+                ConsoleWriteLineColor(ConsoleColor.Red, "Error:");
+                ConsoleWriteLineColor(ConsoleColor.Red, exception.Message);
                 foreach (KeyValuePair<object, object> items in exception.Data)
                 {
-                    ConsoleWriteLineColor(String.Format("{0}: {1}", items.Key != null ? items.Key.ToString() : "(null)", items.Value != null ? items.Value.ToString() : "(null)"), ConsoleColor.Red);
+                    ConsoleWriteLineColor(ConsoleColor.Red, "{0}: {1}", items.Key != null ? items.Key.ToString() : "(null)", items.Value != null ? items.Value.ToString() : "(null)");
                 }
-                ConsoleWriteLineColor(exception.StackTrace, ConsoleColor.Red);
+                ConsoleWriteLineColor(ConsoleColor.Red, exception.StackTrace);
 
                 exitCode = (int)ExitCodes.ProgramFailure;
             }
