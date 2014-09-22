@@ -955,12 +955,10 @@ namespace Backup
 
             int DefaultRfc2898Rounds { get; }
 
-            void DeriveMasterKey(string password, byte[] passwordSalt, int rounds, out byte[] masterKey);
-            void DeriveSessionKeys(byte[] masterKey, byte[] salt, out CryptoKeygroup sessionKeys);
-            void DeriveNewSessionKeys(byte[] masterKey, out byte[] salt, out CryptoKeygroup sessionKeys);
+            void DeriveMasterKey(ProtectedArray<byte> password, byte[] passwordSalt, int rounds, out ProtectedArray<byte> masterKey);
+            void DeriveSessionKeys(ProtectedArray<byte> masterKey, byte[] salt, out CryptoKeygroup sessionKeys);
+            void DeriveNewSessionKeys(ProtectedArray<byte> masterKey, out byte[] salt, out CryptoKeygroup sessionKeys);
 
-            byte[] CreateIV();
-            byte[] CreateRandomKey();
             byte[] CreateRandomBytes(int count);
 
             int MACLengthBytes { get; }
@@ -1021,11 +1019,6 @@ namespace Backup
             int CipherKeyLengthBytes { get; }
             int InitialVectorLengthBytes { get; }
 
-            // optional (throw NotImplementedException to use default implementation)
-            byte[] CreateIV();
-            // optional (throw NotImplementedException to use default implementation)
-            byte[] CreateRandomKey();
-
             Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
             Stream CreateDecryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
 
@@ -1050,9 +1043,9 @@ namespace Backup
 
             int DefaultRfc2898Rounds { get; }
 
-            void DeriveMasterKey(string password, byte[] passwordSalt, int rounds, out byte[] masterKey);
-            void DeriveSessionKeys(byte[] masterKey, byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys);
-            void DeriveNewSessionKeys(ICryptoSystemRandomNumberGeneration rng, byte[] masterKey, out byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys);
+            void DeriveMasterKey(ProtectedArray<byte> password, byte[] passwordSalt, int rounds, out ProtectedArray<byte> masterKey);
+            void DeriveSessionKeys(ProtectedArray<byte> masterKey, byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys);
+            void DeriveNewSessionKeys(ICryptoSystemRandomNumberGeneration rng, ProtectedArray<byte> masterKey, out byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys);
 
             void Test();
         }
@@ -1095,43 +1088,19 @@ namespace Backup
 
             public int DefaultRfc2898Rounds { get { return keygen.DefaultRfc2898Rounds; } }
 
-            public void DeriveMasterKey(string password, byte[] passwordSalt, int rounds, out byte[] masterKey)
+            public void DeriveMasterKey(ProtectedArray<byte> password, byte[] passwordSalt, int rounds, out ProtectedArray<byte> masterKey)
             {
                 keygen.DeriveMasterKey(password, passwordSalt, rounds, out masterKey);
             }
 
-            public void DeriveSessionKeys(byte[] masterKey, byte[] salt, out CryptoKeygroup sessionKeys)
+            public void DeriveSessionKeys(ProtectedArray<byte> masterKey, byte[] salt, out CryptoKeygroup sessionKeys)
             {
                 keygen.DeriveSessionKeys(masterKey, salt, new CryptoKeygroupLengths(CipherKeyLengthBytes, SigningKeyLengthBytes, InitialVectorLengthBytes), out sessionKeys);
             }
 
-            public void DeriveNewSessionKeys(byte[] masterKey, out byte[] salt, out CryptoKeygroup sessionKeys)
+            public void DeriveNewSessionKeys(ProtectedArray<byte> masterKey, out byte[] salt, out CryptoKeygroup sessionKeys)
             {
                 keygen.DeriveNewSessionKeys(rng, masterKey, out salt, new CryptoKeygroupLengths(CipherKeyLengthBytes, SigningKeyLengthBytes, InitialVectorLengthBytes), out sessionKeys);
-            }
-
-            public byte[] CreateIV()
-            {
-                try
-                {
-                    return cipher.CreateIV();
-                }
-                catch (NotImplementedException)
-                {
-                    return rng.CreateRandomBytes(cipher.InitialVectorLengthBytes);
-                }
-            }
-
-            public byte[] CreateRandomKey()
-            {
-                try
-                {
-                    return cipher.CreateRandomKey();
-                }
-                catch (NotImplementedException)
-                {
-                    return rng.CreateRandomBytes(cipher.CipherKeyLengthBytes);
-                }
             }
 
             public byte[] CreateRandomBytes(int count)
@@ -1383,7 +1352,11 @@ namespace Backup
                 foreach (HKDFTestVector testVector in TestVectorsHKDFSHA256)
                 {
                     byte[] prk;
-                    hkdf.Extract(testVector.salt, testVector.ikm, out prk);
+                    ProtectedArray<byte> ikmProtected = new ProtectedArray<byte>(testVector.ikm.Length);
+                    ikmProtected.Reveal();
+                    Buffer.BlockCopy(testVector.ikm, 0, ikmProtected.ExposeByteArray(), 0, testVector.ikm.Length);
+                    ikmProtected.Protect();
+                    hkdf.Extract(testVector.salt, ikmProtected, out prk);
                     if (!ArrayEqual(prk, testVector.prk))
                     {
                         throw new ApplicationException("HKDF-SHA256 implementation defect");
@@ -1418,18 +1391,26 @@ namespace Backup
             }
 
             // Extract a key from salt (ideally HashLen bytes), IKM ("initial key material")
-            // which may be a non-uniformly distributed, producing PRK ("pseudo-random key")
+            // which may be non-uniformly distributed, producing PRK ("pseudo-random key")
             // Salt is optional; in that case it is replaced by HashLen bytes of zero.
-            public void Extract(byte[] salt, byte[] ikm, out byte[] prk)
+            public void Extract(byte[] salt, ProtectedArray<byte> ikm, out byte[] prk)
             {
                 if (salt == null)
                 {
                     salt = new byte[hashLen];
                 }
 
-                using (CryptoPrimitiveHMAC hmac = new CryptoPrimitiveHMAC(hashProvider, salt/*key*/))
+                try
                 {
-                    prk = hmac.ComputeHash(ikm);
+                    ikm.Reveal();
+                    using (CryptoPrimitiveHMAC hmac = new CryptoPrimitiveHMAC(hashProvider, salt/*key*/))
+                    {
+                        prk = hmac.ComputeHash(ikm.ExposeByteArray());
+                    }
+                }
+                finally
+                {
+                    ikm.Protect();
                 }
             }
 
@@ -1856,13 +1837,37 @@ namespace Backup
             // see HMAC-based Extract-and-Expand Key Derivation Function (HKDF):
             // http://tools.ietf.org/html/rfc5869
 
-            public void DeriveMasterKey(string password, byte[] passwordSalt, int rounds, out byte[] masterKey)
+            public void DeriveMasterKey(ProtectedArray<byte> password, byte[] passwordSalt, int rounds, out ProtectedArray<byte> masterKey)
             {
-                Rfc2898DeriveBytes keyMaker = new Rfc2898DeriveBytes(password, passwordSalt, rounds);
-                masterKey = keyMaker.GetBytes(MasterKeyLengthBytes);
+                password.Reveal();
+                try
+                {
+                    // 2014-09-21: Review of Rfc2898DeriveBytes (http://referencesource.microsoft.com/#mscorlib/system/security/cryptography/rfc2898derivebytes.cs)
+                    // It is prefereable to use the constructor that takes byte[] as first argument (rather
+                    // than any string argument) because underlying implementation converts to bytes using
+                    // "new UTF8Encoding(false).GetBytes()" and discards the resulting byte array after use
+                    // without scrubbing, so it is left as cleartext in the heap for an undetermined length
+                    // of time.
+                    // Another problem is that underlying Rfc2898DeriveBytes, the HMACSHA1 that it uses (http://referencesource.microsoft.com/#mscorlib/system/security/cryptography/hmac.cs)
+                    // (based on KeyedHashAlgorithm) calls HMAC.InitializeKey() which clones the key and
+                    // makes no attempt to pin it in memory, so copies may be left lying around by the
+                    // garbage collector for an indefinite amount of time. The Dispose() method does try to
+                    // zero the copied key array, but that's not enough.
+                    // This is also true of the internal buffers used by Rfc2898DeriveBytes, but it would be
+                    // harder for an attacker to reconstruct the master key from those buffers.
+                    // TODO: consider writing our own Rfc2898DeriveBytes.
+                    Rfc2898DeriveBytes keyMaker = new Rfc2898DeriveBytes(password.ExposeByteArray(), passwordSalt, rounds);
+                    masterKey = new ProtectedArray<byte>(MasterKeyLengthBytes);
+                    byte[] masterKeyBytes = keyMaker.GetBytes(MasterKeyLengthBytes);
+                    masterKey.AbsorbProtectAndScrub(masterKeyBytes);
+                }
+                finally
+                {
+                    password.Protect();
+                }
             }
 
-            public void DeriveSessionKeys(byte[] masterKey, byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys)
+            public void DeriveSessionKeys(ProtectedArray<byte> masterKey, byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys)
             {
                 byte[] cipherKey = new byte[sessionKeyLengths.CipherKeyLengthBytes];
                 byte[] signingKey = new byte[sessionKeyLengths.SigningKeyLengthBytes];
@@ -1871,14 +1876,14 @@ namespace Backup
                 sessionKeys = new CryptoKeygroup(cipherKey, signingKey, initialCounter);
             }
 
-            public void DeriveNewSessionKeys(ICryptoSystemRandomNumberGeneration rng, byte[] masterKey, out byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys)
+            public void DeriveNewSessionKeys(ICryptoSystemRandomNumberGeneration rng, ProtectedArray<byte> masterKey, out byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys)
             {
                 salt = rng.CreateRandomBytes(FileSaltLengthBytes);
                 DeriveSessionKeys(masterKey, salt, sessionKeyLengths, out sessionKeys);
             }
 
-            private delegate void DeriveBytesMethod(byte[] masterKey, byte[] sessionSalt, int sessionKeyMaterialLength, out byte[] sessionKeyMaterial);
-            private static void DeriveKeys(byte[] masterKey, byte[] salt, byte[][] keys, DeriveBytesMethod deriveBytes)
+            private delegate void DeriveBytesMethod(ProtectedArray<byte> masterKey, byte[] sessionSalt, int sessionKeyMaterialLength, out byte[] sessionKeyMaterial);
+            private static void DeriveKeys(ProtectedArray<byte> masterKey, byte[] salt, byte[][] keys, DeriveBytesMethod deriveBytes)
             {
                 int aggregateLength = 0;
                 for (int i = 0; i < keys.Length; i++)
@@ -1899,7 +1904,7 @@ namespace Backup
             }
 
             // use RFC 5869 HKDF method
-            private static void Rfc5869DeriveBytes(byte[] masterKey, byte[] sessionSalt, int sessionKeyMaterialLength, out byte[] sessionKeyMaterial)
+            private static void Rfc5869DeriveBytes(ProtectedArray<byte> masterKey, byte[] sessionSalt, int sessionKeyMaterialLength, out byte[] sessionKeyMaterial)
             {
                 CryptoPrimitiveHKDF hkdf = new CryptoPrimitiveHKDFSHA256();
                 byte[] prk;
@@ -1940,16 +1945,6 @@ namespace Backup
             public int CipherBlockLengthBytes { get { return BlockLengthBits / 8; } }
             public int CipherKeyLengthBytes { get { return CipherBlockLengthBytes; } }
             public int InitialVectorLengthBytes { get { return CipherBlockLengthBytes; } }
-
-            public byte[] CreateIV()
-            {
-                throw new NotImplementedException();
-            }
-
-            public byte[] CreateRandomKey()
-            {
-                throw new NotImplementedException();
-            }
 
             private SymmetricAlgorithm GetAlgorithm()
             {
@@ -1996,16 +1991,6 @@ namespace Backup
             public int CipherBlockLengthBytes { get { return BlockLengthBits / 8; } }
             public int CipherKeyLengthBytes { get { return KeyLengthBits / 8; } }
             public int InitialVectorLengthBytes { get { return CipherBlockLengthBytes; } }
-
-            public byte[] CreateIV()
-            {
-                throw new NotImplementedException();
-            }
-
-            public byte[] CreateRandomKey()
-            {
-                throw new NotImplementedException();
-            }
 
             protected SymmetricAlgorithm GetAlgorithm()
             {
@@ -2143,16 +2128,6 @@ namespace Backup
             public int CipherBlockLengthBytes { get { return BlockLengthBits / 8; } }
             public int CipherKeyLengthBytes { get { return KeyLengthBits / 8; } }
             public int InitialVectorLengthBytes { get { return CipherBlockLengthBytes; } }
-
-            public byte[] CreateIV()
-            {
-                throw new NotImplementedException();
-            }
-
-            public byte[] CreateRandomKey()
-            {
-                throw new NotImplementedException();
-            }
 
             protected SymmetricAlgorithm GetAlgorithm()
             {
@@ -3158,7 +3133,7 @@ namespace Backup
         }
 
         // a proof-of-concept, but not very usable in practice (mouse-based schemes are much better)
-        internal static string PromptPasswordRandomized()
+        internal static ProtectedArray<byte> PromptPasswordRandomized()
         {
             RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
             char[] letters = new char[127 - 32 + 1];
@@ -3220,7 +3195,7 @@ namespace Backup
                 interactive = false;
             }
 
-            StringBuilder sb = new StringBuilder();
+            ProtectedArray<char> passwordUnicode = new ProtectedArray<char>(0);
             while (true)
             {
                 char column = WaitReadKey(true/*intercept*/);
@@ -3230,9 +3205,11 @@ namespace Backup
                 }
                 else if (column == (char)ConsoleKey.Backspace)
                 {
-                    if (sb.Length > 0)
+                    if (passwordUnicode.Length > 0)
                     {
-                        sb.Remove(sb.Length - 1, 1);
+                        ProtectedArray<char> passwordTemp = ProtectedArray<char>.RemoveLast(passwordUnicode);
+                        passwordUnicode.Dispose();
+                        passwordUnicode = passwordTemp;
                         if (interactive)
                         {
                             Console.CursorLeft--;
@@ -3265,7 +3242,9 @@ namespace Backup
                 int index = (column - '1') * Columns + (row - 'a');
                 if ((index >= 0) && (index < letters.Length))
                 {
-                    sb.Append(letters[index]);
+                    ProtectedArray<char> passwordTemp = ProtectedArray<char>.Append(passwordUnicode, letters[index]);
+                    passwordUnicode.Dispose();
+                    passwordUnicode = passwordTemp;
                     if (interactive)
                     {
                         //Console.Write(".");
@@ -3275,14 +3254,17 @@ namespace Backup
             }
             Console.WriteLine();
 
-            return sb.ToString();
+            passwordUnicode.Reveal();
+            ProtectedArray<byte> password = ProtectedArray<byte>.CreateFromUnicode(passwordUnicode.ExposeByteArray());
+            passwordUnicode.Dispose();
+            return password;
         }
 
-        internal static string PromptPassword(string prompt)
+        internal static ProtectedArray<byte> PromptPassword(string prompt)
         {
             Console.Write(prompt);
 
-            StringBuilder sb = new StringBuilder();
+            ProtectedArray<char> passwordUnicode = new ProtectedArray<char>(0);
             while (true)
             {
                 char key = WaitReadKey(true/*intercept*/);
@@ -3292,9 +3274,11 @@ namespace Backup
                 }
                 else if (key == (char)ConsoleKey.Backspace)
                 {
-                    if (sb.Length > 0)
+                    if (passwordUnicode.Length > 0)
                     {
-                        sb.Remove(sb.Length - 1, 1);
+                        ProtectedArray<char> passwordTemp = ProtectedArray<char>.RemoveLast(passwordUnicode);
+                        passwordUnicode.Dispose();
+                        passwordUnicode = passwordTemp;
                         if (Interactive())
                         {
                             Console.CursorLeft--;
@@ -3309,7 +3293,9 @@ namespace Backup
                 }
                 else if (key >= 32)
                 {
-                    sb.Append(key);
+                    ProtectedArray<char> passwordTemp = ProtectedArray<char>.Append(passwordUnicode, key);
+                    passwordUnicode.Dispose();
+                    passwordUnicode = passwordTemp;
                     if (Interactive())
                     {
                         Console.Write(".");
@@ -3318,7 +3304,10 @@ namespace Backup
             }
             Console.WriteLine();
 
-            return sb.ToString();
+            passwordUnicode.Reveal();
+            ProtectedArray<byte> password = ProtectedArray<byte>.CreateFromUnicode(passwordUnicode.ExposeByteArray());
+            passwordUnicode.Dispose();
+            return password;
         }
 
         private static readonly string[] FileSizeSuffixes = new string[] { "B", "KB", "MB", "GB", "TB" };
@@ -3806,7 +3795,7 @@ namespace Backup
             return false;
         }
 
-        internal static void GetPasswordArgument(string[] args, ref int i, string prompt, out ICryptoSystem algorithm, out string password)
+        internal static void GetPasswordArgument(string[] args, ref int i, string prompt, out ICryptoSystem algorithm, out ProtectedArray<byte> password)
         {
             if (i < args.Length)
             {
@@ -3827,6 +3816,7 @@ namespace Backup
             {
                 if (String.Equals(args[i], "-protected"))
                 {
+                    // most secure method (passed in as CryptProtectData blob)
                     i++;
                     if (i < args.Length)
                     {
@@ -3837,8 +3827,7 @@ namespace Backup
                         }
                         byte[] salt = HexDecode(parts[0]);
                         byte[] encryptedPassword = HexDecode(parts[1]);
-                        byte[] utf8Password = ProtectedDataStorage.Decrypt(encryptedPassword, 0, encryptedPassword.Length, salt);
-                        password = Encoding.UTF8.GetString(utf8Password);
+                        password = ProtectedArray<byte>.CreateFromProtectedData(encryptedPassword, salt);
                     }
                     else
                     {
@@ -3847,10 +3836,16 @@ namespace Backup
                 }
                 else
                 {
-                    password = args[i];
-                    if (String.IsNullOrEmpty(password) || String.Equals(password, "-prompt"))
+                    if (String.IsNullOrEmpty(args[i]) || String.Equals(args[i], "-prompt"))
                     {
+                        // somewhat secure method (prompt for password in console)
                         password = PromptPassword(prompt);
+                    }
+                    else
+                    {
+                        // insecure method (password passed plaintext as program argument)
+                        password = ProtectedArray<byte>.CreateFromUnicode(args[i]);
+                        args[i] = null; // does not help much
                     }
                 }
             }
@@ -5210,15 +5205,28 @@ namespace Backup
             Recrypt = Encrypt | Decrypt,
         }
 
-        public class CryptoMasterKeyCacheEntry
+        public class CryptoMasterKeyCacheEntry : IDisposable
         {
-            public readonly byte[] PasswordSalt;
-            public readonly byte[] MasterKey;
+            public readonly byte[] passwordSalt;
+            public readonly ProtectedArray<byte> masterKey;
 
-            public CryptoMasterKeyCacheEntry(byte[] passwordSalt, byte[] masterKey)
+            private CryptoMasterKeyCacheEntry()
             {
-                this.PasswordSalt = passwordSalt;
-                this.MasterKey = masterKey;
+                throw new NotSupportedException();
+            }
+
+            public CryptoMasterKeyCacheEntry(byte[] passwordSalt, ProtectedArray<byte> masterKey)
+            {
+                this.passwordSalt = passwordSalt;
+                this.masterKey = new ProtectedArray<byte>(masterKey);
+            }
+
+            public byte[] PasswordSalt { get { return passwordSalt; } }
+            public ProtectedArray<byte> MasterKey { get { return new ProtectedArray<byte>(masterKey); } }
+
+            public void Dispose()
+            {
+                masterKey.Dispose();
             }
         }
 
@@ -5248,6 +5256,10 @@ namespace Backup
                     if (masterKeys.Count >= MaxCacheEntries)
                     {
                         // always keep the first one (the default key)
+                        for (int i = 0; i < masterKeys.Count / 2; i++)
+                        {
+                            masterKeys[1 + i].Dispose();
+                        }
                         masterKeys.RemoveRange(1, masterKeys.Count / 2);
                     }
 
@@ -5255,7 +5267,7 @@ namespace Backup
                 }
             }
 
-            public CryptoMasterKeyCacheEntry Get(string password, byte[] passwordSalt, int rounds, ICryptoSystem system)
+            public CryptoMasterKeyCacheEntry Get(ProtectedArray<byte> password, byte[] passwordSalt, int rounds, ICryptoSystem system)
             {
                 lock (this)
                 {
@@ -5265,7 +5277,7 @@ namespace Backup
                         return entry;
                     }
 
-                    byte[] masterKey;
+                    ProtectedArray<byte> masterKey;
                     system.DeriveMasterKey(password, passwordSalt, rounds, out masterKey);
                     entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
                     Add(entry);
@@ -5273,7 +5285,7 @@ namespace Backup
                 }
             }
 
-            public CryptoMasterKeyCacheEntry GetDefault(string password, ICryptoSystem system, bool forceNewKeys)
+            public CryptoMasterKeyCacheEntry GetDefault(ProtectedArray<byte> password, ICryptoSystem system, bool forceNewKeys)
             {
                 lock (this)
                 {
@@ -5283,7 +5295,7 @@ namespace Backup
                     }
 
                     byte[] passwordSalt = system.CreateRandomBytes(system.PasswordSaltLengthBytes);
-                    byte[] masterKey;
+                    ProtectedArray<byte> masterKey;
                     system.DeriveMasterKey(password, passwordSalt, system.DefaultRfc2898Rounds, out masterKey);
                     CryptoMasterKeyCacheEntry entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
                     Add(entry);
@@ -5295,7 +5307,7 @@ namespace Backup
         public class CryptoContext
         {
             public ICryptoSystem algorithm;
-            public string password;
+            public ProtectedArray<byte> password;
             // forceNewKeys will make multi-file archives run slower because it forces a new
             // random salt in each file, causing (slow) master key derivation to have to be
             // done again for each file.
