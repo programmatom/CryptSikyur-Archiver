@@ -1354,7 +1354,7 @@ namespace Backup
                     byte[] prk;
                     ProtectedArray<byte> ikmProtected = new ProtectedArray<byte>(testVector.ikm.Length);
                     ikmProtected.Reveal();
-                    Buffer.BlockCopy(testVector.ikm, 0, ikmProtected.ExposeByteArray(), 0, testVector.ikm.Length);
+                    Buffer.BlockCopy(testVector.ikm, 0, ikmProtected.ExposeArray(), 0, testVector.ikm.Length);
                     ikmProtected.Protect();
                     hkdf.Extract(testVector.salt, ikmProtected, out prk);
                     if (!ArrayEqual(prk, testVector.prk))
@@ -1405,7 +1405,7 @@ namespace Backup
                     ikm.Reveal();
                     using (CryptoPrimitiveHMAC hmac = new CryptoPrimitiveHMAC(hashProvider, salt/*key*/))
                     {
-                        prk = hmac.ComputeHash(ikm.ExposeByteArray());
+                        prk = hmac.ComputeHash(ikm.ExposeArray());
                     }
                 }
                 finally
@@ -1856,7 +1856,7 @@ namespace Backup
                     // This is also true of the internal buffers used by Rfc2898DeriveBytes, but it would be
                     // harder for an attacker to reconstruct the master key from those buffers.
                     // TODO: consider writing our own Rfc2898DeriveBytes.
-                    Rfc2898DeriveBytes keyMaker = new Rfc2898DeriveBytes(password.ExposeByteArray(), passwordSalt, rounds);
+                    Rfc2898DeriveBytes keyMaker = new Rfc2898DeriveBytes(password.ExposeArray(), passwordSalt, rounds);
                     masterKey = new ProtectedArray<byte>(MasterKeyLengthBytes);
                     byte[] masterKeyBytes = keyMaker.GetBytes(MasterKeyLengthBytes);
                     masterKey.AbsorbProtectAndScrub(masterKeyBytes);
@@ -3207,7 +3207,7 @@ namespace Backup
                 {
                     if (passwordUnicode.Length > 0)
                     {
-                        ProtectedArray<char> passwordTemp = ProtectedArray<char>.RemoveLast(passwordUnicode);
+                        ProtectedArray<char> passwordTemp = ProtectedArray<char>.RemoveRange(passwordUnicode, passwordUnicode.Length - 1, 1);
                         passwordUnicode.Dispose();
                         passwordUnicode = passwordTemp;
                         if (interactive)
@@ -3242,7 +3242,7 @@ namespace Backup
                 int index = (column - '1') * Columns + (row - 'a');
                 if ((index >= 0) && (index < letters.Length))
                 {
-                    ProtectedArray<char> passwordTemp = ProtectedArray<char>.Append(passwordUnicode, letters[index]);
+                    ProtectedArray<char> passwordTemp = ProtectedArray<char>.Insert(passwordUnicode, passwordUnicode.Length, letters[index]);
                     passwordUnicode.Dispose();
                     passwordUnicode = passwordTemp;
                     if (interactive)
@@ -3255,7 +3255,7 @@ namespace Backup
             Console.WriteLine();
 
             passwordUnicode.Reveal();
-            ProtectedArray<byte> password = ProtectedArray<byte>.CreateFromUnicode(passwordUnicode.ExposeByteArray());
+            ProtectedArray<byte> password = ProtectedArray<byte>.CreateUtf8FromUtf16(passwordUnicode.ExposeArray());
             passwordUnicode.Dispose();
             return password;
         }
@@ -3276,7 +3276,7 @@ namespace Backup
                 {
                     if (passwordUnicode.Length > 0)
                     {
-                        ProtectedArray<char> passwordTemp = ProtectedArray<char>.RemoveLast(passwordUnicode);
+                        ProtectedArray<char> passwordTemp = ProtectedArray<char>.RemoveRange(passwordUnicode, passwordUnicode.Length - 1, 1);
                         passwordUnicode.Dispose();
                         passwordUnicode = passwordTemp;
                         if (Interactive())
@@ -3293,7 +3293,7 @@ namespace Backup
                 }
                 else if (key >= 32)
                 {
-                    ProtectedArray<char> passwordTemp = ProtectedArray<char>.Append(passwordUnicode, key);
+                    ProtectedArray<char> passwordTemp = ProtectedArray<char>.Insert(passwordUnicode, passwordUnicode.Length, key);
                     passwordUnicode.Dispose();
                     passwordUnicode = passwordTemp;
                     if (Interactive())
@@ -3305,7 +3305,7 @@ namespace Backup
             Console.WriteLine();
 
             passwordUnicode.Reveal();
-            ProtectedArray<byte> password = ProtectedArray<byte>.CreateFromUnicode(passwordUnicode.ExposeByteArray());
+            ProtectedArray<byte> password = ProtectedArray<byte>.CreateUtf8FromUtf16(passwordUnicode.ExposeArray());
             passwordUnicode.Dispose();
             return password;
         }
@@ -3390,6 +3390,20 @@ namespace Backup
                 throw new InvalidDataException();
             }
             return b.ToArray();
+        }
+
+        public static bool TryHexDecode(string s, out byte[] result)
+        {
+            result = null;
+            try
+            {
+                result = HexDecode(s);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public class StringSet : ICollection<string>, IEnumerable<string>
@@ -3820,14 +3834,7 @@ namespace Backup
                     i++;
                     if (i < args.Length)
                     {
-                        string[] parts = args[i].Split(new char[] { ';' });
-                        if (parts.Length != 2)
-                        {
-                            throw new UsageException();
-                        }
-                        byte[] salt = HexDecode(parts[0]);
-                        byte[] encryptedPassword = HexDecode(parts[1]);
-                        password = ProtectedArray<byte>.CreateFromProtectedData(encryptedPassword, salt);
+                        password = ProtectedArray<byte>.DecryptEphemeral(HexDecode(args[i]), ProtectedDataStorage.EphemeralScope.SameLogon);
                     }
                     else
                     {
@@ -3844,7 +3851,7 @@ namespace Backup
                     else
                     {
                         // insecure method (password passed plaintext as program argument)
-                        password = ProtectedArray<byte>.CreateFromUnicode(args[i]);
+                        password = ProtectedArray<byte>.CreateUtf8FromUtf16(args[i]);
                         args[i] = null; // does not help much
                     }
                 }
@@ -5218,11 +5225,11 @@ namespace Backup
             public CryptoMasterKeyCacheEntry(byte[] passwordSalt, ProtectedArray<byte> masterKey)
             {
                 this.passwordSalt = passwordSalt;
-                this.masterKey = new ProtectedArray<byte>(masterKey);
+                this.masterKey = ProtectedArray<byte>.Clone(masterKey);
             }
 
             public byte[] PasswordSalt { get { return passwordSalt; } }
-            public ProtectedArray<byte> MasterKey { get { return new ProtectedArray<byte>(masterKey); } }
+            public ProtectedArray<byte> MasterKey { get { return ProtectedArray<byte>.Clone(masterKey); } }
 
             public void Dispose()
             {

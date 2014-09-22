@@ -36,6 +36,7 @@ using System.Web;
 using System.Windows.Forms;
 
 using Backup;
+using JSON;
 
 namespace RemoteDriveAuth
 {
@@ -179,12 +180,15 @@ namespace RemoteDriveAuth
 
             public ClientIdentity(byte[] encryptedBlob, byte[] secondaryEntropy)
             {
-                byte[] decryptedBlob = ProtectedDataStorage.Decrypt(encryptedBlob, 0, encryptedBlob.Length, secondaryEntropy);
-                using (TextReader reader = new StringReader(Encoding.ASCII.GetString(decryptedBlob)))
+                using (ProtectedArray<byte> decryptedBlob = ProtectedDataStorage.DecryptPersistent(encryptedBlob, 0, encryptedBlob.Length, secondaryEntropy))
                 {
-                    this.ServiceUri = new Uri(reader.ReadLine());
-                    this.ClientId = reader.ReadLine();
-                    this.ClientSecret = reader.ReadLine();
+                    decryptedBlob.Reveal();
+                    using (TextReader reader = new StringReader(Encoding.ASCII.GetString(decryptedBlob.ExposeArray())))
+                    {
+                        this.ServiceUri = new Uri(reader.ReadLine());
+                        this.ClientId = reader.ReadLine();
+                        this.ClientSecret = reader.ReadLine();
+                    }
                 }
             }
 
@@ -201,7 +205,7 @@ namespace RemoteDriveAuth
                     }
                     decryptedBlob = stream.ToArray();
                 }
-                return ProtectedDataStorage.Encrypt(decryptedBlob, 0, decryptedBlob.Length, secondaryEntropy);
+                return ProtectedDataStorage.EncryptPersistent(decryptedBlob, 0, decryptedBlob.Length, secondaryEntropy);
             }
         }
 
@@ -763,8 +767,13 @@ namespace RemoteDriveAuth
             passwordTextBox.SelectAll();
         }
 
-        private string password;
-        internal string Password { get { return password; } }
+        // TODO: WARNING: although the password property is protected, then Windows.Forms
+        // control for text entry is not, so it may leak plaintext copies of the password
+        // being entered to the heap or swap/hibernation file.
+        // Remedy this with a custom control employing protection internally.
+
+        private ProtectedArray<byte> password;
+        internal ProtectedArray<byte> Password { get { return password; } }
 
         // Captures password text and closes box when
         // the ENTER key is pressed while the ToolStripTextBox has focus. 
@@ -772,7 +781,7 @@ namespace RemoteDriveAuth
         {
             if (e.KeyCode == Keys.Enter)
             {
-                password = passwordTextBox.Text;
+                password = ProtectedArray<byte>.CreateUtf8FromUtf16(passwordTextBox.Text);
                 this.Close();
                 return;
             }
@@ -782,7 +791,7 @@ namespace RemoteDriveAuth
         // the Go button is clicked. 
         private void AcceptButton_Click(object sender, EventArgs e)
         {
-            password = passwordTextBox.Text;
+            password = ProtectedArray<byte>.CreateUtf8FromUtf16(passwordTextBox.Text);
             this.Close();
         }
 
@@ -1063,7 +1072,7 @@ namespace RemoteDriveAuth
                         prompt = String.Concat(prompt, prompt != null ? " " : null, args[i]);
                     }
 
-                    string password;
+                    ProtectedArray<byte> password;
                     using (PasswordEntryForm form = new PasswordEntryForm(prompt))
                     {
                         Application.EnableVisualStyles();
@@ -1071,16 +1080,15 @@ namespace RemoteDriveAuth
 
                         password = form.Password;
                     }
-
-                    if (!String.IsNullOrEmpty(password))
+                    using (password)
                     {
-                        byte[] salt = new byte[Constants.SecondaryEntropyLengthBytes];
-                        rng.GetBytes(salt);
+                        if (!ProtectedArray<byte>.IsNullOrEmpty(password))
+                        {
+                            password.Reveal();
+                            byte[] encryptedPassword = ProtectedDataStorage.EncryptEphemeral(password.ExposeArray(), 0, password.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
 
-                        byte[] utf8Password = Encoding.UTF8.GetBytes(password);
-                        byte[] encryptedPassword = ProtectedDataStorage.Encrypt(utf8Password, 0, utf8Password.Length, salt);
-
-                        Console.WriteLine("-protected \"{0};{1}\"", HexUtility.HexEncode(salt), HexUtility.HexEncode(encryptedPassword));
+                            Console.WriteLine("-protected \"{0}\"", HexUtility.HexEncode(encryptedPassword));
+                        }
                     }
                 }
                 else if (args[0].Equals("-auth"))
@@ -1200,13 +1208,10 @@ namespace RemoteDriveAuth
                     }
 
 
-                    byte[] secondaryEntropy = new byte[Constants.SecondaryEntropyLengthBytes];
-                    rng.GetBytes(secondaryEntropy);
-
                     byte[] tokensBytes = Encoding.ASCII.GetBytes(tokenGlob);
-                    byte[] tokensBytesEncrypted = ProtectedDataStorage.Encrypt(tokensBytes, 0, tokensBytes.Length, secondaryEntropy);
+                    byte[] tokensBytesEncrypted = ProtectedDataStorage.EncryptEphemeral(tokensBytes, 0, tokensBytes.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
 
-                    Console.WriteLine(String.Concat(HexUtility.HexEncode(secondaryEntropy), ";", HexUtility.HexEncode(tokensBytesEncrypted)));
+                    Console.WriteLine(HexUtility.HexEncode(tokensBytesEncrypted));
                 }
 
                 Environment.ExitCode = 0;

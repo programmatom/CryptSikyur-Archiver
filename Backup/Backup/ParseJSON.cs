@@ -37,13 +37,49 @@ using System.Web;
 
 using Backup;
 
-namespace Backup
+namespace JSON
 {
     ////////////////////////////////////////////////////////////////////////////
     //
     // JSON Parsing
     //
     ////////////////////////////////////////////////////////////////////////////
+
+
+    // Indexable source data adapters
+
+    public interface IIndexable<T>
+    {
+        int Length { get; }
+        T this[int index] { get; }
+    }
+
+    public sealed class StringIndexer : IIndexable<char>
+    {
+        private string s;
+
+        public StringIndexer(string s)
+        {
+            this.s = s;
+        }
+
+        public int Length { get { return s.Length; } }
+        public char this[int index] { get { return s[index]; } }
+    }
+
+    public sealed class ArrayIndexer<T> : IIndexable<T>
+    {
+        private T[] s;
+
+        public ArrayIndexer(T[] s)
+        {
+            this.s = s;
+        }
+
+        public int Length { get { return s.Length; } }
+        public T this[int index] { get { return s[index]; } }
+    }
+
 
     // http://json.org or http://www.ietf.org/rfc/rfc4627.txt
     public class JSONDictionary
@@ -52,7 +88,12 @@ namespace Backup
         private Dictionary<string, int> dictionary = new Dictionary<string, int>();
 
         public JSONDictionary(string s)
-            : this(Parse(s))
+            : this(Parse(new StringIndexer(s)))
+        {
+        }
+
+        public JSONDictionary(char[] s)
+            : this(Parse(new ArrayIndexer<char>(s)))
         {
         }
 
@@ -65,13 +106,18 @@ namespace Backup
             }
         }
 
-        public object this[string key]
+        // General public accessors
+
+        public int Count { get { return items.Length; } }
+
+        public override string ToString()
         {
-            get
-            {
-                return dictionary[key];
-            }
+            throw new NotSupportedException();
         }
+
+        // Dictionary acessors
+
+        public object this[string key] { get { return dictionary[key]; } }
 
         public bool TryGetValue(string key, out object value)
         {
@@ -99,7 +145,9 @@ namespace Backup
             return true;
         }
 
-        public KeyValuePair<string, object> this[int index]
+        // Internal methods
+
+        private KeyValuePair<string, object> this[int index]
         {
             get
             {
@@ -121,22 +169,11 @@ namespace Backup
             }
         }
 
-        public int Count
-        {
-            get
-            {
-                return items.Length;
-            }
-        }
-
-        public override string ToString()
-        {
-            throw new NotImplementedException();
-        }
+        // Parsing
 
         private const string Delimiters = "[{]}:,";
         private const string ExtraLiteralDelimiters = ".+-";
-        private static string NextToken(string s, ref int i)
+        private static string NextToken(IIndexable<char> s, ref int i)
         {
             while ((i < s.Length) && Char.IsWhiteSpace(s[i]))
             {
@@ -144,7 +181,7 @@ namespace Backup
             }
             if (i == s.Length)
             {
-                return null;
+                return null; // EOF
             }
             if (s[i] == '"')
             {
@@ -231,7 +268,7 @@ namespace Backup
             }
         }
 
-        private static KeyValuePair<string, object>[] Parse(string s)
+        private static KeyValuePair<string, object>[] Parse(IIndexable<char> s)
         {
             int i = 0;
             object o = ParseValue(s, ref i);
@@ -239,7 +276,7 @@ namespace Backup
             return (KeyValuePair<string, object>[])o;
         }
 
-        private static KeyValuePair<string, object>[] ParseGroup(string s, ref int i)
+        private static KeyValuePair<string, object>[] ParseGroup(IIndexable<char> s, ref int i)
         {
             List<KeyValuePair<string, object>> items = new List<KeyValuePair<string, object>>();
 
@@ -248,7 +285,7 @@ namespace Backup
             {
                 return items.ToArray();
             }
-            if (t != "{")
+            if (!t.Equals("{"))
             {
                 throw new InvalidDataException();
             }
@@ -256,7 +293,7 @@ namespace Backup
             while (true)
             {
                 t = NextToken(s, ref i);
-                if (t == "}")
+                if (t.Equals("}"))
                 {
                     break;
                 }
@@ -266,7 +303,7 @@ namespace Backup
                     string key = t.Substring(1, t.Length - 2);
 
                     t = NextToken(s, ref i);
-                    if (t != ":")
+                    if (!t.Equals(":"))
                     {
                         throw new InvalidDataException();
                     }
@@ -276,11 +313,11 @@ namespace Backup
 
                     int oldi = i;
                     t = NextToken(s, ref i);
-                    if (t == "}")
+                    if (t.Equals("}"))
                     {
                         i = oldi; // unget
                     }
-                    else if (t == ",")
+                    else if (t.Equals(","))
                     {
                     }
                     else
@@ -297,12 +334,12 @@ namespace Backup
             return items.ToArray();
         }
 
-        private static object[] ParseArray(string s, ref int i)
+        private static object[] ParseArray(IIndexable<char> s, ref int i)
         {
             List<object> items = new List<object>();
 
             string t = NextToken(s, ref i);
-            if (t != "[")
+            if (!t.Equals("["))
             {
                 throw new InvalidDataException();
             }
@@ -311,11 +348,11 @@ namespace Backup
             {
                 int oldi = i;
                 t = NextToken(s, ref i);
-                if (t == "]")
+                if (t.Equals("]"))
                 {
                     break;
                 }
-                if (t == ",")
+                if (t.Equals(","))
                 {
                     continue;
                 }
@@ -328,7 +365,7 @@ namespace Backup
             return items.ToArray();
         }
 
-        private static object ParseValue(string s, ref int i)
+        private static object ParseValue(IIndexable<char> s, ref int i)
         {
             long l;
             double d;
@@ -336,12 +373,12 @@ namespace Backup
             int oldi = i;
             string t = NextToken(s, ref i);
 
-            if (t == "{")
+            if (t.Equals("{"))
             {
                 i = oldi; // unget
                 return ParseGroup(s, ref i);
             }
-            else if (t == "[")
+            else if (t.Equals("["))
             {
                 i = oldi; // unget
                 return ParseArray(s, ref i);
@@ -350,15 +387,15 @@ namespace Backup
             {
                 return t.Substring(1, t.Length - 2);
             }
-            else if (t == "true")
+            else if (t.Equals("true"))
             {
                 return true;
             }
-            else if (t == "false")
+            else if (t.Equals("false"))
             {
                 return false;
             }
-            else if (t == "null")
+            else if (t.Equals("null"))
             {
                 return null;
             }

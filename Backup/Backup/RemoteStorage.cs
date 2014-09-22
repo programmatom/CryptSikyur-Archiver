@@ -36,6 +36,7 @@ using System.Threading;
 using System.Web;
 
 using Backup;
+using JSON;
 
 namespace Backup
 {
@@ -269,7 +270,8 @@ namespace Backup
                 trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/Core.Logging.ScrubSecuritySensitiveValue(refreshToken), arg4);
                 trace.WriteLine("exit code: {0}", exitCode);
                 trace.WriteLine("output:");
-                trace.WriteLine((output.IndexOf(';') >= 0) && (output.IndexOf(Environment.NewLine) < 0) ? Core.Logging.ScrubSecuritySensitiveValue(output) : output);
+                byte[] ignore;
+                trace.WriteLine(Core.TryHexDecode(output, out ignore) ? Core.Logging.ScrubSecuritySensitiveValue(output) : output);
                 trace.WriteLine();
             }
 
@@ -293,16 +295,12 @@ namespace Backup
 
             string oldRefreshToken = refreshToken;
 
-            string[] outputParts = output.Split(new char[] { ';' });
-            if (outputParts.Length != 2)
+            JSONDictionary tokenJSON;
+            using (ProtectedArray<byte> decryptedOutput = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(output), ProtectedDataStorage.EphemeralScope.SameLogon))
             {
-                throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+                decryptedOutput.Reveal();
+                tokenJSON = new JSONDictionary(Encoding.ASCII.GetString(decryptedOutput.ExposeArray()));
             }
-
-            byte[] secondaryEntropy = Core.HexDecode(outputParts[0].Trim());
-            byte[] outputBytes = Core.HexDecode(outputParts[1].Trim());
-            byte[] decryptedOutput = ProtectedDataStorage.Decrypt(outputBytes, 0, outputBytes.Length, secondaryEntropy);
-            JSONDictionary tokenJSON = new JSONDictionary(Encoding.ASCII.GetString(decryptedOutput));
             string token_type, scope;
             long expires_in;
             if (!tokenJSON.TryGetValueAs("token_type", out token_type)
@@ -345,13 +343,9 @@ namespace Backup
 
             if (!enableRefreshToken || !String.IsNullOrEmpty(refreshToken))
             {
-                byte[] secondaryEntropy = new byte[SecondaryEntropyLengthBytes];
-                rng.GetBytes(secondaryEntropy);
-
                 byte[] decryptedRefreshToken = Encoding.ASCII.GetBytes(refreshToken);
-                byte[] encryptedRefreshToken = ProtectedDataStorage.Encrypt(decryptedRefreshToken, 0, decryptedRefreshToken.Length, secondaryEntropy);
-
-                refreshTokenProtected = String.Concat(Core.HexEncode(secondaryEntropy), ";", Core.HexEncode(encryptedRefreshToken));
+                byte[] encryptedRefreshToken = ProtectedDataStorage.EncryptEphemeral(decryptedRefreshToken, 0, decryptedRefreshToken.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+                refreshTokenProtected = Core.HexEncode(encryptedRefreshToken);
             }
 
             return refreshTokenProtected;
@@ -363,20 +357,11 @@ namespace Backup
 
             if (!enableRefreshToken || !String.IsNullOrEmpty(refreshTokenProtected))
             {
-                byte[] secondaryEntropy;
-                byte[] refreshTokenEncrypted;
-
-                string[] parts = refreshTokenProtected.Split(new char[] { ';' });
-                if (parts.Length != 2)
+                using (ProtectedArray<byte> refreshTokenDecrypted = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(refreshTokenProtected), ProtectedDataStorage.EphemeralScope.SameLogon))
                 {
-                    throw new InvalidDataException();
+                    refreshTokenDecrypted.Reveal();
+                    refreshToken = Encoding.ASCII.GetString(refreshTokenDecrypted.ExposeArray());
                 }
-
-                secondaryEntropy = Core.HexDecode(parts[0].Trim());
-                refreshTokenEncrypted = Core.HexDecode(parts[1].Trim());
-
-                byte[] refreshTokenDecrypted = ProtectedDataStorage.Decrypt(refreshTokenEncrypted, 0, refreshTokenEncrypted.Length, secondaryEntropy);
-                refreshToken = Encoding.ASCII.GetString(refreshTokenDecrypted);
             }
 
             return refreshToken;

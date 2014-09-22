@@ -114,7 +114,7 @@ namespace Backup
         {
         }
 
-        public ProtectedArray(ProtectedArray<T> source)
+        private ProtectedArray(ProtectedArray<T> source)
         {
             if (source.state != State.Protected)
             {
@@ -130,41 +130,81 @@ namespace Backup
             Protect();
         }
 
-        public static ProtectedArray<byte> CreateFromProtectedData(byte[] encrypted, byte[] secondaryEntropy)
+        public static ProtectedArray<T> Clone(ProtectedArray<T> original)
         {
-            byte[] decrypted = ProtectedDataStorage.Decrypt(encrypted, 0, encrypted.Length, secondaryEntropy);
-            GCHandle decryptedPinner = GCHandle.Alloc(decrypted, GCHandleType.Pinned);
+            if (original == null)
+            {
+                return null;
+            }
+            return new ProtectedArray<T>(original);
+        }
+
+        public static ProtectedArray<byte> CreateUtf8FromUtf16(char[] utf16)
+        {
+            ProtectedArray<byte> utf8 = new ProtectedArray<byte>(Encoding.UTF8.GetByteCount(utf16), true/*leaveRevealed*/);
+            Encoding.UTF8.GetBytes(utf16, 0, utf16.Length, utf8.ExposeArray(), 0);
+            utf8.Protect();
+            return utf8;
+        }
+
+        public static ProtectedArray<byte> CreateUtf8FromUtf16(string utf16)
+        {
+            ProtectedArray<byte> utf8 = new ProtectedArray<byte>(Encoding.UTF8.GetByteCount(utf16), true/*leaveRevealed*/);
+            Encoding.UTF8.GetBytes(utf16, 0, utf16.Length, utf8.ExposeArray(), 0);
+            utf8.Protect();
+            return utf8;
+        }
+
+        public static ProtectedArray<char> CreateUtf16FromUtf8(byte[] utf8)
+        {
+            ProtectedArray<char> utf16 = new ProtectedArray<char>(Encoding.UTF8.GetCharCount(utf8), true/*leaveRevealed*/);
+            Encoding.UTF8.GetChars(utf8, 0, utf8.Length, utf16.ExposeArray(), 0);
+            utf16.Protect();
+            return utf16;
+        }
+
+        public static bool IsNullOrEmpty(ProtectedArray<T> array)
+        {
+            return (array == null) || (array.Length == 0);
+        }
+
+        public static byte[] EncryptEphemeral(ProtectedArray<byte> array, ProtectedDataStorage.EphemeralScope scope)
+        {
             try
             {
-                ProtectedArray<byte> array = new ProtectedArray<byte>(decrypted.Length, true/*leaveRevealed*/);
-                Buffer.BlockCopy(decrypted, 0, array.ExposeByteArray(), 0, decrypted.Length);
-                array.Protect();
-                return array;
+                array.Reveal();
+                return ProtectedDataStorage.EncryptEphemeral(array.ExposeArray(), 0, array.Length, scope);
             }
             finally
             {
-                Array.Clear(decrypted, 0, decrypted.Length);
-                decryptedPinner.Free();
+                array.Protect();
             }
         }
 
-        public static ProtectedArray<byte> CreateFromUnicode(char[] unicode)
+        public static ProtectedArray<byte> DecryptEphemeral(byte[] encrypted, ProtectedDataStorage.EphemeralScope scope)
         {
-            ProtectedArray<byte> array = new ProtectedArray<byte>(Encoding.UTF8.GetByteCount(unicode), true/*leaveRevealed*/);
-            Encoding.UTF8.GetBytes(unicode, 0, unicode.Length, array.ExposeByteArray(), 0);
-            array.Protect();
-            return array;
+            return ProtectedDataStorage.DecryptEphemeral(encrypted, 0, encrypted.Length, scope);
         }
 
-        public static ProtectedArray<byte> CreateFromUnicode(string unicode)
+        public static byte[] EncryptPersistent(ProtectedArray<byte> array, byte[] secondaryEntropy)
         {
-            ProtectedArray<byte> array = new ProtectedArray<byte>(Encoding.UTF8.GetByteCount(unicode), true/*leaveRevealed*/);
-            Encoding.UTF8.GetBytes(unicode, 0, unicode.Length, array.ExposeByteArray(), 0);
-            array.Protect();
-            return array;
+            try
+            {
+                array.Reveal();
+                return ProtectedDataStorage.EncryptPersistent(array.ExposeArray(), 0, array.Length, secondaryEntropy);
+            }
+            finally
+            {
+                array.Protect();
+            }
         }
 
-        public void Scrub<V>(V[] array) where V : struct
+        public static ProtectedArray<byte> DecryptPersistent(byte[] encrypted, byte[] secondaryEntropy)
+        {
+            return ProtectedDataStorage.DecryptPersistent(encrypted, 0, encrypted.Length, secondaryEntropy);
+        }
+
+        public void Scrub(T[] array)
         {
             byte[] random = new byte[Buffer.ByteLength(array)];
             rng.GetBytes(random);
@@ -330,7 +370,7 @@ namespace Backup
             }
         }
 
-        public T[] ExposeByteArray()
+        public T[] ExposeArray()
         {
             if (state != State.Revealed)
             {
@@ -339,27 +379,53 @@ namespace Backup
             return revealedArray;
         }
 
-        public static ProtectedArray<T> Append(ProtectedArray<T> prefix, T item)
+        public static ProtectedArray<T> Insert(ProtectedArray<T> source, int index, T item)
         {
-            ProtectedArray<T> combined = new ProtectedArray<T>(prefix.Length + 1);
-            combined.Reveal();
-            prefix.Reveal();
-            Array.Copy(prefix.revealedArray, 0, combined.revealedArray, 0, prefix.Length);
-            prefix.Protect();
-            combined.revealedArray[prefix.Length] = item;
-            combined.Protect();
-            return combined;
+            try
+            {
+                ProtectedArray<T> combined = new ProtectedArray<T>(source.Length + 1);
+                try
+                {
+                    combined.Reveal();
+                    source.Reveal();
+                    Array.Copy(source.revealedArray, 0, combined.revealedArray, 0, index);
+                    Array.Copy(source.revealedArray, index, combined.revealedArray, index + 1, source.Length - index);
+                    combined.revealedArray[index] = item;
+                    return combined;
+                }
+                finally
+                {
+                    combined.Protect();
+                }
+            }
+            finally
+            {
+                source.Protect();
+            }
         }
 
-        public static ProtectedArray<T> RemoveLast(ProtectedArray<T> source)
+        public static ProtectedArray<T> RemoveRange(ProtectedArray<T> source, int index, int count)
         {
-            ProtectedArray<T> reduced = new ProtectedArray<T>(source.Length - 1);
-            reduced.Reveal();
-            source.Reveal();
-            Array.Copy(source.revealedArray, 0, reduced.revealedArray, 0, reduced.Length);
-            source.Protect();
-            reduced.Protect();
-            return reduced;
+            try
+            {
+                ProtectedArray<T> reduced = new ProtectedArray<T>(source.Length - count);
+                try
+                {
+                    reduced.Reveal();
+                    source.Reveal();
+                    Array.Copy(source.revealedArray, 0, reduced.revealedArray, 0, index);
+                    Array.Copy(source.revealedArray, index + count, reduced.revealedArray, index, reduced.Length - index);
+                    return reduced;
+                }
+                finally
+                {
+                    reduced.Protect();
+                }
+            }
+            finally
+            {
+                source.Protect();
+            }
         }
     }
 
@@ -383,24 +449,31 @@ namespace Backup
             public int cbData;
             public IntPtr pbData;
 
-            public byte[] GetData()
+            public int GetDataLength()
             {
-                byte[] data = new byte[cbData];
+                return pbData != IntPtr.Zero ? cbData : 0;
+            }
+
+            public void GetData(byte[] target)
+            {
+                if ((pbData == IntPtr.Zero) && (target.Length != 0))
+                {
+                    throw new ArgumentException();
+                }
                 if (pbData != IntPtr.Zero)
                 {
-                    Marshal.Copy(pbData, data, 0, cbData);
+                    Marshal.Copy(pbData, target, 0, cbData);
                 }
-                return data;
             }
 
             public void SetData(byte[] data, int index, int count)
             {
-                if (pbData != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(pbData);
-                    pbData = IntPtr.Zero;
-                }
+                Clear();
 
+                // According to documentation (http://msdn.microsoft.com/en-us/library/vstudio/s69bkh17%28v=vs.100%29.aspx)
+                // the allocated object returned by Marshal.AllocHGlobal() is marked LMEM_FIXED
+                // so it doesn't move in memory (exactly what we need - prevent potentially leaving
+                // copies of plaintext around if heap relocations occur.)
                 cbData = count;
                 pbData = Marshal.AllocHGlobal(count);
                 Marshal.Copy(data, index, pbData, count);
@@ -410,6 +483,9 @@ namespace Backup
             {
                 if (pbData != IntPtr.Zero)
                 {
+                    // zero old (potentially sensitive) content before freeing
+                    Marshal.Copy(new byte[cbData], 0, pbData, cbData);
+
                     Marshal.FreeHGlobal(pbData);
                     pbData = IntPtr.Zero;
                 }
@@ -536,6 +612,7 @@ namespace Backup
             int cbDataIn,
             CryptProtectMemoryFlags dwFlags);
 
+
         public static void WrappedCryptProtectMemory(byte[] data, CryptProtectMemoryFlags flags)
         {
             try
@@ -585,44 +662,130 @@ namespace Backup
         }
 
 
-        public static byte[] Encrypt(byte[] plaintext, int index, int count, byte[] secondaryEntropy)
+        // Use the following methods to encrypt and decrypt ephemeral data. Uses
+        // DPAPI CryptProtectMemory to create blobs that can only be decrypted by:
+        //  1: the same process instance
+        //  2: any process running under the user's token (but not others), as long
+        //     as machine has not rebooted
+        // These are preferable to the Persistent methods for highly sensitive data
+        // (such as refresh tokens) because it is considerably harder to recover the
+        // system's ephemeral key in the event of memory dump, hibernation file
+        // compromise, or debugger-style attacks.
+
+        public enum EphemeralScope
         {
-            byte[] encrypted;
-            DATA_BLOB savedPlaintext = new DATA_BLOB();
-            savedPlaintext.SetData(plaintext, index, count);
-            DATA_BLOB entropyOptional = new DATA_BLOB();
-            entropyOptional.SetData(secondaryEntropy, 0, secondaryEntropy.Length);
-            CRYPTPROTECT_PROMPTSTRUCT promptStruct = new CRYPTPROTECT_PROMPTSTRUCT();
-            DATA_BLOB savedProtected = new DATA_BLOB();
-            if (!CryptProtectData(ref savedPlaintext, null, ref entropyOptional, IntPtr.Zero, ref promptStruct, CryptProtectFlags.CRYPTPROTECT_UI_FORBIDDEN, ref savedProtected))
-            {
-                Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
-            }
-            encrypted = savedProtected.GetData();
-            savedPlaintext.Clear();
-            entropyOptional.Clear();
-            savedProtected.Clear();
-            return encrypted;
+            SameProcess,
+            SameLogon,
         }
 
-        public static byte[] Decrypt(byte[] encrypted, int index, int count, byte[] secondaryEntropy)
+        // recommend plaintext be pinned (ProtectedArray<byte> will do this for you)
+        public static byte[] EncryptEphemeral(byte[] plaintext, int index, int count, EphemeralScope scope)
         {
-            byte[] plaintext;
-            DATA_BLOB savedProtected = new DATA_BLOB();
-            savedProtected.SetData(encrypted, index, count);
-            DATA_BLOB entropyOptional = new DATA_BLOB();
-            entropyOptional.SetData(secondaryEntropy, 0, secondaryEntropy.Length);
-            CRYPTPROTECT_PROMPTSTRUCT promptStruct = new CRYPTPROTECT_PROMPTSTRUCT();
-            DATA_BLOB savedPlaintext = new DATA_BLOB();
-            if (!CryptUnprotectData(ref savedProtected, null, ref entropyOptional, IntPtr.Zero, ref promptStruct, CryptProtectFlags.CRYPTPROTECT_UI_FORBIDDEN, ref savedPlaintext))
+            byte[] ciphertext = new byte[(count + 4 + (ProtectedDataStorage.CRYPTPROTECTMEMORY_BLOCK_SIZE - 1)) & ~(ProtectedDataStorage.CRYPTPROTECTMEMORY_BLOCK_SIZE - 1)];
+            GCHandle ciphertextPinner = GCHandle.Alloc(ciphertext, GCHandleType.Pinned);
+            try
             {
-                Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                int i = 0;
+                ciphertext[i++] = (byte)(count >> 24);
+                ciphertext[i++] = (byte)(count >> 16);
+                ciphertext[i++] = (byte)(count >> 8);
+                ciphertext[i++] = (byte)count;
+                Buffer.BlockCopy(plaintext, index, ciphertext, i, count);
+                WrappedCryptProtectMemory(ciphertext, scope == EphemeralScope.SameLogon ? CryptProtectMemoryFlags.CRYPTPROTECTMEMORY_SAME_LOGON : CryptProtectMemoryFlags.CRYPTPROTECTMEMORY_SAME_PROCESS);
+                return ciphertext;
             }
-            plaintext = savedPlaintext.GetData();
-            savedProtected.Clear();
-            entropyOptional.Clear();
-            savedPlaintext.Clear();
-            return plaintext;
+            finally
+            {
+                ciphertextPinner.Free();
+            }
+        }
+
+        public static ProtectedArray<byte> DecryptEphemeral(byte[] encrypted, int index, int count, EphemeralScope scope)
+        {
+            byte[] local = new byte[count];
+            GCHandle localPinner = GCHandle.Alloc(local, GCHandleType.Pinned);
+            try
+            {
+                Buffer.BlockCopy(encrypted, index, local, 0, count);
+                WrappedCryptUnprotectMemory(local, scope == EphemeralScope.SameLogon ? CryptProtectMemoryFlags.CRYPTPROTECTMEMORY_SAME_LOGON : CryptProtectMemoryFlags.CRYPTPROTECTMEMORY_SAME_PROCESS);
+                int i = 0;
+                int length = local[i++] << 24;
+                length |= local[i++] << 16;
+                length |= local[i++] << 8;
+                length |= local[i++];
+                if (length > local.Length - i)
+                {
+                    throw new InvalidOperationException();
+                }
+                ProtectedArray<byte> plaintext = new ProtectedArray<byte>(length, true/*leaveRevealed*/);
+                Buffer.BlockCopy(local, i, plaintext.ExposeArray(), 0, length);
+                plaintext.Protect();
+                return plaintext;
+            }
+            finally
+            {
+                Array.Clear(local, 0, local.Length);
+                localPinner.Free();
+            }
+        }
+
+
+        // Use the following methods to encrypt and decrypt persistent data. Uses
+        // DPAPI CryptProtectData to create blobs that can be decrypted by any process
+        // running under the user's token, but not others.
+
+        // recommend plaintext be pinned (ProtectedArray<byte> will do this for you)
+        public static byte[] EncryptPersistent(byte[] plaintext, int index, int count, byte[] secondaryEntropy)
+        {
+            DATA_BLOB savedPlaintext = new DATA_BLOB();
+            DATA_BLOB entropyOptional = new DATA_BLOB();
+            DATA_BLOB savedProtected = new DATA_BLOB();
+            try
+            {
+                savedPlaintext.SetData(plaintext, index, count);
+                entropyOptional.SetData(secondaryEntropy, 0, secondaryEntropy.Length);
+                CRYPTPROTECT_PROMPTSTRUCT promptStruct = new CRYPTPROTECT_PROMPTSTRUCT();
+                if (!CryptProtectData(ref savedPlaintext, null, ref entropyOptional, IntPtr.Zero, ref promptStruct, CryptProtectFlags.CRYPTPROTECT_UI_FORBIDDEN, ref savedProtected))
+                {
+                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+                byte[] encrypted = new byte[savedProtected.GetDataLength()];
+                savedProtected.GetData(encrypted);
+                return encrypted;
+            }
+            finally
+            {
+                savedPlaintext.Clear();
+                entropyOptional.Clear();
+                savedProtected.Clear();
+            }
+        }
+
+        public static ProtectedArray<byte> DecryptPersistent(byte[] encrypted, int index, int count, byte[] secondaryEntropy)
+        {
+            DATA_BLOB savedProtected = new DATA_BLOB();
+            DATA_BLOB entropyOptional = new DATA_BLOB();
+            DATA_BLOB savedPlaintext = new DATA_BLOB();
+            try
+            {
+                savedProtected.SetData(encrypted, index, count);
+                entropyOptional.SetData(secondaryEntropy, 0, secondaryEntropy.Length);
+                CRYPTPROTECT_PROMPTSTRUCT promptStruct = new CRYPTPROTECT_PROMPTSTRUCT();
+                if (!CryptUnprotectData(ref savedProtected, null, ref entropyOptional, IntPtr.Zero, ref promptStruct, CryptProtectFlags.CRYPTPROTECT_UI_FORBIDDEN, ref savedPlaintext))
+                {
+                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+                ProtectedArray<byte> plaintext = new ProtectedArray<byte>(savedPlaintext.GetDataLength(), true/*leaveRevealed*/);
+                savedPlaintext.GetData(plaintext.ExposeArray());
+                plaintext.Protect();
+                return plaintext;
+            }
+            finally
+            {
+                savedPlaintext.Clear();
+                savedProtected.Clear();
+                entropyOptional.Clear();
+            }
         }
     }
 }
