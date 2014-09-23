@@ -35,6 +35,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Concurrency.cs" />
+    <Compile Include="Cryptography.cs" />
     <Compile Include="Diagnostics.cs" />
     <Compile Include="IArchiveFileManager.cs" />
     <Compile Include="Backup.cs" />
