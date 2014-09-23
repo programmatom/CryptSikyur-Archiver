@@ -58,6 +58,7 @@
     <Compile Include="SkeinFish 0.5.0\ThreefishCipher.cs" />
     <Compile Include="SkeinFish 0.5.0\ThreefishTransform.cs" />
     <Compile Include="SkeinFish 0.5.0\UBITweak.cs" />
+    <Compile Include="Streams.cs" />
   </ItemGroup>
   <ItemGroup>
     <BaseApplicationManifest Include="Properties\app.manifest" />

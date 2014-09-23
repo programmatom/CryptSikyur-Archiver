@@ -72,7 +72,7 @@ namespace Backup
         byte[] CreateRandomBytes(int count);
 
         int MACLengthBytes { get; }
-        Core.ICheckValueGenerator CreateMACGenerator(byte[] signingKey);
+        ICheckValueGenerator CreateMACGenerator(byte[] signingKey);
 
         Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
         Stream CreateDecryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
@@ -140,7 +140,7 @@ namespace Backup
         int SigningKeyLengthBytes { get; }
 
         int MACLengthBytes { get; }
-        Core.ICheckValueGenerator CreateMACGenerator(byte[] signingKey);
+        ICheckValueGenerator CreateMACGenerator(byte[] signingKey);
 
         void Test();
     }
@@ -220,7 +220,7 @@ namespace Backup
 
         public int MACLengthBytes { get { return auth.MACLengthBytes; } }
 
-        public Core.ICheckValueGenerator CreateMACGenerator(byte[] signingKey)
+        public ICheckValueGenerator CreateMACGenerator(byte[] signingKey)
         {
             return auth.CreateMACGenerator(signingKey);
         }
@@ -1854,7 +1854,7 @@ namespace Backup
     // Generic cryptographic hash check value generator.
     // Using a caller-provided implementation of HashAlgorithm, it will compute
     // the hash of the total stream seen through ProcessBlock.
-    public class CryptoPrimitiveHashCheckValueGenerator : Core.ICheckValueGenerator, IDisposable
+    public class CryptoPrimitiveHashCheckValueGenerator : ICheckValueGenerator, IDisposable
     {
         private HashAlgorithm hash;
         private int checkValueLength;
@@ -1925,7 +1925,7 @@ namespace Backup
 
         public int MACLengthBytes { get { return 256 / 8; /* HMAC-SHA-256 */ } }
 
-        public Core.ICheckValueGenerator CreateMACGenerator(byte[] signingKey)
+        public ICheckValueGenerator CreateMACGenerator(byte[] signingKey)
         {
             return new CryptoPrimitiveHMACSHA256CheckValueGenerator(signingKey);
         }
@@ -2013,7 +2013,7 @@ namespace Backup
 
         public int MACLengthBytes { get { return 1024 / 8; /* HMAC-Skein-1024 */ } }
 
-        public Core.ICheckValueGenerator CreateMACGenerator(byte[] signingKey)
+        public ICheckValueGenerator CreateMACGenerator(byte[] signingKey)
         {
             return new CryptoPrimitiveHMACSkein1024CheckValueGenerator(signingKey);
         }
@@ -2053,7 +2053,7 @@ namespace Backup
     // http://en.wikipedia.org/wiki/HMAC
     // http://csrc.nist.gov/publications/fips/fips198-1/FIPS-198-1_final.pdf
     // http://www.ietf.org/rfc/rfc2104.txt
-    public class CryptoPrimitiveHMACCheckValueGenerator : Core.ICheckValueGenerator, IDisposable
+    public class CryptoPrimitiveHMACCheckValueGenerator : ICheckValueGenerator, IDisposable
     {
         private CryptoPrimitiveHMAC hmac;
         private int checkValueLength; // permit queries after hmac is disposed
