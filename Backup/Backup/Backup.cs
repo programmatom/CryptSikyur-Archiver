@@ -3392,20 +3392,6 @@ namespace Backup
             return b.ToArray();
         }
 
-        public static bool TryHexDecode(string s, out byte[] result)
-        {
-            result = null;
-            try
-            {
-                result = HexDecode(s);
-                return true;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
         public class StringSet : ICollection<string>, IEnumerable<string>
         {
             private Dictionary<string, bool> dictionary = new Dictionary<string, bool>();
@@ -5350,7 +5336,7 @@ namespace Backup
 
             public DateTime now;
 
-            public string refreshTokenProtected;
+            public string refreshTokenProtected; // always CryptProtectMemory and HexEncode
             public bool overrideRemoteSecurityBlock;
 
             public int? explicitConcurrency;
@@ -15787,7 +15773,7 @@ namespace Backup
                         i++;
                         if (i < args.Length)
                         {
-                            context.refreshTokenProtected = args[i];
+                            context.refreshTokenProtected = args[i]; // always CryptProtectMemory and HexEncode
                         }
                         else
                         {

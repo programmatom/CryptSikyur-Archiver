@@ -137,15 +137,15 @@ namespace Backup
 
     class RemoteAccessControl : IDisposable
     {
-        private RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-
         private readonly string remoteServiceUrl;
 
         private readonly bool enableRefreshToken;
 
         private string accessToken; // null if not initialized or invalidated
-        private string refreshToken; // null if not enabled
-        private string userId;
+        // The refresh token is never used by this process but only ever handed back
+        // to RemoteDriveAuth.exe to obtain new access token. Therefore, it is always
+        // in its encrypted & encoded state in this process
+        private string refreshTokenProtected; // protected with CryptProtectMemory and hex-encoded; null if not enabled
 
         // All accesses are through critical section to prevent multiple re-authorizations
         // from occurring simultaneously if access token has expired.
@@ -155,9 +155,9 @@ namespace Backup
             throw new NotSupportedException();
         }
 
-        public RemoteAccessControl(string remoteServiceUrl, bool enableRefreshToken, string initialRefreshTokenProtected, TextWriter trace)
+        public RemoteAccessControl(string remoteServiceUrl, bool enableRefreshToken, string refreshTokenProtected, TextWriter trace)
         {
-            if (!enableRefreshToken && !String.IsNullOrEmpty(initialRefreshTokenProtected))
+            if (!enableRefreshToken && !String.IsNullOrEmpty(refreshTokenProtected))
             {
                 throw new ArgumentException();
             }
@@ -167,7 +167,7 @@ namespace Backup
                 this.remoteServiceUrl = remoteServiceUrl;
 
                 this.enableRefreshToken = enableRefreshToken;
-                this.refreshToken = UnprotectRefreshToken(initialRefreshTokenProtected);
+                this.refreshTokenProtected = refreshTokenProtected;
 
                 Authenticate(trace);
             }
@@ -178,9 +178,7 @@ namespace Backup
             lock (this)
             {
                 accessToken = null;
-                refreshToken = null;
-                userId = null;
-                rng = null;
+                refreshTokenProtected = null;
             }
         }
 
@@ -255,7 +253,7 @@ namespace Backup
             string arg0 = "-auth";
             string arg1 = "-refreshtoken";
             string arg2 = enableRefreshToken ? "yes" : "no";
-            string arg3 = enableRefreshToken && !String.IsNullOrEmpty(refreshToken) ? Core.HexEncodeASCII(refreshToken) : "\"\"";
+            string arg3 = enableRefreshToken && !String.IsNullOrEmpty(refreshTokenProtected) ? refreshTokenProtected : "\"\"";
             string arg4 = remoteServiceUrl;
             string args = String.Concat(arg0, " ", arg1, " ", arg2, " ", arg3, " ", arg4);
             int exitCode;
@@ -267,11 +265,10 @@ namespace Backup
             }
             if (trace != null)
             {
-                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/Core.Logging.ScrubSecuritySensitiveValue(refreshToken), arg4);
+                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/Core.Logging.ScrubSecuritySensitiveValue(refreshTokenProtected), arg4);
                 trace.WriteLine("exit code: {0}", exitCode);
                 trace.WriteLine("output:");
-                byte[] ignore;
-                trace.WriteLine(Core.TryHexDecode(output, out ignore) ? Core.Logging.ScrubSecuritySensitiveValue(output) : output);
+                trace.WriteLine(exitCode == 0 ? Core.Logging.ScrubSecuritySensitiveValue(output) : output);
                 trace.WriteLine();
             }
 
@@ -293,78 +290,50 @@ namespace Backup
                 throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
             }
 
-            string oldRefreshToken = refreshToken;
+            string oldRefreshTokenProtected = refreshTokenProtected;
 
-            JSONDictionary tokenJSON;
-            using (ProtectedArray<byte> decryptedOutput = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(output), ProtectedDataStorage.EphemeralScope.SameLogon))
+            // RemoteDriveAuth.exe returns as little information as is needed for the main
+            // process to do it's job. Therefore, properties such as user_id are not returned.
+
+            string[] outputParts = output.Split(new char[] { ',' });
+            if (outputParts.Length != 3)
             {
-                decryptedOutput.Reveal();
-                tokenJSON = new JSONDictionary(Encoding.ASCII.GetString(decryptedOutput.ExposeArray()));
+                throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
             }
-            string token_type, scope;
+            refreshTokenProtected = outputParts[0];
+            using (ProtectedArray<byte> accessTokenDecrypted = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(outputParts[1]), ProtectedDataStorage.EphemeralScope.SameLogon))
+            {
+                if (ProtectedArray<byte>.IsNullOrEmpty(accessTokenDecrypted))
+                {
+                    throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+                }
+                accessTokenDecrypted.Reveal();
+                accessToken = Encoding.UTF8.GetString(accessTokenDecrypted.ExposeArray());
+            }
             long expires_in;
-            if (!tokenJSON.TryGetValueAs("token_type", out token_type)
-                || !tokenJSON.TryGetValueAs("expires_in", out expires_in)
-                || !tokenJSON.TryGetValueAs("access_token", out accessToken))
+            using (ProtectedArray<byte> expiresIn = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(outputParts[2]), ProtectedDataStorage.EphemeralScope.SameLogon))
             {
-                throw new InvalidDataException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+                expiresIn.Reveal();
+                expires_in = Int64.Parse(Encoding.UTF8.GetString(expiresIn.ExposeArray()));
             }
-            tokenJSON.TryGetValueAs("scope", out scope); // not needed - in any case only returned by Microsoft, not returned by Google
-            tokenJSON.TryGetValueAs("refresh_token", out refreshToken); // may be absent (--> null)
-            tokenJSON.TryGetValueAs("user_id", out userId); // not needed
             if (trace != null)
             {
                 trace.WriteLine("Acquired tokens:");
                 trace.WriteLine("  access_token={0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
-                trace.WriteLine("  refresh_token={0}", Core.Logging.ScrubSecuritySensitiveValue(refreshToken));
-                trace.WriteLine("  user_id={0}", Core.Logging.ScrubSecuritySensitiveValue(userId));
-                trace.WriteLine("  other: token_type={0}, expires_in={1}, scope=\"{2}\"", token_type, expires_in, scope);
+                trace.WriteLine("  refresh_token={0}", Core.Logging.ScrubSecuritySensitiveValue(refreshTokenProtected));
+                trace.WriteLine("  other: expires_in={0}", expires_in);
                 trace.WriteLine();
             }
-            if (!token_type.Equals("bearer", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException("token_type");
-            }
 
-            if (refreshToken == null)
+            if (refreshTokenProtected == null)
             {
-                refreshToken = oldRefreshToken;
+                refreshTokenProtected = oldRefreshTokenProtected;
             }
 
             if (trace != null)
             {
                 trace.WriteLine("-RemoteAccessControl.Authenticate - {0}", DateTime.Now);
             }
-        }
-
-        private string ProtectRefeshToken(string refreshToken)
-        {
-            string refreshTokenProtected = null;
-
-            if (!enableRefreshToken || !String.IsNullOrEmpty(refreshToken))
-            {
-                byte[] decryptedRefreshToken = Encoding.ASCII.GetBytes(refreshToken);
-                byte[] encryptedRefreshToken = ProtectedDataStorage.EncryptEphemeral(decryptedRefreshToken, 0, decryptedRefreshToken.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
-                refreshTokenProtected = Core.HexEncode(encryptedRefreshToken);
-            }
-
-            return refreshTokenProtected;
-        }
-
-        private string UnprotectRefreshToken(string refreshTokenProtected)
-        {
-            string refreshToken = null;
-
-            if (!enableRefreshToken || !String.IsNullOrEmpty(refreshTokenProtected))
-            {
-                using (ProtectedArray<byte> refreshTokenDecrypted = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(refreshTokenProtected), ProtectedDataStorage.EphemeralScope.SameLogon))
-                {
-                    refreshTokenDecrypted.Reveal();
-                    refreshToken = Encoding.ASCII.GetString(refreshTokenDecrypted.ExposeArray());
-                }
-            }
-
-            return refreshToken;
         }
 
         private static bool Exec(string program, string arguments, string input, int? commandTimeoutSeconds, out int exitCode, out string output)

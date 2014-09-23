@@ -1095,7 +1095,7 @@ namespace RemoteDriveAuth
                 {
                     bool refreshTokenOnly = false;
                     bool enableRefreshToken = false;
-                    string refreshToken = null;
+                    ProtectedArray<byte> refreshToken = null;
                     Uri remoteService = null;
 
                     OAuth20RemoteService authService;
@@ -1131,7 +1131,7 @@ namespace RemoteDriveAuth
                     {
                         if (!args[3].Equals("-"))
                         {
-                            refreshToken = Encoding.ASCII.GetString(HexUtility.HexDecode(args[3]));
+                            refreshToken = ProtectedArray<byte>.DecryptEphemeral(HexUtility.HexDecode(args[3]), ProtectedDataStorage.EphemeralScope.SameLogon);
                         }
                     }
                     catch (Exception)
@@ -1167,9 +1167,19 @@ namespace RemoteDriveAuth
                     }
 
                     string tokensJSON;
-                    if (!String.IsNullOrEmpty(refreshToken))
+                    if (!ProtectedArray<byte>.IsNullOrEmpty(refreshToken))
                     {
-                        GetTokensByRefresh(authService, clientIdentity, refreshToken, out tokensJSON);
+                        string refreshTokenExposed; // TODO: protect this
+                        try
+                        {
+                            refreshToken.Reveal();
+                            refreshTokenExposed = Encoding.UTF8.GetString(refreshToken.ExposeArray());
+                        }
+                        finally
+                        {
+                            refreshToken.Protect();
+                        }
+                        GetTokensByRefresh(authService, clientIdentity, refreshTokenExposed, out tokensJSON);
                         if (String.IsNullOrEmpty(tokensJSON))
                         {
                             throw new ApplicationException("Unable to convert refresh token to access token");
@@ -1198,20 +1208,52 @@ namespace RemoteDriveAuth
                             throw new ApplicationException("Unable to convert authorization code to access token");
                         }
                     }
-                    string tokenGlob = tokensJSON;
 
 
+                    JSONDictionary json = new JSONDictionary(tokensJSON);
                     if (refreshTokenOnly)
                     {
-                        JSONDictionary json = new JSONDictionary(tokenGlob);
-                        json.TryGetValueAs("refresh_token", out tokenGlob);
+                        string refresh_token;
+                        if (!json.TryGetValueAs("refresh_token", out refresh_token))
+                        {
+                            throw new ApplicationException("Unable to obtain refresh token");
+                        }
+
+                        byte[] refreshTokenBytes = Encoding.ASCII.GetBytes(refresh_token);
+                        byte[] refreshTokenBytesEncrypted = ProtectedDataStorage.EncryptEphemeral(refreshTokenBytes, 0, refreshTokenBytes.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+
+                        Console.WriteLine(
+                            "{0}",
+                            HexUtility.HexEncode(refreshTokenBytesEncrypted));
                     }
+                    else
+                    {
+                        // TODO: protect these:
 
+                        string refresh_token;
+                        json.TryGetValueAs("refresh_token", out refresh_token);
+                        string access_token;
+                        json.TryGetValueAs("access_token", out access_token);
+                        long expires_in;
+                        json.TryGetValueAs("expires_in", out expires_in);
 
-                    byte[] tokensBytes = Encoding.ASCII.GetBytes(tokenGlob);
-                    byte[] tokensBytesEncrypted = ProtectedDataStorage.EncryptEphemeral(tokensBytes, 0, tokensBytes.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+                        // invoking process validates existence or absense of any of the above
 
-                    Console.WriteLine(HexUtility.HexEncode(tokensBytesEncrypted));
+                        byte[] refreshTokenBytes = Encoding.ASCII.GetBytes(refresh_token != null ? refresh_token : String.Empty);
+                        byte[] refreshTokenBytesEncrypted = ProtectedDataStorage.EncryptEphemeral(refreshTokenBytes, 0, refreshTokenBytes.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+
+                        byte[] accessTokenBytes = Encoding.ASCII.GetBytes(access_token != null ? access_token : String.Empty);
+                        byte[] accessTokenBytesEncrypted = ProtectedDataStorage.EncryptEphemeral(accessTokenBytes, 0, accessTokenBytes.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+
+                        byte[] expiresInBytes = Encoding.ASCII.GetBytes(expires_in.ToString());
+                        byte[] expiresInBytesEncrypted = ProtectedDataStorage.EncryptEphemeral(expiresInBytes, 0, expiresInBytes.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+
+                        Console.WriteLine(
+                            "{0},{1},{2}",
+                            HexUtility.HexEncode(refreshTokenBytesEncrypted),
+                            HexUtility.HexEncode(accessTokenBytesEncrypted),
+                            HexUtility.HexEncode(expiresInBytesEncrypted));
+                    }
                 }
 
                 Environment.ExitCode = 0;
