@@ -220,7 +220,7 @@ namespace RemoteDriveAuth
                     {
                         string[] parts = line.Split(new char[] { ';' });
                         ClientIdentity identity = new ClientIdentity(HexUtility.HexDecode(parts[1]), HexUtility.HexDecode(parts[0]));
-                        identities.Add(identity.ServiceUri.ToString(), identity);
+                        identities.Add(identity.ServiceUri.Host, identity);
                     }
                 }
             }
@@ -246,21 +246,21 @@ namespace RemoteDriveAuth
         public ClientIdentity GetClientIdentity(Uri serviceUri)
         {
             ClientIdentity identity;
-            identities.TryGetValue(serviceUri.ToString(), out identity);
+            identities.TryGetValue(serviceUri.Host, out identity);
             return identity;
         }
 
         public void Memorize(ClientIdentity identity)
         {
-            identities[identity.ServiceUri.ToString()] = identity; // overwrite any existing
+            identities[identity.ServiceUri.Host] = identity; // overwrite any existing
         }
 
         public void Forget(Uri serviceUri)
         {
-            string serviceUrl = serviceUri.ToString();
-            if (identities.ContainsKey(serviceUrl))
+            string host = serviceUri.Host;
+            if (identities.ContainsKey(host))
             {
-                identities.Remove(serviceUrl);
+                identities.Remove(host);
             }
         }
 
@@ -892,17 +892,17 @@ namespace RemoteDriveAuth
         const string LocalApplicationDirectoryName = "Backup-RemoteDriveAuth";
         static string GetLocalAppDataPath(bool create, bool roaming)
         {
-            string localAppDataPath = Environment.GetEnvironmentVariable(roaming ? "APPDATA" : "LOCALAPPDATA");
-            if (localAppDataPath == null)
+            string applicationDataPath = Environment.GetEnvironmentVariable(roaming ? "APPDATA" : "LOCALAPPDATA");
+            if (applicationDataPath == null)
             {
-                localAppDataPath = Environment.ExpandEnvironmentVariables("%USERPROFILE%\\Application Data"); // Windows XP fallback
+                applicationDataPath = Environment.ExpandEnvironmentVariables("%USERPROFILE%\\Application Data"); // Windows XP fallback
             }
-            localAppDataPath = Path.Combine(localAppDataPath, LocalApplicationDirectoryName);
-            if (create && !Directory.Exists(localAppDataPath))
+            applicationDataPath = Path.Combine(applicationDataPath, LocalApplicationDirectoryName);
+            if (create && !Directory.Exists(applicationDataPath))
             {
-                Directory.CreateDirectory(localAppDataPath);
+                Directory.CreateDirectory(applicationDataPath);
             }
-            return localAppDataPath;
+            return applicationDataPath;
         }
 
         [STAThread]
@@ -1199,6 +1199,11 @@ namespace RemoteDriveAuth
                             HexUtility.HexEncode(expiresInBytesEncrypted));
                     }
                 }
+                else
+                {
+                    throw new ArgumentException("Invalid program arguments");
+                }
+
 
                 Environment.ExitCode = 0;
             }
