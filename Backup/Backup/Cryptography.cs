@@ -439,12 +439,12 @@ namespace Backup
 
             internal HKDFTestVector(string ikm, string salt, string info, int l, string prk, string okm)
             {
-                this.ikm = Core.HexDecode(ikm);
-                this.salt = salt != null ? Core.HexDecode(salt) : null;
-                this.info = info != null ? Core.HexDecode(info) : null;
+                this.ikm = HexUtility.HexDecode(ikm);
+                this.salt = salt != null ? HexUtility.HexDecode(salt) : null;
+                this.info = info != null ? HexUtility.HexDecode(info) : null;
                 this.l = l;
-                this.prk = Core.HexDecode(prk);
-                this.okm = Core.HexDecode(okm);
+                this.prk = HexUtility.HexDecode(prk);
+                this.okm = HexUtility.HexDecode(okm);
             }
         }
 
@@ -833,9 +833,9 @@ namespace Backup
 
             internal KeyedHashTestVector(string key, string data, string digest)
             {
-                this.key = Core.HexDecode(key);
-                this.data = Core.HexDecode(data);
-                this.digest = Core.HexDecode(digest);
+                this.key = HexUtility.HexDecode(key);
+                this.data = HexUtility.HexDecode(data);
+                this.digest = HexUtility.HexDecode(digest);
             }
         }
 
@@ -855,8 +855,8 @@ namespace Backup
         private readonly static KeyedHashTestVector[] TestVectorsMD5 = new KeyedHashTestVector[]
             {
                 // RFC 2104 appendix "Test Vectors"
-                new KeyedHashTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", Core.HexEncodeASCII("Hi There"), "9294727a3638bb1c13f48ef8158bfc9d"),
-                new KeyedHashTestVector(Core.HexEncodeASCII("Jefe"), Core.HexEncodeASCII("what do ya want for nothing?"), "750c783e6ab0b503eaa86e310a5db738"),
+                new KeyedHashTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", HexUtility.HexEncodeASCII("Hi There"), "9294727a3638bb1c13f48ef8158bfc9d"),
+                new KeyedHashTestVector(HexUtility.HexEncodeASCII("Jefe"), HexUtility.HexEncodeASCII("what do ya want for nothing?"), "750c783e6ab0b503eaa86e310a5db738"),
                 new KeyedHashTestVector("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "56be34521d144c88dbb8c733f0e8b3f6"),
             };
 
@@ -1151,10 +1151,10 @@ namespace Backup
 
             internal CipherTestVector(string key, string iv, string plainText, string cipherText)
             {
-                this.key = Core.HexDecode(key);
-                this.iv = Core.HexDecode(iv);
-                this.plainText = Core.HexDecode(plainText);
-                this.cipherText = Core.HexDecode(cipherText);
+                this.key = HexUtility.HexDecode(key);
+                this.iv = HexUtility.HexDecode(iv);
+                this.plainText = HexUtility.HexDecode(plainText);
+                this.cipherText = HexUtility.HexDecode(cipherText);
             }
         }
 
@@ -1283,12 +1283,12 @@ namespace Backup
 
             internal CipherTestVector(string key, string iv, string plainText, string cipherText, string cipherText100, string cipherText1000)
             {
-                this.key = Core.HexDecode(key);
-                this.iv = iv != null ? Core.HexDecode(iv) : null;
-                this.plainText = Core.HexDecode(plainText);
-                this.cipherText = Core.HexDecode(cipherText);
-                this.cipherText100 = cipherText100 != null ? Core.HexDecode(cipherText100) : null;
-                this.cipherText1000 = cipherText1000 != null ? Core.HexDecode(cipherText1000) : null;
+                this.key = HexUtility.HexDecode(key);
+                this.iv = iv != null ? HexUtility.HexDecode(iv) : null;
+                this.plainText = HexUtility.HexDecode(plainText);
+                this.cipherText = HexUtility.HexDecode(cipherText);
+                this.cipherText100 = cipherText100 != null ? HexUtility.HexDecode(cipherText100) : null;
+                this.cipherText1000 = cipherText1000 != null ? HexUtility.HexDecode(cipherText1000) : null;
             }
 
             internal CipherTestVector(string key, string iv, string plainText, string cipherText)
@@ -1959,9 +1959,9 @@ namespace Backup
 
             internal TestVector(string key, string message, string mac)
             {
-                this.key = Core.HexDecode(key);
-                this.message = Core.HexDecode(message);
-                this.mac = Core.HexDecode(mac);
+                this.key = HexUtility.HexDecode(key);
+                this.message = HexUtility.HexDecode(message);
+                this.mac = HexUtility.HexDecode(mac);
             }
         }
 

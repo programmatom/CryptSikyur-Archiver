@@ -37,6 +37,7 @@
     <Compile Include="Concurrency.cs" />
     <Compile Include="Cryptography.cs" />
     <Compile Include="Diagnostics.cs" />
+    <Compile Include="HexUtility.cs" />
     <Compile Include="IArchiveFileManager.cs" />
     <Compile Include="Backup.cs" />
     <Compile Include="ParseJSON.cs" />

@@ -36,6 +36,7 @@
   <ItemGroup>
     <Compile Include="..\Backup\ProtectedDataStorage.cs" />
     <Compile Include="..\Backup\ParseJSON.cs" />
+    <Compile Include="..\Backup\HexUtility.cs" />
     <Compile Include="RemoteDriveAuth.cs">
       <SubType>Form</SubType>
     </Compile>

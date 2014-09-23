@@ -67,7 +67,7 @@ namespace Backup
             if (value != null)
             {
                 SHA1 sha1 = SHA1.Create();
-                hashText = String.Format("length={0} sha1={1}", value.Length, Core.HexEncode(sha1.ComputeHash(value)));
+                hashText = String.Format("length={0} sha1={1}", value.Length, HexUtility.HexEncode(sha1.ComputeHash(value)));
             }
             else
             {

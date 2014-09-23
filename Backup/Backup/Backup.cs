@@ -447,61 +447,6 @@ namespace Backup
         //
         ////////////////////////////////////////////////////////////////////////////
 
-        private const string Hex = "0123456789abcdef";
-
-        public static string HexEncode(byte[] data)
-        {
-            StringBuilder encoded = new StringBuilder(data.Length * 2);
-            foreach (byte b in data)
-            {
-                encoded.Append(Hex[(b >> 4) & 0x0f]);
-                encoded.Append(Hex[b & 0x0f]);
-            }
-            return encoded.ToString();
-        }
-
-        public static string HexEncodeASCII(string s)
-        {
-            byte[] b = Encoding.ASCII.GetBytes(s);
-            return HexEncode(b);
-        }
-
-        public static byte[] HexDecode(string s)
-        {
-            List<byte> b = new List<byte>(s.Length / 2);
-            byte? l = null;
-            foreach (char c in s.ToLowerInvariant())
-            {
-                byte v;
-                if ((c >= '0') && (c <= '9'))
-                {
-                    v = (byte)(c - '0');
-                }
-                else if ((c >= 'a') && (c <= 'f'))
-                {
-                    v = (byte)(c - 'a' + 10);
-                }
-                else
-                {
-                    throw new InvalidDataException();
-                }
-                if (l.HasValue)
-                {
-                    b.Add((byte)((l.Value << 4) | v));
-                    l = null;
-                }
-                else
-                {
-                    l = v;
-                }
-            }
-            if (l.HasValue)
-            {
-                throw new InvalidDataException();
-            }
-            return b.ToArray();
-        }
-
         public class StringSet : ICollection<string>, IEnumerable<string>
         {
             private Dictionary<string, bool> dictionary = new Dictionary<string, bool>();
@@ -930,7 +875,7 @@ namespace Backup
                     i++;
                     if (i < args.Length)
                     {
-                        password = ProtectedArray<byte>.DecryptEphemeral(HexDecode(args[i]), ProtectedDataStorage.EphemeralScope.SameLogon);
+                        password = ProtectedArray<byte>.DecryptEphemeral(HexUtility.HexDecode(args[i]), ProtectedDataStorage.EphemeralScope.SameLogon);
                     }
                     else
                     {
@@ -6047,7 +5992,7 @@ namespace Backup
             {
                 using (TextWriter writer = new StreamWriter(destinationStreamHash))
                 {
-                    string hashText = HexEncode(hash);
+                    string hashText = HexUtility.HexEncode(hash);
                     writer.WriteLine(hashText);
                     Console.WriteLine("SHA256={0}", hashText);
                 }
@@ -6115,7 +6060,7 @@ namespace Backup
                 }
             }
 
-            string sha256HashText = HexEncode(hash);
+            string sha256HashText = HexUtility.HexEncode(hash);
             Console.WriteLine("SHA256={0}", sha256HashText);
             hashValid = sha256HashText.Equals(sha256OriginalHashText, StringComparison.OrdinalIgnoreCase);
             Console.WriteLine(hashValid
@@ -8178,7 +8123,7 @@ namespace Backup
                     four[1] = (byte)(diagnosticSerialNumber >> 16);
                     four[2] = (byte)(diagnosticSerialNumber >> 8);
                     four[3] = (byte)diagnosticSerialNumber;
-                    return String.Concat("seg0x", HexEncode(four));
+                    return String.Concat("seg0x", HexUtility.HexEncode(four));
                 }
             }
         }
@@ -8294,7 +8239,7 @@ namespace Backup
                     four[1] = (byte)(diagnosticSerialNumber >> 16);
                     four[2] = (byte)(diagnosticSerialNumber >> 8);
                     four[3] = (byte)diagnosticSerialNumber;
-                    return String.Concat("file0x", HexEncode(four));
+                    return String.Concat("file0x", HexUtility.HexEncode(four));
                 }
             }
         }
@@ -11150,7 +11095,7 @@ namespace Backup
                         line = reader.ReadLine();
                         if (line != null)
                         {
-                            journalRandomArchiveSignatureDigest = HexDecode(line);
+                            journalRandomArchiveSignatureDigest = HexUtility.HexDecode(line);
                         }
 
                         line = reader.ReadLine();
@@ -11377,7 +11322,7 @@ namespace Backup
                 {
                     if (journalWriter != null)
                     {
-                        journalWriter.WriteLine(HexEncode(randomArchiveSignatureDigest));
+                        journalWriter.WriteLine(HexUtility.HexEncode(randomArchiveSignatureDigest));
                         journalWriter.WriteLine(manifestSerialNumber);
                         foreach (KeyValuePair<string, DynUnpackJournalEntry> journalEntry in journal)
                         {

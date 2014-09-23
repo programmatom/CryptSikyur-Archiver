@@ -262,7 +262,7 @@ namespace Backup
                 throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
             }
             refreshTokenProtected = outputParts[0];
-            using (ProtectedArray<byte> accessTokenDecrypted = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(outputParts[1]), ProtectedDataStorage.EphemeralScope.SameLogon))
+            using (ProtectedArray<byte> accessTokenDecrypted = ProtectedArray<byte>.DecryptEphemeral(HexUtility.HexDecode(outputParts[1]), ProtectedDataStorage.EphemeralScope.SameLogon))
             {
                 if (ProtectedArray<byte>.IsNullOrEmpty(accessTokenDecrypted))
                 {
@@ -272,7 +272,7 @@ namespace Backup
                 accessToken = Encoding.UTF8.GetString(accessTokenDecrypted.ExposeArray());
             }
             long expires_in;
-            using (ProtectedArray<byte> expiresIn = ProtectedArray<byte>.DecryptEphemeral(Core.HexDecode(outputParts[2]), ProtectedDataStorage.EphemeralScope.SameLogon))
+            using (ProtectedArray<byte> expiresIn = ProtectedArray<byte>.DecryptEphemeral(HexUtility.HexDecode(outputParts[2]), ProtectedDataStorage.EphemeralScope.SameLogon))
             {
                 expiresIn.Reveal();
                 expires_in = Int64.Parse(Encoding.UTF8.GetString(expiresIn.ExposeArray()));
@@ -3308,9 +3308,9 @@ namespace Backup
                 streamUploadFrom.Position = 0;
                 HashAlgorithm md5 = MD5.Create();
                 byte[] md5ChecksumLocal = md5.ComputeHash(streamUploadFrom);
-                if (!Core.ArrayEqual(md5ChecksumLocal, Core.HexDecode(md5Checksum)))
+                if (!Core.ArrayEqual(md5ChecksumLocal, HexUtility.HexDecode(md5Checksum)))
                 {
-                    string error = String.Format("UploadFile md5 checksum does not match (name={0}, remote={1}, local={1})", remoteName, md5Checksum, Core.HexEncode(md5ChecksumLocal));
+                    string error = String.Format("UploadFile md5 checksum does not match (name={0}, remote={1}, local={1})", remoteName, md5Checksum, HexUtility.HexEncode(md5ChecksumLocal));
                     if (trace != null)
                     {
                         trace.WriteLine("-UploadFile throw {0}", error);
