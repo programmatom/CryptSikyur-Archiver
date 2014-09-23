@@ -11,6 +11,8 @@
     <AssemblyName>Backup</AssemblyName>
     <TargetZone>LocalIntranet</TargetZone>
     <GenerateManifests>true</GenerateManifests>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>Keyfile.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -74,6 +76,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Documentation.rtf" />
+    <None Include="Keyfile.snk" />
     <None Include="Security Analysis.rtf" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
