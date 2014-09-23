@@ -42,45 +42,6 @@ namespace Backup
 {
     ////////////////////////////////////////////////////////////////////////////
     //
-    // Debug Logging
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    class Logging
-    {
-        public static int StreamLoggingLengthLimit = Int32.MaxValue;
-        public const string TraceFilePrefix = "remotestoragetrace";
-
-        public static string ToString(Stream stream)
-        {
-            return ToString(stream, false/*omitContent*/);
-        }
-
-        public static string ToString(Stream stream, bool omitContent)
-        {
-            StringBuilder sb = new StringBuilder();
-            if (stream == null)
-            {
-                sb.Append("null");
-            }
-            else
-            {
-                sb.AppendFormat("{0}(", typeof(Stream).Name);
-                sb.AppendFormat("len={0}, pos={1}", stream.Length, stream.Position);
-                if (!omitContent && (stream is MemoryStream))
-                {
-                    sb.Append(", content=");
-                    sb.Append(Encoding.ASCII.GetString(((MemoryStream)stream).ToArray(), 0, Math.Min((int)stream.Length, StreamLoggingLengthLimit)).Replace("\r", " ").Replace("\n", " "));
-                }
-                sb.Append(")");
-            }
-            return sb.ToString();
-        }
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
     // Utilities
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -198,7 +159,7 @@ namespace Backup
 
                 if (trace != null)
                 {
-                    trace.WriteLine("-RemoteAccessControl.GetAccessToken returns {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                    trace.WriteLine("-RemoteAccessControl.GetAccessToken returns {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
                 }
                 return accessToken;
             }
@@ -210,7 +171,7 @@ namespace Backup
             {
                 if (trace != null)
                 {
-                    trace.WriteLine("+RemoteAccessControl.InvalidateOldAccessToken: {0}", Core.Logging.ScrubSecuritySensitiveValue(callerAccessToken));
+                    trace.WriteLine("+RemoteAccessControl.InvalidateOldAccessToken: {0}", Logging.ScrubSecuritySensitiveValue(callerAccessToken));
                 }
 
                 if (String.Equals(callerAccessToken, accessToken))
@@ -226,7 +187,7 @@ namespace Backup
                 {
                     if (trace != null)
                     {
-                        trace.WriteLine(" doing nothing - not the current token {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                        trace.WriteLine(" doing nothing - not the current token {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
                     }
                 }
 
@@ -265,10 +226,10 @@ namespace Backup
             }
             if (trace != null)
             {
-                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/Core.Logging.ScrubSecuritySensitiveValue(refreshTokenProtected), arg4);
+                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/Logging.ScrubSecuritySensitiveValue(refreshTokenProtected), arg4);
                 trace.WriteLine("exit code: {0}", exitCode);
                 trace.WriteLine("output:");
-                trace.WriteLine(exitCode == 0 ? Core.Logging.ScrubSecuritySensitiveValue(output) : output);
+                trace.WriteLine(exitCode == 0 ? Logging.ScrubSecuritySensitiveValue(output) : output);
                 trace.WriteLine();
             }
 
@@ -319,8 +280,8 @@ namespace Backup
             if (trace != null)
             {
                 trace.WriteLine("Acquired tokens:");
-                trace.WriteLine("  access_token={0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
-                trace.WriteLine("  refresh_token={0}", Core.Logging.ScrubSecuritySensitiveValue(refreshTokenProtected));
+                trace.WriteLine("  access_token={0}", Logging.ScrubSecuritySensitiveValue(accessToken));
+                trace.WriteLine("  refresh_token={0}", Logging.ScrubSecuritySensitiveValue(refreshTokenProtected));
                 trace.WriteLine("  other: expires_in={0}", expires_in);
                 trace.WriteLine();
             }
@@ -828,7 +789,7 @@ namespace Backup
                         traceValue1 = traceValue2.Substring(0, BearerPrefix.Length);
                         traceValue2 = traceValue2.Substring(BearerPrefix.Length);
                     }
-                    traceValue2 = Core.Logging.ScrubSecuritySensitiveValue(traceValue2.Trim());
+                    traceValue2 = Logging.ScrubSecuritySensitiveValue(traceValue2.Trim());
                 }
                 trace.WriteLine("  {0}: {1}{2}", key, traceValue1, traceValue2);
             }
@@ -1245,7 +1206,7 @@ namespace Backup
                 accessToken = remoteAccessControl.GetAccessToken(trace);
                 if (trace != null)
                 {
-                    trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                    trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
                 }
             }
             else
@@ -1253,7 +1214,7 @@ namespace Backup
                 accessToken = accessTokenOverride;
                 if (trace != null)
                 {
-                    trace.WriteLine("Acquiring access token (using same token for all requests): {0}", Core.Logging.ScrubSecuritySensitiveValue(accessToken));
+                    trace.WriteLine("Acquiring access token (using same token for all requests): {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
                 }
             }
 
@@ -2983,7 +2944,7 @@ namespace Backup
             accessTokenOverride = remoteAccessControl.GetAccessToken(trace);
             if (trace != null)
             {
-                trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Core.Logging.ScrubSecuritySensitiveValue(accessTokenOverride));
+                trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Logging.ScrubSecuritySensitiveValue(accessTokenOverride));
             }
 
             streamUploadFrom.Position = 0;
@@ -3646,11 +3607,13 @@ namespace Backup
             new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace) { return new GoogleDriveWebMethods(remoteAccessControl, trace); }),
         };
 
+        private const string TraceFilePrefix = "remotestoragetrace";
+
         public RemoteArchiveFileManager(string serviceUrl, string remoteDirectory, string refreshTokenProtected, Core.Context context)
         {
             if (context.traceEnabled)
             {
-                masterTrace = Core.Logging.CreateLogFile(Logging.TraceFilePrefix);
+                masterTrace = Logging.CreateLogFile(TraceFilePrefix);
             }
 
             try

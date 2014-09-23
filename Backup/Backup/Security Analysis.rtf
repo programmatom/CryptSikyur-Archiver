@@ -334,6 +334,10 @@ The program as written makes no attempt to scrub or protect memory used to store
 \par
 On a typical individual user machine, these attacks are not considered substantial, due to generally wide-ranging damage an attacker can do if the local machine is compromised. The tool was not intended for use in online server applications, but if it is nonetheless put to use in such a scenario, these attack vectors could potentially be more destructive.\par
 \par
+\i TODO: some memory screening/scrubbing has been implemented. Describe extent and limitation:\par
+- archive password and master key\par
+- refresh token (and problems with http request/response buffers)\i0\par
+\par
 \b VII-2. Code Quality\b0\par
 \par
 The following code quality issues have been identified:\par
@@ -417,11 +421,11 @@ The following risks apply to the handling of the refresh token:\par
 \par
 \b VIII-4. Transfer and Persistence of Archive Passphrase using UI Authentication Scripting Utility\par
 \b0\par
-TODO\par
+\i TODO: write this section\i0\par
 \par
 \b VIII-5. Handling of Client Secret in OAuth2.0 Authentication Module\par
 \b0\par
-TODO\par
+\i TODO: write this section\i0\par
 \par
 \par
 \b IX. Summary\b0\par

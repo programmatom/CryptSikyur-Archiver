@@ -1166,6 +1166,15 @@ namespace RemoteDriveAuth
                         clientIdentity = authService.GetDefaultClientIdentity();
                     }
 
+                    // In the code below it is very difficult to ensure that memory is scrubbed or
+                    // protected (to prevent page/hibernation leaks) regarding the refresh token.
+                    // In addition to the complexities of implementing secure JSON parsing,
+                    // System.Net.HttpWebRequest does not make any provision and leaves copies of
+                    // plaintext all over the heap.
+                    //
+                    // The problem is somewhat mitigated by the very short lifetime of the
+                    // RemoteDriveAuth.exe process instance.
+
                     string tokensJSON;
                     if (!ProtectedArray<byte>.IsNullOrEmpty(refreshToken))
                     {
