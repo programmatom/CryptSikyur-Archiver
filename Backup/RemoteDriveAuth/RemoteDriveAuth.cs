@@ -588,6 +588,8 @@ namespace RemoteDriveAuth
             this.Width = DefaultWidth;
             this.Height = DefaultHeight;
 
+            this.Icon = RemoteDriveAuth.Properties.Resources.Icon1;
+
             webBrowser1 = new WebBrowser();
 
             menuStrip1 = new MenuStrip();
@@ -752,6 +754,9 @@ namespace RemoteDriveAuth
 
         private void InitializeForm()
         {
+            this.Icon = RemoteDriveAuth.Properties.Resources.Icon1;
+
+
             this.passwordLabel = new Label();
             this.passwordTextBox = new TextBox();
             this.acceptButton = new Button();
@@ -1064,7 +1069,7 @@ namespace RemoteDriveAuth
 
                     try
                     {
-                        if (!args[3].Equals("-"))
+                        if (!args[3].Equals("-") && !String.IsNullOrEmpty(args[3]))
                         {
                             refreshToken = ProtectedArray<byte>.DecryptEphemeral(HexUtility.HexDecode(args[3]), ProtectedDataStorage.EphemeralScope.SameLogon);
                         }

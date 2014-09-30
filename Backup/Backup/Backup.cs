@@ -7200,7 +7200,8 @@ namespace Backup
         {
             const int WaitInterval = 2000; // milliseconds
             const string DynPackDiagnosticDateTimeFormat = "yyyy-MM-ddTHH:mm:ss";
-            const int SegmentFixedOverhead = (256 / 8/*SHA256 length*/) + PackedFileHeaderRecord.HeaderTokenLength;
+            const int SegmentFixedOverhead = (1 + PackRandomSignatureLengthBytes) + (1 + 256 / 8/*password salt*/) + (1 + 256 / 8/*per-file salt*/) + (1 + 256 / 8/*SHA256 length*/) + PackedFileHeaderRecord.HeaderTokenLength;
+            const int MinimumSegmentSize = 4096;
 
             FaultInstanceNode faultDynamicPack = context.faultInjectionRoot.Select("DynamicPack");
 
@@ -7266,6 +7267,11 @@ namespace Backup
             GetExclusionArguments(args, out excludedExtensions, false/*relative*/, out excludedItems);
 
             if (!Directory.Exists(source))
+            {
+                throw new UsageException();
+            }
+
+            if (segmentSizeTarget < MinimumSegmentSize)
             {
                 throw new UsageException();
             }
@@ -10599,7 +10605,7 @@ namespace Backup
 
             using (fileManager)
             {
-                using (ConcurrentMessageLog messagesLog = new ConcurrentMessageLog(Interactive(), true/*enableSequencing*/))
+                using (ConcurrentMessageLog messagesLog = new ConcurrentMessageLog(Interactive(), false/*enableSequencing*/))
                 {
                     using (ConcurrentTasks concurrent = new ConcurrentTasks(context.explicitConcurrency.HasValue ? context.explicitConcurrency.Value : Constants.ConcurrencyForNetworkBound, 0, messagesLog, fileManager.GetMasterTrace()))
                     {
@@ -10723,17 +10729,20 @@ namespace Backup
                                                 String.Empty,
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
                                                     {
-                                                        try
+                                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
-                                                            messages.WriteLine("delete {0}", name);
-                                                            fileManager.Delete(name, fileManager.GetMasterTrace());
-                                                        }
-                                                        catch (Exception exception)
-                                                        {
-                                                            Interlocked.Exchange(ref fatal, 1);
-                                                            messages.WriteLine("Exception: {0}", exception);
+                                                            try
+                                                            {
+                                                                messages.WriteLine("delete {0}", name);
+                                                                fileManager.Delete(name, threadTrace);
+                                                            }
+                                                            catch (Exception exception)
+                                                            {
+                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                messages.WriteLine("Exception: {0}", exception);
+                                                            }
                                                         }
                                                     }
                                                 });
@@ -10795,16 +10804,20 @@ namespace Backup
                                                 "rename",
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
                                                     {
-                                                        try
+                                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
-                                                            fileManager.Rename(oldNames[i], newNames[i], fileManager.GetMasterTrace());
-                                                        }
-                                                        catch (Exception exception)
-                                                        {
-                                                            Interlocked.Exchange(ref fatal, 1);
-                                                            messages.WriteLine("Exception: {0}", exception);
+                                                            try
+                                                            {
+                                                                messages.WriteLine("rename {0} to {1}", oldNames[i], newNames[i]);
+                                                                fileManager.Rename(oldNames[i], newNames[i], threadTrace);
+                                                            }
+                                                            catch (Exception exception)
+                                                            {
+                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                messages.WriteLine("Exception: {0}", exception);
+                                                            }
                                                         }
                                                     }
                                                 });
@@ -10893,34 +10906,37 @@ namespace Backup
                                                 "upload",
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
                                                     {
-                                                        try
+                                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
-                                                            messages.WriteLine("upload {0}", name);
-                                                            Random rnd = new Random();
-                                                            string nameTemp = null;
-                                                            ILocalFileCopy fileRef = null;
-                                                            while (fileRef == null)
+                                                            try
                                                             {
-                                                                nameTemp = rnd.Next().ToString();
-                                                                try
+                                                                messages.WriteLine("upload {0}", name);
+                                                                Random rnd = new Random();
+                                                                string nameTemp = null;
+                                                                ILocalFileCopy fileRef = null;
+                                                                while (fileRef == null)
                                                                 {
-                                                                    fileRef = fileManager.GetTempExisting(Path.Combine(directory, name), nameTemp, fileManager.GetMasterTrace());
+                                                                    nameTemp = rnd.Next().ToString();
+                                                                    try
+                                                                    {
+                                                                        fileRef = fileManager.GetTempExisting(Path.Combine(directory, name), nameTemp, threadTrace);
+                                                                    }
+                                                                    catch (Exception)
+                                                                    {
+                                                                    }
                                                                 }
-                                                                catch (Exception)
+                                                                using (fileRef)
                                                                 {
+                                                                    fileManager.Commit(fileRef, nameTemp, name, true/*overwrite*/, null/*progressTracker*/, threadTrace);
                                                                 }
                                                             }
-                                                            using (fileRef)
+                                                            catch (Exception exception)
                                                             {
-                                                                fileManager.Commit(fileRef, nameTemp, name, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
+                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                messages.WriteLine("Exception: {0}", exception);
                                                             }
-                                                        }
-                                                        catch (Exception exception)
-                                                        {
-                                                            Interlocked.Exchange(ref fatal, 1);
-                                                            messages.WriteLine("Exception: {0}", exception);
                                                         }
                                                     }
                                                 });
@@ -10996,23 +11012,26 @@ namespace Backup
                                                 "download",
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
+                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
                                                     {
-                                                        try
+                                                        using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
-                                                            messages.WriteLine("download {0}", name);
-                                                            string localFileToSaveInto = Path.Combine(directory, name);
-                                                            using (ILocalFileCopy fileRef = fileManager.Read(name, null/*progressTracker*/, fileManager.GetMasterTrace()))
+                                                            try
                                                             {
-                                                                fileRef.CopyLocal(localFileToSaveInto, true/*overwrite*/);
+                                                                messages.WriteLine("download {0}", name);
+                                                                string localFileToSaveInto = Path.Combine(directory, name);
+                                                                using (ILocalFileCopy fileRef = fileManager.Read(name, null/*progressTracker*/, threadTrace))
+                                                                {
+                                                                    fileRef.CopyLocal(localFileToSaveInto, true/*overwrite*/);
+                                                                }
+                                                                File.SetCreationTime(localFileToSaveInto, context.now);
+                                                                File.SetLastWriteTime(localFileToSaveInto, context.now);
                                                             }
-                                                            File.SetCreationTime(localFileToSaveInto, context.now);
-                                                            File.SetLastWriteTime(localFileToSaveInto, context.now);
-                                                        }
-                                                        catch (Exception exception)
-                                                        {
-                                                            Interlocked.Exchange(ref fatal, 1);
-                                                            messages.WriteLine("Exception: {0}", exception);
+                                                            catch (Exception exception)
+                                                            {
+                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                messages.WriteLine("Exception: {0}", exception);
+                                                            }
                                                         }
                                                     }
                                                 });

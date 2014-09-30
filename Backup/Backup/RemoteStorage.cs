@@ -87,6 +87,16 @@ namespace Backup
                 Thread.Sleep(delay);
             }
         }
+
+        private const int RateLimitExceededBackoffMilliseconds = 5000;
+        public static void WaitRateLimitExceededBackoff(TextWriter trace)
+        {
+            if (trace != null)
+            {
+                trace.WriteLine("Remote API rate limit exceeded (status=403), delaying {0} msec", RateLimitExceededBackoffMilliseconds);
+            }
+            Thread.Sleep(RateLimitExceededBackoffMilliseconds); // remote API calls/second exceeded
+        }
     }
 
 
@@ -226,7 +236,7 @@ namespace Backup
             }
             if (trace != null)
             {
-                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, /*arg3*/Logging.ScrubSecuritySensitiveValue(refreshTokenProtected), arg4);
+                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, arg3.Length > 2 ? Logging.ScrubSecuritySensitiveValue(arg3) : arg3, arg4);
                 trace.WriteLine("exit code: {0}", exitCode);
                 trace.WriteLine("output:");
                 trace.WriteLine(exitCode == 0 ? Logging.ScrubSecuritySensitiveValue(output) : output);
@@ -690,6 +700,11 @@ namespace Backup
                         }
                         responseHeaders = headers.ToArray();
 
+                        if ((headers.Count > 0) && headers[0].Contains(" 204 "))
+                        {
+                            contentLength = 0; // "204 No Content" response code - do not try to read
+                        }
+
                         // only needs to be approximate
                         {
                             int approximateResponseHeadersBytes = 0;
@@ -1146,9 +1161,9 @@ namespace Backup
             {
                 throw new ArgumentException();
             }
-            if (wantsResponseBody && ((verb != "GET") && (verb != "PUT") && (verb != "PATCH")))
+            if (wantsResponseBody && ((verb != "GET") && (verb != "PUT") && (verb != "PATCH") && (verb != "DELETE")))
             {
-                throw new ArgumentException();
+                throw new ArgumentException(verb);
             }
             if (hasRequestBody && ((verb != "PUT") && (verb != "POST") && (verb != "PATCH")))
             {
@@ -1723,12 +1738,17 @@ namespace Backup
             DoWebActionOnce(url, verb, requestBodySource, responseBodyDestination, requestHeaders, responseHeadersOut, out webStatusCodeOut, out httpStatusCodeOut, progressTrackerUpload, null/*progressTrackerDownload*/, accessTokenOverride, trace);
 
             if ((webStatusCodeOut != WebExceptionStatus.Success) ||
+                ((int)httpStatusCodeOut >= 403) ||
                 (((int)httpStatusCodeOut >= 500) && ((int)httpStatusCodeOut <= 599)))
             {
                 networkErrorRetries++;
                 if (networkErrorRetries <= RetryHelper.MaxRetries)
                 {
                     RetryHelper.WaitExponentialBackoff(networkErrorRetries, trace);
+                    if ((int)httpStatusCodeOut == 403)
+                    {
+                        RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                    }
 
                     // reset state
                     if ((requestBodySource != null) && (requestBodySource.Position != requestBodySourcePosition))
@@ -1909,12 +1929,16 @@ namespace Backup
                 trace.WriteLine(" DownloadFileWithResume initial request, result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) [retry={5}]", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, retry);
             }
 
-            if (!result && ((httpStatusCode == (HttpStatusCode)404) || ((responseHeaders[0].Value == null) && (responseHeaders[1].Value == null) && (responseHeaders[2].Value == null))))
+            if (!result && ((httpStatusCode == (HttpStatusCode)403) || (httpStatusCode == (HttpStatusCode)404) || ((responseHeaders[0].Value == null) && (responseHeaders[1].Value == null) && (responseHeaders[2].Value == null))))
             {
                 retry++;
                 if (retry <= RetryHelper.MaxRetries)
                 {
                     RetryHelper.WaitExponentialBackoff(retry, trace);
+                    if ((int)httpStatusCode == 403)
+                    {
+                        RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                    }
                     goto Retry1;
                 }
             }
@@ -1949,6 +1973,10 @@ namespace Backup
                         else
                         {
                             RetryHelper.WaitExponentialBackoff(retry, trace);
+                            if ((int)httpStatusCode == 403)
+                            {
+                                RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                            }
                         }
                         previousLengthSoFar = streamDownloadInto.Length;
 
@@ -2927,6 +2955,10 @@ namespace Backup
             else
             {
                 RetryHelper.WaitExponentialBackoff(startOver, trace);
+                if ((int)httpStatusCode == 403)
+                {
+                    RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                }
             }
 
             if (httpStatusCode == (HttpStatusCode)401)
@@ -3023,6 +3055,10 @@ namespace Backup
             else
             {
                 RetryHelper.WaitExponentialBackoff(retry, trace);
+                if ((int)httpStatusCode == 403)
+                {
+                    RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                }
             }
             if (!resuming)
             {
@@ -3339,18 +3375,31 @@ namespace Backup
 
             WebExceptionStatus webStatusCode;
             HttpStatusCode httpStatusCode;
-            bool result = DoWebActionWithRetry(
-                url,
-                "DELETE",
-                null/*requestBodySource*/,
-                null/*responseBodyDestination*/,
-                null/*requestHeaders*/,
-                null/*responseHeadersOut*/,
-                out webStatusCode,
-                out httpStatusCode,
-                null/*progressTracker*/,
-                null/*accessTokenOverride*/,
-                trace);
+            bool result;
+            using (MemoryStream responseBodyDestination = new MemoryStream())
+            {
+                result = DoWebActionWithRetry(
+                    url,
+                    "DELETE",
+                    null/*requestBodySource*/,
+                    responseBodyDestination,
+                    null/*requestHeaders*/,
+                    null/*responseHeadersOut*/,
+                    out webStatusCode,
+                    out httpStatusCode,
+                    null/*progressTracker*/,
+                    null/*accessTokenOverride*/,
+                    trace);
+
+                if (trace != null)
+                {
+                    // if error occurs, sometimes a response body is provided
+                    if (responseBodyDestination.Length != 0)
+                    {
+                        trace.WriteLine(" non-empty response body: {0}", Logging.ToString(responseBodyDestination));
+                    }
+                }
+            }
             if (!result)
             {
                 if (trace != null)

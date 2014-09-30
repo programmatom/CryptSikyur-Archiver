@@ -156,6 +156,9 @@ The HMAC-Skein-1024 construction (used in the ThreeFish ciphersuite) has not bee
 The random number generator used by the tool is the default random number generator provided by the .NET Framework (minimum 2.0) which wraps the Windows CryptoAPI library, via the RNGCryptoServiceProvider class, with the default constructor. Nothing is known about this random number generator and no attempt is made to validate it's proper functioning. This could pose a risk if the system's underlying random number generator turns out to be weak (either by implementation flaw or by being weak or outdated).\par
 \par
 The risk posed by a bad system-provided random number generator could be mitigated by implementing a separate random number generator (with validation), (for example, Fortuna: https://www.schneier.com/fortuna.html), and periodically incorporating input from the system-provided random number generator into it's seed to take advantage of any real-time entropy being accumulated by the system's implementation.\par
+\par
+\i TODO: some information is available here: http://en.wikipedia.org/wiki/CryptGenRandom\par
+perform analysis and summarize details.\i0\par
 \b\par
 V-4. General Comments on Correctness\b0\par
 \par
