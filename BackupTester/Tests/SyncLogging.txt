@@ -359,6 +359,7 @@ create a\x\bytes -size 0
 create a\x\thousands -size 0
 create a\x\millions -size 0
 create a\x\specialcase -size 0
+create a\x\specialcase2 -size 0
 date + 1
 call backup -date %DATE% sync a\x a\y
 exitcode-verify 0
@@ -371,6 +372,7 @@ edit a\x\bytes -size 900
 edit a\x\thousands -size 900000
 edit a\x\millions -size 2000000
 edit a\x\specialcase -size 1038090
+edit a\x\specialcase2 -size 1023572
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
@@ -392,6 +394,9 @@ file-verify sync.log -workspacepathhack
 .%WORKSPACE%\a\x==>%WORKSPACE%\a\y "specialcase" 0.99MB, 0B [codePath=301]
 .  del          "%WORKSPACE%\a\y\specialcase"
 .  copy     to  "%WORKSPACE%\a\y\specialcase"
+.%WORKSPACE%\a\x==>%WORKSPACE%\a\y "specialcase2" 0.98MB, 0B [codePath=301]
+.  del          "%WORKSPACE%\a\y\specialcase2"
+.  copy     to  "%WORKSPACE%\a\y\specialcase2"
 .%WORKSPACE%\a\x==>%WORKSPACE%\a\y "thousands" 879KB, 0B [codePath=301]
 .  del          "%WORKSPACE%\a\y\thousands"
 .  copy     to  "%WORKSPACE%\a\y\thousands"

@@ -1199,7 +1199,8 @@ namespace RemoteDriveAuth
 
                         Console.WriteLine(
                             "{0},{1},{2}",
-                            HexUtility.HexEncode(refreshTokenBytesEncrypted),
+                            // some services do not reissue the refresh token - since the encrypted version can't be checked, to make it clear empty string is returned
+                            refreshTokenBytes.Length > 0 ? HexUtility.HexEncode(refreshTokenBytesEncrypted) : String.Empty,
                             HexUtility.HexEncode(accessTokenBytesEncrypted),
                             HexUtility.HexEncode(expiresInBytesEncrypted));
                     }

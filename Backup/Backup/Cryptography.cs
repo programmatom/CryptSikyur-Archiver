@@ -260,6 +260,7 @@ namespace Backup
     public class CryptoSystemAES128 : CryptoSystemComposable
     {
         // why not 256? see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html
+        // but for an alternate viewpoint, see http://www.daemonology.net/blog/2009-07-31-thoughts-on-AES.html
 
         public CryptoSystemAES128()
             : base(new CryptoSystemDefaultRNG(), new CryptoSystemBlockCipherAES128(), new CryptoSystemAuthenticationHMACSHA256(), new CryptoSystemKeyGenerationRfc2898Rfc5869())
@@ -307,6 +308,9 @@ namespace Backup
 
         public override string UniquePersistentCiphersuiteIdentifier { get { return "\x04"; } }
     }
+
+    // TODO: consider supporting cascaded ciphers (e.g. AES x Serpent x Twofish) for
+    // highly paranoid users.
 
     // Ferguson, Schneier, and Kohno [Cryptography Engineering, 2010, page 129]
     // are rather critical of systems that provide huge numbers of cipher suites.
@@ -880,7 +884,8 @@ namespace Backup
 
     // TODO: consider providing a more modern key derivation algorithm. RFC 2898 is susceptable
     // to hardware-accelerated attacks. One possible replacement is "scrypt", developed
-    // by Colin Percival for Tarsnap (http://www.tarsnap.com/, http://www.tarsnap.com/scrypt.html).
+    // by Colin Percival for Tarsnap (http://www.tarsnap.com/, http://www.tarsnap.com/scrypt.html,
+    // https://tools.ietf.org/html/draft-josefsson-scrypt-kdf-01).
     // However, "scrypt" has it's own concerns, in particular that it is new and has not
     // been standardized, therefore has undergone insufficient scrutiny by the security community.
 

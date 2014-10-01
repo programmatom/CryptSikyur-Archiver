@@ -271,7 +271,7 @@ namespace Backup
             {
                 throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
             }
-            refreshTokenProtected = outputParts[0];
+            refreshTokenProtected = outputParts[0].Trim();
             using (ProtectedArray<byte> accessTokenDecrypted = ProtectedArray<byte>.DecryptEphemeral(HexUtility.HexDecode(outputParts[1]), ProtectedDataStorage.EphemeralScope.SameLogon))
             {
                 if (ProtectedArray<byte>.IsNullOrEmpty(accessTokenDecrypted))
@@ -296,7 +296,7 @@ namespace Backup
                 trace.WriteLine();
             }
 
-            if (refreshTokenProtected == null)
+            if (String.IsNullOrEmpty(refreshTokenProtected))
             {
                 refreshTokenProtected = oldRefreshTokenProtected;
             }
@@ -364,6 +364,9 @@ namespace Backup
     // Google Drive Support
     //
     ////////////////////////////////////////////////////////////////////////////
+
+    // TODO: implement dropbox support: https://www.dropbox.com/developers/core/docs
+    // TODO: implement AWS support:
 
     class RemoteFileSystemEntry
     {
@@ -2493,6 +2496,10 @@ namespace Backup
             // So here we get the listing of *all* files and use the parent collections on
             // each file to construct the hierarchy. (Also, files can be put into multiple
             // folders - like hard links.)
+
+            // TODO: investigate if "query filter" can be used to make per-parent flat list
+            // requests, which would work more like conventional directory hierarchy and avoid
+            // pulling down file metadata for items not in any of the path directories.
 
             GoogleDriveFile[] files = GetRemoteFlatFilesList(trace);
 

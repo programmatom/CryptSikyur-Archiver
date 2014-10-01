@@ -426,7 +426,7 @@ namespace Backup
             double scaled = length;
             foreach (string suffix in FileSizeSuffixes)
             {
-                if (scaled < 1000)
+                if (Math.Round(scaled) < 1000)
                 {
                     return scaled.ToString(scaled >= 1 ? "G3" : "G2") + suffix;
                 }
@@ -592,13 +592,14 @@ namespace Backup
             }
         }
 
-        internal static long GetFileLengthRetriable(string path, Context context)
+        internal static long GetFileLengthRetriable(string path, Context context, TextWriter trace)
         {
             return DoRetryable<long>(
                 delegate { return GetFileLength(path); },
                 delegate { return -1; },
                 null,
-                context);
+                context,
+                trace);
         }
 
         internal static long GetFileLengthNoError(string path)
@@ -686,9 +687,26 @@ namespace Backup
             return false;
         }
 
+        private static bool IsUnableToAccessException(Exception exception)
+        {
+            // permission denied
+            if (exception is UnauthorizedAccessException)
+            {
+                return true;
+            }
+
+            // file in use
+            if ((exception is IOException) && (Marshal.GetHRForException(exception) == unchecked((int)0x80070020)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         internal delegate ResultType TryFunctionType<ResultType>();
         internal delegate void ResetFunctionType();
-        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enable, Context context)
+        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enable, Context context, TextWriter trace)
         {
             bool tried = false;
             while (true)
@@ -706,10 +724,14 @@ namespace Backup
                     tried = true;
                     Console.WriteLine("EXCEPTION: {0}", exception.Message);
 
-                    if (context.continueOnAccessDenied &&
-                        (exception is UnauthorizedAccessException) &&
-                        (continueFunction != null))
+                    if (context.continueOnAccessDenied
+                        && IsUnableToAccessException(exception)
+                        && (continueFunction != null))
                     {
+                        if (trace != null)
+                        {
+                            trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoreaccessdenied specified): {0}", exception);
+                        }
                         return continueFunction();
                     }
 
@@ -750,9 +772,9 @@ namespace Backup
             }
         }
 
-        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, Context context)
+        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, Context context, TextWriter trace)
         {
-            return DoRetryable(tryFunction, continueFunction, resetFunction, true/*enable*/, context);
+            return DoRetryable(tryFunction, continueFunction, resetFunction, true/*enable*/, context, trace);
         }
 
         internal static void GetExclusionArguments(string[] args, out InvariantStringSet excludedExtensions, bool relative, out InvariantStringSet excludedItems)
@@ -1456,7 +1478,8 @@ namespace Backup
                     {
                     }
                 },
-                context);
+                context,
+                null/*trace*/);
 
             try
             {
@@ -1660,11 +1683,11 @@ namespace Backup
 
             List<string> subdirectories = new List<string>();
             bool driveRoot = IsDriveRoot(sourceRootDirectory);
-            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context))
+            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/))
             {
                 if (!driveRoot || !IsExcludedDriveRootItem(file))
                 {
-                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context);
+                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
                     if ((fileAttributes & FileAttributes.Directory) != 0)
                     {
                         subdirectories.Add(file);
@@ -1717,7 +1740,7 @@ namespace Backup
             InvariantStringSet excludedItems;
             GetExclusionArguments(args, out excludedExtensions, false/*relative*/, out excludedItems);
 
-            FileAttributes sourceAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(source); }, delegate { return FileAttributes.Normal; }, null, context);
+            FileAttributes sourceAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(source); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
             if ((sourceAttributes & FileAttributes.Directory) == 0)
             {
                 CopyFile(
@@ -2640,7 +2663,7 @@ namespace Backup
                                 {
                                     codePath = 101;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -2650,7 +2673,7 @@ namespace Backup
                             else if (changedR)
                             {
                                 codePath = 102;
-                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context);
+                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
                                 currentEntriesL.MoveNext();
                             }
                             else
@@ -2747,7 +2770,7 @@ namespace Backup
                                 {
                                     codePath = 201;
                                 }
-                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context);
+                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
                                 currentEntriesR.MoveNext();
                             }
                             else if (changedR)
@@ -2756,7 +2779,7 @@ namespace Backup
                                 {
                                     codePath = 202;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -2881,7 +2904,7 @@ namespace Backup
                                     codePath = 301;
                                 }
                                 bool dirR = currentEntriesR.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -2903,7 +2926,7 @@ namespace Backup
                                     codePath = 302;
                                 }
                                 bool dirL = currentEntriesL.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3002,7 +3025,8 @@ namespace Backup
                     {
                     }
                 },
-                context);
+                context,
+                null/*trace*/);
         }
 
         private static void DeleteFile(string path, Context context)
@@ -3016,7 +3040,8 @@ namespace Backup
                 },
                 delegate { return 0; },
                 null,
-                context);
+                context,
+                null/*trace*/);
         }
 
         private static void MoveFile(string sourcePath, string targetPath, Context context)
@@ -3033,7 +3058,8 @@ namespace Backup
                 },
                 delegate { return 0; },
                 null,
-                context);
+                context,
+                null/*trace*/);
         }
 
         private static string FormatArchivePointName(DateTime timestamp)
@@ -3722,7 +3748,7 @@ namespace Backup
                 }
 
                 // roll back anything found already in checkpoint
-                if (File.Exists(previousPath) && (GetFileLengthRetriable(previousPath, context) == 0))
+                if (File.Exists(previousPath) && (GetFileLengthRetriable(previousPath, context, null/*trace*/) == 0))
                 {
                     if (File.Exists(currentPath))
                     {
@@ -3795,7 +3821,8 @@ namespace Backup
                             },
                             delegate() { return false; },
                             delegate() { },
-                            context))
+                            context,
+                            null/*trace*/))
                         {
                             BackupRecursive(
                                 Path.Combine(source, entry.source),
@@ -3814,11 +3841,11 @@ namespace Backup
                         {
                             bool unchanged = true;
 
-                            DateTime sourceItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context);
-                            DateTime previousItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context);
+                            DateTime sourceItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context, null/*trace*/);
+                            DateTime previousItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context, null/*trace*/);
                             unchanged = unchanged && (sourceItemCreationTime == previousItemCreationTime);
-                            DateTime sourceItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context);
-                            DateTime previousItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context);
+                            DateTime sourceItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context, null/*trace*/);
+                            DateTime previousItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context, null/*trace*/);
                             unchanged = unchanged && (sourceItemLastWriteTime == previousItemLastWriteTime);
 
                             if (unchanged)
@@ -4152,7 +4179,8 @@ namespace Backup
                     },
                     delegate { return -1; },
                     null,
-                    context);
+                    context,
+                    null/*trace*/);
                 long latePurgeLength = DoRetryable<long>(
                     delegate
                     {
@@ -4168,7 +4196,8 @@ namespace Backup
                     },
                     delegate { return -1; },
                     null,
-                    context);
+                    context,
+                    null/*trace*/);
 
                 if (earlySaveLength != 0)
                 {
@@ -4204,7 +4233,8 @@ namespace Backup
                             },
                             delegate { return 0; },
                             null,
-                            context);
+                            context,
+                            null/*trace*/);
                         DoRetryable<int>(
                             delegate
                             {
@@ -4213,7 +4243,8 @@ namespace Backup
                             },
                             delegate { return 0; },
                             null,
-                            context);
+                            context,
+                            null/*trace*/);
                     }
                 }
             }
@@ -5461,7 +5492,7 @@ namespace Backup
             }
         }
 
-        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableRetry, Context context)
+        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableRetry, Context context, TextWriter trace)
         {
             bool directory = false;
 
@@ -5485,7 +5516,8 @@ namespace Backup
                 delegate { return null; },
                 delegate { },
                 enableRetry,
-                context))
+                context,
+                trace))
             {
                 if ((inputStream != null) || directory)
                 {
@@ -5567,11 +5599,11 @@ namespace Backup
 
             List<string> subdirectories = new List<string>();
             bool driveRoot = IsDriveRoot(sourceRootDirectory);
-            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context))
+            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/))
             {
                 if (!driveRoot || !IsExcludedDriveRootItem(file))
                 {
-                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context);
+                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
                     if ((fileAttributes & FileAttributes.Directory) != 0)
                     {
                         subdirectories.Add(file);
@@ -5581,7 +5613,7 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            PackOne(file, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context);
+                            PackOne(file, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context, null/*trace*/);
                             addedCount++;
                         }
                         else
@@ -5603,7 +5635,7 @@ namespace Backup
                     // for subdirectories, only if it is empty add it explicitly
                     if (addedCount == initialAddedCount)
                     {
-                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context);
+                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context, null/*trace*/);
                         addedCount++;
                     }
                 }
@@ -6912,17 +6944,17 @@ namespace Backup
             }
         }
 
-        private static void ItemizeFilesRecursive(List<FileRecord> files, string sourceRootDirectory, long? largeFileSegmentSize, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, FilePath partialPathPrefix)
+        private static void ItemizeFilesRecursive(List<FileRecord> files, string sourceRootDirectory, long? largeFileSegmentSize, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, FilePath partialPathPrefix, TextWriter trace)
         {
             WriteStatusLine(sourceRootDirectory);
 
             List<string> subdirectories = new List<string>();
             bool driveRoot = IsDriveRoot(sourceRootDirectory);
-            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context))
+            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/))
             {
                 if (!driveRoot || !IsExcludedDriveRootItem(file))
                 {
-                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context);
+                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
                     if ((fileAttributes & FileAttributes.Directory) != 0)
                     {
                         subdirectories.Add(file);
@@ -6932,7 +6964,7 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            long inputStreamLength = GetFileLengthRetriable(file, context);
+                            long inputStreamLength = GetFileLengthRetriable(file, context, trace);
                             if (inputStreamLength >= 0)
                             {
                                 FilePath partialPath = FilePathItem.Create(partialPathPrefix, Path.GetFileName(file));
@@ -6980,7 +7012,7 @@ namespace Backup
                 {
                     int initialFilesCount = files.Count;
 
-                    ItemizeFilesRecursive(files, subdirectory, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)));
+                    ItemizeFilesRecursive(files, subdirectory, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)), trace);
 
                     // for subdirectories, only if it is empty add it explicitly
                     if (initialFilesCount == files.Count)
@@ -7200,7 +7232,7 @@ namespace Backup
         {
             const int WaitInterval = 2000; // milliseconds
             const string DynPackDiagnosticDateTimeFormat = "yyyy-MM-ddTHH:mm:ss";
-            const int SegmentFixedOverhead = (1 + PackRandomSignatureLengthBytes) + (1 + 256 / 8/*password salt*/) + (1 + 256 / 8/*per-file salt*/) + (1 + 256 / 8/*SHA256 length*/) + PackedFileHeaderRecord.HeaderTokenLength;
+            const int SegmentFixedOverhead = 1/*FixedHeaderNumber*/ + (1 + PackRandomSignatureLengthBytes) + 10/*SerialNumber*/ + 1/*StructureType*/ + (1 + 256 / 8/*password salt*/) + (1 + 256 / 8/*per-file salt*/) + 2/*CipherSuiteId*/ + 4/*Rfc2898*/ + 1/*Extra*/ + PackedFileHeaderRecord.HeaderTokenLength + 4/*CRC32*/+ (1 + 256 / 8/*SHA256 length*/);
             const int MinimumSegmentSize = 4096;
 
             FaultInstanceNode faultDynamicPack = context.faultInjectionRoot.Select("DynamicPack");
@@ -7282,7 +7314,7 @@ namespace Backup
 
             // build current file list
             List<FileRecord> currentFiles = new List<FileRecord>();
-            ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."));
+            ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."), traceDynpack);
             EraseStatusLine();
             if (traceDynpack != null)
             {
@@ -7815,7 +7847,7 @@ namespace Backup
                             {
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Insertion: segment name sequence violation:  {0} {5} {2}  [{1},{3}]  ({4})", currentSegmentName, currentSegment.DiagnosticSerialNumber, mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber, splitSegment ? ">=" : ">");
+                                    traceDynpack.WriteLine("Insertion: segment name sequence violation:  {0} {5} {2}  [{1},{3}]  ({4})", currentSegmentName, currentSegment != null ? currentSegment.DiagnosticSerialNumber : "<null>", mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber, splitSegment ? ">=" : ">");
                                     traceDynpack.WriteLine("  marking segment dirty, then voiding segment from {0}", mergedFiles[i].DiagnosticSerialNumber);
                                 }
                                 mergedFiles[i].Segment.Dirty.Set();
@@ -9172,7 +9204,7 @@ namespace Backup
                                                                                         fullPath = fullPath.Substring(NoOpPrefix.Length);
                                                                                     }
                                                                                     fullPath = Path.Combine(source, fullPath);
-                                                                                    PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount > 0/*enableRetry*/, context);
+                                                                                    PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount > 0/*enableRetry*/, context, threadTraceDynPack);
                                                                                 }
 
                                                                                 PackedFileHeaderRecord.WriteNullHeader(stream);
