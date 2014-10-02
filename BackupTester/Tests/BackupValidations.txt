@@ -37,7 +37,7 @@ endlist
 
 test try encrypted
 date + 1
-call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -53,7 +53,7 @@ endlist
 
 test try compressed/encrypted
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -compress -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -112,7 +112,7 @@ endlist
 
 test try encrypted
 date + 1
-call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -129,7 +129,7 @@ endlist
 
 test try compressed/encrypted
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -compress -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -163,7 +163,7 @@ test initial encrypted
 date 2014-01-01
 mkdir source
 mkdir archive
-call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -206,7 +206,7 @@ endlist
 
 test try encrypted, wrong password
 date + 1
-call backup -date %DATE% -encrypt aes128 5w0rDf1SH backup source archive
+call backup -date %DATE% -encrypt aes256 5w0rDf1SH backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -223,7 +223,7 @@ endlist
 
 test try compressed/encrypted
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -compress -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -240,7 +240,7 @@ endlist
 
 test try encrypted again (should succeed)
 date + 1
-call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -257,7 +257,7 @@ test initial compressed/encrypted
 date 2014-01-01
 mkdir source
 mkdir archive
-call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -compress -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -300,7 +300,7 @@ endlist
 
 test try encrypted
 date + 1
-call backup -date %DATE% -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -317,7 +317,7 @@ endlist
 
 test try compressed/encrypted, wrong password
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 5w0rDf1SH backup source archive
+call backup -date %DATE% -compress -encrypt aes256 5w0rDf1SH backup source archive
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .WARNING: Use of encryption in "backup" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.
@@ -334,7 +334,7 @@ endlist
 
 test try compressed/encrypted again (should succeed)
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 pVssM0rD backup source archive
+call backup -date %DATE% -compress -encrypt aes256 pVssM0rD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\

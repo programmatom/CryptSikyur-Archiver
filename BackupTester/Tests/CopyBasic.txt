@@ -58,13 +58,13 @@ date + 1
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 endlist
-call backup -date %DATE% -encrypt aes128 PASsw0rD copy source target1
+call backup -date %DATE% -encrypt aes256 PASsw0rD copy source target1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 endlist
-call backup -date %DATE% -recrypt aes128 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
+call backup -date %DATE% -recrypt aes256 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
@@ -90,13 +90,13 @@ date + 1
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 endlist
-call backup -date %DATE% -compress -encrypt aes128 PASsw0rD copy source target1
+call backup -date %DATE% -compress -encrypt aes256 PASsw0rD copy source target1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 endlist
-call backup -date %DATE% -recrypt aes128 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
+call backup -date %DATE% -recrypt aes256 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
@@ -291,13 +291,13 @@ delete target1
 delete target2
 
 test zero length file copy - encrypted
-call backup -date %DATE% -encrypt aes128 PVssM01D copy source target1
+call backup -date %DATE% -encrypt aes256 PVssM01D copy source target1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
 .          2014-01-01          2014-01-02 -A---- target1 [1]
 endlist
-call backup -date %DATE% -recrypt aes128 PVssM01D serpent256 SM01dF15h copy target1 target2
+call backup -date %DATE% -recrypt aes256 PVssM01D serpent256 SM01dF15h copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
@@ -312,7 +312,7 @@ list-verify .
 .          2014-01-01          2014-01-02 -A---- target2 [2]
 .          2014-01-01          2014-01-02 -A--Z- target3 [0]
 endlist
-call backup -date %DATE% -decrypt aes128 n3v3rm1nd -zerolen copy source target4
+call backup -date %DATE% -decrypt aes256 n3v3rm1nd -zerolen copy source target4
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
@@ -327,13 +327,13 @@ delete target3
 delete target4
 
 test zero length file copy - encrypted and compressed
-call backup -date %DATE% -compress -encrypt aes128 PVssM01D copy source target1
+call backup -date %DATE% -compress -encrypt aes256 PVssM01D copy source target1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
 .          2014-01-01          2014-01-02 -A---- target1 [3]
 endlist
-call backup -date %DATE% -recrypt aes128 PVssM01D serpent256 SM01dF15h copy target1 target2
+call backup -date %DATE% -recrypt aes256 PVssM01D serpent256 SM01dF15h copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
@@ -348,7 +348,7 @@ list-verify .
 .          2014-01-01          2014-01-02 -A---- target2 [4]
 .          2014-01-01          2014-01-02 -A--Z- target3 [0]
 endlist
-call backup -date %DATE% -decompress -decrypt aes128 N3v3Rm1nD -zerolen copy source target4
+call backup -date %DATE% -decompress -decrypt aes256 N3v3Rm1nD -zerolen copy source target4
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A--Z- source [0]
@@ -375,13 +375,13 @@ date + 1
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 endlist
-call backup -date %DATE% -compress -encrypt aes128 PASsw0rD copy source target1
+call backup -date %DATE% -compress -encrypt aes256 PASsw0rD copy source target1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]
 .          2014-01-01          2014-01-02 -A---- target1 [2]
 endlist
-call backup -date %DATE% -recrypt aes128 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
+call backup -date %DATE% -recrypt aes256 PASsw0rD serpent256 Sw0RDf1sH copy target1 target2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-02 -A---- source [1]

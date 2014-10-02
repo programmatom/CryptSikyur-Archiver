@@ -366,7 +366,8 @@ namespace Backup
     ////////////////////////////////////////////////////////////////////////////
 
     // TODO: implement dropbox support: https://www.dropbox.com/developers/core/docs
-    // TODO: implement AWS support:
+    // TODO: implement AWS support: (S3- http://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html, Glacier- http://docs.aws.amazon.com/amazonglacier/latest/dev/amazon-glacier-api.html)
+    // TODO: implement Azure support: http://msdn.microsoft.com/library/azure/dd179355.aspx
 
     class RemoteFileSystemEntry
     {

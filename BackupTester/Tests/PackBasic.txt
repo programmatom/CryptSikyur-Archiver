@@ -302,10 +302,10 @@ mkdir source
 date + 1
 create source\n
 date + 1
-call backup -encrypt aes128 pasSsw0Rd -date %DATE% pack source archive.pack
+call backup -encrypt aes256 pasSsw0Rd -date %DATE% pack source archive.pack
 exitcode-verify 0
 date + 1
-call backup -decrypt aes128 pasSsw0Rd unpack archive.pack copy
+call backup -decrypt aes256 pasSsw0Rd unpack archive.pack copy
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive.pack [1]
@@ -324,10 +324,10 @@ mkdir source
 date + 1
 create source\p
 date + 1
-call backup -compress -encrypt aes128 pasSsw0Rd -date %DATE% pack source archive.pack
+call backup -compress -encrypt aes256 pasSsw0Rd -date %DATE% pack source archive.pack
 exitcode-verify 0
 date + 1
-call backup -decompress -decrypt aes128 pasSsw0Rd unpack archive.pack copy
+call backup -decompress -decrypt aes256 pasSsw0Rd unpack archive.pack copy
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive.pack [1]
@@ -520,7 +520,7 @@ create source\b -size 10000
 date + 1
 create source\c -size 1000
 date + 1
-call backup -date %DATE% -encrypt aes128 P1s5M0Rb pack source archive.pack
+call backup -date %DATE% -encrypt aes256 P1s5M0Rb pack source archive.pack
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.pack [1]
@@ -536,7 +536,7 @@ date + 1
 # magic: corrupt last byte of file (part of sha256 HMAC check value)
 invert-range archive2.pack -1 1
 date + 1
-call backup -decrypt aes128 P1s5M0Rb unpack archive2.pack copy
+call backup -decrypt aes256 P1s5M0Rb unpack archive2.pack copy
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!

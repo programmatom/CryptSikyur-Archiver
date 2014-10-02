@@ -781,7 +781,7 @@ rmdir target
 
 test zero length file copy - encrypted
 date + 1
-call backup -date %DATE% -encrypt aes128 p0sswArd backup source archive
+call backup -date %DATE% -encrypt aes256 p0sswArd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -791,7 +791,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
 endlist
-call backup -date %DATE% -decrypt aes128 p0sswArd restore archive 2014-01-06T00+00+00 target
+call backup -date %DATE% -decrypt aes256 p0sswArd restore archive 2014-01-06T00+00+00 target
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -809,7 +809,7 @@ rmdir target
 
 test zero length file copy - encrypted and compressed
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 p0sswArd backup source archive
+call backup -date %DATE% -compress -encrypt aes256 p0sswArd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -819,7 +819,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
 endlist
-call backup -date %DATE% -decompress -decrypt aes128 p0sswArd restore archive 2014-01-07T00+00+00 target
+call backup -date %DATE% -decompress -decrypt aes256 p0sswArd restore archive 2014-01-07T00+00+00 target
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\

@@ -257,6 +257,7 @@ namespace Backup
 
     // Supported crypto system configurations
 
+#if false
     public class CryptoSystemAES128 : CryptoSystemComposable
     {
         // why not 256? see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html
@@ -269,6 +270,35 @@ namespace Backup
 
         public override string Name { get { return "aes128"; } }
         public override string Description { get { return "AES-128 CTR, HMAC-SHA-256"; } }
+
+        public override bool Weak { get { return false; } }
+
+        public override string UniquePersistentCiphersuiteIdentifier { get { return "\x02"; } }
+    }
+#endif
+
+    // There was some controversy over AES after attacks came to light on the 192- and 256-bit
+    // key variants. The problems are twofold: 1) insufficient additional rounds and 2) weak
+    // key schedules in the higher rounds. As a result, there are related-key attacks, where
+    // invariants due to similar keys and weak schedule remain after encryption allowing key
+    // bits to be determined when an attacker can choose similar keys.
+    // Bruce Schneier had a quick reaction, rejecting AES192/256 for new implementations in
+    // favor of AES128: see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html
+    // However, Colin Percival had a more considered opinion that the related-key attack is not
+    // relevant for randomly chosen keys: http://www.daemonology.net/blog/2009-07-31-thoughts-on-AES.html
+    // Since this application uses randomly chosen keys, it is determined that the related-key
+    // attack is not relevant and the higher degree of margin afforded the longer key is
+    // desirable.
+
+    public class CryptoSystemAES256 : CryptoSystemComposable
+    {
+        public CryptoSystemAES256()
+            : base(new CryptoSystemDefaultRNG(), new CryptoSystemBlockCipherAES256(), new CryptoSystemAuthenticationHMACSHA256(), new CryptoSystemKeyGenerationRfc2898Rfc5869())
+        {
+        }
+
+        public override string Name { get { return "aes256"; } }
+        public override string Description { get { return "AES-256 CTR, HMAC-SHA-256"; } }
 
         public override bool Weak { get { return false; } }
 
@@ -320,19 +350,20 @@ namespace Backup
     {
         public readonly static ICryptoSystem[] List = new ICryptoSystem[]
         {
-            // AES128 may not be the strongest cipher but has a lot going for it
+            // AES may not be the strongest cipher but has a lot going for it
             // - standardized, and probably the *primary* standard today (2014)
-            // - certainly the most scrutinized and attacked cipher today
+            // - certainly the most scrutinized and attacked cipher today and has remained standing
             // - sufficient security with high performance (and hardware acceleration) available if needed
+#if false
             new CryptoSystemAES128(),
+#endif
+            new CryptoSystemAES256(),
 
-            // Serpent was a runner-up in the AES competition. It is arguably more secure,
+            // Serpent was a runner-up in the AES competition. It is theoretically more secure,
             // especially now, more than 10 years after Rijndael was selected, when it is showing
-            // it's age. In particular, Rijndael with 256 bit keys is seen to be flawed.
-            // Therefore, Serpent-256 is included here to provide a conservative option for
-            // doubling the key length.
-            // Interesting for testing because block length (128 bits) is different from key
-            // length (256 bits).
+            // it's age (in particular, Rijndael's weaknesses in the key schedule and thin margin
+            // around number of rounds). Therefore, Serpent-256 is included here to provide a
+            // conservative fallback option.
             new CryptoSystemSerpent256(),
 
             // Threefish 1024 is the only very large block size cipher available at this time
@@ -453,14 +484,14 @@ namespace Backup
         }
 
         private readonly static HKDFTestVector[] TestVectorsHKDFSHA256 = new HKDFTestVector[]
-            {
-                // A.1. Test Case 1 - Basic test case with SHA-256
-                new HKDFTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "000102030405060708090a0b0c", "f0f1f2f3f4f5f6f7f8f9", 42, "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5", "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"),
-                // A.2. Test Case 2 - Test with SHA-256 and longer inputs/outputs
-                new HKDFTestVector("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f", "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf", "b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", 82, "06a6b88c5853361a06104c9ceb35b45cef760014904671014a193f40c15fc244", "b11e398dc80327a1c8e7f78c596a49344f012eda2d4efad8a050cc4c19afa97c59045a99cac7827271cb41c65e590e09da3275600c2f09b8367793a9aca3db71cc30c58179ec3e87c14c01d5c1f3434f1d87"),
-                // A.3. Test Case 3 - Test with SHA-256 and zero-length salt/info
-                new HKDFTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", null, null, 42, "19ef24a32c717b167f33a91d6f648bdf96596776afdb6377ac434c1c293ccb04", "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8"),
-            };
+        {
+            // A.1. Test Case 1 - Basic test case with SHA-256
+            new HKDFTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "000102030405060708090a0b0c", "f0f1f2f3f4f5f6f7f8f9", 42, "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5", "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"),
+            // A.2. Test Case 2 - Test with SHA-256 and longer inputs/outputs
+            new HKDFTestVector("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f", "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf", "b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", 82, "06a6b88c5853361a06104c9ceb35b45cef760014904671014a193f40c15fc244", "b11e398dc80327a1c8e7f78c596a49344f012eda2d4efad8a050cc4c19afa97c59045a99cac7827271cb41c65e590e09da3275600c2f09b8367793a9aca3db71cc30c58179ec3e87c14c01d5c1f3434f1d87"),
+            // A.3. Test Case 3 - Test with SHA-256 and zero-length salt/info
+            new HKDFTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", null, null, 42, "19ef24a32c717b167f33a91d6f648bdf96596776afdb6377ac434c1c293ccb04", "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8"),
+        };
 
         public static void Test()
         {
@@ -857,12 +888,12 @@ namespace Backup
         }
 
         private readonly static KeyedHashTestVector[] TestVectorsMD5 = new KeyedHashTestVector[]
-            {
-                // RFC 2104 appendix "Test Vectors"
-                new KeyedHashTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", HexUtility.HexEncodeASCII("Hi There"), "9294727a3638bb1c13f48ef8158bfc9d"),
-                new KeyedHashTestVector(HexUtility.HexEncodeASCII("Jefe"), HexUtility.HexEncodeASCII("what do ya want for nothing?"), "750c783e6ab0b503eaa86e310a5db738"),
-                new KeyedHashTestVector("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "56be34521d144c88dbb8c733f0e8b3f6"),
-            };
+        {
+            // RFC 2104 appendix "Test Vectors"
+            new KeyedHashTestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", HexUtility.HexEncodeASCII("Hi There"), "9294727a3638bb1c13f48ef8158bfc9d"),
+            new KeyedHashTestVector(HexUtility.HexEncodeASCII("Jefe"), HexUtility.HexEncodeASCII("what do ya want for nothing?"), "750c783e6ab0b503eaa86e310a5db738"),
+            new KeyedHashTestVector("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "56be34521d144c88dbb8c733f0e8b3f6"),
+        };
 
         public static void Test()
         {
@@ -1142,6 +1173,7 @@ namespace Backup
         }
     }
 
+#if false
     // Composable module implementing AES-128 block cipher
     public sealed class CryptoSystemBlockCipherAES128 : CryptoSystemBlockCipherAES
     {
@@ -1157,7 +1189,7 @@ namespace Backup
             internal CipherTestVector(string key, string iv, string plainText, string cipherText)
             {
                 this.key = HexUtility.HexDecode(key);
-                this.iv = HexUtility.HexDecode(iv);
+                this.iv = iv != null ? HexUtility.HexDecode(iv) : null;
                 this.plainText = HexUtility.HexDecode(plainText);
                 this.cipherText = HexUtility.HexDecode(cipherText);
             }
@@ -1166,15 +1198,15 @@ namespace Backup
         // from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
         // see also http://csrc.nist.gov/groups/STM/cavp/index.html
         private readonly static CipherTestVector[] TestVectorsAES128ECB = new CipherTestVector[]
-            {
-                // ECB-AES128.Encrypt (appendix A section F.1.1 of above, page 24)
-                new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", "000102030405060708090a0b0c0d0e0f", "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4"),
-            };
+        {
+            // ECB-AES128.Encrypt (appendix A section F.1.1 of above, page 24)
+            new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", null, "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4"),
+        };
         private readonly static CipherTestVector[] TestVectorsAES128CTR = new CipherTestVector[]
-            {
-                // CTR-AES128.Encrypt (appendix A section F.5.1 of above, page 55)
-                new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff5ae4df3edbd5d35e5b4f09020db03eab1e031dda2fbe03d1792170a0f3009cee"),
-            };
+        {
+            // CTR-AES128.Encrypt (appendix A section F.5.1 of above, page 55)
+            new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff5ae4df3edbd5d35e5b4f09020db03eab1e031dda2fbe03d1792170a0f3009cee"),
+        };
 
         public override void Test()
         {
@@ -1229,6 +1261,101 @@ namespace Backup
                         if (!Core.ArrayEqual(test.plainText, result))
                         {
                             throw new ApplicationException("AES128-CTR implementation defect");
+                        }
+                    }
+                }
+            }
+        }
+    }
+#endif
+
+    // Composable module implementing AES-256 block cipher
+    public sealed class CryptoSystemBlockCipherAES256 : CryptoSystemBlockCipherAES
+    {
+        protected override int KeyLengthBits { get { return 256; } }
+
+        private sealed class CipherTestVector
+        {
+            internal readonly byte[] key;
+            internal readonly byte[] iv;
+            internal readonly byte[] plainText;
+            internal readonly byte[] cipherText;
+
+            internal CipherTestVector(string key, string iv, string plainText, string cipherText)
+            {
+                this.key = HexUtility.HexDecode(key);
+                this.iv = iv != null ? HexUtility.HexDecode(iv) : null;
+                this.plainText = HexUtility.HexDecode(plainText);
+                this.cipherText = HexUtility.HexDecode(cipherText);
+            }
+        }
+
+        // from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
+        // see also http://csrc.nist.gov/groups/STM/cavp/index.html
+        private readonly static CipherTestVector[] TestVectorsAES256ECB = new CipherTestVector[]
+        {
+            // ECB-AES256.Encrypt (appendix A section F.1.5 of above, page 26)
+            new CipherTestVector("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4", null, "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "f3eed1bdb5d2a03c064b5a7e3db181f8591ccb10d410ed26dc5ba74a31362870b6ed21b99ca6f4f9f153e7b1beafed1d23304b7a39f9f3ff067d8d8f9e24ecc7"),
+        };
+        private readonly static CipherTestVector[] TestVectorsAES256CTR = new CipherTestVector[]
+        {
+            // CTR-AES256.Encrypt (appendix A section F.5.1 of above, page 55)
+            new CipherTestVector("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4", "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "601ec313775789a5b7a7f504bbf3d228f443e3ca4d62b59aca84e990cacaf5c52b0930daa23de94ce87017ba2d84988ddfc9c58db67aada613c2dd08457941a6"),
+        };
+
+        public override void Test()
+        {
+            base.Test();
+
+            foreach (CipherTestVector test in TestVectorsAES256ECB)
+            {
+                ICryptoTransform transform;
+                byte[] result;
+
+                using (transform = GetAlgorithm().CreateEncryptor(test.key, test.iv))
+                {
+                    result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
+                    if (!Core.ArrayEqual(test.cipherText, result))
+                    {
+                        throw new ApplicationException("AES256-ECB implementation defect");
+                    }
+                }
+
+                using (transform = GetAlgorithm().CreateDecryptor(test.key, test.iv))
+                {
+                    result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
+                    if (!Core.ArrayEqual(test.plainText, result))
+                    {
+                        throw new ApplicationException("AES256-ECB implementation defect");
+                    }
+                }
+            }
+
+            foreach (CipherTestVector test in TestVectorsAES256CTR)
+            {
+                using (SymmetricAlgorithm algorithm = GetAlgorithm())
+                {
+                    ICryptoTransform transform;
+                    byte[] result;
+
+                    algorithm.IV = test.iv;
+                    algorithm.Key = test.key;
+
+                    using (transform = new CryptoPrimitiveCounterModeTransform(algorithm, test.iv.Length * 8))
+                    {
+                        result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
+                        if (!Core.ArrayEqual(test.cipherText, result))
+                        {
+                            throw new ApplicationException("AES256-CTR implementation defect");
+                        }
+                    }
+
+                    using (transform = new CryptoPrimitiveCounterModeTransform(algorithm, test.iv.Length * 8))
+                    {
+                        result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
+                        if (!Core.ArrayEqual(test.plainText, result))
+                        {
+                            throw new ApplicationException("AES256-CTR implementation defect");
                         }
                     }
                 }
@@ -1304,25 +1431,25 @@ namespace Backup
 
         // test vectors from http://www.cs.technion.ac.il/~biham/Reports/Serpent/
         private readonly static CipherTestVector[] TestVectorsSerpentMultiKeylenECB = new CipherTestVector[]
-            {
-                // http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-128-128.verified.test-vectors
-                // Set 4, vector#  0
-                new CipherTestVector("000102030405060708090A0B0C0D0E0F", null, "00112233445566778899AABBCCDDEEFF", "563E2CF8740A27C164804560391E9B27", "70795D35DEC6561F8AD83B2F454F9CC5", "4EA3765A7C3A94786850DF4812249718"),
-                // Set 4, vector#  1
-                new CipherTestVector("2BD6459F82C5B300952C49104881FF48", null, "EA024714AD5C4D84EA024714AD5C4D84", "92D7F8EF2C36C53409F275902F06539F", "180B795EAD8C6CB128348093A7E8E442", "C5F9E521F5FC7D9BB0C4674C48525460"),
+        {
+            // http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-128-128.verified.test-vectors
+            // Set 4, vector#  0
+            new CipherTestVector("000102030405060708090A0B0C0D0E0F", null, "00112233445566778899AABBCCDDEEFF", "563E2CF8740A27C164804560391E9B27", "70795D35DEC6561F8AD83B2F454F9CC5", "4EA3765A7C3A94786850DF4812249718"),
+            // Set 4, vector#  1
+            new CipherTestVector("2BD6459F82C5B300952C49104881FF48", null, "EA024714AD5C4D84EA024714AD5C4D84", "92D7F8EF2C36C53409F275902F06539F", "180B795EAD8C6CB128348093A7E8E442", "C5F9E521F5FC7D9BB0C4674C48525460"),
 
-                // http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-192-128.verified.test-vectors
-                // Set 4, vector#  0
-                new CipherTestVector("000102030405060708090A0B0C0D0E0F1011121314151617", null, "00112233445566778899AABBCCDDEEFF", "6AB816C82DE53B93005008AFA2246A02", "D8789291A6307A1DFCFB310CB5CEE8E1", "D4D1005991ACF56FDD6C45ED867CD679"),
-                // Set 4, vector#  1
-                new CipherTestVector("2BD6459F82C5B300952C49104881FF482BD6459F82C5B300", null, "EA024714AD5C4D84EA024714AD5C4D84", "827B18C2678A239DFC5512842000E204", "696E45B38A8181D1B07F1D311A6F4CFE", "7ECD356D2BE7B1FB7971A1A94BC7BE49"),
+            // http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-192-128.verified.test-vectors
+            // Set 4, vector#  0
+            new CipherTestVector("000102030405060708090A0B0C0D0E0F1011121314151617", null, "00112233445566778899AABBCCDDEEFF", "6AB816C82DE53B93005008AFA2246A02", "D8789291A6307A1DFCFB310CB5CEE8E1", "D4D1005991ACF56FDD6C45ED867CD679"),
+            // Set 4, vector#  1
+            new CipherTestVector("2BD6459F82C5B300952C49104881FF482BD6459F82C5B300", null, "EA024714AD5C4D84EA024714AD5C4D84", "827B18C2678A239DFC5512842000E204", "696E45B38A8181D1B07F1D311A6F4CFE", "7ECD356D2BE7B1FB7971A1A94BC7BE49"),
 
-                // http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-256-128.verified.test-vectors
-                // Set 4, vector#  0
-                new CipherTestVector("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", null, "00112233445566778899AABBCCDDEEFF", "2868B7A2D28ECD5E4FDEFAC3C4330074", "8BF56992354F3F1A0F4E49DCBA82CBC0", "9B1D8B34845DF9BFD36AAAD0CDA1C8FE"),
-                // Set 4, vector#  1
-                new CipherTestVector("2BD6459F82C5B300952C49104881FF482BD6459F82C5B300952C49104881FF48", null, "EA024714AD5C4D84EA024714AD5C4D84", "3E507730776B93FDEA661235E1DD99F0", "3B5462E5D87A40C4BE745E3994D5E373", "99D5D067EF7C787E6A764EB47DAC59AD"),
-            };
+            // http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-256-128.verified.test-vectors
+            // Set 4, vector#  0
+            new CipherTestVector("000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F", null, "00112233445566778899AABBCCDDEEFF", "2868B7A2D28ECD5E4FDEFAC3C4330074", "8BF56992354F3F1A0F4E49DCBA82CBC0", "9B1D8B34845DF9BFD36AAAD0CDA1C8FE"),
+            // Set 4, vector#  1
+            new CipherTestVector("2BD6459F82C5B300952C49104881FF482BD6459F82C5B300952C49104881FF48", null, "EA024714AD5C4D84EA024714AD5C4D84", "3E507730776B93FDEA661235E1DD99F0", "3B5462E5D87A40C4BE745E3994D5E373", "99D5D067EF7C787E6A764EB47DAC59AD"),
+        };
 
         public override void Test()
         {
@@ -1972,16 +2099,16 @@ namespace Backup
 
         // HMAC-SHA-256 test vectors from http://www.rfc-archive.org/getrfc.php?rfc=4231
         private readonly static TestVector[] TestVectorsSHA256 = new TestVector[]
-            {
-                // Test Case 1 (section 4.2)
-                new TestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "4869205468657265", "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"),
-                // Test Case 2 (section 4.3) - short key
-                new TestVector("4a656665", "7768617420646f2079612077616e7420666f72206e6f7468696e673f", "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"),
-                // Test Case 6 (section 4.7) - overlong key
-                new TestVector("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374", "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"),
-                // Test Case 7 (section 4.8) - overlong all
-                new TestVector("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "5468697320697320612074657374207573696e672061206c6172676572207468616e20626c6f636b2d73697a65206b657920616e642061206c6172676572207468616e20626c6f636b2d73697a6520646174612e20546865206b6579206e6565647320746f20626520686173686564206265666f7265206265696e6720757365642062792074686520484d414320616c676f726974686d2e", "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2"),
-            };
+        {
+            // Test Case 1 (section 4.2)
+            new TestVector("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "4869205468657265", "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"),
+            // Test Case 2 (section 4.3) - short key
+            new TestVector("4a656665", "7768617420646f2079612077616e7420666f72206e6f7468696e673f", "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"),
+            // Test Case 6 (section 4.7) - overlong key
+            new TestVector("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374", "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"),
+            // Test Case 7 (section 4.8) - overlong all
+            new TestVector("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "5468697320697320612074657374207573696e672061206c6172676572207468616e20626c6f636b2d73697a65206b657920616e642061206c6172676572207468616e20626c6f636b2d73697a6520646174612e20546865206b6579206e6565647320746f20626520686173686564206265666f7265206265696e6720757365642062792074686520484d414320616c676f726974686d2e", "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2"),
+        };
 
         public static void Test()
         {

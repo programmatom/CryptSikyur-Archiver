@@ -450,7 +450,7 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -encrypt aes128 paSswOrd -date %DATE% backup source archive
+call backup -encrypt aes256 paSswOrd -date %DATE% backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -458,7 +458,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
 .                                         -----D source\
 endlist
-call backup -date %DATE% -encrypt aes128 paSswOrd verify source archive
+call backup -date %DATE% -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test add files
@@ -467,7 +467,7 @@ create source\a
 create source\b
 create source\c
 qlist .
-call backup -date %DATE% -encrypt aes128 paSswOrd verify source archive
+call backup -date %DATE% -encrypt aes256 paSswOrd verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -476,7 +476,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: b
 .  Missing file: c
 endoutput
-call backup -encrypt aes128 paSswOrd -date %DATE% backup source archive
+call backup -encrypt aes256 paSswOrd -date %DATE% backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -491,12 +491,12 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -encrypt aes128 paSswOrd verify source archive
+call backup -date %DATE% -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test restore
 date + 1
-call backup -decrypt aes128 paSswOrd restore archive 2014-01-02T00+00+00 restored
+call backup -decrypt aes256 paSswOrd restore archive 2014-01-02T00+00+00 restored
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -515,7 +515,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -encrypt aes128 paSswOrd verify restored archive
+call backup -date %DATE% -encrypt aes256 paSswOrd verify restored archive
 exitcode-verify 0
 
 
@@ -526,7 +526,7 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -compress -encrypt aes128 paSswOrd -date %DATE% backup source archive
+call backup -compress -encrypt aes256 paSswOrd -date %DATE% backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -534,7 +534,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
 .                                         -----D source\
 endlist
-call backup -date %DATE% -compress -encrypt aes128 paSswOrd verify source archive
+call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test add files
@@ -543,7 +543,7 @@ create source\a
 create source\b
 create source\c
 qlist .
-call backup -date %DATE% -compress -encrypt aes128 paSswOrd verify source archive
+call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -552,7 +552,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: b
 .  Missing file: c
 endoutput
-call backup -compress -encrypt aes128 paSswOrd -date %DATE% backup source archive
+call backup -compress -encrypt aes256 paSswOrd -date %DATE% backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -567,12 +567,12 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -compress -encrypt aes128 paSswOrd verify source archive
+call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test restore
 date + 1
-call backup -decompress -decrypt aes128 paSswOrd restore archive 2014-01-02T00+00+00 restored
+call backup -decompress -decrypt aes256 paSswOrd restore archive 2014-01-02T00+00+00 restored
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -591,5 +591,5 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -compress -encrypt aes128 paSswOrd verify restored archive
+call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify restored archive
 exitcode-verify 0

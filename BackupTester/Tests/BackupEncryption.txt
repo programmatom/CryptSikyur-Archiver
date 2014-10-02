@@ -18,9 +18,9 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- source\file [1]
 endlist
 
-test aes128
+test aes256
 mkdir archive
-call backup -date %DATE% -encrypt aes128 PvssM01d backup source archive
+call backup -date %DATE% -encrypt aes256 PvssM01d backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -30,9 +30,9 @@ list-verify .
 .                                         -----D source\
 .          2014-01-01          2014-01-01 -A---- source\file [1]
 endlist
-call backup -date %DATE% -encrypt aes128 PvssM01d verify source archive
+call backup -date %DATE% -encrypt aes256 PvssM01d verify source archive
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 PvssM01d restore archive 2014-01-02T00+00+00 target1
+call backup -date %DATE% -decrypt aes256 PvssM01d restore archive 2014-01-02T00+00+00 target1
 exitcode-verify 0
 dirs-equal-verify source target1
 list-verify .
@@ -145,11 +145,11 @@ list-verify .
 endlist
 
 test encrypt password prompt
-call-with-input backup -date %DATE% -encrypt aes128 \"\" copy input input1.e
+call-with-input backup -date %DATE% -encrypt aes256 \"\" copy input input1.e
 .PvssM01d
 endinput
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 PvssM01d copy input1.e output1
+call backup -date %DATE% -decrypt aes256 PvssM01d copy input1.e output1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- input [1]
@@ -160,9 +160,9 @@ delete input1.e
 delete output1
 
 test decrypt password prompt
-call backup -date %DATE% -encrypt aes128 pA55w0Rd copy input input2.e
+call backup -date %DATE% -encrypt aes256 pA55w0Rd copy input input2.e
 exitcode-verify 0
-call-with-input backup -date %DATE% -decrypt aes128 \"\" copy input2.e output2
+call-with-input backup -date %DATE% -decrypt aes256 \"\" copy input2.e output2
 .pA55w0Rd
 endinput
 exitcode-verify 0
@@ -175,14 +175,14 @@ delete input2.e
 delete output2
 
 test recrypt password prompt
-call backup -date %DATE% -encrypt aes128 pA55w0Rd copy input input3.e
+call backup -date %DATE% -encrypt aes256 pA55w0Rd copy input input3.e
 exitcode-verify 0
-call-with-input backup -date %DATE% -recrypt aes128 \"\" aes128 \"\" copy input3.e input4.e
+call-with-input backup -date %DATE% -recrypt aes256 \"\" aes256 \"\" copy input3.e input4.e
 .pA55w0Rd
 .5w01df15H
 endinput
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 5w01df15H copy input4.e output3
+call backup -date %DATE% -decrypt aes256 5w01df15H copy input4.e output3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- input [1]

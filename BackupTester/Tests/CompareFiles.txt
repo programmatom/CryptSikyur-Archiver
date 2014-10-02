@@ -108,9 +108,9 @@ module encryption tests
 test encrypted file test - same
 date 2014-01-01
 create foo -size 1048576
-call backup -encrypt aes128 PAsSw0rD copy foo foo.e
+call backup -encrypt aes256 PAsSw0rD copy foo foo.e
 exitcode-verify 0
-call backup -encrypt aes128 PAsSw0rD compare foo foo.e
+call backup -encrypt aes256 PAsSw0rD compare foo foo.e
 exitcode-verify 0
 lastoutput-verify
 .Identical
@@ -122,7 +122,7 @@ endlist
 
 test decrypted file test - same
 create bar
-call backup -decrypt aes128 PAsSw0rD compare foo.e foo
+call backup -decrypt aes256 PAsSw0rD compare foo.e foo
 exitcode-verify 0
 lastoutput-verify
 .Identical
@@ -136,7 +136,7 @@ endlist
 test encrypted file test - different
 delete bar
 invert-range foo 1000000 1
-call backup -encrypt aes128 PAsSw0rD compare foo foo.e
+call backup -encrypt aes256 PAsSw0rD compare foo foo.e
 exitcode-verify not 0
 lastoutput-verify
 .Different
@@ -148,7 +148,7 @@ endlist
 
 test decrypted file test - different
 create bar
-call backup -decrypt aes128 PAsSw0rD compare foo.e foo
+call backup -decrypt aes256 PAsSw0rD compare foo.e foo
 exitcode-verify not 0
 lastoutput-verify
 .Different
@@ -163,7 +163,7 @@ test recrypted compare - different
 delete bar
 call backup -encrypt serpent256 sW0rDf1sh copy foo bar.e
 exitcode-verify 0
-call backup -recrypt aes128 PAsSw0rD serpent256 sW0rDf1sh compare foo.e bar.e
+call backup -recrypt aes256 PAsSw0rD serpent256 sW0rDf1sh compare foo.e bar.e
 exitcode-verify not 0
 lastoutput-verify
 .Different
@@ -176,9 +176,9 @@ endlist
 
 test recrypted compare - same
 delete foo.e
-call backup -encrypt aes128 PAsSw0rD copy foo foo.e
+call backup -encrypt aes256 PAsSw0rD copy foo foo.e
 exitcode-verify 0
-call backup -recrypt aes128 PAsSw0rD serpent256 sW0rDf1sh compare foo.e bar.e
+call backup -recrypt aes256 PAsSw0rD serpent256 sW0rDf1sh compare foo.e bar.e
 exitcode-verify 0
 lastoutput-verify
 .Identical
@@ -195,9 +195,9 @@ module compression and encryption tests
 test compressed/encrypted file test - same
 date 2014-01-01
 create foo -size 1048576
-call backup -compress -encrypt aes128 PAsSw0rD copy foo foo.z.e
+call backup -compress -encrypt aes256 PAsSw0rD copy foo foo.z.e
 exitcode-verify 0
-call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+call backup -compress -encrypt aes256 PAsSw0rD compare foo foo.z.e
 exitcode-verify 0
 lastoutput-verify
 .Identical
@@ -209,7 +209,7 @@ endlist
 
 test decompressed/decrypted file test - same
 create bar
-call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+call backup -decompress -decrypt aes256 PAsSw0rD compare foo.z.e foo
 exitcode-verify 0
 lastoutput-verify
 .Identical
@@ -223,7 +223,7 @@ endlist
 test compressed/encrypted file test - different
 delete bar
 invert-range foo 1000000 1
-call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+call backup -compress -encrypt aes256 PAsSw0rD compare foo foo.z.e
 exitcode-verify not 0
 lastoutput-verify
 .Different
@@ -235,7 +235,7 @@ endlist
 
 test decompressed/decrypted file test - different
 create bar
-call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+call backup -decompress -decrypt aes256 PAsSw0rD compare foo.z.e foo
 exitcode-verify not 0
 lastoutput-verify
 .Different
@@ -286,9 +286,9 @@ module large file tests
 test compressed/encrypted file test - same
 date 2014-01-01
 create foo -size 15728640
-call backup -compress -encrypt aes128 PAsSw0rD copy foo foo.z.e
+call backup -compress -encrypt aes256 PAsSw0rD copy foo foo.z.e
 exitcode-verify 0
-call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+call backup -compress -encrypt aes256 PAsSw0rD compare foo foo.z.e
 exitcode-verify 0
 lastoutput-verify
 .Identical
@@ -300,7 +300,7 @@ endlist
 
 test decompressed/decrypted file test - different
 create bar
-call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+call backup -decompress -decrypt aes256 PAsSw0rD compare foo.z.e foo
 exitcode-verify 0
 lastoutput-verify
 .Identical
@@ -314,7 +314,7 @@ endlist
 test compressed/encrypted file test - different
 delete bar
 invert-range foo 7124321 1
-call backup -compress -encrypt aes128 PAsSw0rD compare foo foo.z.e
+call backup -compress -encrypt aes256 PAsSw0rD compare foo foo.z.e
 exitcode-verify not 0
 lastoutput-verify
 .Different
@@ -326,7 +326,7 @@ endlist
 
 test decompressed/decrypted file test - different
 create bar
-call backup -decompress -decrypt aes128 PAsSw0rD compare foo.z.e foo
+call backup -decompress -decrypt aes256 PAsSw0rD compare foo.z.e foo
 exitcode-verify not 0
 lastoutput-verify
 .Different

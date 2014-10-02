@@ -1069,7 +1069,7 @@ mkdir archives
 
 test encryption
 date + 1
-call backup -date %DATE% -encrypt aes128 pA55w01D dynpack source archives\archive 50000 -verify
+call backup -date %DATE% -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1103,7 +1103,7 @@ mkdir archives
 # this test is no longer useful, since the random archive signature will cause the archive files to always look different, whether encryption is used or not used
 test encryption (nondeterminism)
 date + 1
-call backup -date %DATE% -encrypt aes128 pA55w01D dynpack source archives\archive 50000 -verify
+call backup -date %DATE% -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1134,7 +1134,7 @@ endlist
 
 test decryption
 date + 1
-call backup -date %DATE% -decrypt aes128 pA55w01D dynunpack archives\archive target
+call backup -date %DATE% -decrypt aes256 pA55w01D dynunpack archives\archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -1157,7 +1157,7 @@ list-verify target
 .          2014-01-15          2014-01-15 -A---- c\c5.txt [15]
 endlist
 # update archive (force read of existing manifest - code coverage)
-call backup -date %DATE% -encrypt aes128 pA55w01D dynpack source archives\archive 50000 -verify
+call backup -date %DATE% -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 rmdir target
 rmdir archives
@@ -1165,7 +1165,7 @@ mkdir archives
 
 test compression and encryption
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 sW01dF15H dynpack source archives\archive 50000 -verify
+call backup -date %DATE% -compress -encrypt aes256 sW01dF15H dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1196,7 +1196,7 @@ endlist
 
 test decompression and decryption
 date + 1
-call backup -date %DATE% -decompress -decrypt aes128 sW01dF15H dynunpack archives\archive target
+call backup -date %DATE% -decompress -decrypt aes256 sW01dF15H dynunpack archives\archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -1220,11 +1220,11 @@ list-verify target
 endlist
 # update archive (force read of existing manifest - code coverage)
 date + 1
-call backup -date %DATE% -compress -encrypt aes128 sW01dF15H dynpack source archives\archive 50000 -verify
+call backup -date %DATE% -compress -encrypt aes256 sW01dF15H dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 rmdir target
 date + 1
-call backup -date %DATE% -decompress -decrypt aes128 sW01dF15H dynunpack archives\archive target
+call backup -date %DATE% -decompress -decrypt aes256 sW01dF15H dynunpack archives\archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\

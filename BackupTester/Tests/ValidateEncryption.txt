@@ -12,7 +12,7 @@ test set up scenario
 date 2014-01-01
 create file1 -size 50000
 date + 1
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd copy file1 file1.e
+call backup -date %DATE% -encrypt aes256 Pa5sV0Rd copy file1 file1.e
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- file1 [1]
@@ -20,9 +20,9 @@ list-verify .
 endlist
 
 test prevalidation with undamaged file
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd copy file1.e file1.u1
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd copy file1.e file1.u1
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u2
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- file1 [1]
@@ -36,7 +36,7 @@ delete file1.u2
 test prevalidation with damaged file
 copy file1.e file1.e.backup
 invert-range file1.e 25000 1
-call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd copy file1.e file1.u3
+call-with-input backup -date %DATE% -decrypt aes256 Pa5sV0Rd copy file1.e file1.u3
 .r
 .c
 endinput
@@ -49,7 +49,7 @@ lastoutput-verify -workspacepathhack
 .
 .
 endoutput
-call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u4
+call-with-input backup -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u4
 .r
 .c
 endinput
@@ -78,7 +78,7 @@ delete file1.e
 copy file1.e.backup file1.e
 # magic: corrupt last byte of file (part of sha256 HMAC check value)
 invert-range file1.e -1 1
-call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd copy file1.e file1.u5
+call-with-input backup -date %DATE% -decrypt aes256 Pa5sV0Rd copy file1.e file1.u5
 .r
 .c
 endinput
@@ -91,7 +91,7 @@ lastoutput-verify -workspacepathhack
 .
 .
 endoutput
-call-with-input backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u6
+call-with-input backup -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate copy file1.e file1.u6
 .r
 .c
 endinput
@@ -128,7 +128,7 @@ date + 1
 create source\file3 -size 50000
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd pack source archive.pack
+call backup -date %DATE% -encrypt aes256 Pa5sV0Rd pack source archive.pack
 exitcode-verify 0
 list-verify .
 .          2014-01-04          2014-01-04 -A---- archive.pack [4]
@@ -139,9 +139,9 @@ list-verify .
 endlist
 
 test prevalidation with undamaged file
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd unpack archive.pack target1
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd unpack archive.pack target1
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate unpack archive.pack target2
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate unpack archive.pack target2
 exitcode-verify 0
 list-verify .
 .          2014-01-04          2014-01-04 -A---- archive.pack [4]
@@ -165,12 +165,12 @@ test prevalidation with damaged file
 copy archive.pack archive.pack.backup
 # magic: damage 2nd file
 invert-range archive.pack 60000 1
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd unpack archive.pack target3
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd unpack archive.pack target3
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
 endoutput
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate unpack archive.pack target4
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate unpack archive.pack target4
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Individual archived file data check values do not match
@@ -195,12 +195,12 @@ delete archive.pack
 copy archive.pack.backup archive.pack
 # magic: damage 2nd file - last byte (part of sha256 HMAC check value)
 invert-range archive.pack -1 1
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd unpack archive.pack target5
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd unpack archive.pack target5
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
 endoutput
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate unpack archive.pack target6
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate unpack archive.pack target6
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
@@ -246,7 +246,7 @@ date + 1
 create source\i -size 50000
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
+call backup -date %DATE% -encrypt aes256 Pa5sV0Rd dynpack source archive 160000
 exitcode-verify 0
 list-verify .
 .          2014-01-10          2014-01-10 -A---- archive.0.dynpack [10]
@@ -266,9 +266,9 @@ list-verify .
 endlist
 
 test unpack valid data
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd dynunpack archive target1
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd dynunpack archive target1
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate dynunpack archive target2
+call backup -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate dynunpack archive target2
 exitcode-verify 0
 list-verify target1
 .          2014-01-01          2014-01-01 -A---- a [1]
@@ -299,7 +299,7 @@ test unpack with invalidated files
 # magic: damage 2nd file of 2nd pack
 invert-range archive.m.dynpack 60000 1
 mkdir target3
-call backup -concurrency 0 -date %DATE% -decrypt aes128 Pa5sV0Rd dynunpack archive target3
+call backup -concurrency 0 -date %DATE% -decrypt aes256 Pa5sV0Rd dynunpack archive target3
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
@@ -314,7 +314,7 @@ list-verify target3
 .          2014-01-02          2014-01-02 -A---- b [2]
 .          2014-01-03          2014-01-03 -A---- c [3]
 endlist
-call backup -concurrency 0 -date %DATE% -decrypt aes128 Pa5sV0Rd -nomacprevalidate dynunpack archive target4
+call backup -concurrency 0 -date %DATE% -decrypt aes256 Pa5sV0Rd -nomacprevalidate dynunpack archive target4
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack -ignoreextralines
 .Reading archive.0.dynpack
@@ -344,7 +344,7 @@ test update pack with invalid manifest
 invert-range archive.0.dynpack 300 300
 date + 1
 create source\j -size 50000
-call backup -concurrency 0 -date %DATE% -encrypt aes128 Pa5sV0Rd dynpack source archive 160000
+call backup -concurrency 0 -date %DATE% -encrypt aes256 Pa5sV0Rd dynpack source archive 160000
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 # update involves reading manifest first - operation is aborted with MAC error before anything else
@@ -368,7 +368,7 @@ list-verify .
 .          2014-01-09          2014-01-09 -A---- source\i [9]
 .          2014-01-11          2014-01-11 -A---- source\j [16]
 endlist
-call backup -concurrency 0 -date %DATE% -encrypt aes128 Pa5sV0Rd -nomacprevalidate dynpack source archive 160000
+call backup -concurrency 0 -date %DATE% -encrypt aes256 Pa5sV0Rd -nomacprevalidate dynpack source archive 160000
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack -ignoreextralines
 # in this case, manifest data is parsed until some internal header integrity error is generated
@@ -411,7 +411,7 @@ create source\c
 date + 1
 open source\b wx
 date + 1
-call-with-input backup -date %DATE% -encrypt aes128 5woRdf1sH pack source archive.pack
+call-with-input backup -date %DATE% -encrypt aes256 5woRdf1sH pack source archive.pack
 .q
 endinput
 exitcode-verify not 0
@@ -424,13 +424,13 @@ lastoutput-verify -workspacepathhack -ignoreextralines
 .The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process.
 endoutput
 date + 1
-call backup -date %DATE% -decrypt aes128 5woRdf1sH validate archive.pack
+call backup -date %DATE% -decrypt aes256 5woRdf1sH validate archive.pack
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .INVALID %WORKSPACE%\archive.pack
 endoutput
 date + 1
-call backup -date %DATE% -decrypt aes128 5woRdf1sH unpack archive.pack copy
+call backup -date %DATE% -decrypt aes256 5woRdf1sH unpack archive.pack copy
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!
@@ -460,9 +460,9 @@ date + 1
 qlist .
 
 test copy files with forced rekeying
-call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys copy source copy1.e
+call backup -date %DATE% -encrypt aes256 Ba55w1rD -forcenewkeys copy source copy1.e
 exitcode-verify 0
-call-with-input backup -date %DATE% -decrypt aes128 Ba55w1rD copy copy1.e copy2
+call-with-input backup -date %DATE% -decrypt aes256 Ba55w1rD copy copy1.e copy2
 .q
 endinput
 exitcode-verify 0
@@ -472,9 +472,9 @@ rmdir copy2
 
 test pack files with forced rekeying
 mkdir archive2
-call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys pack source archive2\a.pack
+call backup -date %DATE% -encrypt aes256 Ba55w1rD -forcenewkeys pack source archive2\a.pack
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 Ba55w1rD unpack archive2\a.pack copy4
+call backup -date %DATE% -decrypt aes256 Ba55w1rD unpack archive2\a.pack copy4
 exitcode-verify 0
 dirs-equal-verify source copy4
 rmdir copy4
@@ -482,9 +482,9 @@ rmdir archive2
 
 test dynpack files with forced rekeying
 mkdir archive
-call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys dynpack source archive\a 35000
+call backup -date %DATE% -encrypt aes256 Ba55w1rD -forcenewkeys dynpack source archive\a 35000
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 Ba55w1rD dynunpack archive\a copy3
+call backup -date %DATE% -decrypt aes256 Ba55w1rD dynunpack archive\a copy3
 exitcode-verify 0
 dirs-equal-verify source copy3
 rmdir copy3
@@ -492,9 +492,9 @@ rmdir archive
 
 test backup files with forced rekeying
 mkdir archive3
-call backup -date %DATE% -encrypt aes128 Ba55w1rD -forcenewkeys backup source archive3
+call backup -date %DATE% -encrypt aes256 Ba55w1rD -forcenewkeys backup source archive3
 exitcode-verify 0
-call-with-input backup -date %DATE% -decrypt aes128 Ba55w1rD restore archive3 2014-01-03T00+00+00 copy5
+call-with-input backup -date %DATE% -decrypt aes256 Ba55w1rD restore archive3 2014-01-03T00+00+00 copy5
 .q
 endinput
 exitcode-verify 0
@@ -528,8 +528,8 @@ copy source\a source\e
 date + 1
 
 test encrypt files with forced rekeying
-call backup -date %DATE% -encrypt aes128 pA55w1rD -forcenewkeys copy source copy1.e
+call backup -date %DATE% -encrypt aes256 pA55w1rD -forcenewkeys copy source copy1.e
 exitcode-verify 0
-call backup -date %DATE% -decrypt aes128 pA55w1rD copy copy1.e copy2
+call backup -date %DATE% -decrypt aes256 pA55w1rD copy copy1.e copy2
 exitcode-verify 0
 dirs-equal-verify source copy2

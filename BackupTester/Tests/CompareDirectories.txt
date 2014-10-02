@@ -299,11 +299,11 @@ mkdir a\qux
 create a\qux\bar
 create a\qux\foo
 mkdir b\qux
-call backup -compress -encrypt aes128 sW0rDF1sh copy a\qux\bar b\qux\bar
+call backup -compress -encrypt aes256 sW0rDF1sh copy a\qux\bar b\qux\bar
 exitcode-verify 0
-call backup -compress -encrypt aes128 sW0rDF1sh copy a\qux\foo b\qux\foo
+call backup -compress -encrypt aes256 sW0rDF1sh copy a\qux\foo b\qux\foo
 exitcode-verify 0
-call backup -compress -encrypt aes128 sW0rDF1sh compare a b
+call backup -compress -encrypt aes256 sW0rDF1sh compare a b
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\a
@@ -323,7 +323,7 @@ endlist
 test detect difference
 date + 1
 edit a\qux\foo
-call backup -decompress -decrypt aes128 sW0rDF1sh compare b a
+call backup -decompress -decrypt aes256 sW0rDF1sh compare b a
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\b
