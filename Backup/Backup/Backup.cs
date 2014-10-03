@@ -1001,21 +1001,24 @@ namespace Backup
 
         public class CryptoMasterKeyCacheEntry : IDisposable
         {
-            public readonly byte[] passwordSalt;
-            public readonly ProtectedArray<byte> masterKey;
+            private readonly byte[] passwordSalt;
+            private readonly int rfc2898Rounds;
+            private readonly ProtectedArray<byte> masterKey;
 
             private CryptoMasterKeyCacheEntry()
             {
                 throw new NotSupportedException();
             }
 
-            public CryptoMasterKeyCacheEntry(byte[] passwordSalt, ProtectedArray<byte> masterKey)
+            public CryptoMasterKeyCacheEntry(byte[] passwordSalt, int rfc2898Rounds, ProtectedArray<byte> masterKey)
             {
                 this.passwordSalt = passwordSalt;
+                this.rfc2898Rounds = rfc2898Rounds;
                 this.masterKey = ProtectedArray<byte>.Clone(masterKey);
             }
 
             public byte[] PasswordSalt { get { return passwordSalt; } }
+            public int Rfc2898Rounds { get { return rfc2898Rounds; } }
             public ProtectedArray<byte> MasterKey { get { return ProtectedArray<byte>.Clone(masterKey); } }
 
             public void Dispose()
@@ -1030,11 +1033,11 @@ namespace Backup
             private const int MaxCacheEntries = 10;
             private List<CryptoMasterKeyCacheEntry> masterKeys = new List<CryptoMasterKeyCacheEntry>(MaxCacheEntries);
 
-            public CryptoMasterKeyCacheEntry Find(byte[] passwordSalt)
+            public CryptoMasterKeyCacheEntry Find(byte[] passwordSalt, int rfc2898Rounds)
             {
                 lock (this)
                 {
-                    return masterKeys.Find(delegate(CryptoMasterKeyCacheEntry candidate) { return ArrayEqual(candidate.PasswordSalt, passwordSalt); });
+                    return masterKeys.Find(delegate(CryptoMasterKeyCacheEntry candidate) { return (candidate.Rfc2898Rounds == rfc2898Rounds) && ArrayEqual(candidate.PasswordSalt, passwordSalt); });
                 }
             }
 
@@ -1042,7 +1045,7 @@ namespace Backup
             {
                 lock (this)
                 {
-                    if (null != Find(entry.PasswordSalt))
+                    if (null != Find(entry.PasswordSalt, entry.Rfc2898Rounds))
                     {
                         throw new ArgumentException();
                     }
@@ -1061,19 +1064,19 @@ namespace Backup
                 }
             }
 
-            public CryptoMasterKeyCacheEntry Get(ProtectedArray<byte> password, byte[] passwordSalt, int rounds, ICryptoSystem system)
+            public CryptoMasterKeyCacheEntry Get(ProtectedArray<byte> password, byte[] passwordSalt, int rfc2898Rounds, ICryptoSystem system)
             {
                 lock (this)
                 {
-                    CryptoMasterKeyCacheEntry entry = Find(passwordSalt);
+                    CryptoMasterKeyCacheEntry entry = Find(passwordSalt, rfc2898Rounds);
                     if (entry != null)
                     {
                         return entry;
                     }
 
                     ProtectedArray<byte> masterKey;
-                    system.DeriveMasterKey(password, passwordSalt, rounds, out masterKey);
-                    entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
+                    system.DeriveMasterKey(password, passwordSalt, rfc2898Rounds, out masterKey);
+                    entry = new CryptoMasterKeyCacheEntry(passwordSalt, rfc2898Rounds, masterKey);
                     Add(entry);
                     return entry;
                 }
@@ -1091,7 +1094,7 @@ namespace Backup
                     byte[] passwordSalt = system.CreateRandomBytes(system.PasswordSaltLengthBytes);
                     ProtectedArray<byte> masterKey;
                     system.DeriveMasterKey(password, passwordSalt, system.DefaultRfc2898Rounds, out masterKey);
-                    CryptoMasterKeyCacheEntry entry = new CryptoMasterKeyCacheEntry(passwordSalt, masterKey);
+                    CryptoMasterKeyCacheEntry entry = new CryptoMasterKeyCacheEntry(passwordSalt, system.DefaultRfc2898Rounds, masterKey);
                     Add(entry);
                     return entry;
                 }
@@ -1108,9 +1111,9 @@ namespace Backup
             public bool forceNewKeys;
             private CryptoMasterKeyCache masterKeys = new CryptoMasterKeyCache();
 
-            public CryptoMasterKeyCacheEntry GetMasterKeyEntry(byte[] passwordSalt, int rounds)
+            public CryptoMasterKeyCacheEntry GetMasterKeyEntry(byte[] passwordSalt, int rfc2898Rounds)
             {
-                return masterKeys.Get(password, passwordSalt, rounds, algorithm);
+                return masterKeys.Get(password, passwordSalt, rfc2898Rounds, algorithm);
             }
 
             public CryptoMasterKeyCacheEntry GetDefaultMasterKeyEntry()
