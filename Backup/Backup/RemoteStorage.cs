@@ -89,11 +89,11 @@ namespace Backup
         }
 
         private const int RateLimitExceededBackoffMilliseconds = 5000;
-        public static void WaitRateLimitExceededBackoff(TextWriter trace)
+        public static void WaitRateLimitExceededBackoff(TextWriter trace, HttpStatusCode rateLimitStatusCode)
         {
             if (trace != null)
             {
-                trace.WriteLine("Remote API rate limit exceeded (status=403), delaying {0} msec", RateLimitExceededBackoffMilliseconds);
+                trace.WriteLine("Remote API rate limit exceeded (status={1}), delaying {0} msec", RateLimitExceededBackoffMilliseconds, rateLimitStatusCode);
             }
             Thread.Sleep(RateLimitExceededBackoffMilliseconds); // remote API calls/second exceeded
         }
@@ -106,7 +106,7 @@ namespace Backup
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    class RemoteAccessControl : IDisposable
+    public class RemoteAccessControl : IDisposable
     {
         private readonly string remoteServiceUrl;
 
@@ -369,7 +369,7 @@ namespace Backup
     // TODO: implement AWS support: (S3- http://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html, Glacier- http://docs.aws.amazon.com/amazonglacier/latest/dev/amazon-glacier-api.html)
     // TODO: implement Azure support: http://msdn.microsoft.com/library/azure/dd179355.aspx
 
-    class RemoteFileSystemEntry
+    public class RemoteFileSystemEntry
     {
         public readonly string Id;
         public readonly string Name;
@@ -415,7 +415,7 @@ namespace Backup
         }
     }
 
-    interface IWebMethods
+    public interface IWebMethods
     {
         RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace);
         RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace);
@@ -426,7 +426,7 @@ namespace Backup
         void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace);
     }
 
-    class WebMethodsBase
+    public abstract class WebMethodsBase
     {
         private const int MaxBytesPerWebRequest = 50 * 1024 * 1024; // force upload fail & resumable after this many bytes (to exercise the resume code)
         private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
@@ -452,6 +452,9 @@ namespace Backup
             this.remoteAccessControl = remoteAccessControl;
             this.enableResumableUploads = enableResumableUploads;
         }
+
+
+        // Global controls
 
         public static void EnsureConcurrency(int threadCount)
         {
@@ -511,6 +514,15 @@ namespace Backup
         {
             SetThrottle(0);
         }
+
+
+        // Configurable methods
+
+        public abstract HttpStatusCode RateLimitStatusCode { get; }
+
+
+        // Implementation
+
 
         private static string StreamReadLine(Stream stream)
         {
@@ -1742,16 +1754,16 @@ namespace Backup
             DoWebActionOnce(url, verb, requestBodySource, responseBodyDestination, requestHeaders, responseHeadersOut, out webStatusCodeOut, out httpStatusCodeOut, progressTrackerUpload, null/*progressTrackerDownload*/, accessTokenOverride, trace);
 
             if ((webStatusCodeOut != WebExceptionStatus.Success) ||
-                ((int)httpStatusCodeOut >= 403) ||
+                (httpStatusCodeOut == RateLimitStatusCode) ||
                 (((int)httpStatusCodeOut >= 500) && ((int)httpStatusCodeOut <= 599)))
             {
                 networkErrorRetries++;
                 if (networkErrorRetries <= RetryHelper.MaxRetries)
                 {
                     RetryHelper.WaitExponentialBackoff(networkErrorRetries, trace);
-                    if ((int)httpStatusCodeOut == 403)
+                    if (httpStatusCodeOut == RateLimitStatusCode)
                     {
-                        RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                        RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
                     }
 
                     // reset state
@@ -1933,15 +1945,15 @@ namespace Backup
                 trace.WriteLine(" DownloadFileWithResume initial request, result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) [retry={5}]", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, retry);
             }
 
-            if (!result && ((httpStatusCode == (HttpStatusCode)403) || (httpStatusCode == (HttpStatusCode)404) || ((responseHeaders[0].Value == null) && (responseHeaders[1].Value == null) && (responseHeaders[2].Value == null))))
+            if (!result && ((httpStatusCode == RateLimitStatusCode) || (httpStatusCode == (HttpStatusCode)404) || ((responseHeaders[0].Value == null) && (responseHeaders[1].Value == null) && (responseHeaders[2].Value == null))))
             {
                 retry++;
                 if (retry <= RetryHelper.MaxRetries)
                 {
                     RetryHelper.WaitExponentialBackoff(retry, trace);
-                    if ((int)httpStatusCode == 403)
+                    if (httpStatusCode == RateLimitStatusCode)
                     {
-                        RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                        RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
                     }
                     goto Retry1;
                 }
@@ -1977,9 +1989,9 @@ namespace Backup
                         else
                         {
                             RetryHelper.WaitExponentialBackoff(retry, trace);
-                            if ((int)httpStatusCode == 403)
+                            if (httpStatusCode == RateLimitStatusCode)
                             {
-                                RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                                RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
                             }
                         }
                         previousLengthSoFar = streamDownloadInto.Length;
@@ -2040,6 +2052,8 @@ namespace Backup
                 trace.WriteLine("*MicrosoftOneDriveWebMethods constructor");
             }
         }
+
+        public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)(-99); } } // Microsoft is not rate-limited
 
         private const string UploadLocationUrlPrefix = "https://apis.live.net/v5.0/";
         private const string UploadLocationContentUrlSuffix = "/content/";
@@ -2554,6 +2568,8 @@ namespace Backup
             }
         }
 
+        public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)403; } }
+
         private class GoogleDriveFile
         {
             // https://developers.google.com/drive/v2/reference/files/list
@@ -2963,9 +2979,9 @@ namespace Backup
             else
             {
                 RetryHelper.WaitExponentialBackoff(startOver, trace);
-                if ((int)httpStatusCode == 403)
+                if (httpStatusCode == RateLimitStatusCode)
                 {
-                    RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                    RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
                 }
             }
 
@@ -3063,9 +3079,9 @@ namespace Backup
             else
             {
                 RetryHelper.WaitExponentialBackoff(retry, trace);
-                if ((int)httpStatusCode == 403)
+                if (httpStatusCode == RateLimitStatusCode)
                 {
-                    RetryHelper.WaitRateLimitExceededBackoff(trace); // remote API calls/second exceeded
+                    RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
                 }
             }
             if (!resuming)

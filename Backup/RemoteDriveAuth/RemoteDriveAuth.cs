@@ -135,12 +135,39 @@ namespace RemoteDriveAuth
         public override string TokenExchangeProviderUrl { get { return "https://accounts.google.com/o/oauth2/token"; } }
     }
 
+#if false
+    class DropBoxRemoteService : OAuth20RemoteService
+    {
+        // Walkthrough of desktop application authentication for DropBox
+        // https://www.dropbox.com/developers/core/docs#oauth2-methods
+
+        // DropBox: manage client application registration at:
+        // https://www.dropbox.com/developers/apps
+
+        public override Uri ServiceUri { get { return new Uri("https://dropbox.com"); } }
+
+        public override string DeveloperConsoleUri { get { return "https://www.dropbox.com/developers/apps"; } }
+
+        // Scopes not used by DropBox
+        public override string Scopes(bool enableRefreshToken) { return null; }
+
+        public override string RequestAuthorizationUrl(ClientIdentities.ClientIdentity clientIdentity, bool enableRefreshToken) { return "https://www.dropbox.com/1/oauth2/authorize?response_type=code&client_id=" + clientIdentity.ClientId + "&redirect_uri=" + AuthorizedRedirectUrl; }
+        public override string AuthorizedRedirectUrl { get { return "http://localhost"; } }
+        public override string AuthorizedRedirectUrlBrowser { get { return AuthorizedRedirectUrl; } }
+
+        public override string TokenExchangeProviderUrl { get { return "https://api.dropbox.com/1/oauth2/token"; } }
+    }
+#endif
+
     class Services
     {
         private static readonly OAuth20RemoteService[] SupportedServices = new OAuth20RemoteService[]
         {
             new MicrosoftOneDriveRemoteService(),
             new GoogleDriveRemoteService(),
+#if false
+            new DropBoxRemoteService(),
+#endif
         };
 
         public static IEnumerator<OAuth20RemoteService> EnumerateServices()
