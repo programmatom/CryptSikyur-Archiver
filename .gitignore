@@ -14,8 +14,9 @@
 /BackupTester/Tests/obj/*
 
 # ignore user's refresh tokens
-#/BackupTester/Tests/resources/GoogleDrveRefreshToken.txt
-#/BackupTester/Tests/resources/MicrosoftOneDriveRefreshToken.txt
+
+/BackupTester/Tests/resources/GoogleDrveRefreshToken.txt
+/BackupTester/Tests/resources/MicrosoftOneDriveRefreshToken.txt
 
 
 
