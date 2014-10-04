@@ -97,23 +97,23 @@ mkdir source\a
 mkdir source\b
 mkdir source\c
 date + 1
-create source\a\m -size 9900
+create source\a\m -size 9800
 date + 1
-create source\a\n -size 9900
+create source\a\n -size 9800
 date + 1
-create source\a\o -size 9900
+create source\a\o -size 9800
 date + 1
-create source\b\p -size 9900
+create source\b\p -size 9800
 date + 1
-create source\b\q -size 9900
+create source\b\q -size 9800
 date + 1
-create source\b\r -size 9900
+create source\b\r -size 9800
 date + 1
-create source\c\s -size 9900
+create source\c\s -size 9800
 date + 1
-create source\c\t -size 9900
+create source\c\t -size 9800
 date + 1
-create source\c\v -size 9900
+create source\c\v -size 9800
 date + 1
 list-verify .
 .                                         -----D source\

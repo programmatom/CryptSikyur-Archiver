@@ -377,7 +377,7 @@ lastoutput-verify -workspacepathhack -ignoreextralines
 .
 .Error:
 .Arithmetic operation resulted in an overflow.
-*   at Backup\.Core\.BinaryReadUtils\.ReadVariableLengthQuantity.*\(Stream stream\) in .*$
+*   at Backup\.BinaryReadUtils\.ReadVariableLengthQuantity.*\(Stream stream\) in .*$
 endoutput
 list-verify .
 .          2014-01-10          2014-01-10 -A---- archive.0.dynpack [15]

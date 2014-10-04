@@ -1,0 +1,40 @@
+command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+command remotedriveauth D:\Tom\Programming\Backup\Backup\bin\Debug\RemoteDriveAuth.exe
+#opencover backup
+#opencover remotedriveauth
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module prerequisites
+
+test ensure remote configured
+# Refresh token file should be one line, no newline at end
+# obtain as follows:
+#   RemoteDriveAuth.exe -auth -refreshtoken yes "" https://onedrive.live.com
+# then, take the returned string up to the first comma (,) and pass to:
+#   FileUtilityTester.exe -decryptmemory <hex-string>
+# save the resulting output to "resources\MicrosoftOneDriveRefreshToken.txt" with no newline at end
+load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
+encrypt-memory refreshtoken
+# try to get access token to verify client-id and client-secret are configured for
+# Google Drive and that there is network connectivity
+call remotedriveauth -auth -refreshtoken yes %refreshtoken% https://onedrive.live.com
+exitcode-verify 0
+lastoutput-verify
+*[0-9a-fA-F,]+$
+endoutput
+
+
+module command - quota
+
+test setup
+load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
+encrypt-memory refreshtoken
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ quota
+exitcode-verify 0
+lastoutput-verify
+*Quota\: total\=.*B\, used\=.*B\, available\=.*B$
+endoutput

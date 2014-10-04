@@ -48,6 +48,8 @@ DirBasic.txt
 UsageBasic.txt
 
 RemoteBasic.txt
+RemoteGoogleDrive.txt
+RemoteMicrosoftOneDrive.txt
 
 
 #TODO:

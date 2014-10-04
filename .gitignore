@@ -1,15 +1,38 @@
+# application compilation intermediate files
+
 /Backup/Backup/obj/*
 /Backup/RemoteDriveAuth/bin/*
 /Backup/RemoteDriveAuth/obj/*
+
+
+
+# test suite compilation intermediate files
 
 /BackupTester/FileUtilityTester/bin/*
 /BackupTester/FileUtilityTester/obj/*
 /BackupTester/Tests/bin/*
 /BackupTester/Tests/obj/*
 
-/Code Coverage Report/results*.xml
+# ignore user's refresh tokens
+#/BackupTester/Tests/resources/GoogleDrveRefreshToken.txt
+#/BackupTester/Tests/resources/MicrosoftOneDriveRefreshToken.txt
+
+
+
+# code coverage intermediate files
+
+#/Code Coverage Report/results*.xml
+
+
+
+# test driver compilation intermediate files
 
 /FileUtilityTester/FileUtilityTester/obj/*
 
+
+
+# local utility scripts
+
 Sync.cmd
 Diff.cmd
+

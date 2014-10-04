@@ -1217,20 +1217,19 @@ namespace Backup
                         },
                     });
 
-                bool valid = (headerNumber == EncryptedFileContainerHeaderNumber)
-                    && String.Equals(uniquePersistentCiphersuiteIdentifier, crypto.algorithm.UniquePersistentCiphersuiteIdentifier)
-                    && (passwordSalt.Length == crypto.algorithm.PasswordSaltLengthBytes)
-                    && (fileSalt.Length == crypto.algorithm.FileSaltLengthBytes)
-                    // but rfc2898Rounds is allowed to vary
-                    && (extra == null);
-                if (!valid)
+                if (!Valid(crypto.algorithm))
                 {
                     throw new InvalidDataException("Unrecognized encrypted file header - wrong ciphersuite specified?");
                 }
             }
 
-            public void Write(Stream stream)
+            public void Write(Stream stream, ICryptoSystem algorithm)
             {
+                if (!Valid(algorithm))
+                {
+                    throw new ArgumentException();
+                }
+
                 BinaryWriteUtils.WriteBytes(stream, new byte[1] { EncryptedFileContainerHeaderNumber });
                 BinaryWriteUtils.WriteStringUtf8(stream, uniquePersistentCiphersuiteIdentifier);
                 BinaryWriteUtils.WriteVariableLengthByteArray(stream, passwordSalt);
@@ -1238,6 +1237,18 @@ namespace Backup
                 BinaryWriteUtils.WriteVariableLengthQuantity(stream, rfc2898Rounds);
 
                 BinaryWriteUtils.WriteVariableLengthByteArray(stream, extra != null ? extra : new byte[0]);
+            }
+
+            public bool Valid(ICryptoSystem algorithm)
+            {
+                const int LegacyMinimumRfc2898Rounds = 20000;
+
+                return (headerNumber == EncryptedFileContainerHeaderNumber)
+                    && String.Equals(uniquePersistentCiphersuiteIdentifier, algorithm.UniquePersistentCiphersuiteIdentifier)
+                    && (passwordSalt.Length == algorithm.PasswordSaltLengthBytes)
+                    && (fileSalt.Length == algorithm.FileSaltLengthBytes)
+                    && (rfc2898Rounds >= LegacyMinimumRfc2898Rounds) // allowed to vary, but must be a certain minimum
+                    && (extra == null);
             }
 
             public override bool Equals(object obj)
@@ -1254,6 +1265,27 @@ namespace Backup
             public override int GetHashCode()
             {
                 throw new NotSupportedException();
+            }
+
+            public static int GetHeaderLength(CryptoContext crypto)
+            {
+                if (crypto == null)
+                {
+                    return 0;
+                }
+
+                // used only for measuring stream length
+
+                EncryptedFileContainerHeader temp = new EncryptedFileContainerHeader(crypto);
+                temp.passwordSalt = new byte[crypto.algorithm.PasswordSaltLengthBytes];
+                temp.fileSalt = new byte[crypto.algorithm.FileSaltLengthBytes];
+                temp.extra = null;
+
+                using (MemoryStream stream = new MemoryStream())
+                {
+                    temp.Write(stream, crypto.algorithm);
+                    return (int)stream.Length;
+                }
             }
         }
 
@@ -1347,7 +1379,7 @@ namespace Backup
                                     (context.cryptoOption == EncryptionOption.Recrypt))
                                 {
                                     // why write here? need to write salt within HMAC container
-                                    fchOutput.Write(stream);
+                                    fchOutput.Write(stream, context.encrypt.algorithm);
                                 }
                                 return null;
                             },
@@ -3227,7 +3259,7 @@ namespace Backup
                                 delegate(Stream stream)
                                 {
                                     // why write here? need to write salt within HMAC container
-                                    fch.Write(stream);
+                                    fch.Write(stream, context.encrypt.algorithm);
                                     return null;
                                 },
                                 delegate(Stream stream)
@@ -5697,7 +5729,7 @@ namespace Backup
                             if (context.cryptoOption == EncryptionOption.Encrypt)
                             {
                                 // why write here? need to write salt within HMAC container
-                                fch.Write(stream);
+                                fch.Write(stream, context.encrypt.algorithm);
                             }
                             return null;
                         },
@@ -6983,14 +7015,23 @@ namespace Backup
                                 }
                                 else
                                 {
+                                    // estimate overhead (tries to reserve worst case)
+                                    int headerOverhead = new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, inputStreamLength, null/*range*/).HeaderOverhead;
+                                    headerOverhead += 1/*opcode*/ + 1/*length*/ + new PackedFileHeaderRecord.RangeRecord(inputStreamLength, inputStreamLength, inputStreamLength).ToString().Length;
+                                    long largeFileSegmentSizeThisInstance = largeFileSegmentSize.Value - headerOverhead;
+                                    if (largeFileSegmentSizeThisInstance <= 0)
+                                    {
+                                        throw new InvalidOperationException();
+                                    }
+
                                     // split file into ranges
                                     long currentStart = 0;
                                     while (currentStart < inputStreamLength)
                                     {
-                                        long currentLength = Math.Min(inputStreamLength - currentStart, largeFileSegmentSize.Value);
+                                        long currentLength = Math.Min(inputStreamLength - currentStart, largeFileSegmentSizeThisInstance);
                                         long currentEnd = currentStart + currentLength - 1;
                                         files.Add(new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, currentLength, new PackedFileHeaderRecord.RangeRecord(currentStart, currentEnd, inputStreamLength)));
-                                        currentStart += largeFileSegmentSize.Value;
+                                        currentStart += largeFileSegmentSizeThisInstance;
                                     }
                                 }
                             }
@@ -7233,9 +7274,12 @@ namespace Backup
 
         internal static void DynamicPack(string source, string targetArchivePathTemplate, long segmentSizeTarget, Context context, string[] args)
         {
+            const int SegmentOverheadFixed = 1/*FixedHeaderNumber*/ + (1 + PackRandomSignatureLengthBytes) + 10/*SerialNumber(var-max)*/ + 1/*StructureType*/ + PackedFileHeaderRecord.HeaderTokenLength + 4/*segment CRC32*/;
+            int SegmentOverheadEncrypted = EncryptedFileContainerHeader.GetHeaderLength(context.encrypt) + (context.encrypt != null ? context.encrypt.algorithm.MACLengthBytes : 0);
+            int SegmentOverheadTotal = SegmentOverheadFixed + SegmentOverheadEncrypted;
+
             const int WaitInterval = 2000; // milliseconds
             const string DynPackDiagnosticDateTimeFormat = "yyyy-MM-ddTHH:mm:ss";
-            const int SegmentFixedOverhead = 1/*FixedHeaderNumber*/ + (1 + PackRandomSignatureLengthBytes) + 10/*SerialNumber*/ + 1/*StructureType*/ + (1 + 256 / 8/*password salt*/) + (1 + 256 / 8/*per-file salt*/) + 2/*CipherSuiteId*/ + 4/*Rfc2898*/ + 1/*Extra*/ + PackedFileHeaderRecord.HeaderTokenLength + 4/*CRC32*/+ (1 + 256 / 8/*SHA256 length*/);
             const int MinimumSegmentSize = 4096;
 
             FaultInstanceNode faultDynamicPack = context.faultInjectionRoot.Select("DynamicPack");
@@ -7247,7 +7291,7 @@ namespace Backup
                 rng.GetBytes(randomArchiveSignature);
             }
 
-            segmentSizeTarget -= SegmentFixedOverhead;
+            segmentSizeTarget -= SegmentOverheadTotal;
             // segmentSizeTarget is only approximate anyway and may be exceeded due to
             // encryption/validation and compression potential compression overhead.
 
@@ -8888,7 +8932,7 @@ namespace Backup
                                                 if (context.cryptoOption == EncryptionOption.Encrypt)
                                                 {
                                                     // why write here? need to write salt within HMAC container
-                                                    fch.Write(stream);
+                                                    fch.Write(stream, context.encrypt.algorithm);
                                                 }
                                                 return null;
                                             },
@@ -9156,7 +9200,7 @@ namespace Backup
                                                                                     if (context.cryptoOption == EncryptionOption.Encrypt)
                                                                                     {
                                                                                         // why write here? need to write salt within HMAC container
-                                                                                        fch.Write(stream);
+                                                                                        fch.Write(stream, context.encrypt.algorithm);
                                                                                     }
                                                                                     return null;
                                                                                 },

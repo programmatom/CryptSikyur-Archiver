@@ -225,7 +225,7 @@ test one
 date 2014-01-01
 mkdir source
 date + 1
-create source\a -size 9900
+create source\a -size 9800
 date + 1
 list-verify .
 .                                         -----D source\
@@ -253,7 +253,7 @@ endlist
 test two
 rmdir target
 date + 1
-create source\b -size 9900
+create source\b -size 9800
 date + 1
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
@@ -287,7 +287,7 @@ endlist
 test three
 rmdir target
 date + 1
-create source\c -size 9900
+create source\c -size 9800
 date + 1
 list-verify .
 .          2014-01-03          2014-01-05 -A---- archive.0.dynpack [5]
@@ -325,7 +325,7 @@ endlist
 test four
 rmdir target
 date + 1
-create source\d -size 9900
+create source\d -size 9800
 date + 1
 list-verify .
 .          2014-01-03          2014-01-07 -A---- archive.0.dynpack [8]
@@ -367,7 +367,7 @@ endlist
 test five
 rmdir target
 date + 1
-create source\e -size 9900
+create source\e -size 9800
 date + 1
 list-verify .
 .          2014-01-03          2014-01-09 -A---- archive.0.dynpack [11]
@@ -413,7 +413,7 @@ endlist
 test six
 rmdir target
 date + 1
-create source\f -size 9900
+create source\f -size 9800
 date + 1
 list-verify .
 .          2014-01-03          2014-01-11 -A---- archive.0.dynpack [14]
@@ -546,22 +546,22 @@ module max fill
 
 test setup
 mkdir source
-create source\a -size 9900
-create source\b -size 9900
-create source\c -size 9900
-create source\d -size 9900
-create source\e -size 9900
-create source\f -size 9900
-create source\g -size 9900
-create source\h -size 9900
-create source\i -size 9900
-create source\j -size 9900
-create source\k -size 9900
-create source\l -size 9900
-create source\m -size 9900
-create source\n -size 9900
-create source\o -size 9900
-create source\p -size 9900
+create source\a -size 9800
+create source\b -size 9800
+create source\c -size 9800
+create source\d -size 9800
+create source\e -size 9800
+create source\f -size 9800
+create source\g -size 9800
+create source\h -size 9800
+create source\i -size 9800
+create source\j -size 9800
+create source\k -size 9800
+create source\l -size 9800
+create source\m -size 9800
+create source\n -size 9800
+create source\o -size 9800
+create source\p -size 9800
 date + 1
 list-verify .
 .                                         -----D source\
@@ -696,24 +696,24 @@ mkdir source\d
 date + 1
 create source\b\x.txt
 date + 1
-edit source\b\x.txt -size 9900
+edit source\b\x.txt -size 9800
 date + 1
-create source\b\y.txt -size 9900
+create source\b\y.txt -size 9800
 date + 1
-create source\b\z.txt -size 9900
+create source\b\z.txt -size 9800
 date + 1
-create source\b\w.txt -size 19900
+create source\b\w.txt -size 19600
 date + 1
 mkdir source\d\e
-create source\d\e\m.txt -size 9900
+create source\d\e\m.txt -size 9800
 date + 1
-create source\d\e\n.txt -size 9900
+create source\d\e\n.txt -size 9800
 date + 1
-create source\d\e\o.txt -size 9900
+create source\d\e\o.txt -size 9800
 date + 1
-create source\d\e\p.txt -size 9900
+create source\d\e\p.txt -size 9800
 date + 1
-create source\d\e\q.txt -size 9900
+create source\d\e\q.txt -size 9800
 date + 1
 list-verify .
 .                                         -----D source\
@@ -886,35 +886,35 @@ mkdir source
 mkdir source\a
 mkdir source\b
 mkdir source\c
-create source\a\a1.txt -size 9900
+create source\a\a1.txt -size 9800
 date + 1
-create source\a\a2.txt -size 9900
+create source\a\a2.txt -size 9800
 date + 1
-create source\a\a3.txt -size 9900
+create source\a\a3.txt -size 9800
 date + 1
-create source\a\a4.txt -size 9900
+create source\a\a4.txt -size 9800
 date + 1
-create source\a\a5.txt -size 9900
+create source\a\a5.txt -size 9800
 date + 1
-create source\b\b1.txt -size 9900
+create source\b\b1.txt -size 9800
 date + 1
-create source\b\b2.txt -size 9900
+create source\b\b2.txt -size 9800
 date + 1
-create source\b\b3.txt -size 9900
+create source\b\b3.txt -size 9800
 date + 1
-create source\b\b4.txt -size 9900
+create source\b\b4.txt -size 9800
 date + 1
-create source\b\b5.txt -size 9900
+create source\b\b5.txt -size 9800
 date + 1
-create source\c\c1.txt -size 9900
+create source\c\c1.txt -size 9800
 date + 1
-create source\c\c2.txt -size 9900
+create source\c\c2.txt -size 9800
 date + 1
-create source\c\c3.txt -size 9900
+create source\c\c3.txt -size 9800
 date + 1
-create source\c\c4.txt -size 9900
+create source\c\c4.txt -size 9800
 date + 1
-create source\c\c5.txt -size 9900
+create source\c\c5.txt -size 9800
 date + 1
 list-verify .
 .                                         -----D archives\
@@ -1256,17 +1256,17 @@ module segment naming tests
 test create segment name hierarchy
 date 2014-01-01
 mkdir source
-create source\0000 -size 9900
-create source\5000 -size 9900
-create source\9999 -size 9900
+create source\0000 -size 9800
+create source\5000 -size 9800
+create source\9999 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
-create source\7500 -size 9900
+create source\7500 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
-create source\6250 -size 9900
+create source\6250 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
@@ -1284,9 +1284,9 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\7500 [10]
 .          2014-01-01          2014-01-01 -A---- source\9999 [11]
 endlist
-create source\5938 -size 9900
-create source\5625 -size 9900
-create source\5312 -size 9900
+create source\5938 -size 9800
+create source\5625 -size 9800
+create source\5312 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
@@ -1310,15 +1310,15 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\7500 [10]
 .          2014-01-01          2014-01-01 -A---- source\9999 [11]
 endlist
-create source\6094 -size 9900
+create source\6094 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
-create source\6172 -size 9900
+create source\6172 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
-create source\6211 -size 9900
+create source\6211 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
@@ -1348,7 +1348,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\7500 [10]
 .          2014-01-01          2014-01-01 -A---- source\9999 [11]
 endlist
-create source\6230 -size 9900
+create source\6230 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0
@@ -1407,7 +1407,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\7500 [10]
 .          2014-01-01          2014-01-01 -A---- source\9999 [11]
 endlist
-create source\5615 -size 9900
+create source\5615 -size 9800
 date + 1
 call backup -date %DATE% dynpack source archive 10000 -verify
 exitcode-verify 0

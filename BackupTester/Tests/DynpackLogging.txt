@@ -16,23 +16,23 @@ mkdir source\a
 mkdir source\b
 mkdir source\c
 date + 1
-create source\a\m -size 9900
+create source\a\m -size 9800
 date + 1
-create source\a\n -size 9900
+create source\a\n -size 9800
 date + 1
-create source\a\o -size 9900
+create source\a\o -size 9800
 date + 1
-create source\b\p -size 9900
+create source\b\p -size 9800
 date + 1
-create source\b\q -size 9900
+create source\b\q -size 9800
 date + 1
-create source\b\r -size 9900
+create source\b\r -size 9800
 date + 1
-create source\c\s -size 9900
+create source\c\s -size 9800
 date + 1
-create source\c\t -size 9900
+create source\c\t -size 9800
 date + 1
-create source\c\v -size 9900
+create source\c\v -size 9800
 date + 1
 list-verify .
 .                                         -----D logs\
@@ -84,17 +84,17 @@ file-verify logs\archive.0.dynpack.log
 .3 dirty
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
-*  FILE         9900 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
-*  FILE         9900 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
+*  FILE         9800 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
+*  FILE         9800 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
+*  FILE         9800 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
 *SEGMENT m \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-05T\d\d\:\d\d\:\d\d 2014-01-05T\d\d\:\d\d\:\d\d \.\\b\\p$
-*  FILE         9900 2014-01-06T\d\d\:\d\d\:\d\d 2014-01-06T\d\d\:\d\d\:\d\d \.\\b\\q$
-*  FILE         9900 2014-01-07T\d\d\:\d\d\:\d\d 2014-01-07T\d\d\:\d\d\:\d\d \.\\b\\r$
+*  FILE         9800 2014-01-05T\d\d\:\d\d\:\d\d 2014-01-05T\d\d\:\d\d\:\d\d \.\\b\\p$
+*  FILE         9800 2014-01-06T\d\d\:\d\d\:\d\d 2014-01-06T\d\d\:\d\d\:\d\d \.\\b\\q$
+*  FILE         9800 2014-01-07T\d\d\:\d\d\:\d\d 2014-01-07T\d\d\:\d\d\:\d\d \.\\b\\r$
 *SEGMENT s \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
-*  FILE         9900 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
-*  FILE         9900 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
+*  FILE         9800 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
+*  FILE         9800 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
+*  FILE         9800 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
 endfile
 call backup -date %DATE% dynunpack archive target
 exitcode-verify 0
@@ -118,41 +118,41 @@ exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 4\; SIGNATURE\: .*$
 . [a: 1]
-.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
-.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
-.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+.        1 9.57KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.57KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.57KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
 . [m: 2]
-.        4 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
-.        5 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
-.        6 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+.        4 9.57KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        5 9.57KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        6 9.57KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
 . [s: 3]
-.        7 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
-.        8 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
-.        9 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+.        7 9.57KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        8 9.57KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        9 9.57KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
 endoutput
 call backup -date %DATE% dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 1\; SIGNATURE\: .*$
-.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
-.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
-.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+.        1 9.57KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.57KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.57KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
 endoutput
 call backup -date %DATE% dumppack archive.m.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 2\; SIGNATURE\: .*$
-.        1 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
-.        2 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
-.        3 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+.        1 9.57KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        2 9.57KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        3 9.57KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
 endoutput
 call backup -date %DATE% dumppack archive.s.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 3\; SIGNATURE\: .*$
-.        1 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
-.        2 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
-.        3 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+.        1 9.57KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        2 9.57KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        3 9.57KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
 endoutput
 # validate globbing in dumppack file argument and multifile output
 call backup -date %DATE% dumppack archive.*.dynpack
@@ -161,35 +161,35 @@ lastoutput-verify -workspacepathhack
 .FILE: "archive.0.dynpack"
 *SERIAL\: 4\; SIGNATURE\: .*$
 . [a: 1]
-.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
-.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
-.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+.        1 9.57KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.57KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.57KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
 . [m: 2]
-.        4 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
-.        5 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
-.        6 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+.        4 9.57KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        5 9.57KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        6 9.57KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
 . [s: 3]
-.        7 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
-.        8 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
-.        9 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+.        7 9.57KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        8 9.57KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        9 9.57KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
 .
 .FILE: "archive.a.dynpack"
 *SERIAL\: 1\; SIGNATURE\: .*$
-.        1 9.67KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
-.        2 9.67KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
-.        3 9.67KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
+.        1 9.57KB 2014-01-02T00:00:00 2014-01-02T00:00:00 -- .\a\m
+.        2 9.57KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
+.        3 9.57KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
 .
 .FILE: "archive.m.dynpack"
 *SERIAL\: 2\; SIGNATURE\: .*$
-.        1 9.67KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
-.        2 9.67KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
-.        3 9.67KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
+.        1 9.57KB 2014-01-05T00:00:00 2014-01-05T00:00:00 -- .\b\p
+.        2 9.57KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
+.        3 9.57KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
 .
 .FILE: "archive.s.dynpack"
 *SERIAL\: 3\; SIGNATURE\: .*$
-.        1 9.67KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
-.        2 9.67KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
-.        3 9.67KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
+.        1 9.57KB 2014-01-08T00:00:00 2014-01-08T00:00:00 -- .\c\s
+.        2 9.57KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
+.        3 9.57KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
 .
 endoutput
 
@@ -234,13 +234,13 @@ file-verify logs\archive.0.dynpack.log
 .3 not-dirty
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
-*  FILE         9900 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
-*  FILE         9900 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
+*  FILE         9800 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
+*  FILE         9800 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
+*  FILE         9800 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
 *SEGMENT s \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
-*  FILE         9900 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
-*  FILE         9900 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
+*  FILE         9800 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
+*  FILE         9800 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
+*  FILE         9800 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
 endfile
 call backup -date %DATE% dynunpack archive target
 exitcode-verify 0
@@ -259,11 +259,11 @@ rmdir target
 test add segment
 mkdir source\d
 date + 1
-create source\d\w -size 9900
+create source\d\w -size 9800
 date + 1
-create source\d\x -size 9900
+create source\d\x -size 9800
 date + 1
-create source\d\y -size 9900
+create source\d\y -size 9800
 date + 1
 list-verify source
 .                                         -----D a\
@@ -314,17 +314,17 @@ file-verify logs\archive.0.dynpack.log
 .6 dirty
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
-*  FILE         9900 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
-*  FILE         9900 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
+*  FILE         9800 2014-01-02T\d\d\:\d\d\:\d\d 2014-01-02T\d\d\:\d\d\:\d\d \.\\a\\m$
+*  FILE         9800 2014-01-03T\d\d\:\d\d\:\d\d 2014-01-03T\d\d\:\d\d\:\d\d \.\\a\\n$
+*  FILE         9800 2014-01-04T\d\d\:\d\d\:\d\d 2014-01-04T\d\d\:\d\d\:\d\d \.\\a\\o$
 *SEGMENT s \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
-*  FILE         9900 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
-*  FILE         9900 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
+*  FILE         9800 2014-01-08T\d\d\:\d\d\:\d\d 2014-01-08T\d\d\:\d\d\:\d\d \.\\c\\s$
+*  FILE         9800 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
+*  FILE         9800 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
 *SEGMENT v \d+ [0-9a-fA-F]{8}$
-*  FILE         9900 2014-01-13T\d\d\:\d\d\:\d\d 2014-01-13T\d\d\:\d\d\:\d\d \.\\d\\w$
-*  FILE         9900 2014-01-14T\d\d\:\d\d\:\d\d 2014-01-14T\d\d\:\d\d\:\d\d \.\\d\\x$
-*  FILE         9900 2014-01-15T\d\d\:\d\d\:\d\d 2014-01-15T\d\d\:\d\d\:\d\d \.\\d\\y$
+*  FILE         9800 2014-01-13T\d\d\:\d\d\:\d\d 2014-01-13T\d\d\:\d\d\:\d\d \.\\d\\w$
+*  FILE         9800 2014-01-14T\d\d\:\d\d\:\d\d 2014-01-14T\d\d\:\d\d\:\d\d \.\\d\\x$
+*  FILE         9800 2014-01-15T\d\d\:\d\d\:\d\d 2014-01-15T\d\d\:\d\d\:\d\d \.\\d\\y$
 endfile
 call backup -date %DATE% dynunpack archive target
 exitcode-verify 0

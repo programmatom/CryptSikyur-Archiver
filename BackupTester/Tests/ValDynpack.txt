@@ -53,18 +53,18 @@ test set up old version of archive
 date 2014-01-01
 mkdir source
 date + 1
-create source\a -size 9900
-create source\b -size 9900
-create source\c -size 9900
-create source\d -size 9900
-create source\e -size 9900
-create source\f -size 9900
-create source\g -size 9900
-create source\h -size 9900
-create source\i -size 9900
-create source\j -size 9900
-create source\k -size 9900
-create source\l -size 9900
+create source\a -size 9800
+create source\b -size 9800
+create source\c -size 9800
+create source\d -size 9800
+create source\e -size 9800
+create source\f -size 9800
+create source\g -size 9800
+create source\h -size 9800
+create source\i -size 9800
+create source\j -size 9800
+create source\k -size 9800
+create source\l -size 9800
 date + 1
 qlist .
 call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive 35000 -verify
@@ -123,18 +123,18 @@ exitcode-verify 0
 
 test create updated version of archive
 date + 1
-edit source\a -size 9900
-edit source\b -size 9900
-edit source\c -size 9900
-edit source\d -size 9900
-edit source\e -size 9900
-edit source\f -size 9900
-edit source\g -size 9900
-edit source\h -size 9900
-edit source\i -size 9900
-edit source\j -size 9900
-edit source\k -size 9900
-edit source\l -size 9900
+edit source\a -size 9800
+edit source\b -size 9800
+edit source\c -size 9800
+edit source\d -size 9800
+edit source\e -size 9800
+edit source\f -size 9800
+edit source\g -size 9800
+edit source\h -size 9800
+edit source\i -size 9800
+edit source\j -size 9800
+edit source\k -size 9800
+edit source\l -size 9800
 date + 1
 qlist .
 call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive 35000 -verify
@@ -274,15 +274,15 @@ test set up first archive
 date 2014-01-01
 mkdir source
 date + 1
-create source\a -size 9900
-create source\b -size 9900
-create source\c -size 9900
-create source\d -size 9900
-create source\e -size 9900
-create source\f -size 9900
-create source\g -size 9900
-create source\h -size 9900
-create source\i -size 9900
+create source\a -size 9800
+create source\b -size 9800
+create source\c -size 9800
+create source\d -size 9800
+create source\e -size 9800
+create source\f -size 9800
+create source\g -size 9800
+create source\h -size 9800
+create source\i -size 9800
 date + 1
 qlist .
 call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive1 35000 -verify
@@ -311,15 +311,15 @@ test set up second archive
 date + 1
 rmdir source
 mkdir source
-create source\a -size 9900
-create source\b -size 9900
-create source\c -size 9900
-create source\d -size 9900
-create source\e -size 9900
-create source\f -size 9900
-create source\g -size 9900
-create source\h -size 9900
-create source\i -size 9900
+create source\a -size 9800
+create source\b -size 9800
+create source\c -size 9800
+create source\d -size 9800
+create source\e -size 9800
+create source\f -size 9800
+create source\g -size 9800
+create source\h -size 9800
+create source\i -size 9800
 date + 1
 qlist .
 call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive2 35000 -verify

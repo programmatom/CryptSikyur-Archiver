@@ -27,6 +27,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
+using Backup;
+
 namespace FileUtilityTester
 {
     class Program
@@ -342,6 +344,10 @@ namespace FileUtilityTester
                                 {
                                     commandArgs = commandArgs.Replace(pattern, now.ToString("s"));
                                 }
+                                foreach (KeyValuePair<string, object> variable in variables)
+                                {
+                                    commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
+                                }
                                 Console.WriteLine("{0} {1}", commands[exe], commandArgs);
                                 if (!Exec(commands[exe], opencover.ContainsKey(exe), commandArgs, null, commandTimeoutSeconds, out lastExitCode, out lastOutput))
                                 {
@@ -373,6 +379,10 @@ namespace FileUtilityTester
                                 foreach (string pattern in new string[] { "%date%", "%DATE%", "%time%", "%TIME%" })
                                 {
                                     commandArgs = commandArgs.Replace(pattern, now.ToString("s"));
+                                }
+                                foreach (KeyValuePair<string, object> variable in variables)
+                                {
+                                    commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
                                 }
 
                                 string input = ReadInlineContent(scriptReader, linePrefix, "endinput", ref lineNumber, null);
@@ -1060,6 +1070,39 @@ namespace FileUtilityTester
                                     Console.WriteLine("FAILURE in 'verify-not-exist', script line {0}", lineNumber);
                                     Console.WriteLine(lastOutput);
                                 }
+                            }
+                            break;
+
+                        case "load-resource":
+                            if (testFailed)
+                            {
+                                break;
+                            }
+                            if (args.Length != 2)
+                            {
+                                throw new ApplicationException();
+                            }
+                            {
+                                string variable = args[0];
+                                string resourcePath = CheckPath(args[1], lineNumber);
+                                variables[variable] = File.ReadAllText(Path.Combine(Path.GetDirectoryName(scriptName), resourcePath));
+                            }
+                            break;
+
+                        case "encrypt-memory":
+                            if (testFailed)
+                            {
+                                break;
+                            }
+                            if (args.Length != 1)
+                            {
+                                throw new ApplicationException();
+                            }
+                            {
+                                string variable = args[0];
+                                byte[] data = Encoding.UTF8.GetBytes(variables[variable].ToString());
+                                byte[] encryptedData = ProtectedDataStorage.EncryptEphemeral(data, 0, data.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+                                variables[variable] = HexUtility.HexEncode(encryptedData);
                             }
                             break;
                     }
@@ -1869,7 +1912,7 @@ namespace FileUtilityTester
 
         static void Main(string[] args)
         {
-            // special hack
+            // special hacks
             if ((args.Length >= 2) && (args[0] == "-binaryencode"))
             {
                 Console.WriteLine(BinaryEncode(".", File.ReadAllBytes(args[1]), args.Length > 2 ? (args[2] == "-compress" ? (bool?)true : args[2] == "-nocompress" ? (bool?)false : (bool?)null) : (bool?)null));
@@ -1878,6 +1921,23 @@ namespace FileUtilityTester
             else if ((args.Length >= 2) && (args[0] == "-binarydecode"))
             {
                 File.WriteAllBytes(args[1], BinaryDecode(".", Console.In));
+                return;
+            }
+            else if ((args.Length >= 2) && (args[0] == "-decryptmemory"))
+            {
+                byte[] encryptedData = HexUtility.HexDecode(args[1]);
+                using (ProtectedArray<byte> data = ProtectedDataStorage.DecryptEphemeral(encryptedData, 0, encryptedData.Length, ProtectedDataStorage.EphemeralScope.SameLogon))
+                {
+                    data.Reveal();
+                    Console.WriteLine(Encoding.UTF8.GetString(data.ExposeArray()));
+                }
+                return;
+            }
+            else if ((args.Length >= 2) && (args[0] == "-encryptmemory"))
+            {
+                byte[] data = Encoding.UTF8.GetBytes(args[1]);
+                byte[] encryptedData = ProtectedDataStorage.EncryptEphemeral(data, 0, data.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+                Console.WriteLine(HexUtility.HexEncode(encryptedData));
                 return;
             }
 
@@ -1966,10 +2026,12 @@ namespace FileUtilityTester
                 Console.WriteLine("SCRIPT \"{0}\" ({1})", scriptPath, i + 1);
                 using (TextReader reader = new StreamReader(scriptPath))
                 {
+                    Console.Title = String.Format("{0} - {1}", Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName), Path.GetFileName(scriptPath));
                     Eval(reader, i + 1, scriptPath, resultMatrix);
                 }
             }
 
+            Console.Title = String.Format("{0} - {1}", Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName), "Finished");
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine("finished");

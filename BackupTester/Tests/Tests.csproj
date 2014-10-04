@@ -59,6 +59,10 @@
     <Content Include="PackBasic.txt" />
     <Content Include="PackExclusions.txt" />
     <Content Include="PurgeBasic.txt" />
+    <Content Include="RemoteGoogleDrive.txt" />
+    <Content Include="RemoteMicrosoftOneDrive.txt" />
+    <Content Include="resources\GoogleDriveRefreshToken.txt" />
+    <Content Include="resources\MicrosoftOneDriveRefreshToken.txt" />
     <Content Include="RestoreBasic.txt" />
     <Content Include="SplitBasic.txt" />
     <Content Include="SyncBasic.txt" />
