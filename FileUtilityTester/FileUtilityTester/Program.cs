@@ -59,11 +59,11 @@ namespace FileUtilityTester
 
         private static void Eval(TextReader scriptReader, int scriptNumber, string scriptName, TestResultMatrix resultMatrix)
         {
-            Dictionary<string, string> commands = new Dictionary<string, string>();
+            Dictionary<string, KeyValuePair<string, string>> commands = new Dictionary<string, KeyValuePair<string, string>>();
             Dictionary<string, bool> opencover = new Dictionary<string, bool>();
             Dictionary<string, object> variables = new Dictionary<string, object>();
             DateTime resetNow = new DateTime(2010, 1, 1);
-            DateTime now = resetNow;
+            DateTime now;
             int moduleNumber = 0;
             string moduleName = null;
             int testNumber = 0;
@@ -77,6 +77,9 @@ namespace FileUtilityTester
             bool failPause = false;
             int? commandTimeoutSeconds = null;
             Dictionary<string, Stream> openFiles = new Dictionary<string, Stream>();
+
+            now = resetNow;
+            variables["DATE"] = now.ToString("s");
 
             int lineNumber = 0;
             //try
@@ -130,7 +133,6 @@ namespace FileUtilityTester
                                 throw new ApplicationException();
                             }
                         Reset:
-                            now = resetNow;
                             hashes = new HashDispenser();
                             lastExitCode = 0;
                             lastOutput = null;
@@ -141,6 +143,9 @@ namespace FileUtilityTester
                             }
                             openFiles.Clear();
                             PrepareWorkspace(); // delete temp files
+
+                            now = resetNow;
+                            variables["DATE"] = now.ToString("s");
                             break;
 
                         case "module":
@@ -238,11 +243,11 @@ namespace FileUtilityTester
                             break;
 
                         case "command":
-                            if (args.Length != 2)
+                            if (args.Length < 2)
                             {
                                 throw new ApplicationException();
                             }
-                            commands[args[0]] = args[1];
+                            commands[args[0]] = new KeyValuePair<string, string>(FindCommand(args[1]), Combine(args, 2, args.Length - 2, " "));
                             break;
 
                         case "opencover":
@@ -339,17 +344,13 @@ namespace FileUtilityTester
                             }
                             {
                                 string exe = args[0];
-                                string commandArgs = Combine(args, 1, args.Length - 1, " ");
-                                foreach (string pattern in new string[] { "%date%", "%DATE%", "%time%", "%TIME%" })
-                                {
-                                    commandArgs = commandArgs.Replace(pattern, now.ToString("s"));
-                                }
+                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " "));
                                 foreach (KeyValuePair<string, object> variable in variables)
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
                                 }
-                                Console.WriteLine("{0} {1}", commands[exe], commandArgs);
-                                if (!Exec(commands[exe], opencover.ContainsKey(exe), commandArgs, null, commandTimeoutSeconds, out lastExitCode, out lastOutput))
+                                Console.WriteLine("{0} {1}", commands[exe].Key, commandArgs);
+                                if (!Exec(commands[exe].Key, opencover.ContainsKey(exe), commandArgs, null, commandTimeoutSeconds, out lastExitCode, out lastOutput))
                                 {
                                     currentFailed = true;
                                     resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
@@ -375,11 +376,7 @@ namespace FileUtilityTester
                                 }
 
                                 string exe = args[0];
-                                string commandArgs = Combine(args, 1, args.Length - 1, " ");
-                                foreach (string pattern in new string[] { "%date%", "%DATE%", "%time%", "%TIME%" })
-                                {
-                                    commandArgs = commandArgs.Replace(pattern, now.ToString("s"));
-                                }
+                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " "));
                                 foreach (KeyValuePair<string, object> variable in variables)
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
@@ -392,8 +389,8 @@ namespace FileUtilityTester
                                     break;
                                 }
 
-                                Console.WriteLine("{0} {1}", commands[exe], commandArgs);
-                                if (!Exec(commands[exe], opencover.ContainsKey(exe), commandArgs, input, commandTimeoutSeconds, out lastExitCode, out lastOutput))
+                                Console.WriteLine("{0} {1}", commands[exe].Key, commandArgs);
+                                if (!Exec(commands[exe].Key, opencover.ContainsKey(exe), commandArgs, input, commandTimeoutSeconds, out lastExitCode, out lastOutput))
                                 {
                                     currentFailed = true;
                                     resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
@@ -416,6 +413,7 @@ namespace FileUtilityTester
                                     throw new ApplicationException();
                                 }
                                 now = now.Add(TimeSpan.Parse(args[1]));
+                                variables["DATE"] = now.ToString("s");
                             }
                             else if (args[0] == "-")
                             {
@@ -424,6 +422,7 @@ namespace FileUtilityTester
                                     throw new ApplicationException();
                                 }
                                 now = now.Subtract(TimeSpan.Parse(args[1]));
+                                variables["DATE"] = now.ToString("s");
                             }
                             else
                             {
@@ -432,6 +431,7 @@ namespace FileUtilityTester
                                     throw new ApplicationException();
                                 }
                                 now = DateTime.Parse(args[0]);
+                                variables["DATE"] = now.ToString("s");
                             }
                             break;
 
@@ -1123,6 +1123,28 @@ namespace FileUtilityTester
             //    }
             //    throw new Exception(String.Format("line {0} of script", lineNumber), exception);
             //}
+        }
+
+        private static string FindCommand(string specifiedPath)
+        {
+            string[] specifiedPathParts = specifiedPath.Split(Path.DirectorySeparatorChar);
+            string path = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+            foreach (string specifiedPathPart in specifiedPathParts)
+            {
+                if (specifiedPathPart == ".")
+                {
+                    continue;
+                }
+                else if (specifiedPathPart == "..")
+                {
+                    path = Path.GetDirectoryName(path);
+                }
+                else
+                {
+                    path = Path.Combine(path, specifiedPathPart);
+                }
+            }
+            return path;
         }
 
         private static void CopyTree(string source, string target)

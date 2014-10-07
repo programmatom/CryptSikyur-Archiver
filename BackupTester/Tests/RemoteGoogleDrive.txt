@@ -1,5 +1,5 @@
-command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
-command remotedriveauth D:\Tom\Programming\Backup\Backup\bin\Debug\RemoteDriveAuth.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command remotedriveauth ..\..\..\..\Backup\Backup\bin\Debug\RemoteDriveAuth.exe
 #opencover backup
 #opencover remotedriveauth
 

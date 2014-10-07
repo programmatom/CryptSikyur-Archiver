@@ -13,10 +13,16 @@
 /BackupTester/Tests/bin/*
 /BackupTester/Tests/obj/*
 
-# ignore user's refresh tokens
-
-/BackupTester/Tests/resources/GoogleDriveRefreshToken.txt
-/BackupTester/Tests/resources/MicrosoftOneDriveRefreshToken.txt
+# do not commit user's test refresh tokens (exposes account access)
+#
+#/BackupTester/Tests/resources/GoogleDriveRefreshToken.txt
+#/BackupTester/Tests/resources/MicrosoftOneDriveRefreshToken.txt
+#
+# It can't be done here - instead, apply the following command to each file:
+#     git update-index --assume-unchanged <path>
+# i.e.
+#     git update-index --assume-unchanged BackupTester\Tests\resources\GoogleDriveRefreshToken.txt
+#     git update-index --assume-unchanged BackupTester\Tests\resources\MicrosoftOneDriveRefreshToken.txt
 
 
 

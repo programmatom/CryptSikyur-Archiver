@@ -1,4 +1,4 @@
-command backup D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
 #opencover backup
 
 date-format yyyy-MM-dd
