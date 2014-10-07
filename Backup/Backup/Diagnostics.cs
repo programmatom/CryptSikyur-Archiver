@@ -210,282 +210,277 @@ namespace Backup
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    public abstract class FaultPredicate
+    public interface IFaultPredicate
     {
-        public abstract FaultPredicate Clone();
-        public abstract bool Test();
-        public abstract bool Test(long l);
-        public abstract bool Test(string s);
+        IFaultPredicate Clone();
+        bool Test();
+        bool Test(long l);
+        bool Test(string s);
     }
 
-    public class NullFaultPredicate : FaultPredicate
+    public interface IFaultInstance
     {
-        public static readonly NullFaultPredicate Null = new NullFaultPredicate();
-
-        public override FaultPredicate Clone()
-        {
-            return Null;
-        }
-
-        public override bool Test()
-        {
-            return true;
-        }
-
-        public override bool Test(long l)
-        {
-            return true;
-        }
-
-        public override bool Test(string s)
-        {
-            return true;
-        }
-
-        public override string ToString()
-        {
-            return String.Empty;
-        }
+        IFaultInstance Select(string tag);
+        IFaultInstance Select(string tag, long l);
+        IFaultInstance Select(string tag, string s);
+        IFaultPredicate SelectPredicate(string tag);
     }
 
-    public class CountFaultPredicate : FaultPredicate
+    // Inject faults as points are passed during execution, in accord with the specified
+    // FaultTemplateNode passed to the constructor.
+    public class FaultInstanceNode : IFaultInstance
     {
-        private long count;
-        private long trigger;
-
-        public CountFaultPredicate(long trigger)
+        public class NullFaultPredicate : IFaultPredicate
         {
-            this.trigger = trigger;
+            public static readonly NullFaultPredicate Null = new NullFaultPredicate();
+
+            public IFaultPredicate Clone()
+            {
+                return Null;
+            }
+
+            public bool Test()
+            {
+                return true;
+            }
+
+            public bool Test(long l)
+            {
+                return true;
+            }
+
+            public bool Test(string s)
+            {
+                return true;
+            }
+
+            public override string ToString()
+            {
+                return String.Empty;
+            }
         }
 
-        public CountFaultPredicate(CountFaultPredicate original)
+        public class CountFaultPredicate : IFaultPredicate
         {
-            this.count = original.count;
-            this.trigger = original.trigger;
+            private long count;
+            private readonly long trigger;
+
+            public CountFaultPredicate(long trigger)
+            {
+                this.trigger = trigger;
+            }
+
+            public CountFaultPredicate(CountFaultPredicate original)
+            {
+                this.count = original.count;
+                this.trigger = original.trigger;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                return new CountFaultPredicate(this);
+            }
+
+            public bool Test()
+            {
+                long current = Interlocked.Increment(ref count);
+                return current == trigger;
+            }
+
+            public bool Test(long l)
+            {
+                return Test();
+            }
+
+            public bool Test(string s)
+            {
+                return Test();
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[count:{0}]", trigger);
+            }
         }
 
-        public override FaultPredicate Clone()
+        public class LimitFaultPredicate : IFaultPredicate
         {
-            return new CountFaultPredicate(this);
+            private readonly long limit;
+
+            public LimitFaultPredicate(long limit)
+            {
+                this.limit = limit;
+            }
+
+            public LimitFaultPredicate(LimitFaultPredicate original)
+            {
+                this.limit = original.limit;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                return new LimitFaultPredicate(this);
+            }
+
+            public bool Test()
+            {
+                return false;
+            }
+
+            public bool Test(long l)
+            {
+                return l >= limit;
+            }
+
+            public bool Test(string s)
+            {
+                return false;
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[limit:{0}]", limit);
+            }
         }
 
-        public override bool Test()
+        public class SumLimitFaultPredicate : IFaultPredicate
         {
-            long current = Interlocked.Increment(ref count);
-            return current == trigger;
+            private long sum;
+            private readonly long limit;
+
+            public SumLimitFaultPredicate(long limit)
+            {
+                this.limit = limit;
+            }
+
+            public SumLimitFaultPredicate(SumLimitFaultPredicate original)
+            {
+                this.sum = original.sum;
+                this.limit = original.limit;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                return new SumLimitFaultPredicate(this);
+            }
+
+            public bool Test()
+            {
+                return false;
+            }
+
+            public bool Test(long l)
+            {
+                long current = Interlocked.Add(ref sum, l);
+                return current >= limit;
+            }
+
+            public bool Test(string s)
+            {
+                return false;
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[sumlimit:{0}]", limit);
+            }
         }
 
-        public override bool Test(long l)
+        public class StringEqualFaultPredicate : IFaultPredicate
         {
-            return Test();
+            private readonly string equals;
+
+            public StringEqualFaultPredicate(string match)
+            {
+                this.equals = match;
+            }
+
+            public StringEqualFaultPredicate(StringEqualFaultPredicate original)
+            {
+                this.equals = original.equals;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                return new StringEqualFaultPredicate(this);
+            }
+
+            public bool Test()
+            {
+                return false;
+            }
+
+            public bool Test(long l)
+            {
+                return Test(l.ToString());
+            }
+
+            public bool Test(string s)
+            {
+                return String.Equals(s, equals);
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[stringequal:{0}]", equals);
+            }
         }
 
-        public override bool Test(string s)
+        public class StringMatchFaultPredicate : IFaultPredicate
         {
-            return Test();
+            private readonly string pattern;
+            private readonly Regex match;
+
+            public StringMatchFaultPredicate(string pattern)
+            {
+                this.pattern = pattern;
+                this.match = new Regex(pattern);
+            }
+
+            public StringMatchFaultPredicate(StringMatchFaultPredicate original)
+            {
+                this.pattern = original.pattern;
+                this.match = original.match;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                return new StringMatchFaultPredicate(this);
+            }
+
+            public bool Test()
+            {
+                return false;
+            }
+
+            public bool Test(long l)
+            {
+                return Test(l.ToString());
+            }
+
+            public bool Test(string s)
+            {
+                return match.IsMatch(s);
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[regex:{0}]", pattern);
+            }
         }
 
-        public override string ToString()
-        {
-            return String.Format("[count:{0}]", trigger);
-        }
-    }
 
-    public class LimitFaultPredicate : FaultPredicate
-    {
-        private long limit;
+        private readonly KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates;
 
-        public LimitFaultPredicate(long limit)
-        {
-            this.limit = limit;
-        }
-
-        public LimitFaultPredicate(LimitFaultPredicate original)
-        {
-            this.limit = original.limit;
-        }
-
-        public override FaultPredicate Clone()
-        {
-            return new LimitFaultPredicate(this);
-        }
-
-        public override bool Test()
-        {
-            return false;
-        }
-
-        public override bool Test(long l)
-        {
-            return l >= limit;
-        }
-
-        public override bool Test(string s)
-        {
-            return false;
-        }
-
-        public override string ToString()
-        {
-            return String.Format("[limit:{0}]", limit);
-        }
-    }
-
-    public class SumLimitFaultPredicate : FaultPredicate
-    {
-        private long sum;
-        private long limit;
-
-        public SumLimitFaultPredicate(long limit)
-        {
-            this.limit = limit;
-        }
-
-        public SumLimitFaultPredicate(SumLimitFaultPredicate original)
-        {
-            this.sum = original.sum;
-            this.limit = original.limit;
-        }
-
-        public override FaultPredicate Clone()
-        {
-            return new SumLimitFaultPredicate(this);
-        }
-
-        public override bool Test()
-        {
-            return false;
-        }
-
-        public override bool Test(long l)
-        {
-            long current = Interlocked.Add(ref sum, l);
-            return current >= limit;
-        }
-
-        public override bool Test(string s)
-        {
-            return false;
-        }
-
-        public override string ToString()
-        {
-            return String.Format("[sumlimit:{0}]", limit);
-        }
-    }
-
-    public class StringEqualFaultPredicate : FaultPredicate
-    {
-        private string equals;
-
-        public StringEqualFaultPredicate(string match)
-        {
-            this.equals = match;
-        }
-
-        public StringEqualFaultPredicate(StringEqualFaultPredicate original)
-        {
-            this.equals = original.equals;
-        }
-
-        public override FaultPredicate Clone()
-        {
-            return new StringEqualFaultPredicate(this);
-        }
-
-        public override bool Test()
-        {
-            return false;
-        }
-
-        public override bool Test(long l)
-        {
-            return Test(l.ToString());
-        }
-
-        public override bool Test(string s)
-        {
-            return String.Equals(s, equals);
-        }
-
-        public override string ToString()
-        {
-            return String.Format("[stringequal:{0}]", equals);
-        }
-    }
-
-    public class StringMatchFaultPredicate : FaultPredicate
-    {
-        private string pattern;
-        private Regex match;
-
-        public StringMatchFaultPredicate(string pattern)
-        {
-            this.pattern = pattern;
-            this.match = new Regex(pattern);
-        }
-
-        public StringMatchFaultPredicate(StringMatchFaultPredicate original)
-        {
-            this.pattern = original.pattern;
-            this.match = original.match;
-        }
-
-        public override FaultPredicate Clone()
-        {
-            return new StringMatchFaultPredicate(this);
-        }
-
-        public override bool Test()
-        {
-            return false;
-        }
-
-        public override bool Test(long l)
-        {
-            return Test(l.ToString());
-        }
-
-        public override bool Test(string s)
-        {
-            return match.IsMatch(s);
-        }
-
-        public override string ToString()
-        {
-            return String.Format("[regex:{0}]", pattern);
-        }
-    }
-
-    public class FaultInjectionException : ApplicationException
-    {
-        public FaultInjectionException(string message)
-            : base(message)
-        {
-        }
-    }
-
-    public enum FaultMethod
-    {
-        None = 0,
-
-        Throw,
-        Kill,
-    }
-
-    public class FaultInstanceNode
-    {
-        private readonly KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
-
-        public static readonly FaultInstanceNode Null = new FaultInstanceNode((KeyValuePair<FaultPredicate, FaultTemplateNode>[])null);
+        public static readonly FaultInstanceNode Null = new FaultInstanceNode((KeyValuePair<IFaultPredicate, FaultTemplateNode>[])null);
 
         public FaultInstanceNode(FaultTemplateNode templateNode)
         {
-            this.predicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
-            this.predicates[0] = new KeyValuePair<FaultPredicate, FaultTemplateNode>(NullFaultPredicate.Null, templateNode);
+            this.predicates = new KeyValuePair<IFaultPredicate, FaultTemplateNode>[1];
+            this.predicates[0] = new KeyValuePair<IFaultPredicate, FaultTemplateNode>(NullFaultPredicate.Null, templateNode);
         }
 
-        private FaultInstanceNode(KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates)
+        private FaultInstanceNode(KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates)
         {
             this.predicates = predicates;
         }
@@ -493,31 +488,31 @@ namespace Backup
 
         // Use Select() to descend one path step and match predicates either by count or explicit value test
 
-        public FaultInstanceNode Select(string tag)
+        public IFaultInstance Select(string tag)
         {
             if (predicates == null)
             {
                 return Null;
             }
-            return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(); });
+            return Select(tag, delegate(IFaultPredicate predicate) { return predicate.Test(); });
         }
 
-        public FaultInstanceNode Select(string tag, long l)
+        public IFaultInstance Select(string tag, long l)
         {
             if (predicates == null)
             {
                 return Null;
             }
-            return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(l); });
+            return Select(tag, delegate(IFaultPredicate predicate) { return predicate.Test(l); });
         }
 
-        public FaultInstanceNode Select(string tag, string s)
+        public IFaultInstance Select(string tag, string s)
         {
             if (predicates == null)
             {
                 return Null;
             }
-            return Select(tag, delegate(FaultPredicate predicate) { return predicate.Test(s); });
+            return Select(tag, delegate(IFaultPredicate predicate) { return predicate.Test(s); });
         }
 
 
@@ -526,21 +521,21 @@ namespace Backup
         // Use this approach for performance-sensitive code in order to hoist path string match
         // portion of operation out of loops.
 
-        public FaultPredicate SelectPredicate(string tag)
+        public IFaultPredicate SelectPredicate(string tag)
         {
             if (predicates == null)
             {
                 return FaultInstancePredicate.Null;
             }
 
-            KeyValuePair<FaultPredicate, FaultTemplateNode>[] matchingPredicates = null;
+            KeyValuePair<IFaultPredicate, FaultTemplateNode>[] matchingPredicates = null;
             for (int i = 0; i < predicates.Length; i++)
             {
                 if (String.Equals(tag, predicates[i].Value.Tag))
                 {
                     if (matchingPredicates == null)
                     {
-                        matchingPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
+                        matchingPredicates = new KeyValuePair<IFaultPredicate, FaultTemplateNode>[1];
                     }
                     else
                     {
@@ -555,12 +550,12 @@ namespace Backup
 
         // Internals
 
-        private delegate bool TestMethod(FaultPredicate predicate);
+        private delegate bool TestMethod(IFaultPredicate predicate);
         private FaultInstanceNode Select(string tag, TestMethod testMethod)
         {
             // caller optimizes case where predicates == null
 
-            KeyValuePair<FaultPredicate, FaultTemplateNode>[] childPredicates = null;
+            KeyValuePair<IFaultPredicate, FaultTemplateNode>[] childPredicates = null;
             FaultTemplateNode[] throwing = null;
             for (int i = 0; i < predicates.Length; i++)
             {
@@ -573,10 +568,10 @@ namespace Backup
                             default:
                                 throw new InvalidOperationException();
 
-                            case FaultMethod.None:
+                            case FaultTemplateNode.FaultMethod.None:
                                 break;
 
-                            case FaultMethod.Throw:
+                            case FaultTemplateNode.FaultMethod.Throw:
                                 if (throwing == null)
                                 {
                                     throwing = new FaultTemplateNode[1];
@@ -588,7 +583,7 @@ namespace Backup
                                 throwing[throwing.Length - 1] = predicates[i].Value;
                                 break;
 
-                            case FaultMethod.Kill:
+                            case FaultTemplateNode.FaultMethod.Kill:
                                 Environment.ExitCode = (int)Core.ExitCodes.ProgramFailure;
                                 Process.GetCurrentProcess().Kill(); // no finalizers!
                                 break;
@@ -596,18 +591,18 @@ namespace Backup
                     }
                     else
                     {
-                        KeyValuePair<FaultTemplateNode, FaultPredicate>[] children = predicates[i].Value.Children;
+                        KeyValuePair<FaultTemplateNode, IFaultPredicate>[] children = predicates[i].Value.Children;
                         for (int j = 0; j < children.Length; j++)
                         {
                             if (childPredicates == null)
                             {
-                                childPredicates = new KeyValuePair<FaultPredicate, FaultTemplateNode>[1];
+                                childPredicates = new KeyValuePair<IFaultPredicate, FaultTemplateNode>[1];
                             }
                             else
                             {
                                 Array.Resize(ref childPredicates, childPredicates.Length + 1);
                             }
-                            childPredicates[childPredicates.Length - 1] = new KeyValuePair<FaultPredicate, FaultTemplateNode>(children[j].Value.Clone(), children[j].Key);
+                            childPredicates[childPredicates.Length - 1] = new KeyValuePair<IFaultPredicate, FaultTemplateNode>(children[j].Value.Clone(), children[j].Key);
                         }
                     }
                 }
@@ -634,7 +629,7 @@ namespace Backup
                     string predicateString = null;
                     if (parent != null)
                     {
-                        KeyValuePair<FaultTemplateNode, FaultPredicate> item = Array.Find(parent.Children, delegate(KeyValuePair<FaultTemplateNode, FaultPredicate> candidate) { return candidate.Key == walk; });
+                        KeyValuePair<FaultTemplateNode, IFaultPredicate> item = Array.Find(parent.Children, delegate(KeyValuePair<FaultTemplateNode, IFaultPredicate> candidate) { return candidate.Key == walk; });
                         predicateString = item.Value.ToString();
                     }
                     path = String.Concat(walk.Tag, predicateString, path != null ? "/" : null, path);
@@ -646,25 +641,25 @@ namespace Backup
                 }
                 message.Append(path);
             }
-            throw new FaultInjectionException(message.ToString());
+            throw new FaultTemplateNode.FaultInjectionException(message.ToString());
         }
 
 
         // Fast predicate evaluator for performance-sensitive code
-        private class FaultInstancePredicate : FaultPredicate
+        private class FaultInstancePredicate : IFaultPredicate
         {
-            private readonly KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates;
+            private readonly KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates;
             private readonly FaultInstanceNode owner;
 
             public static readonly FaultInstancePredicate Null = new FaultInstancePredicate(null, null);
 
-            public FaultInstancePredicate(KeyValuePair<FaultPredicate, FaultTemplateNode>[] predicates, FaultInstanceNode owner)
+            public FaultInstancePredicate(KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates, FaultInstanceNode owner)
             {
                 this.predicates = predicates;
                 this.owner = owner;
             }
 
-            public override FaultPredicate Clone()
+            public IFaultPredicate Clone()
             {
                 throw new InvalidOperationException();
             }
@@ -687,10 +682,10 @@ namespace Backup
                                 default:
                                     throw new InvalidOperationException();
 
-                                case FaultMethod.None:
+                                case FaultTemplateNode.FaultMethod.None:
                                     break;
 
-                                case FaultMethod.Throw:
+                                case FaultTemplateNode.FaultMethod.Throw:
                                     if (throwing == null)
                                     {
                                         throwing = new FaultTemplateNode[1];
@@ -702,7 +697,7 @@ namespace Backup
                                     throwing[throwing.Length - 1] = predicates[i].Value;
                                     break;
 
-                                case FaultMethod.Kill:
+                                case FaultTemplateNode.FaultMethod.Kill:
                                     Environment.ExitCode = (int)Core.ExitCodes.ProgramFailure;
                                     Process.GetCurrentProcess().Kill(); // no finalizers!
                                     break;
@@ -719,41 +714,168 @@ namespace Backup
                 return TestReturnValue;
             }
 
-            public override bool Test()
+            public bool Test()
             {
                 if (predicates == null)
                 {
                     return TestReturnValue;
                 }
-                return Test(delegate(FaultPredicate predicate) { return predicate.Test(); });
+                return Test(delegate(IFaultPredicate predicate) { return predicate.Test(); });
             }
 
-            public override bool Test(long l)
+            public bool Test(long l)
             {
                 if (predicates == null)
                 {
                     return TestReturnValue;
                 }
-                return Test(delegate(FaultPredicate predicate) { return predicate.Test(l); });
+                return Test(delegate(IFaultPredicate predicate) { return predicate.Test(l); });
             }
 
-            public override bool Test(string s)
+            public bool Test(string s)
             {
                 if (predicates == null)
                 {
                     return TestReturnValue;
                 }
-                return Test(delegate(FaultPredicate predicate) { return predicate.Test(s); });
+                return Test(delegate(IFaultPredicate predicate) { return predicate.Test(s); });
             }
         }
     }
 
+    // Generate trace listing of all fault injection points passed during a particular
+    // program run. No actual fault injection is done.
+    public class FaultTraceNode : IFaultInstance
+    {
+        private readonly TextWriter trace;
+        private readonly string prefix;
+        private long count;
+
+        private const string FaultTraceFilePrefix = "faulttrace";
+
+        public FaultTraceNode()
+        {
+            trace = Logging.CreateLogFile(FaultTraceFilePrefix);
+        }
+
+        protected FaultTraceNode(TextWriter trace, string prefix)
+        {
+            this.trace = trace;
+            this.prefix = prefix;
+        }
+
+        // Many synonyms will not be listed. For example, the second invocation of /foo
+        // with a limit specifier (say, of value 100) might be listed as:
+        //   /foo[limit:100]
+        // but could also be triggered using the count specifier:
+        //   /foo[count:2]
+        // which would not be explicitly listed. (Otherwise the fan-out of possible synonymous
+        // paths would result in exponential growth of log file.)
+
+        public IFaultInstance Select(string tag)
+        {
+            count++;
+            string newPrefix = prefix + String.Format("/{0}[count:{1}]", tag, count);
+            trace.WriteLine(newPrefix);
+            trace.Flush();
+            return new FaultTraceNode(trace, newPrefix);
+        }
+
+        public IFaultInstance Select(string tag, long l)
+        {
+            count++;
+            string newPrefix = prefix + String.Format("/{0}[limit:{1}]", tag, l);
+            trace.WriteLine(newPrefix);
+            trace.Flush();
+            return new FaultTraceNode(trace, newPrefix);
+        }
+
+        public IFaultInstance Select(string tag, string s)
+        {
+            count++;
+            string newPrefix = prefix + String.Format("/{0}[stringequal:{1}]", tag, s);
+            trace.WriteLine(newPrefix);
+            trace.Flush();
+            return new FaultTraceNode(trace, newPrefix);
+        }
+
+        public IFaultPredicate SelectPredicate(string tag)
+        {
+            string newPrefix = prefix + String.Format("/{0}", tag);
+            return new FaultTracePredicate(trace, newPrefix);
+        }
+
+        private class FaultTracePredicate : IFaultPredicate
+        {
+            private readonly TextWriter trace;
+            private readonly string prefix;
+            private long count;
+
+            public FaultTracePredicate(TextWriter trace, string prefix)
+            {
+                this.trace = trace;
+                this.prefix = prefix;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                throw new InvalidOperationException();
+            }
+
+            public bool Test()
+            {
+                count++;
+                string newPrefix = prefix + String.Format("[count:{0}]", count);
+                trace.WriteLine(newPrefix);
+                trace.Flush();
+                return false;
+            }
+
+            public bool Test(long l)
+            {
+                count++;
+                string newPrefix = prefix + String.Format("[limit:{0}]", l);
+                trace.WriteLine(newPrefix);
+                trace.Flush();
+                return false;
+            }
+
+            public bool Test(string s)
+            {
+                count++;
+                string newPrefix = prefix + String.Format("[stringequal:{0}]", s);
+                trace.WriteLine(newPrefix);
+                trace.Flush();
+                return false;
+            }
+        }
+    }
+
+    // Specification of fault injection points with trigger criteria. The constrained
+    // points may not actually be reached during a given program run.
     public class FaultTemplateNode
     {
+        public class FaultInjectionException : ApplicationException
+        {
+            public FaultInjectionException(string message)
+                : base(message)
+            {
+            }
+        }
+
+        public enum FaultMethod
+        {
+            None = 0,
+
+            Throw,
+            Kill,
+        }
+
+
         private string tag;
         private FaultTemplateNode parent;
         private FaultMethod method;
-        private KeyValuePair<FaultTemplateNode, FaultPredicate>[] children = new KeyValuePair<FaultTemplateNode, FaultPredicate>[0];
+        private KeyValuePair<FaultTemplateNode, IFaultPredicate>[] children = new KeyValuePair<FaultTemplateNode, IFaultPredicate>[0];
 
         public FaultTemplateNode()
         {
@@ -768,16 +890,18 @@ namespace Backup
 
         public string Tag { get { return tag; } }
         public FaultTemplateNode Parent { get { return parent; } }
-        public KeyValuePair<FaultTemplateNode, FaultPredicate>[] Children { get { return children; } }
+        public KeyValuePair<FaultTemplateNode, IFaultPredicate>[] Children { get { return children; } }
         public bool Terminal { get { return children.Length == 0; } }
         public FaultMethod Method { get { return method; } }
 
-        public void Add(FaultTemplateNode child, FaultPredicate childPredicate)
+        public void Add(FaultTemplateNode child, IFaultPredicate childPredicate)
         {
             Array.Resize(ref children, children.Length + 1);
-            children[children.Length - 1] = new KeyValuePair<FaultTemplateNode, FaultPredicate>(child, childPredicate);
+            children[children.Length - 1] = new KeyValuePair<FaultTemplateNode, IFaultPredicate>(child, childPredicate);
         }
 
+
+        // Parse fault injection path and add to template.
 
         public static void ParseFaultInjectionPath(FaultTemplateNode root, string method, string arg)
         {
@@ -840,7 +964,7 @@ namespace Backup
                 string tag = arg.Substring(start, predicateStart - start);
                 string predicateString = predicateStart + 1 <= arg.Length ? arg.Substring(predicateStart + 1, predicateEnd - predicateStart - 1) : String.Empty;
                 int colon = predicateString.IndexOf(':');
-                FaultPredicate predicate = NullFaultPredicate.Null;
+                IFaultPredicate predicate = FaultInstanceNode.NullFaultPredicate.Null;
                 if (colon > 0)
                 {
                     switch (predicateString.Substring(0, colon))
@@ -848,19 +972,19 @@ namespace Backup
                         default:
                             throw new ArgumentException();
                         case "count":
-                            predicate = new CountFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            predicate = new FaultInstanceNode.CountFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
                             break;
                         case "limit":
-                            predicate = new LimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            predicate = new FaultInstanceNode.LimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
                             break;
                         case "sumlimit":
-                            predicate = new SumLimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            predicate = new FaultInstanceNode.SumLimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
                             break;
                         case "stringequal":
-                            predicate = new StringEqualFaultPredicate(predicateString.Substring(colon + 1));
+                            predicate = new FaultInstanceNode.StringEqualFaultPredicate(predicateString.Substring(colon + 1));
                             break;
                         case "regex":
-                            predicate = new StringMatchFaultPredicate(predicateString.Substring(colon + 1));
+                            predicate = new FaultInstanceNode.StringMatchFaultPredicate(predicateString.Substring(colon + 1));
                             break;
                     }
                 }

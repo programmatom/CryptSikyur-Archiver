@@ -1,5 +1,9 @@
 # Backup tool test scripts
 
+RemoteBasic.txt
+RemoteGoogleDrive.txt
+RemoteMicrosoftOneDrive.txt
+
 BackupBasic.txt
 BackupEncryption.txt
 BackupExclusions.txt
@@ -46,10 +50,6 @@ SplitBasic.txt
 DirBasic.txt
 
 UsageBasic.txt
-
-RemoteBasic.txt
-RemoteGoogleDrive.txt
-RemoteMicrosoftOneDrive.txt
 
 
 #TODO:

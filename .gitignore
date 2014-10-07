@@ -15,7 +15,7 @@
 
 # ignore user's refresh tokens
 
-/BackupTester/Tests/resources/GoogleDrveRefreshToken.txt
+/BackupTester/Tests/resources/GoogleDriveRefreshToken.txt
 /BackupTester/Tests/resources/MicrosoftOneDriveRefreshToken.txt
 
 

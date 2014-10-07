@@ -11,6 +11,7 @@ fail-pause on
 module prerequisites
 
 test ensure remote configured
+date 2014-01-01
 # Refresh token file should be one line, no newline at end
 # obtain as follows:
 #   RemoteDriveAuth.exe -auth -refreshtoken yes "" https://drive.google.com
@@ -31,10 +32,102 @@ endoutput
 module command - quota
 
 test setup
+date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
+
+test quota
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ quota
 exitcode-verify 0
 lastoutput-verify
 *Quota\: total\=.*B\, used\=.*B\, available\=.*B$
+endoutput
+
+
+module delete previous data
+
+test setup
+date 2014-01-01
+load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+encrypt-memory refreshtoken
+
+test delete
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+exitcode-verify 0
+
+
+module upload and download tests - single file
+
+test setup
+date 2014-01-01
+load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+encrypt-memory refreshtoken
+
+test upload one file
+create localfile -size 1023456
+list-verify .
+.          2014-01-01          2014-01-01 -A---- localfile [1]
+endlist
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile
+exitcode-verify 0
+lastoutput-verify
+.upload localfile to remotefile
+endoutput
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+1023456\s+[0-9a-zA-Z]* remotefile$
+endoutput
+
+test download one file
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ download remotefile newlocalfile
+exitcode-verify 0
+lastoutput-verify
+.download remotefile to newlocalfile
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- localfile [1]
+*          [0-9-]+          [0-9-]+ \-A\-\-\-\- newlocalfile \[1\]
+endlist
+
+test overwrite remote file
+create localfile2 -size 654321
+list-verify .
+.          2014-01-01          2014-01-01 -A---- localfile [1]
+.          2014-01-01          2014-01-01 -A---- localfile2 [2]
+*          [0-9-]+          [0-9-]+ \-A\-\-\-\- newlocalfile \[1\]
+endlist
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile2 remotefile
+exitcode-verify 0
+lastoutput-verify
+.upload localfile2 to remotefile
+endoutput
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+654321\s+[0-9a-zA-Z]* remotefile$
+endoutput
+
+test download one (overwritten) file
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ download remotefile newlocalfile2
+exitcode-verify 0
+lastoutput-verify
+.download remotefile to newlocalfile2
+endoutput
+list-verify .
+.          2014-01-01          2014-01-01 -A---- localfile [1]
+.          2014-01-01          2014-01-01 -A---- localfile2 [2]
+*          [0-9-]+          [0-9-]+ \-A\-\-\-\- newlocalfile \[1\]
+*          [0-9-]+          [0-9-]+ \-A\-\-\-\- newlocalfile2 \[2\]
+endlist
+
+test remove file
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile
+exitcode-verify 0
+lastoutput-verify
+.delete remotefile
 endoutput

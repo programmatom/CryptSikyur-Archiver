@@ -417,13 +417,13 @@ namespace Backup
 
     public interface IWebMethods
     {
-        RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace);
-        RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace);
-        void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace);
-        RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace);
-        void DeleteFile(string fileId, TextWriter trace);
-        RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace);
-        void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace);
+        RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext);
+        RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext);
+        void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext);
+        RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext);
+        void DeleteFile(string fileId, TextWriter trace, IFaultInstance faultInstanceContext);
+        RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext);
+        void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext);
     }
 
     public abstract class WebMethodsBase
@@ -543,7 +543,7 @@ namespace Backup
 
         private const int SendTimeout = 60 * 1000;
         private const int ReceiveTimeout = 60 * 1000;
-        private WebExceptionStatus SocketRequest(Uri uri, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out string[] responseHeaders, Stream responseBodyDestination, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace)
+        private WebExceptionStatus SocketRequest(Uri uri, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out string[] responseHeaders, Stream responseBodyDestination, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             byte[] buffer = new byte[Core.Constants.BufferSize];
 
@@ -827,8 +827,10 @@ namespace Backup
         }
 
         private static readonly string[] ForbiddenHeaders = new string[] { "Accept-Encoding", "Content-Length", "Expect", "Connection" };
-        private WebExceptionStatus SocketHttpRequest(Uri uri, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace)
+        private WebExceptionStatus SocketHttpRequest(Uri uri, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
         {
+            IFaultInstance faultInstanceMethod = faultInstanceContext.Select("SocketHttpRequest", String.Format("{0}|{1}", verb, uri));
+
             if (trace != null)
             {
                 trace.WriteLine("+SocketHttpRequest(url={0}, hostAddress={1}, verb={2}, request-body={3}, response-body={4})", uri, hostAddress, verb, Logging.ToString(requestBodySource), Logging.ToString(responseBodyDestination, true/*omitContent*/));
@@ -895,7 +897,18 @@ namespace Backup
 
             string[] responseHeadersLines;
             long responseBodyDestinationStart = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
-            WebExceptionStatus result = SocketRequest(uri, hostAddress, twoStageRequest, requestHeaderBytes, requestBodySource, out responseHeadersLines, responseBodyDestination, progressTrackerUpload, progressTrackerDownload, trace);
+            WebExceptionStatus result = SocketRequest(
+                uri,
+                hostAddress,
+                twoStageRequest,
+                requestHeaderBytes,
+                requestBodySource,
+                out responseHeadersLines,
+                responseBodyDestination,
+                progressTrackerUpload,
+                progressTrackerDownload,
+                trace,
+                faultInstanceMethod);
             long responseBodyDestinationEnd = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
             long responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
 
@@ -1053,7 +1066,7 @@ namespace Backup
             return result;
         }
 
-        private static WebExceptionStatus DNSLookupName(string hostName, out IPAddress hostAddress, TextWriter trace)
+        private static WebExceptionStatus DNSLookupName(string hostName, out IPAddress hostAddress, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             hostAddress = null;
             try
@@ -1080,7 +1093,7 @@ namespace Backup
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
         private static readonly string[] SupportedVerbs = new string[] { "GET", "PUT", "POST", "DELETE", "PATCH" };
         private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", "Content-Length", "Accept-Encoding", "Expect", "Authorization" };
-        protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, TextWriter trace)
+        protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             bool useCustomHttpImplementation = UseCustomHttpImplementation.HasValue ? UseCustomHttpImplementation.Value : ((DateTime.Now.Minute % 5) % 2 != 0); // how'd-ya like dem apples?
 
@@ -1261,7 +1274,7 @@ namespace Backup
 
                 Uri uri = new Uri(url);
                 IPAddress hostAddress;
-                webStatusCode = DNSLookupName(uri.Host, out hostAddress, trace);
+                webStatusCode = DNSLookupName(uri.Host, out hostAddress, trace, faultInstanceContext);
                 if (webStatusCode != WebExceptionStatus.Success)
                 {
                     if (trace != null)
@@ -1293,7 +1306,7 @@ namespace Backup
 
                 KeyValuePair<string, string>[] responseHeaders;
                 string finalUrl;
-                webStatusCode = SocketHttpRequest(uri, hostAddress, verb, requestHeadersList.ToArray(), requestBodySource, out httpStatusCode, out responseHeaders, responseBodyDestination, out finalUrl, progressTrackerUpload, progressTrackerDownload, trace);
+                webStatusCode = SocketHttpRequest(uri, hostAddress, verb, requestHeadersList.ToArray(), requestBodySource, out httpStatusCode, out responseHeaders, responseBodyDestination, out finalUrl, progressTrackerUpload, progressTrackerDownload, trace, faultInstanceContext);
 
                 for (int i = 0; i < responseHeadersOut.Length; i++)
                 {
@@ -1737,7 +1750,7 @@ namespace Backup
 
         // Throws exceptions for program defects and unrecoverable errors
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
-        protected bool DoWebActionWithRetry(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, string accessTokenOverride, TextWriter trace)
+        protected bool DoWebActionWithRetry(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -1751,7 +1764,7 @@ namespace Backup
             int networkErrorRetries = 0;
         Retry:
 
-            DoWebActionOnce(url, verb, requestBodySource, responseBodyDestination, requestHeaders, responseHeadersOut, out webStatusCodeOut, out httpStatusCodeOut, progressTrackerUpload, null/*progressTrackerDownload*/, accessTokenOverride, trace);
+            DoWebActionOnce(url, verb, requestBodySource, responseBodyDestination, requestHeaders, responseHeadersOut, out webStatusCodeOut, out httpStatusCodeOut, progressTrackerUpload, null/*progressTrackerDownload*/, accessTokenOverride, trace, faultInstanceContext);
 
             if ((webStatusCodeOut != WebExceptionStatus.Success) ||
                 (httpStatusCodeOut == RateLimitStatusCode) ||
@@ -1813,7 +1826,7 @@ namespace Backup
             return result;
         }
 
-        protected bool DoWebActionPostJSONOnce(string url, string jsonRequestBody, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersExtraOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, string accessTokenOverride, TextWriter trace)
+        protected bool DoWebActionPostJSONOnce(string url, string jsonRequestBody, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersExtraOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(requestHeaders);
             if (jsonRequestBody != null)
@@ -1835,11 +1848,12 @@ namespace Backup
                     null/*progressTrackerUpload*/,
                     null/*progressTrackerDownload*/,
                     accessTokenOverride,
-                    trace);
+                    trace,
+                    faultInstanceContext);
             }
         }
 
-        protected bool DoWebActionJSON2JSONWithRetry(string url, string verb, string jsonRequestBody, out string jsonResponseBody, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace)
+        protected bool DoWebActionJSON2JSONWithRetry(string url, string verb, string jsonRequestBody, out string jsonResponseBody, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(1);
             if (!String.IsNullOrEmpty(jsonRequestBody))
@@ -1866,7 +1880,8 @@ namespace Backup
                         out httpStatusCodeOut,
                         null/*progressTracker*/,
                         null/*accessTokenOverride*/,
-                        trace);
+                        trace,
+                        faultInstanceContext);
 
                     jsonResponseBody = null;
                     if (responseHeadersExtra[0].Value == "application/json; charset=UTF-8")
@@ -1883,7 +1898,7 @@ namespace Backup
             }
         }
 
-        protected bool DoWebActionGetBinaryOnce(string url, KeyValuePair<string, string>[] requestHeaders, Stream responseBodyBinary, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerDownload, TextWriter trace)
+        protected bool DoWebActionGetBinaryOnce(string url, KeyValuePair<string, string>[] requestHeaders, Stream responseBodyBinary, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<KeyValuePair<string, string>> requestHeadersList = new List<KeyValuePair<string, string>>();
             if (requestHeaders != null)
@@ -1906,12 +1921,13 @@ namespace Backup
                     null/*progressTrackerUpload*/,
                     progressTrackerDownload,
                     null/*accessTokenOverride*/,
-                    trace);
+                    trace,
+                    faultInstanceContext);
                 return result;
             }
         }
 
-        protected bool DownloadFileWithResume(string url, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace)
+        protected bool DownloadFileWithResume(string url, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             // ProgressTracker is problematic here because we don't have the download target
             // length until response headers are recieved. Callee has to update for us.
@@ -1939,7 +1955,8 @@ namespace Backup
                 out webStatusCode,
                 out httpStatusCode,
                 progressTracker,
-                trace);
+                trace,
+                faultInstanceContext);
             if (trace != null)
             {
                 trace.WriteLine(" DownloadFileWithResume initial request, result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) [retry={5}]", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, retry);
@@ -2010,7 +2027,8 @@ namespace Backup
                             out webStatusCode,
                             out httpStatusCode,
                             progressTracker,
-                            trace);
+                            trace,
+                            faultInstanceContext);
                         if (trace != null)
                         {
                             trace.WriteLine(" DownloadFileWithResume ranged request, result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
@@ -2044,7 +2062,7 @@ namespace Backup
         // REST API - Files: http://msdn.microsoft.com/en-us/library/dn631834.aspx
         // REST API - Folders: http://msdn.microsoft.com/en-us/library/dn631836.aspx
 
-        public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace)
+        public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext)
             : base(remoteAccessControl, false/*enableResumableUploads*/)
         {
             if (trace != null)
@@ -2107,7 +2125,7 @@ namespace Backup
             return new RemoteFileSystemEntry(id, name, type == "folder", DateTime.Parse(created_time), DateTime.Parse(updated_time), size);
         }
 
-        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace)
+        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2126,7 +2144,8 @@ namespace Backup
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -2162,7 +2181,7 @@ namespace Backup
             return items;
         }
 
-        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace)
+        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2186,7 +2205,7 @@ namespace Backup
             for (int i = 1; i < remotePathPartsLength; i++)
             {
                 string remotePathPart = remotePathParts[i];
-                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace);
+                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace, faultInstanceContext);
                 int index = Array.FindIndex(entries, delegate(RemoteFileSystemEntry candidate) { return candidate.Name.Equals(remotePathPart); });
                 if (index < 0)
                 {
@@ -2197,7 +2216,7 @@ namespace Backup
             return currentDirectory;
         }
 
-        public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace)
+        public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2206,7 +2225,7 @@ namespace Backup
 
             string url = String.Format("{0}?pretty=false", FileIdToUploadLocation(fileId, true/*content*/));
 
-            if (!DownloadFileWithResume(url, streamDownloadInto, progressTracker, trace))
+            if (!DownloadFileWithResume(url, streamDownloadInto, progressTracker, trace, faultInstanceContext))
             {
                 if (trace != null)
                 {
@@ -2221,7 +2240,7 @@ namespace Backup
             }
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace)
+        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             // TODO: figure out if there is support yet for resumable uploads on OneDrive Live
             // API (doesn't appear so as of 2014-09-01).
@@ -2260,7 +2279,8 @@ namespace Backup
                     out httpStatusCode,
                     progressTracker,
                     null/*accessTokenOverride*/,
-                    trace);
+                    trace,
+                    faultInstanceContext);
                 if (!result)
                 {
                     if (trace != null)
@@ -2295,7 +2315,7 @@ namespace Backup
             }
             Debug.Assert(name == remoteName); // if fails then TODO handle remote auto name adjustment
 
-            RemoteFileSystemEntry entry = GetFileMetadata(fileId, trace);
+            RemoteFileSystemEntry entry = GetFileMetadata(fileId, trace, faultInstanceContext);
             Debug.Assert(entry.Name == remoteName); // if fails then TODO handle remote auto name adjustment
 
             if (trace != null)
@@ -2306,7 +2326,7 @@ namespace Backup
             return entry;
         }
 
-        private RemoteFileSystemEntry GetFileMetadata(string fileId, TextWriter trace)
+        private RemoteFileSystemEntry GetFileMetadata(string fileId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2326,7 +2346,8 @@ namespace Backup
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -2348,7 +2369,7 @@ namespace Backup
             return entry;
         }
 
-        public void DeleteFile(string fileId, TextWriter trace)
+        public void DeleteFile(string fileId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2372,7 +2393,8 @@ namespace Backup
                 out httpStatusCode,
                 null/*progressTracker*/,
                 null/*accessTokenOverride*/,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -2389,7 +2411,7 @@ namespace Backup
             }
         }
 
-        public RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace)
+        public RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2418,7 +2440,8 @@ namespace Backup
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -2440,7 +2463,7 @@ namespace Backup
             return entry;
         }
 
-        public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace)
+        public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2455,12 +2478,12 @@ namespace Backup
             bool result = DoWebActionJSON2JSONWithRetry(
                 url,
                 "GET",
-                null/*requestBody*/
-                                   ,
+                null/*requestBody*/,
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -2497,7 +2520,7 @@ namespace Backup
         private Dictionary<string, List<GoogleDriveFile>> childrenMap;
         private string rootId;
 
-        public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace)
+        public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext)
             : base(remoteAccessControl, true/*enableResumableUploads*/)
         {
             if (trace != null)
@@ -2516,7 +2539,7 @@ namespace Backup
             // requests, which would work more like conventional directory hierarchy and avoid
             // pulling down file metadata for items not in any of the path directories.
 
-            GoogleDriveFile[] files = GetRemoteFlatFilesList(trace);
+            GoogleDriveFile[] files = GetRemoteFlatFilesList(trace, faultInstanceContext);
 
             childrenMap = new Dictionary<string, List<GoogleDriveFile>>(files.Length + 1);
             Dictionary<string, bool> roots = new Dictionary<string, bool>(1);
@@ -2650,7 +2673,7 @@ namespace Backup
             return fileId;
         }
 
-        private GoogleDriveFile[] GetRemoteFlatFilesList(TextWriter trace)
+        private GoogleDriveFile[] GetRemoteFlatFilesList(TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<GoogleDriveFile> aggregateItems = new List<GoogleDriveFile>();
 
@@ -2691,7 +2714,8 @@ namespace Backup
                     out response,
                     out webStatusCode,
                     out httpStatusCode,
-                    trace);
+                    trace,
+                    faultInstanceContext);
                 if (!result)
                 {
                     if (trace != null)
@@ -2800,7 +2824,7 @@ namespace Backup
             return new RemoteFileSystemEntry(id, title, mimeType == "application/vnd.google-apps.folder", DateTime.Parse(createdDate), DateTime.Parse(modifiedDate), Int64.Parse(fileSize));
         }
 
-        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace)
+        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2850,7 +2874,7 @@ namespace Backup
             return items.ToArray();
         }
 
-        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace)
+        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (!(String.IsNullOrEmpty(remotePath) || remotePath.StartsWith("/")))
             {
@@ -2869,7 +2893,7 @@ namespace Backup
             for (int i = 1; i < remotePathPartsLength; i++)
             {
                 string remotePathPart = remotePathParts[i];
-                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace);
+                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace, faultInstanceContext);
                 int index = Array.FindIndex(entries, delegate(RemoteFileSystemEntry candidate) { return candidate.Name.Equals(remotePathPart); });
                 if (index < 0)
                 {
@@ -2880,7 +2904,7 @@ namespace Backup
             return currentDirectory;
         }
 
-        public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace)
+        public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -2899,7 +2923,8 @@ namespace Backup
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -2919,7 +2944,7 @@ namespace Backup
 
             // https://developers.google.com/drive/web/manage-downloads
 
-            if (!DownloadFileWithResume(downloadUrl, streamDownloadInto, progressTracker, trace))
+            if (!DownloadFileWithResume(downloadUrl, streamDownloadInto, progressTracker, trace, faultInstanceContext))
             {
                 if (trace != null)
                 {
@@ -2934,7 +2959,7 @@ namespace Backup
             }
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTrackerUpload, TextWriter trace)
+        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTrackerUpload, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (remoteName.IndexOf('"') >= 0)
             {
@@ -3045,7 +3070,8 @@ namespace Backup
                     out webStatusCode,
                     out httpStatusCode,
                     accessTokenOverride,
-                    trace);
+                    trace,
+                    faultInstanceContext);
                 if (!result)
                 {
                     if (trace != null)
@@ -3108,7 +3134,8 @@ namespace Backup
                             progressTrackerUpload,
                             null/*progressTrackerDownload*/,
                             accessTokenOverride,
-                            trace);
+                            trace,
+                            faultInstanceContext);
 
                         if (result)
                         {
@@ -3179,7 +3206,8 @@ namespace Backup
                         null/*progressTrackerUpload*/,
                         null/*progressTrackerDownload*/,
                         accessTokenOverride,
-                        trace);
+                        trace,
+                        faultInstanceContext);
 
                     response = Encoding.UTF8.GetString(responseStream.ToArray());
                 }
@@ -3316,7 +3344,8 @@ namespace Backup
                             progressTrackerUpload,
                             null/*progressTrackerDownload*/,
                             accessTokenOverride,
-                            trace);
+                            trace,
+                            faultInstanceContext);
                         response = Encoding.UTF8.GetString(responseStream.ToArray());
                     }
 
@@ -3388,7 +3417,7 @@ namespace Backup
             return entry;
         }
 
-        public void DeleteFile(string fileId, TextWriter trace)
+        public void DeleteFile(string fileId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -3413,7 +3442,8 @@ namespace Backup
                     out httpStatusCode,
                     null/*progressTracker*/,
                     null/*accessTokenOverride*/,
-                    trace);
+                    trace,
+                    faultInstanceContext);
 
                 if (trace != null)
                 {
@@ -3440,7 +3470,7 @@ namespace Backup
             }
         }
 
-        public RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace)
+        public RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -3471,7 +3501,8 @@ namespace Backup
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -3493,7 +3524,7 @@ namespace Backup
             return entry;
         }
 
-        public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace)
+        public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -3512,7 +3543,8 @@ namespace Backup
                 out response,
                 out webStatusCode,
                 out httpStatusCode,
-                trace);
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)
@@ -3551,6 +3583,8 @@ namespace Backup
         private UncommittedList uncommittedLocalTempFiles = new UncommittedList();
         private IWebMethods remoteWebMethods;
         private readonly TextWriter masterTrace; // this is the master (root) tracelog instance
+
+        private readonly IFaultInstance faultInstanceRoot;
 
         private class UncommittedList : IEnumerable<KeyValuePair<string, LocalFileCopy>>
         {
@@ -3673,17 +3707,19 @@ namespace Backup
         }
 
 
-        private delegate IWebMethods CreateWebMethodsMethod(RemoteAccessControl remoteAccessControl, TextWriter trace);
+        private delegate IWebMethods CreateWebMethodsMethod(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext);
         private static readonly KeyValuePair<string, CreateWebMethodsMethod>[] SupportedServices = new KeyValuePair<string, CreateWebMethodsMethod>[]
         {
-            new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace) { return new MicrosoftOneDriveWebMethods(remoteAccessControl, trace); }),
-            new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace) { return new GoogleDriveWebMethods(remoteAccessControl, trace); }),
+            new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new MicrosoftOneDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
+            new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new GoogleDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
         };
 
         private const string TraceFilePrefix = "remotestoragetrace";
 
         public RemoteArchiveFileManager(string serviceUrl, string remoteDirectory, string refreshTokenProtected, Core.Context context)
         {
+            faultInstanceRoot = context.faultInjectionRoot.Select("RemoteArchiveFileManager", String.Format("serviceUrl={0}|remoteDirectory={1}", serviceUrl, remoteDirectory));
+
             if (context.traceEnabled)
             {
                 masterTrace = Logging.CreateLogFile(TraceFilePrefix);
@@ -3719,16 +3755,16 @@ namespace Backup
 
                 remoteAccessControl = new RemoteAccessControl(String.Concat("https://", SupportedServices[serviceSelector].Key), true/*enableRefreshToken*/, refreshTokenProtected, masterTrace);
 
-                remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl, masterTrace);
+                remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl, masterTrace, faultInstanceRoot);
 
-                remoteDirectoryEntry = remoteWebMethods.NavigateRemotePath(remoteDirectory, true/*includeLast*/, masterTrace);
+                remoteDirectoryEntry = remoteWebMethods.NavigateRemotePath(remoteDirectory, true/*includeLast*/, masterTrace, faultInstanceRoot);
                 if (masterTrace != null)
                 {
                     masterTrace.WriteLine("Remote directory entry: {0}", remoteDirectoryEntry);
                     masterTrace.WriteLine();
                 }
 
-                remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.RemoteGetFileSystemEntries(remoteDirectoryEntry.Id, masterTrace));
+                remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.RemoteGetFileSystemEntries(remoteDirectoryEntry.Id, masterTrace, faultInstanceRoot));
             }
             catch (Exception exception)
             {
@@ -3789,6 +3825,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("Read", name);
+
                 RemoteFileSystemEntry entry;
                 if (!remoteDirectoryCache.TryGetName(name, out entry))
                 {
@@ -3798,7 +3836,7 @@ namespace Backup
                 LocalFileCopy localCopy = new LocalFileCopy(); // refcount==1
                 using (Stream stream = localCopy.Write())
                 {
-                    remoteWebMethods.DownloadFile(entry.Id, stream, progressTracker, trace);
+                    remoteWebMethods.DownloadFile(entry.Id, stream, progressTracker, trace, faultInstanceMethod);
                 }
                 return localCopy; // callee calls Dispose()
             }
@@ -3816,6 +3854,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("WriteTemp", nameTemp);
+
                 using (LocalFileCopy localCopy = new LocalFileCopy())
                 {
                     // refcount == 1, owned by using()
@@ -3841,6 +3881,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("GetTempExisting", nameTemp);
+
                 using (LocalFileCopy localCopy = new LocalFileCopy(localPath, false/*writable*/, false/*delete*/))
                 {
                     // refcount == 1, owned by using()
@@ -3866,6 +3908,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("Commit", String.Format("{0}|{1}", nameTemp, name));
+
                 if (Exists(nameTemp, trace))
                 {
                     throw new IOException(String.Format("file exists - remote:{0}", nameTemp));
@@ -3889,7 +3933,7 @@ namespace Backup
                     RemoteFileSystemEntry entry;
                     using (Stream stream = uncommitted.Read())
                     {
-                        entry = remoteWebMethods.UploadFile(remoteDirectoryEntry.Id, nameTemp, stream, progressTracker, trace);
+                        entry = remoteWebMethods.UploadFile(remoteDirectoryEntry.Id, nameTemp, stream, progressTracker, trace, faultInstanceMethod);
                     }
                     remoteDirectoryCache.Update(entry);
 
@@ -3918,6 +3962,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("Abandon", nameTemp);
+
                 LocalFileCopy uncommitted;
                 if (!uncommittedLocalTempFiles.TryGetValue(nameTemp, out uncommitted)
                     || (uncommitted != localFile))
@@ -3941,20 +3987,22 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("Delete", name);
+
                 RemoteFileSystemEntry entry;
                 if (!remoteDirectoryCache.TryGetName(name, out entry))
                 {
                     throw new FileNotFoundException(String.Format("remote:{0}", name));
                 }
 
-                remoteWebMethods.DeleteFile(entry.Id, trace);
+                remoteWebMethods.DeleteFile(entry.Id, trace, faultInstanceMethod);
                 remoteDirectoryCache.Remove(name);
 
                 if (entry.HasDuplicates)
                 {
                     foreach (RemoteFileSystemEntry duplicate in entry.Duplicates)
                     {
-                        remoteWebMethods.DeleteFile(duplicate.Id, trace);
+                        remoteWebMethods.DeleteFile(duplicate.Id, trace, faultInstanceMethod);
                     }
                 }
             }
@@ -3972,6 +4020,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("DeleteById", id);
+
                 RemoteFileSystemEntry entry = null;
                 int duplicateIndex = -1;
                 RemoteFileSystemEntry duplicateBaseEntry = null;
@@ -4002,7 +4052,7 @@ namespace Backup
                     throw new FileNotFoundException(String.Format("remote-id:{0}", id));
                 }
 
-                remoteWebMethods.DeleteFile(entry.Id, trace);
+                remoteWebMethods.DeleteFile(entry.Id, trace, faultInstanceMethod);
                 if (duplicateBaseEntry == null)
                 {
                     remoteDirectoryCache.Remove(entry.Name);
@@ -4035,6 +4085,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("Exists", name);
+
                 RemoteFileSystemEntry entry;
                 return remoteDirectoryCache.TryGetName(name, out entry);
             }
@@ -4052,13 +4104,15 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("Rename", String.Format("{0}|{1}", oldName, newName));
+
                 RemoteFileSystemEntry entry;
                 if (!remoteDirectoryCache.TryGetName(oldName, out entry))
                 {
                     throw new FileNotFoundException(String.Format("remote:{0}", oldName));
                 }
 
-                RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName, trace);
+                RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName, trace, faultInstanceMethod);
                 remoteDirectoryCache.Remove(oldName);
                 if (newEntry != null)
                 {
@@ -4079,6 +4133,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("RenameById", String.Format("{0}|{1}", id, newName));
+
                 RemoteFileSystemEntry entry = null;
                 foreach (RemoteFileSystemEntry candidate in remoteDirectoryCache)
                 {
@@ -4093,7 +4149,7 @@ namespace Backup
                     throw new FileNotFoundException(String.Format("remote-id:{0}", id));
                 }
 
-                RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName, trace);
+                RemoteFileSystemEntry newEntry = remoteWebMethods.RenameFile(entry.Id, newName, trace, faultInstanceMethod);
                 remoteDirectoryCache.Remove(entry.Name);
                 if (newEntry != null)
                 {
@@ -4114,6 +4170,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("GetFileNames", prefix);
+
                 if (prefix == null)
                 {
                     prefix = String.Empty;
@@ -4149,6 +4207,8 @@ namespace Backup
         {
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("GetFileInfo", name);
+
                 RemoteFileSystemEntry entry;
                 if (!remoteDirectoryCache.TryGetName(name, out entry))
                 {
@@ -4181,7 +4241,9 @@ namespace Backup
 
         public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace)
         {
-            remoteWebMethods.GetQuota(out quotaTotal, out  quotaUsed, trace);
+            IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("GetQuota");
+
+            remoteWebMethods.GetQuota(out quotaTotal, out  quotaUsed, trace, faultInstanceMethod);
         }
 
         public TextWriter GetMasterTrace() // TextWriter is threadsafe; remains owned - do not Dispose()

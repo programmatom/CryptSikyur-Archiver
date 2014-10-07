@@ -1146,7 +1146,7 @@ namespace Backup
             public int? explicitConcurrency;
 
             public FaultTemplateNode faultInjectionTemplateRoot;
-            public FaultInstanceNode faultInjectionRoot;
+            public IFaultInstance faultInjectionRoot;
 
             public Context(Context original)
             {
@@ -5925,7 +5925,7 @@ namespace Backup
             ShowProgress = 1 << 3,
         }
 
-        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, FaultInstanceNode faultContainer, out ApplicationException[] deferredExceptions)
+        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, IFaultInstance faultContainer, out ApplicationException[] deferredExceptions)
         {
             List<ApplicationException> deferredExceptionsList = new List<ApplicationException>();
 
@@ -5940,7 +5940,7 @@ namespace Backup
                     throw new ArgumentException();
                 }
 
-                FaultInstanceNode faultUnpackInternal = faultContainer.Select("UnpackInternal");
+                IFaultInstance faultUnpackInternal = faultContainer.Select("UnpackInternal");
 
                 ulong segmentSerialNumber = 0;
                 byte[] randomArchiveSignature = new byte[0];
@@ -6169,7 +6169,7 @@ namespace Backup
                                 trace.WriteLine("Header[Path=\"{0}\", ESL={1}, Created={2}, LastWrite={3}, Attr={4}, Range={5}]", header.Subpath, header.EmbeddedStreamLength, header.CreationTimeUtc, header.LastWriteTimeUtc, (int)header.Attributes, header.Range);
                             }
 
-                            FaultInstanceNode faultFileHeader = faultUnpackInternal.Select("FileHeader", header.Subpath);
+                            IFaultInstance faultFileHeader = faultUnpackInternal.Select("FileHeader", header.Subpath);
 
                             // segment name and serial are written as a special header record.
                             // this is not exposed to caller; instead, each proper file record is
@@ -6359,8 +6359,8 @@ namespace Backup
                                         }
                                     }
 
-                                    FaultInstanceNode faultWrite = faultFileHeader.Select("Write");
-                                    FaultPredicate faultWritePosition = faultWrite.SelectPredicate("Position");
+                                    IFaultInstance faultWrite = faultFileHeader.Select("Write");
+                                    IFaultPredicate faultWritePosition = faultWrite.SelectPredicate("Position");
 
                                     using (output)
                                     {
@@ -6491,7 +6491,7 @@ namespace Backup
 
         internal static void Dumppack(string sourcePattern, Context context)
         {
-            FaultInstanceNode faultDumppack = context.faultInjectionRoot.Select("Dumppack");
+            IFaultInstance faultDumppack = context.faultInjectionRoot.Select("Dumppack");
 
             string fileName;
             bool remote;
@@ -7282,7 +7282,7 @@ namespace Backup
             const string DynPackDiagnosticDateTimeFormat = "yyyy-MM-ddTHH:mm:ss";
             const int MinimumSegmentSize = 4096;
 
-            FaultInstanceNode faultDynamicPack = context.faultInjectionRoot.Select("DynamicPack");
+            IFaultInstance faultDynamicPack = context.faultInjectionRoot.Select("DynamicPack");
 
             ulong segmentSerialNumbering = 0;
             byte[] randomArchiveSignature = new byte[PackRandomSignatureLengthBytes];
@@ -9825,7 +9825,7 @@ namespace Backup
 
         internal static void ValidateOrUnpackDynamicInternal(string archivePathTemplate, string targetDirectory, Context context, UnpackMode mode, string journalPath)
         {
-            FaultInstanceNode faultValidateOrUnpackDynamicInternal = context.faultInjectionRoot.Select("ValidateOrUnpackDynamicInternal");
+            IFaultInstance faultValidateOrUnpackDynamicInternal = context.faultInjectionRoot.Select("ValidateOrUnpackDynamicInternal");
 
             int fatal = 0;
             OneWaySwitch invalid = new OneWaySwitch();
@@ -11416,6 +11416,7 @@ namespace Backup
             {
                 bool debug = false;
                 bool waitDebugger = false;
+                bool traceFaultPoints = false;
 
                 context.now = DateTime.Now;
 
@@ -11647,6 +11648,10 @@ namespace Backup
                         }
                         FaultTemplateNode.ParseFaultInjectionPath(context.faultInjectionTemplateRoot, method, args[i]);
                     }
+                    else if (args[i] == "-tracefaultpoints")
+                    {
+                        traceFaultPoints = true;
+                    }
                     else if (args[i] == "-throttle")
                     {
                         i++;
@@ -11674,7 +11679,19 @@ namespace Backup
                     i++;
                 }
 
-                context.faultInjectionRoot = new FaultInstanceNode(context.faultInjectionTemplateRoot).Select(null);
+                if (!traceFaultPoints)
+                {
+                    context.faultInjectionRoot = new FaultInstanceNode(context.faultInjectionTemplateRoot).Select(null);
+                }
+                else
+                {
+                    if (!context.faultInjectionTemplateRoot.Terminal)
+                    {
+                        throw new UsageException();
+                    }
+                    context.faultInjectionTemplateRoot = null;
+                    context.faultInjectionRoot = new FaultTraceNode();
+                }
 
                 if (waitDebugger)
                 {
