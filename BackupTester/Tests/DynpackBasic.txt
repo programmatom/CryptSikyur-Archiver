@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -15,13 +15,13 @@ date + 1
 list-verify .
 .                                         -----D source\
 endlist
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- archive.0.dynpack [1]
 .                                         -----D source\
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- archive.0.dynpack [1]
@@ -40,7 +40,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-02          2014-01-02 -A---- source\a [1]
 endlist
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
@@ -48,7 +48,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-02          2014-01-02 -A---- source\a [1]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
@@ -96,7 +96,7 @@ list-verify .
 .                                         -----D source\j\
 .          2014-01-06          2014-01-06 -A---- source\j\k [3]
 endlist
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-07          2014-01-07 -A---- archive.0.dynpack [4]
@@ -114,7 +114,7 @@ list-verify .
 .                                         -----D source\j\
 .          2014-01-06          2014-01-06 -A---- source\j\k [3]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-07          2014-01-07 -A---- archive.0.dynpack [4]
@@ -169,9 +169,9 @@ edit source\d\e\f
 date + 1
 edit source\j\k
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify .
 .          2014-01-07          2014-01-11 -A---- archive.0.dynpack [6]
@@ -231,7 +231,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-02          2014-01-02 -A---- source\a [1]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
@@ -239,7 +239,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-02          2014-01-02 -A---- source\a [1]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive.0.dynpack [2]
@@ -262,7 +262,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\a [1]
 .          2014-01-04          2014-01-04 -A---- source\b [4]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-05 -A---- archive.0.dynpack [5]
@@ -271,7 +271,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\a [1]
 .          2014-01-04          2014-01-04 -A---- source\b [4]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-05 -A---- archive.0.dynpack [5]
@@ -297,7 +297,7 @@ list-verify .
 .          2014-01-04          2014-01-04 -A---- source\b [4]
 .          2014-01-06          2014-01-06 -A---- source\c [7]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-07 -A---- archive.0.dynpack [8]
@@ -307,7 +307,7 @@ list-verify .
 .          2014-01-04          2014-01-04 -A---- source\b [4]
 .          2014-01-06          2014-01-06 -A---- source\c [7]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-07 -A---- archive.0.dynpack [8]
@@ -336,7 +336,7 @@ list-verify .
 .          2014-01-06          2014-01-06 -A---- source\c [7]
 .          2014-01-08          2014-01-08 -A---- source\d [10]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-09 -A---- archive.0.dynpack [11]
@@ -347,7 +347,7 @@ list-verify .
 .          2014-01-06          2014-01-06 -A---- source\c [7]
 .          2014-01-08          2014-01-08 -A---- source\d [10]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-09 -A---- archive.0.dynpack [11]
@@ -379,7 +379,7 @@ list-verify .
 .          2014-01-08          2014-01-08 -A---- source\d [10]
 .          2014-01-10          2014-01-10 -A---- source\e [13]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-11 -A---- archive.0.dynpack [14]
@@ -391,7 +391,7 @@ list-verify .
 .          2014-01-08          2014-01-08 -A---- source\d [10]
 .          2014-01-10          2014-01-10 -A---- source\e [13]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-11 -A---- archive.0.dynpack [14]
@@ -426,7 +426,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\e [13]
 .          2014-01-12          2014-01-12 -A---- source\f [16]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-13 -A---- archive.0.dynpack [17]
@@ -440,7 +440,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\e [13]
 .          2014-01-12          2014-01-12 -A---- source\f [16]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-13 -A---- archive.0.dynpack [17]
@@ -461,9 +461,9 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- target\e [13]
 .          2014-01-12          2014-01-12 -A---- target\f [16]
 endlist
-call backup -date %DATE% unpack archive.a.dynpack target_a
+call backup unpack archive.a.dynpack target_a
 exitcode-verify 0
-call backup -date %DATE% unpack archive.m.dynpack target_m
+call backup unpack archive.m.dynpack target_m
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-13 -A---- archive.0.dynpack [17]
@@ -510,7 +510,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\e [13]
 .          2014-01-12          2014-01-12 -A---- source\f [16]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-14 -A---- archive.0.dynpack [19]
@@ -522,7 +522,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\e [13]
 .          2014-01-12          2014-01-12 -A---- source\f [16]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-14 -A---- archive.0.dynpack [19]
@@ -582,7 +582,7 @@ list-verify .
 .          2010-01-01          2010-01-01 -A---- source\o [15]
 .          2010-01-01          2010-01-01 -A---- source\p [16]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2010-01-02          2010-01-02 -A---- archive.0.dynpack [17]
@@ -608,7 +608,7 @@ list-verify .
 .          2010-01-01          2010-01-01 -A---- source\o [15]
 .          2010-01-01          2010-01-01 -A---- source\p [16]
 endlist
-call backup -date %DATE% unpack archive.a.dynpack target1
+call backup unpack archive.a.dynpack target1
 exitcode-verify 0
 list-verify target1
 .          2010-01-01          2010-01-01 -A---- a [1]
@@ -617,7 +617,7 @@ list-verify target1
 .          2010-01-01          2010-01-01 -A---- d [4]
 .          2010-01-01          2010-01-01 -A---- e [5]
 endlist
-call backup -date %DATE% unpack archive.g.dynpack target2
+call backup unpack archive.g.dynpack target2
 exitcode-verify 0
 list-verify target2
 .          2010-01-01          2010-01-01 -A---- f [6]
@@ -626,14 +626,14 @@ list-verify target2
 .          2010-01-01          2010-01-01 -A---- i [9]
 .          2010-01-01          2010-01-01 -A---- j [10]
 endlist
-call backup -date %DATE% unpack archive.m.dynpack target3
+call backup unpack archive.m.dynpack target3
 exitcode-verify 0
 list-verify target3
 .          2010-01-01          2010-01-01 -A---- k [11]
 .          2010-01-01          2010-01-01 -A---- l [12]
 .          2010-01-01          2010-01-01 -A---- m [13]
 endlist
-call backup -date %DATE% unpack archive.s.dynpack target4
+call backup unpack archive.s.dynpack target4
 exitcode-verify 0
 list-verify target4
 .          2010-01-01          2010-01-01 -A---- n [14]
@@ -648,7 +648,7 @@ rmdir target2
 rmdir target3
 rmdir target4
 date + 1
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2010-01-02          2010-01-03 -A---- archive.0.dynpack [22]
@@ -672,7 +672,7 @@ list-verify .
 .          2010-01-01          2010-01-01 -A---- source\o [15]
 .          2010-01-01          2010-01-01 -A---- source\p [16]
 endlist
-call backup -date %DATE% unpack archive.m.dynpack target3
+call backup unpack archive.m.dynpack target3
 exitcode-verify 0
 list-verify target3
 .          2010-01-01          2010-01-01 -A---- l [12]
@@ -733,7 +733,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\d\e\p.txt [9]
 .          2014-01-11          2014-01-11 -A---- source\d\e\q.txt [10]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-12          2014-01-12 -A---- archive.0.dynpack [11]
@@ -757,7 +757,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\d\e\p.txt [9]
 .          2014-01-11          2014-01-11 -A---- source\d\e\q.txt [10]
 endlist
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-12          2014-01-12 -A---- archive.0.dynpack [11]
@@ -824,7 +824,7 @@ list-verify .
 .          2014-01-04          2014-01-04 -A---- source\f\y.txt [4]
 .          2014-01-05          2014-01-05 -A---- source\f\z.txt [5]
 endlist
-call backup -date %DATE% dynpack source archive 50000 -verify
+call backup dynpack source archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-12          2014-01-13 -A---- archive.0.dynpack [15]
@@ -848,14 +848,14 @@ list-verify .
 .          2014-01-04          2014-01-04 -A---- source\f\y.txt [4]
 .          2014-01-05          2014-01-05 -A---- source\f\z.txt [5]
 endlist
-call backup -date %DATE% unpack archive.a.dynpack target1
+call backup unpack archive.a.dynpack target1
 exitcode-verify 0
 list-verify target1
 .                                         -----D a-empty\
 .          2014-01-01          2014-01-01 -A---- aa [1]
 .                                         -----D c-empty\
 endlist
-call backup -date %DATE% unpack archive.s.dynpack target2
+call backup unpack archive.s.dynpack target2
 exitcode-verify 0
 list-verify target2
 .                                         -----D d\
@@ -866,7 +866,7 @@ list-verify target2
 .          2014-01-10          2014-01-10 -A---- d\e\p.txt [9]
 .          2014-01-11          2014-01-11 -A---- d\e\q.txt [10]
 endlist
-call backup -date %DATE% unpack archive.v.dynpack target3
+call backup unpack archive.v.dynpack target3
 exitcode-verify 0
 list-verify target3
 .                                         -----D f\
@@ -938,7 +938,7 @@ list-verify .
 .          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
 .          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
 endlist
-call backup -date %DATE% dynpack source archives\archive 50000 -verify
+call backup dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -969,7 +969,7 @@ endlist
 rmdir archives
 mkdir archives
 date + 1
-call backup -date %DATE% dynpack source archives\archive 50000 -verify
+call backup dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1002,7 +1002,7 @@ mkdir archives
 
 test compression
 date + 1
-call backup -date %DATE% -compress dynpack source archives\archive 50000 -verify
+call backup -compress dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1030,7 +1030,7 @@ list-verify .
 .          2014-01-14          2014-01-14 -A---- source\c\c4.txt [14]
 .          2014-01-15          2014-01-15 -A---- source\c\c5.txt [15]
 endlist
-call backup -date %DATE% -decompress dynunpack archives\archive target
+call backup -decompress dynunpack archives\archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -1054,7 +1054,7 @@ list-verify target
 endlist
 # update archive (force read of existing manifest - code coverage)
 date + 1
-call backup -date %DATE% -compress dynpack source archives\archive 50000 -verify
+call backup -compress dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify archives
 .          2014-01-18          2014-01-19 -A---- archive.0.dynpack [28]
@@ -1069,7 +1069,7 @@ mkdir archives
 
 test encryption
 date + 1
-call backup -date %DATE% -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
+call backup -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1103,7 +1103,7 @@ mkdir archives
 # this test is no longer useful, since the random archive signature will cause the archive files to always look different, whether encryption is used or not used
 test encryption (nondeterminism)
 date + 1
-call backup -date %DATE% -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
+call backup -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1134,7 +1134,7 @@ endlist
 
 test decryption
 date + 1
-call backup -date %DATE% -decrypt aes256 pA55w01D dynunpack archives\archive target
+call backup -decrypt aes256 pA55w01D dynunpack archives\archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -1157,7 +1157,7 @@ list-verify target
 .          2014-01-15          2014-01-15 -A---- c\c5.txt [15]
 endlist
 # update archive (force read of existing manifest - code coverage)
-call backup -date %DATE% -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
+call backup -encrypt aes256 pA55w01D dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 rmdir target
 rmdir archives
@@ -1165,7 +1165,7 @@ mkdir archives
 
 test compression and encryption
 date + 1
-call backup -date %DATE% -compress -encrypt aes256 sW01dF15H dynpack source archives\archive 50000 -verify
+call backup -compress -encrypt aes256 sW01dF15H dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 list-verify .
 .                                         -----D archives\
@@ -1196,7 +1196,7 @@ endlist
 
 test decompression and decryption
 date + 1
-call backup -date %DATE% -decompress -decrypt aes256 sW01dF15H dynunpack archives\archive target
+call backup -decompress -decrypt aes256 sW01dF15H dynunpack archives\archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -1220,11 +1220,11 @@ list-verify target
 endlist
 # update archive (force read of existing manifest - code coverage)
 date + 1
-call backup -date %DATE% -compress -encrypt aes256 sW01dF15H dynpack source archives\archive 50000 -verify
+call backup -compress -encrypt aes256 sW01dF15H dynpack source archives\archive 50000 -verify
 exitcode-verify 0
 rmdir target
 date + 1
-call backup -date %DATE% -decompress -decrypt aes256 sW01dF15H dynunpack archives\archive target
+call backup -decompress -decrypt aes256 sW01dF15H dynunpack archives\archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -1260,15 +1260,15 @@ create source\0000 -size 9800
 create source\5000 -size 9800
 create source\9999 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 create source\7500 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 create source\6250 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-04 -A---- archive.0.dynpack [1]
@@ -1288,7 +1288,7 @@ create source\5938 -size 9800
 create source\5625 -size 9800
 create source\5312 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-05 -A---- archive.0.dynpack [12]
@@ -1312,15 +1312,15 @@ list-verify .
 endlist
 create source\6094 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 create source\6172 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 create source\6211 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-08 -A---- archive.0.dynpack [19]
@@ -1350,7 +1350,7 @@ list-verify .
 endlist
 create source\6230 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-09 -A---- archive.0.dynpack [26]
@@ -1389,7 +1389,7 @@ delete source\6094
 delete source\6172
 delete source\6211
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-10 -A---- archive.0.dynpack [29]
@@ -1409,7 +1409,7 @@ list-verify .
 endlist
 create source\5615 -size 9800
 date + 1
-call backup -date %DATE% dynpack source archive 10000 -verify
+call backup dynpack source archive 10000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-11 -A---- archive.0.dynpack [30]
@@ -1452,19 +1452,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 41\; SIGNATURE\: .*$
 . [a: 1]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 1\; SIGNATURE\: .*$
@@ -1488,19 +1488,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 82\; SIGNATURE\: .*$
 . [a: 42]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 42\; SIGNATURE\: .*$
@@ -1524,19 +1524,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 123\; SIGNATURE\: .*$
 . [a: 83]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 83\; SIGNATURE\: .*$
@@ -1560,19 +1560,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 164\; SIGNATURE\: .*$
 . [a: 124]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 124\; SIGNATURE\: .*$
@@ -1596,19 +1596,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 205\; SIGNATURE\: .*$
 . [a: 165]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 165\; SIGNATURE\: .*$
@@ -1632,19 +1632,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 246\; SIGNATURE\: .*$
 . [a: 206]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 206\; SIGNATURE\: .*$
@@ -1668,19 +1668,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 287\; SIGNATURE\: .*$
 . [a: 247]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 247\; SIGNATURE\: .*$
@@ -1704,19 +1704,19 @@ copy data source\data1
 copy data source\data2
 copy data source\data3
 date + 1
-call backup -date %DATE% dynpack source archive 12000 -verify
+call backup dynpack source archive 12000 -verify
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 dirs-equal-verify source target
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 328\; SIGNATURE\: .*$
 . [a: 288]
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify -ignoreextralines
 *SERIAL\: 288\; SIGNATURE\: .*$
@@ -1761,10 +1761,10 @@ create source\28 -size 10000
 create source\29 -size 10000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive\a 22000
+call backup dynpack source archive\a 22000
 exitcode-verify 0
 date + 1
-call backup -date %DATE% dynunpack archive\a target1
+call backup dynunpack archive\a target1
 exitcode-verify 0
 dirs-equal-verify source target1
 rmdir target1
@@ -1789,10 +1789,10 @@ endlist
 
 test increased size, no changes - no effect
 date + 1
-call backup -date %DATE% dynpack source archive\a 44000
+call backup dynpack source archive\a 44000
 exitcode-verify 0
 date + 1
-call backup -date %DATE% dynunpack archive\a target2
+call backup dynunpack archive\a target2
 exitcode-verify 0
 dirs-equal-verify source target2
 rmdir target2
@@ -1820,10 +1820,10 @@ date + 1
 #49
 edit source\10 -size 10000
 date + 1
-call backup -date %DATE% dynpack source archive\a 44000
+call backup dynpack source archive\a 44000
 exitcode-verify 0
 date + 1
-call backup -date %DATE% dynunpack archive\a target3
+call backup dynunpack archive\a target3
 exitcode-verify 0
 dirs-equal-verify source target3
 rmdir target3
@@ -1851,10 +1851,10 @@ test increased size, remove segment - "dirty" (missing) segment will absorb next
 date + 1
 delete archive\a.s.dynpack
 date + 1
-call backup -date %DATE% dynpack source archive\a 44000
+call backup dynpack source archive\a 44000
 exitcode-verify 0
 date + 1
-call backup -date %DATE% dynunpack archive\a target4
+call backup dynunpack archive\a target4
 exitcode-verify 0
 dirs-equal-verify source target4
 rmdir target4
@@ -1878,10 +1878,10 @@ endlist
 
 test reduced size, no change - no effect
 date + 1
-call backup -date %DATE% dynpack source archive\a 11000
+call backup dynpack source archive\a 11000
 exitcode-verify 0
 date + 1
-call backup -date %DATE% dynunpack archive\a target5
+call backup dynunpack archive\a target5
 exitcode-verify 0
 dirs-equal-verify source target5
 rmdir target5
@@ -1907,10 +1907,10 @@ date + 1
 #57
 edit source\15 -size 10000
 date + 1
-call backup -date %DATE% dynpack source archive\a 11000
+call backup dynpack source archive\a 11000
 exitcode-verify 0
 date + 1
-call backup -date %DATE% dynunpack archive\a target6
+call backup dynunpack archive\a target6
 exitcode-verify 0
 dirs-equal-verify source target6
 rmdir target6
@@ -1937,10 +1937,10 @@ test reduced size, delete segment - trigger reconstruction of smaller segments
 date + 1
 delete archive\a.g.dynpack
 date + 1
-call backup -date %DATE% dynpack source archive\a 11000
+call backup dynpack source archive\a 11000
 exitcode-verify 0
 date + 1
-call backup -date %DATE% dynunpack archive\a target7
+call backup dynunpack archive\a target7
 exitcode-verify 0
 dirs-equal-verify source target7
 rmdir target7

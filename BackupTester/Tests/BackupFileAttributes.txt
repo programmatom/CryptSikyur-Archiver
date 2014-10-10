@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -13,7 +13,7 @@ mkdir archive
 
 test setup
 date 2014-01-01
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -37,7 +37,7 @@ date + 1
 create source\d
 attrib source\d +a
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\

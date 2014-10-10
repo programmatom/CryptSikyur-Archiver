@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -37,7 +37,7 @@ create source\o\fourteen.foo
 create source\o\fifteen.bar
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 date + 1
 list-verify .
@@ -65,7 +65,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\two.foo [15]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D m\
@@ -122,7 +122,7 @@ edit source\o\fourteen.foo
 date + 1
 edit source\o\fifteen.bar
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify -exclude source\n\t -exclude source\m
+call backup dynpack source archive 1000000 -verify -exclude source\n\t -exclude source\m
 exitcode-verify 0
 date + 1
 list-verify .
@@ -150,7 +150,7 @@ list-verify .
 .          2014-01-02          2014-01-11 -A---- source\two.foo [34]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D n\
@@ -199,7 +199,7 @@ edit source\o\fourteen.foo
 date + 1
 edit source\o\fifteen.bar
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify -skip .foo -skip .bar
+call backup dynpack source archive 1000000 -verify -skip .foo -skip .bar
 exitcode-verify 0
 date + 1
 list-verify .
@@ -227,7 +227,7 @@ list-verify .
 .          2014-01-02          2014-01-29 -A---- source\two.foo [51]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D m\
@@ -274,7 +274,7 @@ edit source\o\fourteen.foo
 date + 1
 edit source\o\fifteen.bar
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify -skip .foo -skip .txt -exclude source\m
+call backup dynpack source archive 1000000 -verify -skip .foo -skip .txt -exclude source\m
 exitcode-verify 0
 date + 1
 list-verify .
@@ -302,7 +302,7 @@ list-verify .
 .          2014-01-02          2014-02-16 -A---- source\two.foo [68]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D n\
@@ -317,7 +317,7 @@ rmdir target
 
 test reinclude all
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 date + 1
 list-verify .
@@ -345,7 +345,7 @@ list-verify .
 .          2014-01-02          2014-02-16 -A---- source\two.foo [68]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D m\
@@ -387,8 +387,8 @@ date + 1
 create source\C.foo\r.foo
 date + 1
 qlist .
-call backup -date %DATE% dynpack source archive 1000000 -skip .foo
-call backup -date %DATE% dynunpack archive target
+call backup dynpack source archive 1000000 -skip .foo
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2010-01-07          2010-01-07 -A---- archive.0.dynpack [5]
@@ -419,9 +419,9 @@ date + 1
 create source\o.bar
 date + 1
 qlist .
-call backup -date %DATE% dynpack source archive 1000000 -exclude source\n.foo
+call backup dynpack source archive 1000000 -exclude source\n.foo
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.0.dynpack [4]
@@ -457,9 +457,9 @@ qlist .
 
 test initial pack
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -nosplitlargefiles -exclude source\04
+call backup dynpack source archive 100000 -nosplitlargefiles -exclude source\04
 exitcode-verify 0
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 4\; SIGNATURE\: .*$
@@ -472,7 +472,7 @@ lastoutput-verify
 . [s: 3]
 .        5 92.8KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\06\six
 endoutput
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
@@ -508,9 +508,9 @@ rmdir target1
 
 test update pack
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -nosplitlargefiles
+call backup dynpack source archive 100000 -nosplitlargefiles
 exitcode-verify 0
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 8\; SIGNATURE\: .*$
@@ -526,7 +526,7 @@ lastoutput-verify
 . [s: 3]
 .        6 92.8KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\06\six
 endoutput
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-03 -A---- archive.0.dynpack [11]

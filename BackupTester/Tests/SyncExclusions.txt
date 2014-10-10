@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -15,7 +15,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -61,7 +61,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -exclude m -exclude n
+call backup sync a\x a\y -exclude m -exclude n
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -118,7 +118,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -exclude m\t -exclude n
+call backup sync a\x a\y -exclude m\t -exclude n
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -149,7 +149,7 @@ test sync all
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -222,7 +222,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -exclude m\t -exclude n
+call backup sync a\x a\y -exclude m\t -exclude n
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -295,7 +295,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -exclude m\t -exclude n
+call backup sync a\x a\y -exclude m\t -exclude n
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -354,7 +354,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -395,7 +395,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -438,7 +438,7 @@ qlist .
 test sync, excluding all actual (l2r)
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .foo -skip .bar -skip .txt
+call backup sync a\x a\y -skip .foo -skip .bar -skip .txt
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -468,7 +468,7 @@ endlist
 test sync, enabling .txt (l2r)
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .foo -skip .bar
+call backup sync a\x a\y -skip .foo -skip .bar
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -527,7 +527,7 @@ edit a\x\twelve.bar
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .foo
+call backup sync a\x a\y -skip .foo
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -594,7 +594,7 @@ delete a\x\b\seven.txt
 delete a\x\ten.txt
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .foo -skip .txt
+call backup sync a\x a\y -skip .foo -skip .txt
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -658,7 +658,7 @@ list-verify a\y
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .txt
+call backup sync a\x a\y -skip .txt
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -704,7 +704,7 @@ delete a\y\eleven.foo
 delete a\y\twelve.bar
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .txt -skip .bar
+call backup sync a\x a\y -skip .txt -skip .bar
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -730,7 +730,7 @@ endlist
 test reinclude all (.foo and .bar cross-propagated)
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -771,7 +771,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -801,7 +801,7 @@ qlist .
 test sync, excluding all actual (l2r)
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .foo -skip .bar -skip .txt
+call backup sync a\x a\y -skip .foo -skip .bar -skip .txt
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -834,7 +834,7 @@ create a\y\eleven.foo
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .foo
+call backup sync a\x a\y -skip .foo
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -877,7 +877,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -904,7 +904,7 @@ date + 1
 qlist .
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .foo
+call backup sync a\x a\y -skip .foo
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -937,7 +937,7 @@ test initial setup
 date 2014-01-01
 mkdir a\x\m
 mkdir a\x\m\w
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -973,7 +973,7 @@ qlist a\x
 qlist .
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .bar -exclude m\w
+call backup sync a\x a\y -skip .bar -exclude m\w
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1027,7 +1027,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -skip .bar -exclude m\w
+call backup sync a\x a\y -skip .bar -exclude m\w
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt

@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -50,7 +50,7 @@ list-verify .
 .          2014-01-09          2014-01-09 -A---- source\c\t [8]
 .          2014-01-10          2014-01-10 -A---- source\c\v [9]
 endlist
-call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+call backup dynpack source archive 30000 -verify -logpath logs
 exitcode-verify 0
 list-verify .
 .          2014-01-11          2014-01-11 -A---- archive.0.dynpack [10]
@@ -96,7 +96,7 @@ file-verify logs\archive.0.dynpack.log
 *  FILE         9800 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
 *  FILE         9800 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
 endfile
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -113,7 +113,7 @@ list-verify target
 .          2014-01-10          2014-01-10 -A---- c\v [9]
 endlist
 rmdir target
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 4\; SIGNATURE\: .*$
@@ -130,7 +130,7 @@ lastoutput-verify
 .        8 9.57KB 2014-01-09T00:00:00 2014-01-09T00:00:00 -- .\c\t
 .        9 9.57KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
 endoutput
-call backup -date %DATE% dumppack archive.a.dynpack
+call backup dumppack archive.a.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 1\; SIGNATURE\: .*$
@@ -138,7 +138,7 @@ lastoutput-verify
 .        2 9.57KB 2014-01-03T00:00:00 2014-01-03T00:00:00 -- .\a\n
 .        3 9.57KB 2014-01-04T00:00:00 2014-01-04T00:00:00 -- .\a\o
 endoutput
-call backup -date %DATE% dumppack archive.m.dynpack
+call backup dumppack archive.m.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 2\; SIGNATURE\: .*$
@@ -146,7 +146,7 @@ lastoutput-verify
 .        2 9.57KB 2014-01-06T00:00:00 2014-01-06T00:00:00 -- .\b\q
 .        3 9.57KB 2014-01-07T00:00:00 2014-01-07T00:00:00 -- .\b\r
 endoutput
-call backup -date %DATE% dumppack archive.s.dynpack
+call backup dumppack archive.s.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 3\; SIGNATURE\: .*$
@@ -155,7 +155,7 @@ lastoutput-verify
 .        3 9.57KB 2014-01-10T00:00:00 2014-01-10T00:00:00 -- .\c\v
 endoutput
 # validate globbing in dumppack file argument and multifile output
-call backup -date %DATE% dumppack archive.*.dynpack
+call backup dumppack archive.*.dynpack
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .FILE: "archive.0.dynpack"
@@ -206,7 +206,7 @@ list-verify source
 .          2014-01-09          2014-01-09 -A---- c\t [8]
 .          2014-01-10          2014-01-10 -A---- c\v [9]
 endlist
-call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+call backup dynpack source archive 30000 -verify -logpath logs
 exitcode-verify 0
 list-verify .
 .          2014-01-11          2014-01-12 -A---- archive.0.dynpack [15]
@@ -242,7 +242,7 @@ file-verify logs\archive.0.dynpack.log
 *  FILE         9800 2014-01-09T\d\d\:\d\d\:\d\d 2014-01-09T\d\d\:\d\d\:\d\d \.\\c\\t$
 *  FILE         9800 2014-01-10T\d\d\:\d\d\:\d\d 2014-01-10T\d\d\:\d\d\:\d\d \.\\c\\v$
 endfile
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\
@@ -279,7 +279,7 @@ list-verify source
 .          2014-01-14          2014-01-14 -A---- d\x [18]
 .          2014-01-15          2014-01-15 -A---- d\y [19]
 endlist
-call backup -date %DATE% dynpack source archive 30000 -verify -logpath logs
+call backup dynpack source archive 30000 -verify -logpath logs
 exitcode-verify 0
 list-verify .
 .          2014-01-11          2014-01-16 -A---- archive.0.dynpack [20]
@@ -326,7 +326,7 @@ file-verify logs\archive.0.dynpack.log
 *  FILE         9800 2014-01-14T\d\d\:\d\d\:\d\d 2014-01-14T\d\d\:\d\d\:\d\d \.\\d\\x$
 *  FILE         9800 2014-01-15T\d\d\:\d\d\:\d\d 2014-01-15T\d\d\:\d\d\:\d\d \.\\d\\y$
 endfile
-call backup -date %DATE% dynunpack archive target
+call backup dynunpack archive target
 exitcode-verify 0
 list-verify target
 .                                         -----D a\

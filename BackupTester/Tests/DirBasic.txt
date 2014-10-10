@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -12,7 +12,7 @@ test null test
 date 2014-01-01
 mkdir source
 mkdir archive
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 
 test add one
@@ -23,7 +23,7 @@ date + 1
 create source\a\b\x
 date + 1
 qlist .
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 
 test add two
@@ -38,7 +38,7 @@ date + 1
 create source\c\z
 date + 1
 qlist .
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 
 test add three
@@ -49,7 +49,7 @@ date + 1
 delete source\c\z
 date + 1
 qlist .
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -73,7 +73,7 @@ list-verify archive
 endlist
 
 test dir 1
-call backup -date %DATE% dir archive
+call backup dir archive
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 * Volume in .*$
@@ -92,7 +92,7 @@ lastoutput-verify -workspacepathhack
 endoutput
 
 test dir 2
-call backup -date %DATE% dir archive\*\a\b
+call backup dir archive\*\a\b
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 * Volume in .*$
@@ -120,7 +120,7 @@ lastoutput-verify -workspacepathhack
 endoutput
 
 test dir 3
-call backup -date %DATE% dir archive\*\c\y
+call backup dir archive\*\c\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 * Volume in .*$
@@ -142,7 +142,7 @@ lastoutput-verify -workspacepathhack
 endoutput
 
 test dir 4
-call backup -date %DATE% dir archive\*\c\z
+call backup dir archive\*\c\z
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 * Volume in .*$

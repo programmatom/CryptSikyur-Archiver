@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -15,7 +15,7 @@ mkdir a\y
 mkdir s\x
 mkdir s\y
 date + 1
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -35,7 +35,7 @@ create a\x\file.txt
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -59,7 +59,7 @@ edit a\x\file.txt
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -84,7 +84,7 @@ edit a\y\file.txt
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -109,7 +109,7 @@ create a\y\morefile.txt
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -135,7 +135,7 @@ delete a\x\file.txt
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -159,7 +159,7 @@ delete a\y\morefile.txt
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -181,7 +181,7 @@ mkdir a\x\m
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -205,7 +205,7 @@ mkdir a\y\n
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -231,7 +231,7 @@ rmdir a\x\n
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -255,7 +255,7 @@ rmdir a\y\m
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -284,7 +284,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y -logpath sync.log
+call-with-input backup sync a\x a\y -logpath sync.log
 .l
 endinput
 exitcode-verify 0
@@ -320,7 +320,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y -logpath sync.log
+call-with-input backup sync a\x a\y -logpath sync.log
 .r
 endinput
 exitcode-verify 0
@@ -361,7 +361,7 @@ create a\x\millions -size 0
 create a\x\specialcase -size 0
 create a\x\specialcase2 -size 0
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -376,7 +376,7 @@ edit a\x\specialcase2 -size 1023572
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y -logpath sync.log
+call-with-input backup sync a\x a\y -logpath sync.log
 .r
 endinput
 exitcode-verify 0
@@ -416,7 +416,7 @@ mkdir a\x
 mkdir a\y
 mkdir s\x
 mkdir s\y
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -436,7 +436,7 @@ date + 1
 qlist .
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log -skip .foo
+call backup sync a\x a\y -logpath sync.log -skip .foo
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -468,7 +468,7 @@ mkdir a\x
 mkdir a\y
 mkdir s\x
 mkdir s\y
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -488,7 +488,7 @@ date + 1
 qlist .
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log -skip .foo
+call backup sync a\x a\y -logpath sync.log -skip .foo
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -523,7 +523,7 @@ mkdir a\y
 mkdir s\x
 mkdir s\y
 date + 1
-call backup -date %DATE% sync a\x a\y -logpath sync.log
+call backup sync a\x a\y -logpath sync.log
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -572,7 +572,7 @@ endlist
 test check excluded item logging
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y -logpath sync.log -skip .foo -exclude a
+call backup sync a\x a\y -logpath sync.log -skip .foo -exclude a
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt

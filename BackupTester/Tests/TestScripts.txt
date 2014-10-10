@@ -3,6 +3,7 @@
 RemoteBasic.txt
 RemoteGoogleDrive.txt
 RemoteMicrosoftOneDrive.txt
+RemoteFaults.txt
 
 BackupBasic.txt
 BackupEncryption.txt

@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -13,20 +13,20 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
 .                                         -----D archive\2014-01-01T00+00+00\
 .                                         -----D source\
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test add file
 date + 1
 create source\test.txt
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -34,7 +34,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: test.txt
 endoutput
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -44,13 +44,13 @@ list-verify .
 .                                         -----D source\
 .          2014-01-02          2014-01-02 -A---- source\test.txt [1]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test modify file
 date + 1
 edit source\test.txt
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -58,7 +58,7 @@ lastoutput-verify -workspacepathhack
 .  Different: test.txt
 endoutput
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -70,12 +70,12 @@ list-verify .
 .                                         -----D source\
 .          2014-01-02          2014-01-04 -A---- source\test.txt [2]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test carry forward
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -89,13 +89,13 @@ list-verify .
 .                                         -----D source\
 .          2014-01-02          2014-01-04 -A---- source\test.txt [2]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test remove file
 date + 1
 delete source\test.txt
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -103,7 +103,7 @@ lastoutput-verify -workspacepathhack
 .  Added file: test.txt
 endoutput
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -117,13 +117,13 @@ list-verify .
 .                                         -----D archive\2014-01-08T00+00+00\
 .                                         -----D source\
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test add file
 date + 1
 create source\test.txt
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -131,7 +131,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: test.txt
 endoutput
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -148,7 +148,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-09          2014-01-09 -A---- source\test.txt [3]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 
@@ -163,7 +163,7 @@ create source\a.txt
 mkdir source\b
 create source\b\c.txt
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -176,13 +176,13 @@ list-verify .
 .                                         -----D source\b\
 .          2014-01-01          2014-01-01 -A---- source\b\c.txt [2]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test modify file 1
 date + 1
 edit source\a.txt
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -191,7 +191,7 @@ lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source\b
 endoutput
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -208,13 +208,13 @@ list-verify .
 .                                         -----D source\b\
 .          2014-01-01          2014-01-01 -A---- source\b\c.txt [2]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test modify file 2
 date + 1
 edit source\b\c.txt
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -223,7 +223,7 @@ lastoutput-verify -workspacepathhack
 .  Different: c.txt
 endoutput
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -244,7 +244,7 @@ list-verify .
 .                                         -----D source\b\
 .          2014-01-01          2014-01-05 -A---- source\b\c.txt [4]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 
@@ -255,14 +255,14 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
 .                                         -----D archive\2014-01-01T00+00+00\
 .                                         -----D source\
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test directory between files
@@ -270,7 +270,7 @@ date + 1
 create source\a
 mkdir source\b
 create source\c
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -279,7 +279,7 @@ lastoutput-verify -workspacepathhack
 .  Missing directory: b
 .  Missing file: c
 endoutput
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -293,14 +293,14 @@ list-verify .
 .                                         -----D source\b\
 .          2014-01-02          2014-01-02 -A---- source\c [2]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test replace directory with file
 date + 1
 rmdir source\b
 create source\b
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -308,7 +308,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: b
 .  Added directory: b
 endoutput
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -326,14 +326,14 @@ list-verify .
 .          2014-01-03          2014-01-03 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [2]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 test replace file with directory
 date + 1
 delete source\b
 mkdir source\b
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -341,7 +341,7 @@ lastoutput-verify -workspacepathhack
 .  Missing directory: b
 .  Added file: b
 endoutput
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -363,7 +363,7 @@ list-verify .
 .                                         -----D source\b\
 .          2014-01-02          2014-01-02 -A---- source\c [2]
 endlist
-call backup -date %DATE% verify source archive
+call backup verify source archive
 exitcode-verify 0
 
 
@@ -374,7 +374,7 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -compress -date %DATE% backup source archive
+call backup -compress backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -382,7 +382,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A--Z- archive\nocheckc.bin [0]
 .                                         -----D source\
 endlist
-call backup -date %DATE% -compress verify source archive
+call backup -compress verify source archive
 exitcode-verify 0
 
 test add files
@@ -390,7 +390,7 @@ date + 1
 create source\a
 create source\b
 create source\c
-call backup -date %DATE% -compress verify source archive
+call backup -compress verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -400,7 +400,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: c
 endoutput
 qlist .
-call backup -compress -date %DATE% backup source archive
+call backup -compress backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -415,7 +415,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [2]
 .          2014-01-02          2014-01-02 -A---- source\c [3]
 endlist
-call backup -date %DATE% -compress verify source archive
+call backup -compress verify source archive
 exitcode-verify 0
 
 test restore
@@ -439,7 +439,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [2]
 .          2014-01-02          2014-01-02 -A---- source\c [3]
 endlist
-call backup -date %DATE% -compress verify restored archive
+call backup -compress verify restored archive
 exitcode-verify 0
 
 
@@ -450,7 +450,7 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -encrypt aes256 paSswOrd -date %DATE% backup source archive
+call backup -encrypt aes256 paSswOrd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -458,7 +458,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- archive\check.bin [1]
 .                                         -----D source\
 endlist
-call backup -date %DATE% -encrypt aes256 paSswOrd verify source archive
+call backup -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test add files
@@ -467,7 +467,7 @@ create source\a
 create source\b
 create source\c
 qlist .
-call backup -date %DATE% -encrypt aes256 paSswOrd verify source archive
+call backup -encrypt aes256 paSswOrd verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -476,7 +476,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: b
 .  Missing file: c
 endoutput
-call backup -encrypt aes256 paSswOrd -date %DATE% backup source archive
+call backup -encrypt aes256 paSswOrd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -491,7 +491,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -encrypt aes256 paSswOrd verify source archive
+call backup -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test restore
@@ -515,7 +515,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -encrypt aes256 paSswOrd verify restored archive
+call backup -encrypt aes256 paSswOrd verify restored archive
 exitcode-verify 0
 
 
@@ -526,7 +526,7 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -compress -encrypt aes256 paSswOrd -date %DATE% backup source archive
+call backup -compress -encrypt aes256 paSswOrd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -534,7 +534,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- archive\checkc.bin [1]
 .                                         -----D source\
 endlist
-call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify source archive
+call backup -compress -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test add files
@@ -543,7 +543,7 @@ create source\a
 create source\b
 create source\c
 qlist .
-call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify source archive
+call backup -compress -encrypt aes256 paSswOrd verify source archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
@@ -552,7 +552,7 @@ lastoutput-verify -workspacepathhack
 .  Missing file: b
 .  Missing file: c
 endoutput
-call backup -compress -encrypt aes256 paSswOrd -date %DATE% backup source archive
+call backup -compress -encrypt aes256 paSswOrd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -567,7 +567,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify source archive
+call backup -compress -encrypt aes256 paSswOrd verify source archive
 exitcode-verify 0
 
 test restore
@@ -591,5 +591,5 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- source\b [3]
 .          2014-01-02          2014-01-02 -A---- source\c [4]
 endlist
-call backup -date %DATE% -compress -encrypt aes256 paSswOrd verify restored archive
+call backup -compress -encrypt aes256 paSswOrd verify restored archive
 exitcode-verify 0

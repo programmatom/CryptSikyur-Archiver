@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -14,7 +14,7 @@ mkdir archive
 test setup
 date 2014-01-01
 create source\z.txt
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -28,7 +28,7 @@ test add file...
 date + 1
 create source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 list-verify .
 .                                         -----D archive\
 .                                         -----D archive\2014-01-01T00+00+00\
@@ -43,7 +43,7 @@ endlist
 
 test rerun no changes and commit
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -61,7 +61,7 @@ test modify file...
 date + 1
 edit source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -80,7 +80,7 @@ endlist
 
 test rerun no changes and commit
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -101,7 +101,7 @@ test modify file...
 date + 1
 edit source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -125,7 +125,7 @@ test modify file again...
 date + 1
 edit source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -147,7 +147,7 @@ endlist
 
 test rerun no changes and commit
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -169,7 +169,7 @@ endlist
 
 test no changes...
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -197,7 +197,7 @@ date + 1
 # add another file to ensure nothing happened to a.txt correctly (vs. nothing happening, but incorrectly)
 create source\b.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -226,7 +226,7 @@ test delete file (pushback)...
 date + 1
 delete source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -253,7 +253,7 @@ test delete new file (void)...
 date + 1
 delete source\b.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -278,7 +278,7 @@ test create new file (overwrite)...
 date + 1
 create source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -305,7 +305,7 @@ test delete new file (void overwrite)...
 date + 1
 delete source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -330,7 +330,7 @@ test restore old file...
 date + 1
 copy archive\2014-01-12T00+00+00\a.txt source\a.txt
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -355,7 +355,7 @@ endlist
 
 test commit
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -387,7 +387,7 @@ mkdir archive
 test setup
 date 2014-01-01
 create source\z
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -401,7 +401,7 @@ test add file...
 date + 1
 create source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -420,7 +420,7 @@ date + 1
 delete source\a
 mkdir source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -439,7 +439,7 @@ date + 1
 rmdir source\a
 create source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -455,7 +455,7 @@ endlist
 
 test rerun no changes and commit
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -474,7 +474,7 @@ date + 1
 delete source\a
 mkdir source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -496,7 +496,7 @@ date + 1
 rmdir source\a
 copy archive\2014-01-08T00+00+00\a source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -521,7 +521,7 @@ create source\a\b
 mkdir source\a\c
 create source\a\c\d
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -549,7 +549,7 @@ date + 1
 rmdir source\a
 copy archive\2014-01-08T00+00+00\a source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -571,7 +571,7 @@ date + 1
 delete source\a
 mkdir source\a
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -593,7 +593,7 @@ date + 1
 rmdir source\a
 create source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -618,7 +618,7 @@ date + 1
 delete source\a
 mkdir source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -646,7 +646,7 @@ mkdir source\a\c
 date + 1
 create source\a\c\d
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -677,7 +677,7 @@ date + 1
 rmdir source\a
 create source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -715,7 +715,7 @@ mkdir source\a\c
 date + 1
 create source\a\c\d
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -752,7 +752,7 @@ date + 1
 rmdir source\a
 create source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -786,7 +786,7 @@ copy archive\2014-01-26T00+00+00\a\b source\a\b
 mkdir source\a\c
 copy archive\2014-01-26T00+00+00\a\c\d source\a\c\d
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -823,7 +823,7 @@ date + 1
 rmdir source\a
 create source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -859,7 +859,7 @@ test setup
 date 2014-01-01
 create source\a
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -873,7 +873,7 @@ test rename case with no change...
 date + 1
 move source\a source\A
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -889,7 +889,7 @@ test rename case with no change...
 date + 1
 move source\A source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -906,7 +906,7 @@ delete source\a
 date + 1
 mkdir source\A
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -923,7 +923,7 @@ rmdir source\A
 date + 1
 create source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -945,7 +945,7 @@ mkdir source\A
 date + 1
 create source\A\b
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -968,7 +968,7 @@ test rename case of filled directory with unfinished checkpoint...
 date + 1
 move source\A source\a
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -999,7 +999,7 @@ mkdir source\A
 date + 1
 create source\A\b
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1015,7 +1015,7 @@ test rename case of filled directory with no unfinished checkpoint
 date + 1
 move source\A source\a
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1032,7 +1032,7 @@ endlist
 
 test setup unfinished checkpoint...
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1056,7 +1056,7 @@ rmdir source\a
 date + 1
 create source\A
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1090,7 +1090,7 @@ create source\b
 date + 1
 create source\c
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1110,7 +1110,7 @@ endlist
 
 test unfinished checkpoint...
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1141,7 +1141,7 @@ create source\a
 date + 1
 edit source\b
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1176,7 +1176,7 @@ create source\a\y
 date + 1
 date + 1
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1192,7 +1192,7 @@ endlist
 
 test unfinished checkpoint (end case)...
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1216,7 +1216,7 @@ rmdir source\a
 create source\a
 date + 1
 date + 1
-call backup -date %DATE% backup source archive -nofinish
+call backup backup source archive -nofinish
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1245,7 +1245,7 @@ create source\a\y
 date + 1
 date + 1
 date + 1
-call backup -date %DATE% backup source archive -skip .log -exclude source\dummy
+call backup backup source archive -skip .log -exclude source\dummy
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1261,7 +1261,7 @@ endlist
 
 test unfinished checkpoint (excluded items end case)...
 date + 1
-call backup -date %DATE% backup source archive -nofinish -skip .log -exclude source\dummy
+call backup backup source archive -nofinish -skip .log -exclude source\dummy
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -1285,7 +1285,7 @@ rmdir source\a
 create source\a
 date + 1
 date + 1
-call backup -date %DATE% backup source archive -skip .log -exclude source\dummy
+call backup backup source archive -skip .log -exclude source\dummy
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\

@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -14,7 +14,7 @@ test null test
 date 2014-01-01
 mkdir source
 date + 1
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 call backup unpack archive.pack target
@@ -49,7 +49,7 @@ create source\o\twelve.bar
 qlist .
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 list-verify .
@@ -96,7 +96,7 @@ rmdir target
 test pack exclusions 1
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack -exclude source\n
+call backup pack source archive.pack -exclude source\n
 exitcode-verify 0
 date + 1
 list-verify .
@@ -139,7 +139,7 @@ rmdir target
 test pack exclusions 2
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack -skip .foo
+call backup pack source archive.pack -skip .foo
 exitcode-verify 0
 date + 1
 list-verify .
@@ -182,7 +182,7 @@ rmdir target
 test pack exclusions 3
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack -exclude source\n -skip .foo -exclude source\m -skip .bar
+call backup pack source archive.pack -exclude source\n -skip .foo -exclude source\m -skip .bar
 exitcode-verify 0
 date + 1
 list-verify .
@@ -232,9 +232,9 @@ date + 1
 create source\C.foo\r.foo
 date + 1
 qlist .
-call backup -date %DATE% pack source archive.pack -skip .foo
+call backup pack source archive.pack -skip .foo
 exitcode-verify 0
-call backup -date %DATE% unpack archive.pack target
+call backup unpack archive.pack target
 exitcode-verify 0
 list-verify .
 .          2010-01-07          2010-01-07 -A---- archive.pack [5]
@@ -264,9 +264,9 @@ date + 1
 create source\o.bar
 date + 1
 qlist .
-call backup -date %DATE% pack source archive.pack -exclude source\n.foo
+call backup pack source archive.pack -exclude source\n.foo
 exitcode-verify 0
-call backup -date %DATE% unpack archive.pack target
+call backup unpack archive.pack target
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.pack [4]

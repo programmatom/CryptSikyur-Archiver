@@ -47,7 +47,11 @@ namespace FileUtilityTester
         private static object EvalExpression(string expression, Dictionary<string, object> variables)
         {
             expression = expression.Trim();
-            if (Char.IsLetter(expression[0]))
+            if (expression[0] == '"')
+            {
+                return expression.Substring(1, expression.IndexOf('"', 1) - 1);
+            }
+            else if (Char.IsLetter(expression[0]))
             {
                 return variables[expression];
             }
@@ -153,7 +157,7 @@ namespace FileUtilityTester
                             testFailed = false;
                             testNumber = 0;
                             testName = null;
-                            moduleName = Combine(args, 0, args.Length, " ");
+                            moduleName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
                             if (skipToModule != null)
                             {
                                 if (!skipToModule.Equals(moduleName))
@@ -177,7 +181,7 @@ namespace FileUtilityTester
                                 break;
                             }
                             testNumber++;
-                            testName = Combine(args, 0, args.Length, " ");
+                            testName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
                             resultMatrix.InitTest(scriptNumber, scriptName, moduleNumber, moduleName, testNumber, testName);
                             Console.WriteLine();
                             Console.WriteLine(String.Format("TEST {0} ({1})", testName, testNumber));
@@ -190,7 +194,7 @@ namespace FileUtilityTester
                             }
                             if (args[0].Equals("module"))
                             {
-                                skipToModule = Combine(args, 1, args.Length - 1, " ");
+                                skipToModule = Combine(args, 1, args.Length - 1, " ", false/*quoteWhitespace*/);
                                 testFailed = true;
                             }
                             else
@@ -199,9 +203,9 @@ namespace FileUtilityTester
                             }
                             break;
 
-                        case "let":
+                        case "set":
                             {
-                                string statement = Combine(args, 0, args.Length, " ");
+                                string statement = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
                                 int equals = statement.IndexOf('=');
                                 string var = statement.Substring(0, equals).Trim();
                                 string expression = statement.Substring(equals + 1);
@@ -247,7 +251,7 @@ namespace FileUtilityTester
                             {
                                 throw new ApplicationException();
                             }
-                            commands[args[0]] = new KeyValuePair<string, string>(FindCommand(args[1]), Combine(args, 2, args.Length - 2, " "));
+                            commands[args[0]] = new KeyValuePair<string, string>(FindCommand(args[1]), Combine(args, 2, args.Length - 2, " ", true/*quoteWhitespace*/));
                             break;
 
                         case "opencover":
@@ -344,7 +348,7 @@ namespace FileUtilityTester
                             }
                             {
                                 string exe = args[0];
-                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " "));
+                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " ", true/*quoteWhitespace*/));
                                 foreach (KeyValuePair<string, object> variable in variables)
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
@@ -376,7 +380,7 @@ namespace FileUtilityTester
                                 }
 
                                 string exe = args[0];
-                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " "));
+                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " ", true/*quoteWhitespace*/));
                                 foreach (KeyValuePair<string, object> variable in variables)
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
@@ -469,7 +473,18 @@ namespace FileUtilityTester
                                     if (args[i] == "-size")
                                     {
                                         i++;
-                                        size = (long)EvalExpression(args[i], variables);
+#if false
+                                        try
+                                        {
+#endif
+                                        size = Int64.Parse(args[i]);
+#if false
+                                        }
+                                        catch (FormatException)
+                                        {
+                                            size = Int64.Parse(variables[args[i]].ToString());
+                                        }
+#endif
                                     }
                                     else if (args[i] == "-value")
                                     {
@@ -1253,74 +1268,51 @@ namespace FileUtilityTester
         private static string[] ParseArguments(string line)
         {
             List<string> arguments = new List<string>();
-            bool lastWasQuoteTerminator = false;
-            bool inQuote = false;
-            StringBuilder current = new StringBuilder();
-            bool escape = false;
-            foreach (char c in String.Concat(line, " "))
+
+            int i = 0;
+            while (i < line.Length)
             {
-                if (escape)
+                if (Char.IsWhiteSpace(line[i]))
                 {
-                    if (c != '"')
-                    {
-                        current.Append('\\');
-                    }
-                    current.Append(c);
-                    escape = false;
+                    i++;
+                    continue;
                 }
-                else if (c != '"' && inQuote)
+
+                if (line[i] == '"')
                 {
-                    current.Append(c);
-                    lastWasQuoteTerminator = false;
-                }
-                else if (c == '\\')
-                {
-                    escape = true;
-                }
-                else if (c == '"')
-                {
-                    if (!inQuote && !lastWasQuoteTerminator && (current.Length > 0))
+                    char stop = line[i];
+                    i++;
+                    StringBuilder sb = new StringBuilder();
+                    while (line[i] != stop)
                     {
-                        throw new ApplicationException();
+                        if ((line[i] == '\\') && (line[i + 1] == '"'))
+                        {
+                            sb.Append(line[i++]);
+                        }
+                        sb.Append(line[i++]);
                     }
-                    inQuote = !inQuote;
-                    if (lastWasQuoteTerminator && inQuote)
-                    {
-                        lastWasQuoteTerminator = false;
-                        current.Append(c);
-                    }
-                    if (!inQuote)
-                    {
-                        lastWasQuoteTerminator = true;
-                    }
-                }
-                else if (Char.IsWhiteSpace(c))
-                {
-                    lastWasQuoteTerminator = false;
-                    if (current.Length > 0)
-                    {
-                        arguments.Add(current.ToString());
-                        current.Length = 0;
-                    }
+                    i++;
+                    arguments.Add(sb.ToString());
                 }
                 else
                 {
-                    if (lastWasQuoteTerminator)
+                    StringBuilder sb = new StringBuilder();
+                    while ((i < line.Length) && !Char.IsWhiteSpace(line[i]))
                     {
-                        throw new ApplicationException();
+                        if ((line[i] == '\\') && (line[i + 1] == '"'))
+                        {
+                            sb.Append(line[i++]);
+                        }
+                        sb.Append(line[i++]);
                     }
-                    current.Append(c);
+                    arguments.Add(sb.ToString());
                 }
             }
-            if (inQuote || escape)
-            {
-                throw new ApplicationException();
-            }
-            Debug.Assert(current.Length == 0);
+
             return arguments.ToArray();
         }
 
-        private static string Combine(string[] parts, int start, int count, string separator)
+        private static string Combine(string[] parts, int start, int count, string separator, bool quoteWhitespace)
         {
             StringBuilder sb = new StringBuilder();
             for (int i = start; i < start + count; i++)
@@ -1329,7 +1321,16 @@ namespace FileUtilityTester
                 {
                     sb.Append(separator);
                 }
+                bool quote = quoteWhitespace && (String.IsNullOrEmpty(parts[i]) || Array.Exists(parts[i].ToCharArray(), delegate(char c) { return Char.IsWhiteSpace(c); }));
+                if (quote)
+                {
+                    sb.Append('"');
+                }
                 sb.Append(parts[i]);
+                if (quote)
+                {
+                    sb.Append('"');
+                }
             }
             return sb.ToString();
         }

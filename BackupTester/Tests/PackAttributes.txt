@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -32,7 +32,7 @@ list-verify .
 .          2014-01-01          2014-01-01 RAHS-- source\e [5]
 .          2014-01-01          2014-01-01 ------ source\f [6]
 endlist
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 call backup unpack archive.pack target

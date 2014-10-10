@@ -469,6 +469,95 @@ namespace Backup
             }
         }
 
+        public class BinaryOperatorPredicate : IFaultPredicate
+        {
+            // binary operator has short circuit semantics
+
+            private readonly IFaultPredicate left;
+            private readonly IFaultPredicate right;
+            private readonly Operation operation;
+
+            public enum Operation
+            {
+                And,
+                Or,
+            }
+            private static readonly string[] Operations = new string[] { "and", "or" };
+
+            public BinaryOperatorPredicate(Operation operation, IFaultPredicate left, IFaultPredicate right)
+            {
+                this.operation = operation;
+                this.left = left;
+                this.right = right;
+            }
+
+            public BinaryOperatorPredicate(BinaryOperatorPredicate original)
+            {
+                this.operation = original.operation;
+                this.left = original.left;
+                this.right = original.right;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                return new BinaryOperatorPredicate(this);
+            }
+
+            public bool Test()
+            {
+                switch (operation)
+                {
+                    default:
+                        throw new InvalidOperationException();
+                    case Operation.And:
+                        return left.Test() && right.Test(); // short-circuiting operator
+                    case Operation.Or:
+                        return left.Test() || right.Test(); // short-circuiting operator
+                }
+            }
+
+            public bool Test(long l)
+            {
+                switch (operation)
+                {
+                    default:
+                        throw new InvalidOperationException();
+                    case Operation.And:
+                        return left.Test(l) && right.Test(l); // short-circuiting operator
+                    case Operation.Or:
+                        return left.Test(l) || right.Test(l); // short-circuiting operator
+                }
+            }
+
+            public bool Test(string s)
+            {
+                switch (operation)
+                {
+                    default:
+                        throw new InvalidOperationException();
+                    case Operation.And:
+                        return left.Test(s) && right.Test(s); // short-circuiting operator
+                    case Operation.Or:
+                        return left.Test(s) || right.Test(s); // short-circuiting operator
+                }
+            }
+
+            public override string ToString()
+            {
+                string leftString = left.ToString();
+                if ((leftString.Length >= 2) && (leftString[0] == '[') && (leftString[leftString.Length - 1] == ']'))
+                {
+                    leftString = leftString.Substring(1, leftString.Length - 2);
+                }
+                string rightString = right.ToString();
+                if ((rightString.Length >= 2) && (rightString[0] == '[') && (rightString[rightString.Length - 1] == ']'))
+                {
+                    rightString = rightString.Substring(1, rightString.Length - 2);
+                }
+                return String.Format("[{1} {0} {2}]", Operations[(int)operation], leftString, rightString);
+            }
+        }
+
 
         private readonly KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates;
 
@@ -572,6 +661,7 @@ namespace Backup
                                 break;
 
                             case FaultTemplateNode.FaultMethod.Throw:
+                            case FaultTemplateNode.FaultMethod.Custom:
                                 if (throwing == null)
                                 {
                                     throwing = new FaultTemplateNode[1];
@@ -584,6 +674,10 @@ namespace Backup
                                 break;
 
                             case FaultTemplateNode.FaultMethod.Kill:
+                                if (!String.IsNullOrEmpty(predicates[i].Value.ProofPath))
+                                {
+                                    File.WriteAllText(predicates[i].Value.ProofPath, ComputePath(predicates[i].Value));
+                                }
                                 Environment.ExitCode = (int)Core.ExitCodes.ProgramFailure;
                                 Process.GetCurrentProcess().Kill(); // no finalizers!
                                 break;
@@ -621,20 +715,18 @@ namespace Backup
             StringBuilder message = new StringBuilder();
             foreach (FaultTemplateNode node in throwing)
             {
-                string path = null;
-                FaultTemplateNode walk = node;
-                while (walk != null)
+                string path = ComputePath(node);
+
+                if (!String.IsNullOrEmpty(node.ProofPath))
                 {
-                    FaultTemplateNode parent = walk.Parent;
-                    string predicateString = null;
-                    if (parent != null)
-                    {
-                        KeyValuePair<FaultTemplateNode, IFaultPredicate> item = Array.Find(parent.Children, delegate(KeyValuePair<FaultTemplateNode, IFaultPredicate> candidate) { return candidate.Key == walk; });
-                        predicateString = item.Value.ToString();
-                    }
-                    path = String.Concat(walk.Tag, predicateString, path != null ? "/" : null, path);
-                    walk = parent;
+                    File.WriteAllText(node.ProofPath, path);
                 }
+
+                if (node.Method == FaultTemplateNode.FaultMethod.Custom)
+                {
+                    throw new FaultTemplateNode.FaultInjectionPayloadException(path, node.Payload);
+                }
+
                 if (message.Length != 0)
                 {
                     message.Append(", ");
@@ -642,6 +734,25 @@ namespace Backup
                 message.Append(path);
             }
             throw new FaultTemplateNode.FaultInjectionException(message.ToString());
+        }
+
+        private static string ComputePath(FaultTemplateNode node)
+        {
+            string path = null;
+            FaultTemplateNode walk = node;
+            while (walk != null)
+            {
+                FaultTemplateNode parent = walk.Parent;
+                string predicateString = null;
+                if (parent != null)
+                {
+                    KeyValuePair<FaultTemplateNode, IFaultPredicate> item = Array.Find(parent.Children, delegate(KeyValuePair<FaultTemplateNode, IFaultPredicate> candidate) { return candidate.Key == walk; });
+                    predicateString = item.Value.ToString();
+                }
+                path = String.Concat(walk.Tag, predicateString, path != null ? "/" : null, path);
+                walk = parent;
+            }
+            return path;
         }
 
 
@@ -686,6 +797,7 @@ namespace Backup
                                     break;
 
                                 case FaultTemplateNode.FaultMethod.Throw:
+                                case FaultTemplateNode.FaultMethod.Custom:
                                     if (throwing == null)
                                     {
                                         throwing = new FaultTemplateNode[1];
@@ -698,6 +810,10 @@ namespace Backup
                                     break;
 
                                 case FaultTemplateNode.FaultMethod.Kill:
+                                    if (!String.IsNullOrEmpty(predicates[i].Value.ProofPath))
+                                    {
+                                        File.WriteAllText(predicates[i].Value.ProofPath, ComputePath(predicates[i].Value));
+                                    }
                                     Environment.ExitCode = (int)Core.ExitCodes.ProgramFailure;
                                     Process.GetCurrentProcess().Kill(); // no finalizers!
                                     break;
@@ -747,19 +863,26 @@ namespace Backup
     // program run. No actual fault injection is done.
     public class FaultTraceNode : IFaultInstance
     {
+        private readonly IFaultInstance underlying;
         private readonly TextWriter trace;
         private readonly string prefix;
         private long count;
 
+        // NOTE: Faults of type "kill" are not logged to the fault trace file because the process
+        // is terminated before code returns through this class. All injected faults of a thrown
+        // exception type are logged.
         private const string FaultTraceFilePrefix = "faulttrace";
+        private const string FaultTraceLogMessage = "fault injected on preceding path";
 
-        public FaultTraceNode()
+        public FaultTraceNode(IFaultInstance underlying)
         {
+            this.underlying = underlying;
             trace = Logging.CreateLogFile(FaultTraceFilePrefix);
         }
 
-        protected FaultTraceNode(TextWriter trace, string prefix)
+        protected FaultTraceNode(TextWriter trace, string prefix, IFaultInstance underlying)
         {
+            this.underlying = underlying;
             this.trace = trace;
             this.prefix = prefix;
         }
@@ -778,41 +901,78 @@ namespace Backup
             string newPrefix = prefix + String.Format("/{0}[count:{1}]", tag, count);
             trace.WriteLine(newPrefix);
             trace.Flush();
-            return new FaultTraceNode(trace, newPrefix);
+
+            try
+            {
+                IFaultInstance underlyingResult = underlying.Select(tag);
+                return new FaultTraceNode(trace, newPrefix, underlyingResult);
+            }
+            catch (FaultTemplateNode.FaultInjectionException)
+            {
+                trace.WriteLine(FaultTraceLogMessage);
+                trace.Flush();
+                throw;
+            }
         }
 
         public IFaultInstance Select(string tag, long l)
         {
             count++;
-            string newPrefix = prefix + String.Format("/{0}[limit:{1}]", tag, l);
+            string newPrefix = prefix + String.Format("/{0}[count:{1},limit:{2}]", tag, count, l);
             trace.WriteLine(newPrefix);
             trace.Flush();
-            return new FaultTraceNode(trace, newPrefix);
+
+            try
+            {
+                IFaultInstance underlyingResult = underlying.Select(tag, l);
+                return new FaultTraceNode(trace, newPrefix, underlyingResult);
+            }
+            catch (FaultTemplateNode.FaultInjectionException)
+            {
+                trace.WriteLine(FaultTraceLogMessage);
+                trace.Flush();
+                throw;
+            }
         }
 
         public IFaultInstance Select(string tag, string s)
         {
             count++;
-            string newPrefix = prefix + String.Format("/{0}[stringequal:{1}]", tag, s);
+            string newPrefix = prefix + String.Format("/{0}[count:{1},stringequal:{2}]", tag, count, PrepareString(s));
             trace.WriteLine(newPrefix);
             trace.Flush();
-            return new FaultTraceNode(trace, newPrefix);
+
+            try
+            {
+                IFaultInstance underlyingResult = underlying.Select(tag, s);
+                return new FaultTraceNode(trace, newPrefix, underlyingResult);
+            }
+            catch (FaultTemplateNode.FaultInjectionException)
+            {
+                trace.WriteLine(FaultTraceLogMessage);
+                trace.Flush();
+                throw;
+            }
         }
 
         public IFaultPredicate SelectPredicate(string tag)
         {
             string newPrefix = prefix + String.Format("/{0}", tag);
-            return new FaultTracePredicate(trace, newPrefix);
+
+            IFaultPredicate underlyingResult = underlying.SelectPredicate(tag);
+            return new FaultTracePredicate(trace, newPrefix, underlyingResult);
         }
 
         private class FaultTracePredicate : IFaultPredicate
         {
+            private readonly IFaultPredicate underlying;
             private readonly TextWriter trace;
             private readonly string prefix;
             private long count;
 
-            public FaultTracePredicate(TextWriter trace, string prefix)
+            public FaultTracePredicate(TextWriter trace, string prefix, IFaultPredicate underlying)
             {
+                this.underlying = underlying;
                 this.trace = trace;
                 this.prefix = prefix;
             }
@@ -828,26 +988,61 @@ namespace Backup
                 string newPrefix = prefix + String.Format("[count:{0}]", count);
                 trace.WriteLine(newPrefix);
                 trace.Flush();
-                return false;
+
+                try
+                {
+                    return underlying.Test();
+                }
+                catch (FaultTemplateNode.FaultInjectionException)
+                {
+                    trace.WriteLine(FaultTraceLogMessage);
+                    trace.Flush();
+                    throw;
+                }
             }
 
             public bool Test(long l)
             {
                 count++;
-                string newPrefix = prefix + String.Format("[limit:{0}]", l);
+                string newPrefix = prefix + String.Format("[count:{0},limit:{1}]", count, l);
                 trace.WriteLine(newPrefix);
                 trace.Flush();
-                return false;
+
+                try
+                {
+                    return underlying.Test(l);
+                }
+                catch (FaultTemplateNode.FaultInjectionException)
+                {
+                    trace.WriteLine(FaultTraceLogMessage);
+                    trace.Flush();
+                    throw;
+                }
             }
 
             public bool Test(string s)
             {
                 count++;
-                string newPrefix = prefix + String.Format("[stringequal:{0}]", s);
+                string newPrefix = prefix + String.Format("[count:{0},stringequal:{1}]", count, PrepareString(s));
                 trace.WriteLine(newPrefix);
                 trace.Flush();
-                return false;
+
+                try
+                {
+                    return underlying.Test(s);
+                }
+                catch (FaultTemplateNode.FaultInjectionException)
+                {
+                    trace.WriteLine(FaultTraceLogMessage);
+                    trace.Flush();
+                    throw;
+                }
             }
+        }
+
+        private static string PrepareString(string s)
+        {
+            return String.Concat("\"", s.Replace("\"", "\\\""), "\"");
         }
     }
 
@@ -863,29 +1058,47 @@ namespace Backup
             }
         }
 
+        public class FaultInjectionPayloadException : FaultInjectionException
+        {
+            private string payload;
+
+            public FaultInjectionPayloadException(string message, string payload)
+                : base(message)
+            {
+                this.payload = payload;
+            }
+
+            public string Payload { get { return payload; } }
+        }
+
         public enum FaultMethod
         {
             None = 0,
 
             Throw,
             Kill,
+            Custom,
         }
 
 
         private string tag;
         private FaultTemplateNode parent;
         private FaultMethod method;
+        private string payload;
+        private string proofPath;
         private KeyValuePair<FaultTemplateNode, IFaultPredicate>[] children = new KeyValuePair<FaultTemplateNode, IFaultPredicate>[0];
 
         public FaultTemplateNode()
         {
         }
 
-        public FaultTemplateNode(string tag, FaultTemplateNode parent, FaultMethod method)
+        public FaultTemplateNode(string tag, FaultTemplateNode parent, FaultMethod method, string payload, string proofPath)
         {
             this.tag = tag;
             this.parent = parent;
             this.method = method;
+            this.payload = payload;
+            this.proofPath = proofPath;
         }
 
         public string Tag { get { return tag; } }
@@ -893,6 +1106,8 @@ namespace Backup
         public KeyValuePair<FaultTemplateNode, IFaultPredicate>[] Children { get { return children; } }
         public bool Terminal { get { return children.Length == 0; } }
         public FaultMethod Method { get { return method; } }
+        public string Payload { get { return payload; } }
+        public string ProofPath { get { return proofPath; } }
 
         public void Add(FaultTemplateNode child, IFaultPredicate childPredicate)
         {
@@ -903,14 +1118,16 @@ namespace Backup
 
         // Parse fault injection path and add to template.
 
-        public static void ParseFaultInjectionPath(FaultTemplateNode root, string method, string arg)
+        public static void ParseFaultInjectionPath(FaultTemplateNode root, string method, string proofPath, string arg)
         {
             if (String.IsNullOrEmpty(arg) || (arg[0] != '/'))
             {
                 throw new ArgumentException();
             }
             FaultMethod faultMethod;
-            switch (method)
+            string faultPayload = null;
+            int faultMethodColon = method.IndexOf(':');
+            switch (faultMethodColon < 0 ? method : method.Substring(0, faultMethodColon))
             {
                 default:
                     throw new ArgumentException();
@@ -920,83 +1137,189 @@ namespace Backup
                 case "kill":
                     faultMethod = FaultMethod.Kill;
                     break;
+                case "custom":
+                    faultMethod = FaultMethod.Custom;
+                    faultPayload = method.Substring(faultMethodColon + 1, method.Length - (faultMethodColon + 1));
+                    break;
             }
 
-            int start = 1;
-            while (start < arg.Length)
+            int i = 0;
+            string t;
+            while ((t = NextToken(arg, ref i)) != null)
             {
-                int predicateStart = -1;
-                int predicateEnd = -1;
-
-                int end = start;
-                bool scope = false;
-                while (end < arg.Length)
-                {
-                    if (!scope && (arg[end] == '/'))
-                    {
-                        break;
-                    }
-                    else if (arg[end] == '[')
-                    {
-                        predicateStart = end;
-                        scope = true;
-                    }
-                    else if (arg[end] == ']')
-                    {
-                        predicateEnd = end;
-                        scope = false;
-                    }
-                    end++;
-                }
-
-                if (((predicateStart < 0) != (predicateEnd < 0))
-                    || (predicateStart > predicateEnd)
-                    || ((predicateEnd >= 0) && (predicateEnd != end - 1)))
+                if (!t.Equals("/"))
                 {
                     throw new ArgumentException();
                 }
-                if (predicateStart < 0)
+
+                string tag = NextToken(arg, ref i);
+                if (!Char.IsLetterOrDigit(tag[0]))
                 {
-                    predicateStart = end;
-                    predicateEnd = end + 1;
+                    throw new ArgumentException();
                 }
 
-                string tag = arg.Substring(start, predicateStart - start);
-                string predicateString = predicateStart + 1 <= arg.Length ? arg.Substring(predicateStart + 1, predicateEnd - predicateStart - 1) : String.Empty;
-                int colon = predicateString.IndexOf(':');
-                IFaultPredicate predicate = FaultInstanceNode.NullFaultPredicate.Null;
-                if (colon > 0)
+                bool hasPredicate;
                 {
-                    switch (predicateString.Substring(0, colon))
+                    int oldi = i;
+                    t = NextToken(arg, ref i);
+                    if (!(hasPredicate = String.Equals(t, "[")) && !String.Equals(t, "/"))
+                    {
+                        throw new ArgumentException();
+                    }
+                    i = oldi;
+                }
+
+                IFaultPredicate predicate = null;
+                while (hasPredicate)
+                {
+                    IFaultPredicate previousPredicate = predicate;
+
+                    t = NextToken(arg, ref i);
+                    if (!String.Equals(t, "[") && !String.Equals(t, "and"))
+                    {
+                        throw new ArgumentException();
+                    }
+
+                    string op = NextToken(arg, ref i);
+
+                    if (!String.Equals(NextToken(arg, ref i), ":"))
+                    {
+                        throw new ArgumentException();
+                    }
+
+                    string operand = NextToken(arg, ref i);
+
+                    switch (op)
                     {
                         default:
                             throw new ArgumentException();
                         case "count":
-                            predicate = new FaultInstanceNode.CountFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            predicate = new FaultInstanceNode.CountFaultPredicate(Int64.Parse(operand));
                             break;
                         case "limit":
-                            predicate = new FaultInstanceNode.LimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            predicate = new FaultInstanceNode.LimitFaultPredicate(Int64.Parse(operand));
                             break;
                         case "sumlimit":
-                            predicate = new FaultInstanceNode.SumLimitFaultPredicate(Int64.Parse(predicateString.Substring(colon + 1)));
+                            predicate = new FaultInstanceNode.SumLimitFaultPredicate(Int64.Parse(operand));
                             break;
                         case "stringequal":
-                            predicate = new FaultInstanceNode.StringEqualFaultPredicate(predicateString.Substring(colon + 1));
+                            predicate = new FaultInstanceNode.StringEqualFaultPredicate(operand);
                             break;
                         case "regex":
-                            predicate = new FaultInstanceNode.StringMatchFaultPredicate(predicateString.Substring(colon + 1));
+                            predicate = new FaultInstanceNode.StringMatchFaultPredicate(operand);
                             break;
                     }
+
+                    int oldi = i;
+                    t = NextToken(arg, ref i);
+                    if (t.Equals("]"))
+                    {
+                        hasPredicate = false;
+                    }
+                    else if (t.Equals("and"))
+                    {
+                        i = oldi;
+                    }
+                    else
+                    {
+                        throw new ArgumentException();
+                    }
+
+                    // TODO: if desired to support more than conjunction, then a proper precedence-based
+                    // parser will have to be developed to assemble the expressions.
+                    if (previousPredicate != null)
+                    {
+                        predicate = new FaultInstanceNode.BinaryOperatorPredicate(FaultInstanceNode.BinaryOperatorPredicate.Operation.And, previousPredicate, predicate);
+                    }
+                }
+                if (predicate == null)
+                {
+                    predicate = FaultInstanceNode.NullFaultPredicate.Null;
                 }
 
-                int nextStart = end + 1;
+                bool last;
+                {
+                    int oldi = i;
+                    last = NextToken(arg, ref i) == null;
+                    i = oldi;
+                }
 
-                FaultTemplateNode node = new FaultTemplateNode(tag, root, nextStart < arg.Length ? FaultMethod.None : faultMethod);
+                FaultTemplateNode node = new FaultTemplateNode(tag, root, last ? faultMethod : FaultMethod.None, last ? faultPayload : null, proofPath);
                 root.Add(node, predicate);
 
                 root = node;
+            }
+        }
 
-                start = nextStart;
+        private static string NextToken(string s, ref int i)
+        {
+            while ((i < s.Length) && Char.IsWhiteSpace(s[i]))
+            {
+                i++;
+            }
+            if (!(i < s.Length))
+            {
+                return null;
+            }
+
+            const string Delimiters = "[]:/{}()";
+            if (Delimiters.IndexOf(s[i]) >= 0)
+            {
+                return new String(s[i++], 1);
+            }
+            else if ((s[i] == '"') || (s[i] == '\''))
+            {
+                char stop = s[i];
+
+                StringBuilder sb = new StringBuilder();
+                i++;
+                if (!(i < s.Length))
+                {
+                    throw new InvalidDataException();
+                }
+                while (s[i] != stop)
+                {
+                    if (s[i] == '\\')
+                    {
+                        i++;
+                        if (!(i < s.Length))
+                        {
+                            throw new InvalidDataException();
+                        }
+                        switch (s[i])
+                        {
+                            default:
+                                throw new InvalidDataException();
+                            case '"':
+                            case '\'':
+                            case '\\':
+                                sb.Append(s[i]);
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        sb.Append(s[i]);
+                    }
+                    i++;
+                    if (!(i < s.Length))
+                    {
+                        throw new InvalidDataException();
+                    }
+                }
+                i++;
+                return sb.ToString();
+            }
+            else
+            {
+                StringBuilder sb = new StringBuilder();
+                const string ExtendedDelimiters = Delimiters + "\"'";
+                do
+                {
+                    sb.Append(s[i]);
+                    i++;
+                } while ((i < s.Length) && !Char.IsWhiteSpace(s[i]) && (ExtendedDelimiters.IndexOf(s[i]) < 0));
+                return sb.ToString();
             }
         }
     }

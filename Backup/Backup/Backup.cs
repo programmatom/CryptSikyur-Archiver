@@ -592,7 +592,7 @@ namespace Backup
             }
         }
 
-        internal static long GetFileLengthRetriable(string path, Context context, TextWriter trace)
+        internal static long GetFileLengthRetryable(string path, Context context, TextWriter trace)
         {
             return DoRetryable<long>(
                 delegate { return GetFileLength(path); },
@@ -704,6 +704,17 @@ namespace Backup
             return false;
         }
 
+        private static bool IsMissing(Exception exception)
+        {
+            // file was deleted after detection but before archiving
+            if (exception is FileNotFoundException)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         internal delegate ResultType TryFunctionType<ResultType>();
         internal delegate void ResetFunctionType();
         internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enable, Context context, TextWriter trace)
@@ -722,7 +733,16 @@ namespace Backup
                 catch (Exception exception)
                 {
                     tried = true;
+                    if (trace != null)
+                    {
+                        trace.WriteLine("DoRetryable received exception: {0}", exception);
+                    }
                     Console.WriteLine("EXCEPTION: {0}", exception.Message);
+
+                    if (!enable)
+                    {
+                        throw;
+                    }
 
                     if (context.continueOnAccessDenied
                         && IsUnableToAccessException(exception)
@@ -731,6 +751,17 @@ namespace Backup
                         if (trace != null)
                         {
                             trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoreaccessdenied specified): {0}", exception);
+                        }
+                        return continueFunction();
+                    }
+
+                    if (context.continueOnMissing
+                        && IsMissing(exception)
+                        && (continueFunction != null))
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoremissing specified): {0}", exception);
                         }
                         return continueFunction();
                     }
@@ -1128,6 +1159,7 @@ namespace Backup
             public bool doNotPreValidateMAC;
             public bool dirsOnly;
             public bool continueOnAccessDenied;
+            public bool continueOnMissing;
             public bool zeroLengthSpecial;
             public bool beepEnabled;
             public bool traceEnabled;
@@ -1154,6 +1186,7 @@ namespace Backup
                 this.doNotPreValidateMAC = original.doNotPreValidateMAC;
                 this.dirsOnly = original.dirsOnly;
                 this.continueOnAccessDenied = original.continueOnAccessDenied;
+                this.continueOnMissing = original.continueOnMissing;
                 this.zeroLengthSpecial = original.zeroLengthSpecial;
                 this.beepEnabled = original.beepEnabled;
                 this.traceEnabled = original.traceEnabled;
@@ -3783,7 +3816,7 @@ namespace Backup
                 }
 
                 // roll back anything found already in checkpoint
-                if (File.Exists(previousPath) && (GetFileLengthRetriable(previousPath, context, null/*trace*/) == 0))
+                if (File.Exists(previousPath) && (GetFileLengthRetryable(previousPath, context, null/*trace*/) == 0))
                 {
                     if (File.Exists(currentPath))
                     {
@@ -5095,10 +5128,12 @@ namespace Backup
             {
             }
 
+#if false
             internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength)
                 : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, null/*segmentName*/, 0/*segmentSerialNumber*/, null/*range*/)
             {
             }
+#endif
 
             internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, RangeRecord range)
                 : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, null/*segmentName*/, 0/*segmentSerialNumber*/, range)
@@ -6999,7 +7034,7 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            long inputStreamLength = GetFileLengthRetriable(file, context, trace);
+                            long inputStreamLength = GetFileLengthRetryable(file, context, trace);
                             if (inputStreamLength >= 0)
                             {
                                 FilePath partialPath = FilePathItem.Create(partialPathPrefix, Path.GetFileName(file));
@@ -9251,7 +9286,7 @@ namespace Backup
                                                                                         fullPath = fullPath.Substring(NoOpPrefix.Length);
                                                                                     }
                                                                                     fullPath = Path.Combine(source, fullPath);
-                                                                                    PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount > 0/*enableRetry*/, context, threadTraceDynPack);
+                                                                                    PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount == 0/*enableRetry*/, context, threadTraceDynPack);
                                                                                 }
 
                                                                                 PackedFileHeaderRecord.WriteNullHeader(stream);
@@ -11333,6 +11368,7 @@ namespace Backup
             Console.WriteLine("     <algo> one of {{{0}}}", ListCryptoSystems());
             Console.WriteLine("  -dirsonly");
             Console.WriteLine("  -ignoreaccessdenied");
+            Console.WriteLine("  -ignoredeleted");
             Console.WriteLine("  -zerolen");
             Console.WriteLine("  -beep");
             Console.WriteLine("  -priority {lowest | belownormal | normal | abovenormal | highest }");
@@ -11447,6 +11483,10 @@ namespace Backup
                     else if (args[i] == "-ignoreaccessdenied")
                     {
                         context.continueOnAccessDenied = true;
+                    }
+                    else if (args[i] == "-ignoredeleted")
+                    {
+                        context.continueOnMissing = true;
                     }
                     else if (args[i] == "-date")
                     {
@@ -11640,13 +11680,20 @@ namespace Backup
                         {
                             throw new UsageException();
                         }
+                        const string ProofPrefix = "proof:";
+                        string proofPath = null;
+                        if (args[i].StartsWith(ProofPrefix))
+                        {
+                            proofPath = EnsureRootedLocalPath(args[i].Substring(ProofPrefix.Length));
+                            i++;
+                        }
                         string method = args[i];
                         i++;
                         if (!(i < args.Length))
                         {
                             throw new UsageException();
                         }
-                        FaultTemplateNode.ParseFaultInjectionPath(context.faultInjectionTemplateRoot, method, args[i]);
+                        FaultTemplateNode.ParseFaultInjectionPath(context.faultInjectionTemplateRoot, method, proofPath, args[i]);
                     }
                     else if (args[i] == "-tracefaultpoints")
                     {
@@ -11679,18 +11726,10 @@ namespace Backup
                     i++;
                 }
 
-                if (!traceFaultPoints)
+                context.faultInjectionRoot = new FaultInstanceNode(context.faultInjectionTemplateRoot).Select(null);
+                if (traceFaultPoints)
                 {
-                    context.faultInjectionRoot = new FaultInstanceNode(context.faultInjectionTemplateRoot).Select(null);
-                }
-                else
-                {
-                    if (!context.faultInjectionTemplateRoot.Terminal)
-                    {
-                        throw new UsageException();
-                    }
-                    context.faultInjectionTemplateRoot = null;
-                    context.faultInjectionRoot = new FaultTraceNode();
+                    context.faultInjectionRoot = new FaultTraceNode(context.faultInjectionRoot);
                 }
 
                 if (waitDebugger)

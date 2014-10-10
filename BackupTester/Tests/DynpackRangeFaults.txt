@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -19,7 +19,7 @@ create source\h -size 1000
 create source\i -size 1000
 create source\j -size 1000
 qlist .
-call backup -date %DATE% dynpack source archive 2500000 -verify
+call backup dynpack source archive 2500000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- archive.0.dynpack [8]
@@ -36,7 +36,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- source\j [7]
 endlist
 # sanity check
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 4\; SIGNATURE\: .*$
@@ -56,7 +56,7 @@ lastoutput-verify
 endoutput
 
 test fail large file extraction 1
-call backup -concurrency 0 -date %DATE% -injectfault throw "/ValidateOrUnpackDynamicInternal/Segment/UnpackInternal/FileHeader[stringequal:.\file]/Write/Position[limit:500000]" dynunpack archive target
+call backup -concurrency 0 -injectfault throw "/ValidateOrUnpackDynamicInternal/Segment/UnpackInternal/FileHeader[stringequal:'.\\file']/Write/Position[limit:500000]" dynunpack archive target
 exitcode-verify not 0
 list-verify target
 .          2014-01-01          2014-01-01 -A---- a [1]
@@ -66,7 +66,7 @@ list-verify target
 endlist
 
 test [resume] fail large file extraction 2
-call backup -concurrency 0 -date %DATE% -injectfault throw "/ValidateOrUnpackDynamicInternal/Segment/UnpackInternal/FileHeader[stringequal:.\file]/Write/Position[limit:2000000]" dynunpack archive target -resume
+call backup -concurrency 0 -injectfault throw "/ValidateOrUnpackDynamicInternal/Segment/UnpackInternal/FileHeader[stringequal:'.\\file']/Write/Position[limit:2000000]" dynunpack archive target -resume
 exitcode-verify not 0
 list-verify target
 .          2014-01-01          2014-01-01 -A---- a [1]
@@ -76,7 +76,7 @@ list-verify target
 endlist
 
 test [resume] fail large file extraction 3
-call backup -concurrency 0 -date %DATE% -injectfault throw "/ValidateOrUnpackDynamicInternal/Segment/UnpackInternal/FileHeader[stringequal:.\file]/Write/Position[limit:3000000]" dynunpack archive target -resume
+call backup -concurrency 0 -injectfault throw "/ValidateOrUnpackDynamicInternal/Segment/UnpackInternal/FileHeader[stringequal:'.\\file']/Write/Position[limit:3000000]" dynunpack archive target -resume
 exitcode-verify not 0
 list-verify target
 .          2014-01-01          2014-01-01 -A---- a [1]
@@ -86,7 +86,7 @@ list-verify target
 endlist
 
 test [resume] finish large file extraction
-call backup -concurrency 0 -date %DATE% dynunpack archive target -resume
+call backup -concurrency 0 dynunpack archive target -resume
 exitcode-verify 0
 list-verify target
 .          2014-01-01          2014-01-01 -A---- a [1]
@@ -114,7 +114,7 @@ create source\i -size 1000
 create source\j -size 1000
 create source\k -size 2000000
 qlist .
-call backup -date %DATE% dynpack source archive 2500000 -verify
+call backup dynpack source archive 2500000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- archive.0.dynpack [9]
@@ -133,7 +133,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- source\k [8]
 endlist
 # sanity check
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 5\; SIGNATURE\: .*$
@@ -158,7 +158,7 @@ endoutput
 test remove early segment of ranged file
 # delete the early part - "g"
 delete archive.g.dynpack
-call backup -concurrency 0 -date %DATE% dynunpack archive target
+call backup -concurrency 0 dynunpack archive target
 exitcode-verify not 0
 list-verify target
 .          2014-01-01          2014-01-01 -A---- a [1]
@@ -189,7 +189,7 @@ create source\h -size 1000
 create source\i -size 1000
 create source\j -size 1000
 qlist .
-call backup -date %DATE% dynpack source archive 2500000 -verify
+call backup dynpack source archive 2500000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- archive.0.dynpack [8]
@@ -206,7 +206,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- source\j [7]
 endlist
 # sanity check
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 4\; SIGNATURE\: .*$
@@ -226,7 +226,7 @@ lastoutput-verify
 endoutput
 
 test extraction
-call backup -concurrency 0 -date %DATE% dynunpack archive target
+call backup -concurrency 0 dynunpack archive target
 exitcode-verify 0
 list-verify target
 .          2014-01-01          2014-01-01 -A---- a [1]

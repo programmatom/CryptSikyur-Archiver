@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -14,7 +14,7 @@ test null test
 date 2014-01-01
 mkdir source
 date + 1
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 call backup unpack archive.pack copy
@@ -37,7 +37,7 @@ date + 3
 create source\a
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 # target dir not removed - permitted to target existing hierarchy
@@ -58,7 +58,7 @@ date + 1
 create source\b
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 rmdir copy
@@ -85,7 +85,7 @@ date + 1
 create source\c\d
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 rmdir copy
@@ -124,7 +124,7 @@ date + 1
 create source\g\h
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 rmdir copy
@@ -163,7 +163,7 @@ date + 1
 edit source\c\e\f
 date + 1
 delete archive.pack
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 rmdir copy
@@ -222,7 +222,7 @@ list-verify .
 .                                         -----D source\j\
 .          2014-01-06          2014-01-06 -A---- source\j\k [3]
 endlist
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 date + 1
 call backup unpack archive.pack copy
@@ -280,7 +280,7 @@ mkdir source
 date + 1
 create source\m
 date + 1
-call backup -compress -date %DATE% pack source archive.pack
+call backup -compress pack source archive.pack
 exitcode-verify 0
 date + 1
 call backup -decompress unpack archive.pack copy
@@ -302,7 +302,7 @@ mkdir source
 date + 1
 create source\n
 date + 1
-call backup -encrypt aes256 pasSsw0Rd -date %DATE% pack source archive.pack
+call backup -encrypt aes256 pasSsw0Rd pack source archive.pack
 exitcode-verify 0
 date + 1
 call backup -decrypt aes256 pasSsw0Rd unpack archive.pack copy
@@ -324,7 +324,7 @@ mkdir source
 date + 1
 create source\p
 date + 1
-call backup -compress -encrypt aes256 pasSsw0Rd -date %DATE% pack source archive.pack
+call backup -compress -encrypt aes256 pasSsw0Rd pack source archive.pack
 exitcode-verify 0
 date + 1
 call backup -decompress -decrypt aes256 pasSsw0Rd unpack archive.pack copy
@@ -354,7 +354,7 @@ create source\c
 date + 1
 open source\b wx
 date + 1
-call-with-input backup -date %DATE% pack source archive.pack
+call-with-input backup pack source archive.pack
 .c
 endinput
 exitcode-verify 0
@@ -388,7 +388,7 @@ create source\b -size 10000
 date + 1
 create source\c -size 1000
 date + 1
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.pack [1]
@@ -432,7 +432,7 @@ create source\b -size 10000
 date + 1
 create source\c -size 1000
 date + 1
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.pack [1]
@@ -472,7 +472,7 @@ create source\b -size 10000
 date + 1
 create source\c -size 1000
 date + 1
-call backup -date %DATE% pack source archive.pack
+call backup pack source archive.pack
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.pack [1]
@@ -520,7 +520,7 @@ create source\b -size 10000
 date + 1
 create source\c -size 1000
 date + 1
-call backup -date %DATE% -encrypt aes256 P1s5M0Rb pack source archive.pack
+call backup -encrypt aes256 P1s5M0Rb pack source archive.pack
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.pack [1]

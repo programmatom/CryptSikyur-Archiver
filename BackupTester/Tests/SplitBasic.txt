@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -13,7 +13,7 @@ date 2014-01-01
 create source -value "The quick brown fox jumped over the lazy dog many times."
 date + 1
 qlist .
-call backup -date %DATE% split source target 1000
+call backup split source target 1000
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- source [1]
@@ -24,7 +24,7 @@ file-verify target.sha256
 .bedf889a826e831278b6532189a3142329cfb74bcb23c085bf768223f7463a8e
 endfile
 date + 1
-call backup -date %DATE% unsplit target recombined
+call backup unsplit target recombined
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Incorporating %WORKSPACE%\target.0
@@ -50,7 +50,7 @@ endlist
 test two file test
 date + 1
 qlist .
-call backup -date %DATE% split source target 30
+call backup split source target 30
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- source [1]
@@ -62,7 +62,7 @@ file-verify target.sha256
 .bedf889a826e831278b6532189a3142329cfb74bcb23c085bf768223f7463a8e
 endfile
 date + 1
-call backup -date %DATE% unsplit target recombined
+call backup unsplit target recombined
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Incorporating %WORKSPACE%\target.0
@@ -85,7 +85,7 @@ date + 1
 invert-range target.0 0 1
 qlist .
 date + 1
-call backup -date %DATE% unsplit target recombined
+call backup unsplit target recombined
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Incorporating %WORKSPACE%\target.0

@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -15,7 +15,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -35,7 +35,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -58,7 +58,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -80,7 +80,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -100,7 +100,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -123,7 +123,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -145,7 +145,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -164,7 +164,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -184,7 +184,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -206,7 +206,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -226,7 +226,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -248,7 +248,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -267,7 +267,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -287,7 +287,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -311,7 +311,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -333,7 +333,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -360,7 +360,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -381,7 +381,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -401,7 +401,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -425,7 +425,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -447,7 +447,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -474,7 +474,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -495,7 +495,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -518,7 +518,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -553,7 +553,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -600,7 +600,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -647,7 +647,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -679,7 +679,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -703,7 +703,7 @@ test ignore
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -730,7 +730,7 @@ date + 1
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -758,7 +758,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -778,7 +778,7 @@ delete a\x\m
 delete a\y\m
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -801,7 +801,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 endinput
 exitcode-verify 0
@@ -829,7 +829,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -856,7 +856,7 @@ test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -880,7 +880,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -907,7 +907,7 @@ date + 1
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -935,7 +935,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -955,7 +955,7 @@ delete a\x\m
 delete a\y\m
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -973,7 +973,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -998,7 +998,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 endinput
 exitcode-verify 0
@@ -1026,7 +1026,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1053,7 +1053,7 @@ test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1076,7 +1076,7 @@ endlist
 # BUGBUG - ignore does not keep conflict
 #move s\x\sync.txt a\x\sync.txt
 #move s\y\sync.txt a\y\sync.txt
-#call-with-input backup -date %DATE% sync a\x a\y
+#call-with-input backup sync a\x a\y
 #.i
 #endinput
 #exitcode-verify 0
@@ -1101,7 +1101,7 @@ endlist
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -1129,7 +1129,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1149,7 +1149,7 @@ delete a\x\m
 delete a\y\m
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1166,7 +1166,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1188,7 +1188,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 endinput
 exitcode-verify 0
@@ -1214,7 +1214,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1239,7 +1239,7 @@ test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1262,7 +1262,7 @@ endlist
 # BUGBUG - ignore does not keep conflict
 #move s\x\sync.txt a\x\sync.txt
 #move s\y\sync.txt a\y\sync.txt
-#call-with-input backup -date %DATE% sync a\x a\y
+#call-with-input backup sync a\x a\y
 #.i
 #endinput
 #exitcode-verify 0
@@ -1287,7 +1287,7 @@ endlist
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -1313,7 +1313,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1331,7 +1331,7 @@ delete a\x\m
 delete a\y\m
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1348,7 +1348,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1370,7 +1370,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 endinput
 exitcode-verify 0
@@ -1398,7 +1398,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1425,7 +1425,7 @@ test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1449,7 +1449,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -1475,7 +1475,7 @@ endlist
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -1503,7 +1503,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1523,7 +1523,7 @@ delete a\x\m
 delete a\y\m
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1540,7 +1540,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1564,7 +1564,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 endinput
 exitcode-verify 0
@@ -1592,7 +1592,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .m
@@ -1620,7 +1620,7 @@ test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1644,7 +1644,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -1671,7 +1671,7 @@ endlist
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -1700,7 +1700,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .m
@@ -1721,7 +1721,7 @@ rmdir a\x\m
 rmdir a\y\m
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1738,7 +1738,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1762,7 +1762,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 endinput
 exitcode-verify 0
@@ -1791,7 +1791,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1819,7 +1819,7 @@ date 2014-01-01
 mkdir a\x\d
 create a\x\d\m
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1847,7 +1847,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -1874,7 +1874,7 @@ endlist
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -1902,7 +1902,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -1922,7 +1922,7 @@ delete a\x\d
 delete a\y\d
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1941,7 +1941,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -1970,7 +1970,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 .r
 endinput
@@ -2009,7 +2009,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .d
@@ -2040,7 +2040,7 @@ date 2014-01-01
 mkdir a\x\d
 create a\x\d\m
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2068,7 +2068,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -2096,7 +2096,7 @@ endlist
 test select left
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .l
 endinput
 exitcode-verify 0
@@ -2127,7 +2127,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .d
@@ -2150,7 +2150,7 @@ rmdir a\x\d
 rmdir a\y\d
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2169,7 +2169,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2198,7 +2198,7 @@ endlist
 test select right
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 endinput
 exitcode-verify 0
@@ -2227,7 +2227,7 @@ test verify conflict cleared
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
@@ -2263,7 +2263,7 @@ create a\x\d\h.txt
 date + 1
 create a\x\i.txt
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2308,7 +2308,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -2358,7 +2358,7 @@ create a\x\d\h.txt
 date + 1
 create a\x\i.txt
 date + 1
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2403,7 +2403,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .i
 endinput
 exitcode-verify 0
@@ -2442,7 +2442,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2475,7 +2475,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2511,7 +2511,7 @@ list-verify a
 endlist
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2532,7 +2532,7 @@ mkdir s\y
 
 test initial setup
 date 2014-01-01
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2564,7 +2564,7 @@ endlist
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call backup -date %DATE% sync a\x a\y
+call backup sync a\x a\y
 exitcode-verify 0
 move a\x\sync.txt s\x\sync.txt
 move a\y\sync.txt s\y\sync.txt
@@ -2602,7 +2602,7 @@ open a\y\m\b.txt wx
 date + 1
 move s\x\sync.txt a\x\sync.txt
 move s\y\sync.txt a\y\sync.txt
-call-with-input backup -date %DATE% sync a\x a\y
+call-with-input backup sync a\x a\y
 .r
 .c
 .c

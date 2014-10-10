@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -14,7 +14,7 @@ mkdir logfiles
 
 test setup
 date 2014-01-01
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -38,7 +38,7 @@ create source\b\y
 date + 1
 create source\c
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -71,7 +71,7 @@ edit source\b\y
 date + 1
 edit source\c
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -105,7 +105,7 @@ delete source\a
 rmdir source\b
 delete source\c
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -142,7 +142,7 @@ mkdir logfiles
 
 test setup
 date 2014-01-01
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -166,7 +166,7 @@ create source\b\y
 date + 1
 create source\c
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive -nofinish
+call backup -logpath logfiles\file.log backup source archive -nofinish
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -191,7 +191,7 @@ endfile
 date + 1
 create source\aa
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -226,7 +226,7 @@ edit source\b\y
 date + 1
 edit source\c
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive -nofinish
+call backup -logpath logfiles\file.log backup source archive -nofinish
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -258,7 +258,7 @@ endfile
 date + 1
 create source\bb
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -296,7 +296,7 @@ delete source\a
 rmdir source\b
 delete source\c
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive -nofinish
+call backup -logpath logfiles\file.log backup source archive -nofinish
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -333,7 +333,7 @@ edit source\aa
 date + 1
 edit source\bb
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -377,7 +377,7 @@ mkdir logfiles
 
 test setup
 date 2014-01-01
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -407,7 +407,7 @@ create source\b\c\zz
 date + 1
 create source\d
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\
@@ -443,7 +443,7 @@ rmdir source\b
 date + 1
 edit source\d
 date + 1
-call backup -logpath logfiles\file.log -date %DATE% backup source archive
+call backup -logpath logfiles\file.log backup source archive
 exitcode-verify 0
 list-verify archive
 .                                         -----D 2014-01-01T00+00+00\

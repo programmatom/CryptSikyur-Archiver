@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
 command remotedriveauth ..\..\..\..\Backup\Backup\bin\Debug\RemoteDriveAuth.exe
 #opencover backup
 #opencover remotedriveauth

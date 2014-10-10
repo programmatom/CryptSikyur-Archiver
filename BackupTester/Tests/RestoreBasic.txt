@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -32,7 +32,7 @@ list-verify .
 .          2014-01-04          2014-01-04 -A--Z- source\b\zero-len.txt [0]
 endlist
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -55,7 +55,7 @@ endlist
 
 test restore invalid archive name 1
 mkdir target
-call backup -date %DATE% restore archive 2014-03-03T00+00+00 target
+call backup restore archive 2014-03-03T00+00+00 target
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -66,7 +66,7 @@ rmdir target
 
 test restore invalid archive name 2
 mkdir target
-call backup -date %DATE% restore archive invalid-date-string target
+call backup restore archive invalid-date-string target
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -79,7 +79,7 @@ rmdir target
 test degenerate restore - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+call backup restore archive 2014-01-05T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -95,7 +95,7 @@ rmdir target
 test degenerate restore - subdirectory
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\a target\t
+call backup restore archive 2014-01-05T00+00+00\a target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -107,7 +107,7 @@ rmdir target
 test degenerate restore - individual file
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\a\y.txt target\t
+call backup restore archive 2014-01-05T00+00+00\a\y.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-02          2014-01-02 -A---- t [2]
@@ -117,7 +117,7 @@ rmdir target
 test degenerate restore - individual file, zero length
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
+call backup restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-04          2014-01-04 -A--Z- t [0]
@@ -155,7 +155,7 @@ list-verify .
 .          2014-01-13          2014-01-13 -A--Z- source\c\zero-len2.txt [0]
 endlist
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -189,7 +189,7 @@ endlist
 test restore old - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+call backup restore archive 2014-01-05T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -205,7 +205,7 @@ rmdir target
 test restore old - subdirectory
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\a target\t
+call backup restore archive 2014-01-05T00+00+00\a target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -217,7 +217,7 @@ rmdir target
 test restore old - individual file
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\a\y.txt target\t
+call backup restore archive 2014-01-05T00+00+00\a\y.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-02          2014-01-02 -A---- t [2]
@@ -227,7 +227,7 @@ rmdir target
 test restore old - individual file, zero length
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
+call backup restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-04          2014-01-04 -A--Z- t [0]
@@ -237,7 +237,7 @@ rmdir target
 test restore current - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target\t
+call backup restore archive 2014-01-14T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -255,7 +255,7 @@ rmdir target
 test restore current - subdirectory
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\a target\t
+call backup restore archive 2014-01-14T00+00+00\a target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -268,7 +268,7 @@ rmdir target
 test restore current - individual file (unchanged)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\y.txt target\t
+call backup restore archive 2014-01-14T00+00+00\a\y.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-02          2014-01-02 -A---- t [2]
@@ -278,7 +278,7 @@ rmdir target
 test restore current - individual file (new)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\z.txt target\t
+call backup restore archive 2014-01-14T00+00+00\a\z.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-11          2014-01-11 -A---- t [5]
@@ -288,7 +288,7 @@ rmdir target
 test restore current - individual file, zero length (old)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\zero-len.txt target\t
+call backup restore archive 2014-01-14T00+00+00\b\zero-len.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-04          2014-01-04 -A--Z- t [0]
@@ -298,7 +298,7 @@ rmdir target
 test restore current - individual file, zero length (new)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\c\zero-len2.txt target\u
+call backup restore archive 2014-01-14T00+00+00\c\zero-len2.txt target\u
 exitcode-verify 0
 list-verify target
 .          2014-01-13          2014-01-13 -A--Z- u [0]
@@ -308,7 +308,7 @@ rmdir target
 test restore old - deleted file
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\m.txt target\t
+call backup restore archive 2014-01-05T00+00+00\b\m.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-03          2014-01-03 -A---- t [3]
@@ -318,7 +318,7 @@ rmdir target
 test restore current - deleted file (should fail)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\m.txt target\t
+call backup restore archive 2014-01-14T00+00+00\b\m.txt target\t
 exitcode-verify not 0
 list-verify target
 endlist
@@ -359,7 +359,7 @@ list-verify .
 .                                         -----D source\c\
 .          2014-01-13          2014-01-13 -A--Z- source\c\zero-len2.txt [0]
 endlist
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -398,7 +398,7 @@ endlist
 test restore old - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+call backup restore archive 2014-01-05T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -414,7 +414,7 @@ rmdir target
 test restore old - subdirectory
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\a target\t
+call backup restore archive 2014-01-05T00+00+00\a target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -426,7 +426,7 @@ rmdir target
 test restore old - individual file
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\a\y.txt target\t
+call backup restore archive 2014-01-05T00+00+00\a\y.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-02          2014-01-02 -A---- t [2]
@@ -436,7 +436,7 @@ rmdir target
 test restore old - individual file, zero length
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
+call backup restore archive 2014-01-05T00+00+00\b\zero-len.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-04          2014-01-04 -A--Z- t [0]
@@ -446,7 +446,7 @@ rmdir target
 test restore intermediate - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target\t
+call backup restore archive 2014-01-14T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -464,7 +464,7 @@ rmdir target
 test restore intermediate - subdirectory
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\a target\t
+call backup restore archive 2014-01-14T00+00+00\a target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -477,7 +477,7 @@ rmdir target
 test restore intermediate - individual file (unchanged)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\y.txt target\t
+call backup restore archive 2014-01-14T00+00+00\a\y.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-02          2014-01-02 -A---- t [2]
@@ -487,7 +487,7 @@ rmdir target
 test restore intermediate - individual file (new)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\a\z.txt target\t
+call backup restore archive 2014-01-14T00+00+00\a\z.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-11          2014-01-11 -A---- t [5]
@@ -497,7 +497,7 @@ rmdir target
 test restore intermediate - individual file, zero length (old)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\zero-len.txt target\t
+call backup restore archive 2014-01-14T00+00+00\b\zero-len.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-04          2014-01-04 -A--Z- t [0]
@@ -507,7 +507,7 @@ rmdir target
 test restore intermediate - individual file, zero length (new)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\c\zero-len2.txt target\u
+call backup restore archive 2014-01-14T00+00+00\c\zero-len2.txt target\u
 exitcode-verify 0
 list-verify target
 .          2014-01-13          2014-01-13 -A--Z- u [0]
@@ -517,7 +517,7 @@ rmdir target
 test restore old - deleted file
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00\b\m.txt target\t
+call backup restore archive 2014-01-05T00+00+00\b\m.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-03          2014-01-03 -A---- t [3]
@@ -527,7 +527,7 @@ rmdir target
 test restore intermediate - deleted file (should fail)
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00\b\m.txt target\t
+call backup restore archive 2014-01-14T00+00+00\b\m.txt target\t
 exitcode-verify not 0
 list-verify target
 endlist
@@ -536,7 +536,7 @@ rmdir target
 test restore current - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-29T00+00+00 target\t
+call backup restore archive 2014-01-29T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -552,7 +552,7 @@ rmdir target
 test restore current - subdirectory
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-29T00+00+00\a target\t
+call backup restore archive 2014-01-29T00+00+00\a target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -563,7 +563,7 @@ rmdir target
 test restore current - individual file
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-29T00+00+00\b\m.txt target\t
+call backup restore archive 2014-01-29T00+00+00\b\m.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-28          2014-01-28 -A---- t [7]
@@ -573,7 +573,7 @@ rmdir target
 test restore current - individual file, zero length
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-29T00+00+00\c\zero-len2.txt target\t
+call backup restore archive 2014-01-29T00+00+00\c\zero-len2.txt target\t
 exitcode-verify 0
 list-verify target
 .          2014-01-13          2014-01-13 -A--Z- t [0]
@@ -591,7 +591,7 @@ date + 1
 #edit zero length to non zero length
 edit source\c\zero-len2.txt
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -637,7 +637,7 @@ endlist
 test restore current - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-02-17T00+00+00 target\t
+call backup restore archive 2014-02-17T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -653,7 +653,7 @@ rmdir target
 test restore previous - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-29T00+00+00 target\t
+call backup restore archive 2014-01-29T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -673,7 +673,7 @@ rmdir target
 test restore next previous - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target\t
+call backup restore archive 2014-01-14T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -695,7 +695,7 @@ rmdir target
 test restore oldest - full
 mkdir target
 date + 1
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target\t
+call backup restore archive 2014-01-05T00+00+00 target\t
 exitcode-verify 0
 list-verify target
 .                                         -----D t\
@@ -727,7 +727,7 @@ endlist
 
 test zero length file copy
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -736,7 +736,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
 endlist
-call backup -date %DATE% restore archive 2014-01-04T00+00+00 target
+call backup restore archive 2014-01-04T00+00+00 target
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -753,7 +753,7 @@ rmdir target
 
 test zero length file copy - compressed
 date + 1
-call backup -date %DATE% -compress backup source archive
+call backup -compress backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -763,7 +763,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
 endlist
-call backup -date %DATE% -decompress restore archive 2014-01-05T00+00+00 target
+call backup -decompress restore archive 2014-01-05T00+00+00 target
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -781,7 +781,7 @@ rmdir target
 
 test zero length file copy - encrypted
 date + 1
-call backup -date %DATE% -encrypt aes256 p0sswArd backup source archive
+call backup -encrypt aes256 p0sswArd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -791,7 +791,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
 endlist
-call backup -date %DATE% -decrypt aes256 p0sswArd restore archive 2014-01-06T00+00+00 target
+call backup -decrypt aes256 p0sswArd restore archive 2014-01-06T00+00+00 target
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -809,7 +809,7 @@ rmdir target
 
 test zero length file copy - encrypted and compressed
 date + 1
-call backup -date %DATE% -compress -encrypt aes256 p0sswArd backup source archive
+call backup -compress -encrypt aes256 p0sswArd backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -819,7 +819,7 @@ list-verify .
 .                                         -----D source\
 .          2014-01-01          2014-01-02 -A--Z- source\zlen [0]
 endlist
-call backup -date %DATE% -decompress -decrypt aes256 p0sswArd restore archive 2014-01-07T00+00+00 target
+call backup -decompress -decrypt aes256 p0sswArd restore archive 2014-01-07T00+00+00 target
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -851,7 +851,7 @@ mkdir source\a
 create source\a\zlen.txt -size 0
 date + 1
 mkdir archive
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -866,7 +866,7 @@ endlist
 test remove directory
 rmdir source\a
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -882,7 +882,7 @@ mkdir source\a
 date + 1
 create source\a\zlen.txt
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -901,7 +901,7 @@ endlist
 test final removal
 rmdir source\a
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -918,13 +918,13 @@ endlist
 
 test verify checkpoints 1 and 3 before purge
 date + 1
-call backup -date %DATE% restore archive 2014-01-02T00+00+00 target1
+call backup restore archive 2014-01-02T00+00+00 target1
 exitcode-verify 0
 list-verify target1
 .                                         -----D a\
 .          2014-01-01          2014-01-01 -A--Z- a\zlen.txt [0]
 endlist
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target2
+call backup restore archive 2014-01-05T00+00+00 target2
 exitcode-verify 0
 list-verify target2
 .                                         -----D a\
@@ -935,10 +935,10 @@ rmdir target2
 
 test purge 2 and re-verify
 date + 1
-call backup -date %DATE% purge archive 2014-01-02T00+00+00 2014-01-05T00+00+00
+call backup purge archive 2014-01-02T00+00+00 2014-01-05T00+00+00
 exitcode-verify 0
 date + 1
-call backup -date %DATE% restore archive 2014-01-02T00+00+00 target3
+call backup restore archive 2014-01-02T00+00+00 target3
 exitcode-verify 0
 list-verify target3
 .                                         -----D a\
@@ -948,7 +948,7 @@ list-verify target3
 # actual:
 .          2014-01-04          2014-01-04 -A---- a\zlen.txt [1]
 endlist
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target4
+call backup restore archive 2014-01-05T00+00+00 target4
 exitcode-verify 0
 list-verify target4
 .                                         -----D a\
@@ -959,7 +959,7 @@ rmdir target4
 
 test purge 3
 date + 1
-call backup -date %DATE% purge archive 2014-01-02T00+00+00 2014-01-06T00+00+00
+call backup purge archive 2014-01-02T00+00+00 2014-01-06T00+00+00
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\

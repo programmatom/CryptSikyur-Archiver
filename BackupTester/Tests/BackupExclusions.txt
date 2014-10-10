@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -13,7 +13,7 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -date %DATE% backup source archive -exclude source\B -skip .log
+call backup backup source archive -exclude source\B -skip .log
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -33,7 +33,7 @@ create source\C\q.txt
 date + 1
 create source\C\r.log
 date + 1
-call backup -date %DATE% backup source archive -exclude source\B -skip .log
+call backup backup source archive -exclude source\B -skip .log
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -64,7 +64,7 @@ create source\B\C\u.txt
 date + 1
 create source\B\C\v.log
 date + 1
-call backup -date %DATE% backup source archive -exclude source\B -skip .log
+call backup backup source archive -exclude source\B -skip .log
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -93,7 +93,7 @@ endlist
 
 test de-exclude directory
 date + 1
-call backup -date %DATE% backup source archive -skip .log
+call backup backup source archive -skip .log
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -130,7 +130,7 @@ endlist
 
 test de-exclude all
 date + 1
-call backup -date %DATE% backup source archive
+call backup backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -179,7 +179,7 @@ endlist
 
 test re-exclude all
 date + 1
-call backup -date %DATE% backup source archive -exclude source\B -skip .log
+call backup backup source archive -exclude source\B -skip .log
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -238,7 +238,7 @@ mkdir archive
 
 test null test
 date 2014-01-01
-call backup -date %DATE% backup source archive -exclude source\B -skip .log
+call backup backup source archive -exclude source\B -skip .log
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -258,7 +258,7 @@ create source\C.foo\q.txt
 date + 1
 create source\C.foo\r.foo
 date + 1
-call backup -date %DATE% backup source archive -exclude source\B -skip .foo
+call backup backup source archive -exclude source\B -skip .foo
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -290,7 +290,7 @@ date + 1
 create source\o.bar
 date + 1
 qlist .
-call backup -date %DATE% backup source archive -exclude source\n.foo
+call backup backup source archive -exclude source\n.foo
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source

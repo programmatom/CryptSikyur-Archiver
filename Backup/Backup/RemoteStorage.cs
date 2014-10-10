@@ -543,16 +543,19 @@ namespace Backup
 
         private const int SendTimeout = 60 * 1000;
         private const int ReceiveTimeout = 60 * 1000;
-        private WebExceptionStatus SocketRequest(Uri uri, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out string[] responseHeaders, Stream responseBodyDestination, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
+        private WebExceptionStatus SocketRequest(Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             byte[] buffer = new byte[Core.Constants.BufferSize];
 
             bool useTLS = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
 
+            httpStatus = (HttpStatusCode)0;
             responseHeaders = new string[0];
 
             try
             {
+                IFaultInstance faultInstanceMethod = faultInstanceContext.Select("SocketHttpRequest", String.Format("{0}|{1}", verb, uri));
+
                 using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
                 {
                     socket.Connect(hostAddress, uri.Port);
@@ -651,6 +654,8 @@ namespace Backup
 
                         // write request body
 
+                        IFaultPredicate faultPredicateWriteRequest = faultInstanceMethod.SelectPredicate("RequestBodyBytes");
+
                         if (requestBodySource != null)
                         {
                             long requestBytesSent = 0;
@@ -666,6 +671,8 @@ namespace Backup
                                 {
                                     progressTrackerUpload.Current = requestBodySource.Position;
                                 }
+
+                                faultPredicateWriteRequest.Test(requestBytesSent); // may throw FaultInjectionException or FaultInjectionPayloadException
 
                                 if (enableResumableUploads)
                                 {
@@ -690,35 +697,67 @@ namespace Backup
 
                         // read response header and body
 
-                        long contentLength = responseBodyDestination != null ? Int64.MaxValue : 0;
+                        Stream responseBodyDestination;
+                        long contentLength;
                         bool chunked = false;
-
-                        string line;
-                        while (!String.IsNullOrEmpty(line = StreamReadLine(socketStream)))
                         {
-                            headers.Add(line);
-
-                            const string ContentLengthHeaderPrefix = "Content-Length:";
-                            if (line.StartsWith(ContentLengthHeaderPrefix, StringComparison.OrdinalIgnoreCase))
+                            string line;
+                            while (!String.IsNullOrEmpty(line = StreamReadLine(socketStream)))
                             {
-                                contentLength = Int64.Parse(line.Substring(ContentLengthHeaderPrefix.Length).Trim());
-                                if (progressTrackerDownload != null)
+                                headers.Add(line);
+                            }
+                            responseHeaders = headers.ToArray();
+
+                            if (headers.Count < 1)
+                            {
+                                return WebExceptionStatus.ServerProtocolViolation;
+                            }
+
+                            string[] parts = headers[0].Split((char)32);
+                            if ((parts.Length < 2)
+                                || (!parts[0].Equals("HTTP/1.1") && !parts[0].Equals("HTTP/1.0")))
+                            {
+                                return WebExceptionStatus.ServerProtocolViolation;
+                            }
+                            httpStatus = (HttpStatusCode)Int32.Parse(parts[1]);
+
+                            if ((verb == "GET") && (httpStatus != (HttpStatusCode)200/*OK*/) && (httpStatus != (HttpStatusCode)206/*PartialContent*/))
+                            {
+                                // For GET, if not 200 or 206, then do not modify normal response stream as this
+                                // is not data from the requested object but rather error details.
+                                responseBodyDestination = responseBodyDestinationExceptional != null ? responseBodyDestinationExceptional : responseBodyDestinationNormal;
+                            }
+                            else
+                            {
+                                // For all other verbs, or successful GET, put data in normal response stream.
+                                responseBodyDestination = responseBodyDestinationNormal;
+                            }
+
+                            chunked = false;
+                            const string TransferEncodingHeaderPrefix = "Transfer-Encoding:";
+                            int transferEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(TransferEncodingHeaderPrefix); });
+                            if (transferEncodingHeaderIndex >= 0)
+                            {
+                                chunked = responseHeaders[transferEncodingHeaderIndex].Substring(TransferEncodingHeaderPrefix.Length).Trim().Equals("chunked");
+                            }
+
+                            if (httpStatus == (HttpStatusCode)204)
+                            {
+                                contentLength = 0; // "204 No Content" response code - do not try to read
+                            }
+                            else
+                            {
+                                const string ContentLengthHeaderPrefix = "Content-Length:";
+                                int contentLengthIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(ContentLengthHeaderPrefix); });
+                                if (contentLengthIndex >= 0)
                                 {
-                                    progressTrackerDownload.UpdateTotal(contentLength);
+                                    contentLength = Int64.Parse(responseHeaders[contentLengthIndex].Substring(ContentLengthHeaderPrefix.Length));
+                                }
+                                else
+                                {
+                                    contentLength = responseBodyDestination != null ? Int64.MaxValue : 0;
                                 }
                             }
-                            const string TransferEncodingHeaderPrefix = "Transfer-Encoding:";
-                            if (line.StartsWith(TransferEncodingHeaderPrefix, StringComparison.OrdinalIgnoreCase))
-                            {
-                                string transferEncoding = line.Substring(TransferEncodingHeaderPrefix.Length).Trim();
-                                chunked = transferEncoding.Equals("chunked");
-                            }
-                        }
-                        responseHeaders = headers.ToArray();
-
-                        if ((headers.Count > 0) && headers[0].Contains(" 204 "))
-                        {
-                            contentLength = 0; // "204 No Content" response code - do not try to read
                         }
 
                         // only needs to be approximate
@@ -730,6 +769,8 @@ namespace Backup
                             }
                             networkThrottle.WaitBytes(approximateResponseHeadersBytes);
                         }
+
+                        IFaultPredicate faultPredicateReadResponse = faultInstanceMethod.SelectPredicate("ResponseBodyBytes");
 
                         long responseBodyTotalRead = 0;
                         int chunkRemaining = 0;
@@ -786,8 +827,36 @@ namespace Backup
                             {
                                 progressTrackerDownload.Current = responseBodyDestination.Position;
                             }
+
+                            faultPredicateReadResponse.Test(responseBodyTotalRead); // may throw FaultInjectionException or FaultInjectionPayloadException
                         }
                     }
+                }
+            }
+            catch (FaultTemplateNode.FaultInjectionPayloadException exception)
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine("FaultInjectionPayloadException: {0} [{1}] " + Environment.NewLine + "{2}", exception.Message, exception.Payload, exception.StackTrace);
+                }
+                const string webPrefix = "web=";
+                const string statusPrefix = "status=";
+                if (exception.Payload.StartsWith(webPrefix))
+                {
+                    return (WebExceptionStatus)Int32.Parse(exception.Payload.Substring(webPrefix.Length));
+                }
+                else if (exception.Payload.StartsWith(statusPrefix))
+                {
+                    httpStatus = (HttpStatusCode)Int32.Parse(exception.Payload.Substring(statusPrefix.Length));
+                    if ((responseHeaders != null) && (responseHeaders.Length > 0))
+                    {
+                        responseHeaders[0] = String.Format("{0} {1}", responseHeaders[0].Substring(0, responseHeaders[0].IndexOf(' ')), (int)httpStatus);
+                    }
+                    return WebExceptionStatus.ProtocolError;
+                }
+                else
+                {
+                    throw new InvalidOperationException("Invalid fault injection payload");
                 }
             }
             catch (Exception exception) // expect IOException, SocketException, at least...
@@ -829,8 +898,6 @@ namespace Backup
         private static readonly string[] ForbiddenHeaders = new string[] { "Accept-Encoding", "Content-Length", "Expect", "Connection" };
         private WebExceptionStatus SocketHttpRequest(Uri uri, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
         {
-            IFaultInstance faultInstanceMethod = faultInstanceContext.Select("SocketHttpRequest", String.Format("{0}|{1}", verb, uri));
-
             if (trace != null)
             {
                 trace.WriteLine("+SocketHttpRequest(url={0}, hostAddress={1}, verb={2}, request-body={3}, response-body={4})", uri, hostAddress, verb, Logging.ToString(requestBodySource), Logging.ToString(responseBodyDestination, true/*omitContent*/));
@@ -895,49 +962,42 @@ namespace Backup
             }
 
 
+            WebExceptionStatus result;
             string[] responseHeadersLines;
-            long responseBodyDestinationStart = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
-            WebExceptionStatus result = SocketRequest(
-                uri,
-                hostAddress,
-                twoStageRequest,
-                requestHeaderBytes,
-                requestBodySource,
-                out responseHeadersLines,
-                responseBodyDestination,
-                progressTrackerUpload,
-                progressTrackerDownload,
-                trace,
-                faultInstanceMethod);
-            long responseBodyDestinationEnd = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
-            long responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
-
-            if (trace != null)
+            long responseBodyDestinationStart, responseBodyDestinationEnd, responseBodyBytesReceived;
+            using (MemoryStream responseBodyDestinationExceptional = new MemoryStream())
             {
-                trace.WriteLine("Socket request result: {0} ({1})", (int)result, result);
-                trace.WriteLine("Response headers:");
-                foreach (string s in responseHeadersLines)
+                responseBodyDestinationStart = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
+
+                result = SocketRequest(
+                    uri,
+                    verb,
+                    hostAddress,
+                    twoStageRequest,
+                    requestHeaderBytes,
+                    requestBodySource,
+                    out httpStatus,
+                    out responseHeadersLines,
+                    responseBodyDestination,
+                    responseBodyDestinationExceptional,
+                    progressTrackerUpload,
+                    progressTrackerDownload,
+                    trace,
+                    faultInstanceContext);
+
+                responseBodyDestinationEnd = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
+                responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
+
+                if (trace != null)
                 {
-                    trace.WriteLine("  {0}", s);
+                    trace.WriteLine("Socket request result: {0} ({1})", (int)result, result);
+                    trace.WriteLine("Response headers:");
+                    foreach (string s in responseHeadersLines)
+                    {
+                        trace.WriteLine("  {0}", s);
+                    }
                 }
-            }
 
-
-            if (responseHeadersLines.Length < 1)
-            {
-                result = WebExceptionStatus.ServerProtocolViolation;
-                goto Exit;
-            }
-
-            string[] parts = responseHeadersLines[0].Split(new char[] { (char)32 });
-            if ((parts.Length < 2)
-                || (!parts[0].Equals("HTTP/1.1") && !parts[0].Equals("HTTP/1.0")))
-            {
-                result = WebExceptionStatus.ServerProtocolViolation;
-                goto Exit;
-            }
-            httpStatus = (HttpStatusCode)Int32.Parse(parts[1]);
-            {
                 List<KeyValuePair<string, string>> responseHeadersList = new List<KeyValuePair<string, string>>(responseHeadersLines.Length);
                 for (int i = 1; i < responseHeadersLines.Length; i++)
                 {
@@ -951,6 +1011,15 @@ namespace Backup
                     responseHeadersList.Add(new KeyValuePair<string, string>(key, value));
                 }
                 responseHeaders = responseHeadersList.ToArray();
+
+                if (responseBodyDestinationExceptional.Length != 0)
+                {
+                    DecompressStreamInPlace(responseBodyDestinationExceptional, responseHeaders, true/*updateHeaders*/);
+                    if (trace != null)
+                    {
+                        trace.WriteLine("unsuccessful GET (not 200 and not 206) response body: {0}", Logging.ToString(responseBodyDestinationExceptional));
+                    }
+                }
             }
 
             int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length"); });
@@ -972,87 +1041,45 @@ namespace Backup
 
             if (responseBodyDestination != null)
             {
-                int contentEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Encoding"); });
-                if (contentEncodingHeaderIndex >= 0)
-                {
-                    bool gzip = responseHeaders[contentEncodingHeaderIndex].Value.Equals("gzip", StringComparison.OrdinalIgnoreCase);
-                    bool deflate = responseHeaders[contentEncodingHeaderIndex].Value.Equals("deflate", StringComparison.OrdinalIgnoreCase);
-                    if (!gzip && !deflate)
-                    {
-                        throw new NotSupportedException(String.Format("Content-Encoding: {0}", responseHeaders[contentLengthHeaderIndex].Value));
-                    }
-
-                    byte[] buffer = new byte[Core.Constants.BufferSize];
-
-                    string tempPath = Path.GetTempFileName();
-                    using (Stream tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                    {
-                        responseBodyDestination.Position = responseBodyDestinationStart;
-
-                        while (responseBodyDestinationEnd > responseBodyDestination.Position)
-                        {
-                            int needed = (int)Math.Min(buffer.Length, responseBodyDestinationEnd - responseBodyDestination.Position);
-                            int read;
-                            read = responseBodyDestination.Read(buffer, 0, needed);
-                            tempStream.Write(buffer, 0, read);
-                        }
-
-                        tempStream.Position = 0;
-
-                        responseBodyDestination.Position = responseBodyDestinationStart;
-                        responseBodyDestination.SetLength(responseBodyDestinationStart);
-
-                        using (Stream inputStream = gzip ? (Stream)new GZipStream(tempStream, CompressionMode.Decompress) : (Stream)new DeflateStream(tempStream, CompressionMode.Decompress))
-                        {
-                            int read;
-                            while ((read = inputStream.Read(buffer, 0, buffer.Length)) != 0)
-                            {
-                                responseBodyDestination.Write(buffer, 0, read);
-                            }
-                        }
-
-                        responseBodyDestinationEnd = responseBodyDestination.Position;
-                        responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
-
-                        if (contentLengthHeaderIndex >= 0)
-                        {
-                            responseHeaders[contentLengthHeaderIndex] = new KeyValuePair<string, string>("Content-Length", responseBodyBytesReceived.ToString());
-                        }
-                    }
-                    File.Delete(tempPath);
-
-                    responseHeaders[contentEncodingHeaderIndex] = new KeyValuePair<string, string>();
-                }
+                DecompressStreamInPlace(responseBodyDestination, ref responseBodyDestinationStart, ref responseBodyDestinationEnd, ref responseBodyBytesReceived, responseHeaders, true/*updateHeaders*/);
             }
 
-            int locationHeaderIndex = -1;
-            if (((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307))
-                && ((locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); })) >= 0))
+            if ((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307))
             {
-                if (trace != null)
+                int locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); });
+                if (locationHeaderIndex >= 0)
                 {
-                    if (Array.FindAll(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); }).Length > 1)
+                    if (trace != null)
                     {
-                        trace.WriteLine(" NOTICE: multiple Location response headers present - using first one (http status was {0} {1})", (int)httpStatus, httpStatus);
+                        if (Array.FindAll(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); }).Length > 1)
+                        {
+                            trace.WriteLine(" NOTICE: multiple Location response headers present - using first one (http status was {0} {1})", (int)httpStatus, httpStatus);
+                        }
                     }
-                }
 
-                redirectCount++;
-                if (redirectCount > MaxRedirects)
-                {
-                    result = WebExceptionStatus.UnknownError;
-                    goto Exit;
+                    redirectCount++;
+                    if (redirectCount > MaxRedirects)
+                    {
+                        result = WebExceptionStatus.UnknownError;
+                        goto Exit;
+                    }
+                    string location = responseHeaders[locationHeaderIndex].Value;
+                    if (location.StartsWith("/"))
+                    {
+                        uri = new Uri(uri, location);
+                    }
+                    else
+                    {
+                        uri = new Uri(location);
+                    }
+
+                    if (trace != null)
+                    {
+                        trace.WriteLine("auto-redirecting to {0}", uri);
+                    }
+
+                    goto Restart;
                 }
-                string location = responseHeaders[locationHeaderIndex].Value;
-                if (location.StartsWith("/"))
-                {
-                    uri = new Uri(uri, location);
-                }
-                else
-                {
-                    uri = new Uri(location);
-                }
-                goto Restart;
             }
 
 
@@ -1064,6 +1091,76 @@ namespace Backup
                 trace.WriteLine("-SocketHttpRequest returns {0} ({1})", (int)result, result);
             }
             return result;
+        }
+
+        private static void DecompressStreamInPlace(Stream responseBodyDestination, ref long responseBodyDestinationStart, ref long responseBodyDestinationEnd, ref long responseBodyBytesReceived, KeyValuePair<string, string>[] responseHeaders, bool updateHeaders)
+        {
+            int contentEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Encoding"); });
+            if (contentEncodingHeaderIndex >= 0)
+            {
+                bool gzip = responseHeaders[contentEncodingHeaderIndex].Value.Equals("gzip", StringComparison.OrdinalIgnoreCase);
+                bool deflate = responseHeaders[contentEncodingHeaderIndex].Value.Equals("deflate", StringComparison.OrdinalIgnoreCase);
+                if (!gzip && !deflate)
+                {
+                    throw new NotSupportedException(String.Format("Content-Encoding: {0}", responseHeaders[contentEncodingHeaderIndex].Value));
+                }
+
+                byte[] buffer = new byte[Core.Constants.BufferSize];
+
+                string tempPath = Path.GetTempFileName();
+                using (Stream tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                {
+                    responseBodyDestination.Position = responseBodyDestinationStart;
+
+                    while (responseBodyDestinationEnd > responseBodyDestination.Position)
+                    {
+                        int needed = (int)Math.Min(buffer.Length, responseBodyDestinationEnd - responseBodyDestination.Position);
+                        int read;
+                        read = responseBodyDestination.Read(buffer, 0, needed);
+                        tempStream.Write(buffer, 0, read);
+                    }
+
+                    tempStream.Position = 0;
+
+                    responseBodyDestination.Position = responseBodyDestinationStart;
+                    responseBodyDestination.SetLength(responseBodyDestinationStart);
+
+                    using (Stream inputStream = gzip ? (Stream)new GZipStream(tempStream, CompressionMode.Decompress) : (Stream)new DeflateStream(tempStream, CompressionMode.Decompress))
+                    {
+                        int read;
+                        while ((read = inputStream.Read(buffer, 0, buffer.Length)) != 0)
+                        {
+                            responseBodyDestination.Write(buffer, 0, read);
+                        }
+                    }
+
+                    responseBodyDestinationEnd = responseBodyDestination.Position;
+                    responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
+
+                    if (updateHeaders)
+                    {
+                        int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length"); });
+                        if (contentLengthHeaderIndex >= 0)
+                        {
+                            responseHeaders[contentLengthHeaderIndex] = new KeyValuePair<string, string>("Content-Length", responseBodyBytesReceived.ToString());
+                        }
+                    }
+                }
+                File.Delete(tempPath);
+
+                if (updateHeaders)
+                {
+                    responseHeaders[contentEncodingHeaderIndex] = new KeyValuePair<string, string>();
+                }
+            }
+        }
+
+        private static void DecompressStreamInPlace(Stream responseBodyDestination, KeyValuePair<string, string>[] responseHeaders, bool updateHeaders)
+        {
+            long responseBodyDestinationStart, responseBodyDestinationEnd, responseBodyBytesReceived;
+            responseBodyDestinationStart = 0;
+            responseBodyDestinationEnd = responseBodyBytesReceived = responseBodyDestination.Length;
+            DecompressStreamInPlace(responseBodyDestination, ref responseBodyDestinationStart, ref responseBodyDestinationEnd, ref responseBodyBytesReceived, responseHeaders, updateHeaders);
         }
 
         private static WebExceptionStatus DNSLookupName(string hostName, out IPAddress hostAddress, TextWriter trace, IFaultInstance faultInstanceContext)
@@ -1306,7 +1403,20 @@ namespace Backup
 
                 KeyValuePair<string, string>[] responseHeaders;
                 string finalUrl;
-                webStatusCode = SocketHttpRequest(uri, hostAddress, verb, requestHeadersList.ToArray(), requestBodySource, out httpStatusCode, out responseHeaders, responseBodyDestination, out finalUrl, progressTrackerUpload, progressTrackerDownload, trace, faultInstanceContext);
+                webStatusCode = SocketHttpRequest(
+                    uri,
+                    hostAddress,
+                    verb,
+                    requestHeadersList.ToArray(),
+                    requestBodySource,
+                    out httpStatusCode,
+                    out responseHeaders,
+                    responseBodyDestination,
+                    out finalUrl,
+                    progressTrackerUpload,
+                    progressTrackerDownload,
+                    trace,
+                    faultInstanceContext);
 
                 for (int i = 0; i < responseHeadersOut.Length; i++)
                 {
@@ -1937,19 +2047,24 @@ namespace Backup
                 trace.WriteLine("+DownloadFileWithResume(url={0})", url);
             }
 
+            long? totalContentLength = null;
             int retry = 0;
-        Retry1:
+            long previousLengthSoFar = 0;
+        Retry:
+            List<KeyValuePair<string, string>> requestHeaders = new List<KeyValuePair<string, string>>(1);
+            if (totalContentLength.HasValue)
+            {
+                requestHeaders.Add(new KeyValuePair<string, string>("Range", String.Format("bytes={0}-{1}", streamDownloadInto.Position, totalContentLength.Value - 1)));
+            }
             KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
             {
                 new KeyValuePair<string, string>("Content-Length", null),
-                new KeyValuePair<string, string>("Accept-Ranges", null), // Microsoft
-                new KeyValuePair<string, string>("Access-Control-Allow-Headers", null), // Google
             };
             WebExceptionStatus webStatusCode;
             HttpStatusCode httpStatusCode;
             bool result = DoWebActionGetBinaryOnce(
                 url,
-                null/*requestHeaders*/,
+                requestHeaders.ToArray(),
                 streamDownloadInto,
                 responseHeaders,
                 out webStatusCode,
@@ -1957,101 +2072,64 @@ namespace Backup
                 progressTracker,
                 trace,
                 faultInstanceContext);
-            if (trace != null)
+
+            if ((httpStatusCode == (HttpStatusCode)200) && !totalContentLength.HasValue && (responseHeaders[0].Value != null))
             {
-                trace.WriteLine(" DownloadFileWithResume initial request, result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) [retry={5}]", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, retry);
-            }
-
-            if (!result && ((httpStatusCode == RateLimitStatusCode) || (httpStatusCode == (HttpStatusCode)404) || ((responseHeaders[0].Value == null) && (responseHeaders[1].Value == null) && (responseHeaders[2].Value == null))))
-            {
-                retry++;
-                if (retry <= RetryHelper.MaxRetries)
-                {
-                    RetryHelper.WaitExponentialBackoff(retry, trace);
-                    if (httpStatusCode == RateLimitStatusCode)
-                    {
-                        RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
-                    }
-                    goto Retry1;
-                }
-            }
-
-            if (!result || (responseHeaders[0].Value == null) || (streamDownloadInto.Length != Int64.Parse(responseHeaders[0].Value)))
-            {
-                bool acceptRange = String.Equals(responseHeaders[1].Value, "bytes");
-                bool acceptRange2 = false;
-                if (responseHeaders[2].Value != null)
-                {
-                    string[] acceptedHeaders = responseHeaders[2].Value.Split(new char[] { ',' });
-                    int i = Array.FindIndex(acceptedHeaders, delegate(string candidate) { return String.Equals(candidate.Trim(), "Range"); });
-                    acceptRange2 = i >= 0;
-                }
-                if (acceptRange || acceptRange2)
-                {
-                    long contentLength = Int64.Parse(responseHeaders[0].Value);
-                    long previousLengthSoFar = streamDownloadInto.Length;
-                    retry = 0;
-                    result = false;
-                    while (!result
-                        && (retry <= RetryHelper.MaxRetries)
-                        && (streamDownloadInto.Length < contentLength))
-                    {
-                        // transport error - retry with range
-
-                        retry++;
-                        if (previousLengthSoFar < streamDownloadInto.Length)
-                        {
-                            retry = 0; // if we made progress then reset retry counter
-                        }
-                        else
-                        {
-                            RetryHelper.WaitExponentialBackoff(retry, trace);
-                            if (httpStatusCode == RateLimitStatusCode)
-                            {
-                                RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
-                            }
-                        }
-                        previousLengthSoFar = streamDownloadInto.Length;
-
-                        Debug.Assert(streamDownloadInto.Length == streamDownloadInto.Position);
-
-                        KeyValuePair<string, string>[] requestHeaders = new KeyValuePair<string, string>[]
-                        {
-                            new KeyValuePair<string, string>("Range", String.Format("bytes={0}-{1}", streamDownloadInto.Length, contentLength - 1)),
-                        };
-                        result = DoWebActionGetBinaryOnce(
-                            url,
-                            requestHeaders,
-                            streamDownloadInto,
-                            null,
-                            out webStatusCode,
-                            out httpStatusCode,
-                            progressTracker,
-                            trace,
-                            faultInstanceContext);
-                        if (trace != null)
-                        {
-                            trace.WriteLine(" DownloadFileWithResume ranged request, result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
-                        }
-                    }
-
-                    if (result && (streamDownloadInto.Length == contentLength))
-                    {
-                        if (trace != null)
-                        {
-                            trace.WriteLine("-DownloadFileWithResume returns True");
-                        }
-                        return true;
-                    }
-                }
-
+                totalContentLength = Int64.Parse(responseHeaders[0].Value);
                 if (trace != null)
                 {
-                    trace.WriteLine("-DownloadFileWithResume returns False");
+                    trace.WriteLine("setting totalContentLength to {0}", totalContentLength.Value);
                 }
-                return false;
+            }
+            if (!totalContentLength.HasValue)
+            {
+                streamDownloadInto.Position = 0;
+                streamDownloadInto.SetLength(0); // must restart if received no content length header
+                if (trace != null)
+                {
+                    trace.WriteLine("content length unknown, resetting target stream");
+                }
             }
 
+            if (!result || !totalContentLength.HasValue || (streamDownloadInto.Position != totalContentLength.Value))
+            {
+                if (totalContentLength.HasValue && (streamDownloadInto.Position > totalContentLength.Value))
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-DownloadFileWithResume throws - stream position exceeds content length");
+                    }
+                    throw new InvalidOperationException();
+                }
+
+                retry++;
+                if (previousLengthSoFar < streamDownloadInto.Position)
+                {
+                    retry = 0; // if we made progress then reset retry counter
+                    previousLengthSoFar = streamDownloadInto.Position;
+                }
+                if (retry > RetryHelper.MaxRetries)
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-DownloadFileWithResume returns False");
+                    }
+                    return false;
+                }
+
+                RetryHelper.WaitExponentialBackoff(retry, trace);
+                if (httpStatusCode == RateLimitStatusCode)
+                {
+                    RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
+                }
+
+                goto Retry;
+            }
+
+            if (trace != null)
+            {
+                trace.WriteLine("-DownloadFileWithResume returns True");
+            }
             return true;
         }
     }
@@ -3071,7 +3149,7 @@ namespace Backup
                     out httpStatusCode,
                     accessTokenOverride,
                     trace,
-                    faultInstanceContext);
+                    faultInstanceContext.Select("UploadFile", "1"));
                 if (!result)
                 {
                     if (trace != null)
@@ -3135,7 +3213,7 @@ namespace Backup
                             null/*progressTrackerDownload*/,
                             accessTokenOverride,
                             trace,
-                            faultInstanceContext);
+                            faultInstanceContext.Select("UploadFile", "2a"));
 
                         if (result)
                         {
@@ -3207,7 +3285,7 @@ namespace Backup
                         null/*progressTrackerDownload*/,
                         accessTokenOverride,
                         trace,
-                        faultInstanceContext);
+                        faultInstanceContext.Select("UploadFile", "2b-1"));
 
                     response = Encoding.UTF8.GetString(responseStream.ToArray());
                 }
@@ -3345,7 +3423,7 @@ namespace Backup
                             null/*progressTrackerDownload*/,
                             accessTokenOverride,
                             trace,
-                            faultInstanceContext);
+                            faultInstanceContext.Select("UploadFile", "2b-3"));
                         response = Encoding.UTF8.GetString(responseStream.ToArray());
                     }
 
@@ -3428,32 +3506,19 @@ namespace Backup
 
             WebExceptionStatus webStatusCode;
             HttpStatusCode httpStatusCode;
-            bool result;
-            using (MemoryStream responseBodyDestination = new MemoryStream())
-            {
-                result = DoWebActionWithRetry(
-                    url,
-                    "DELETE",
-                    null/*requestBodySource*/,
-                    responseBodyDestination,
-                    null/*requestHeaders*/,
-                    null/*responseHeadersOut*/,
-                    out webStatusCode,
-                    out httpStatusCode,
-                    null/*progressTracker*/,
-                    null/*accessTokenOverride*/,
-                    trace,
-                    faultInstanceContext);
-
-                if (trace != null)
-                {
-                    // if error occurs, sometimes a response body is provided
-                    if (responseBodyDestination.Length != 0)
-                    {
-                        trace.WriteLine(" non-empty response body: {0}", Logging.ToString(responseBodyDestination));
-                    }
-                }
-            }
+            bool result = DoWebActionWithRetry(
+                url,
+                "DELETE",
+                null/*requestBodySource*/,
+                null/*responseBodyDestination*/,
+                null/*requestHeaders*/,
+                null/*responseHeadersOut*/,
+                out webStatusCode,
+                out httpStatusCode,
+                null/*progressTracker*/,
+                null/*accessTokenOverride*/,
+                trace,
+                faultInstanceContext);
             if (!result)
             {
                 if (trace != null)

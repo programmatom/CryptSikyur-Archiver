@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -12,7 +12,7 @@ test initial setup
 date 2014-01-01
 mkdir archive
 mkdir source0
-call backup -date %DATE% backup source0 archive
+call backup backup source0 archive
 exitcode-verify 0
 mkdir source1
 mkdir source1\a
@@ -33,7 +33,7 @@ list-verify source1
 .          2014-01-04          2014-01-04 -A--Z- b\zero-len.txt [0]
 endlist
 date + 1
-call backup -date %DATE% backup source1 archive
+call backup backup source1 archive
 exitcode-verify 0
 
 test first modification
@@ -62,7 +62,7 @@ list-verify source2
 .          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
 endlist
 date + 1
-call backup -date %DATE% backup source2 archive
+call backup backup source2 archive
 exitcode-verify 0
 
 test second modification
@@ -85,7 +85,7 @@ list-verify source3
 .          2014-01-09          2014-01-09 -A---- c\w.txt [6]
 .          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
 endlist
-call backup -date %DATE% backup source3 archive
+call backup backup source3 archive
 exitcode-verify 0
 
 test third modification
@@ -100,7 +100,7 @@ list-verify source4
 .          2014-01-09          2014-01-09 -A---- c\w.txt [6]
 .          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
 endlist
-call backup -date %DATE% backup source4 archive
+call backup backup source4 archive
 exitcode-verify 0
 
 test fourth modification
@@ -120,26 +120,26 @@ list-verify source5
 .          2014-01-09          2014-01-09 -A---- c\w.txt [6]
 .          2014-01-09          2014-01-09 -A--Z- c\zero-len2.txt [0]
 endlist
-call backup -date %DATE% backup source5 archive
+call backup backup source5 archive
 exitcode-verify 0
 
 test restore all
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify 0
 dirs-equal-verify source1 target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify 0
 dirs-equal-verify source2 target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify 0
 dirs-equal-verify source3 target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify 0
 dirs-equal-verify source4 target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir target0
@@ -151,17 +151,17 @@ rmdir target5
 
 test purge 1
 copy archive archive2
-call backup -date %DATE% purge archive 2014-01-05T00+00+00 2014-01-14T00+00+00
+call backup purge archive 2014-01-05T00+00+00 2014-01-14T00+00+00
 exitcode-verify 0
 
 test restore remaining
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify 0
 dirs-equal-verify source1 target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -169,13 +169,13 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-11T00+00+00" does not exist
 endoutput
 verify-not-exist target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify 0
 dirs-equal-verify source3 target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify 0
 dirs-equal-verify source4 target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir target0
@@ -188,20 +188,20 @@ test purge 2
 rmdir archive
 move archive2 archive
 copy archive archive2
-call backup -date %DATE% purge archive 2014-01-11T00+00+00 2014-01-16T00+00+00
+call backup purge archive 2014-01-11T00+00+00 2014-01-16T00+00+00
 exitcode-verify 0
 
 test restore remaining
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify 0
 dirs-equal-verify source1 target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify 0
 dirs-equal-verify source2 target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -209,10 +209,10 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-14T00+00+00" does not exist
 endoutput
 verify-not-exist target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify 0
 dirs-equal-verify source4 target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir target0
@@ -225,23 +225,23 @@ test purge 3
 rmdir archive
 move archive2 archive
 copy archive archive2
-call backup -date %DATE% purge archive 2014-01-14T00+00+00 2014-01-18T00+00+00
+call backup purge archive 2014-01-14T00+00+00 2014-01-18T00+00+00
 exitcode-verify 0
 
 test restore remaining
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify 0
 dirs-equal-verify source1 target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify 0
 dirs-equal-verify source2 target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify 0
 dirs-equal-verify source3 target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -249,7 +249,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-16T00+00+00" does not exist
 endoutput
 verify-not-exist target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir target0
@@ -262,14 +262,14 @@ test purge 4 (multiple)
 rmdir archive
 move archive2 archive
 copy archive archive2
-call backup -date %DATE% purge archive 2014-01-01T00+00+00 2014-01-14T00+00+00
+call backup purge archive 2014-01-01T00+00+00 2014-01-14T00+00+00
 exitcode-verify 0
 
 test restore remaining
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -277,7 +277,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-05T00+00+00" does not exist
 endoutput
 verify-not-exist target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -285,13 +285,13 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-11T00+00+00" does not exist
 endoutput
 verify-not-exist target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify 0
 dirs-equal-verify source3 target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify 0
 dirs-equal-verify source4 target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir target0
@@ -303,20 +303,20 @@ test purge 5 (multiple)
 rmdir archive
 move archive2 archive
 copy archive archive2
-call backup -date %DATE% purge archive 2014-01-11T00+00+00 2014-01-18T00+00+00
+call backup purge archive 2014-01-11T00+00+00 2014-01-18T00+00+00
 exitcode-verify 0
 
 test restore remaining
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify 0
 dirs-equal-verify source1 target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify 0
 dirs-equal-verify source2 target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -324,7 +324,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-14T00+00+00" does not exist
 endoutput
 verify-not-exist target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -332,7 +332,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-16T00+00+00" does not exist
 endoutput
 verify-not-exist target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir target0
@@ -344,14 +344,14 @@ test purge 6 (maximum)
 rmdir archive
 move archive2 archive
 copy archive archive2
-call backup -date %DATE% purge archive 2014-01-01T00+00+00 2014-01-18T00+00+00
+call backup purge archive 2014-01-01T00+00+00 2014-01-18T00+00+00
 exitcode-verify 0
 
 test restore remaining
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -359,7 +359,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-05T00+00+00" does not exist
 endoutput
 verify-not-exist target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -367,7 +367,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-11T00+00+00" does not exist
 endoutput
 verify-not-exist target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -375,7 +375,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-14T00+00+00" does not exist
 endoutput
 verify-not-exist target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify not 0
 lastoutput-verify -ignoreextralines
 .
@@ -383,7 +383,7 @@ lastoutput-verify -ignoreextralines
 .Archive point "2014-01-16T00+00+00" does not exist
 endoutput
 verify-not-exist target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir target0
@@ -393,22 +393,22 @@ test sanity check - restore all and verify
 rmdir archive
 move archive2 archive
 test restore all
-call backup -date %DATE% restore archive 2014-01-01T00+00+00 target0
+call backup restore archive 2014-01-01T00+00+00 target0
 exitcode-verify 0
 dirs-equal-verify source0 target0
-call backup -date %DATE% restore archive 2014-01-05T00+00+00 target1
+call backup restore archive 2014-01-05T00+00+00 target1
 exitcode-verify 0
 dirs-equal-verify source1 target1
-call backup -date %DATE% restore archive 2014-01-11T00+00+00 target2
+call backup restore archive 2014-01-11T00+00+00 target2
 exitcode-verify 0
 dirs-equal-verify source2 target2
-call backup -date %DATE% restore archive 2014-01-14T00+00+00 target3
+call backup restore archive 2014-01-14T00+00+00 target3
 exitcode-verify 0
 dirs-equal-verify source3 target3
-call backup -date %DATE% restore archive 2014-01-16T00+00+00 target4
+call backup restore archive 2014-01-16T00+00+00 target4
 exitcode-verify 0
 dirs-equal-verify source4 target4
-call backup -date %DATE% restore archive 2014-01-18T00+00+00 target5
+call backup restore archive 2014-01-18T00+00+00 target5
 exitcode-verify 0
 dirs-equal-verify source5 target5
 rmdir source0

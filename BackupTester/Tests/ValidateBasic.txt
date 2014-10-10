@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -13,14 +13,14 @@ date 2014-01-01
 date + 1
 create file1 -size 15728640
 date + 1
-call backup -date %DATE% -encrypt aes256 Pa5sV0Rd copy file1 file1.e
+call backup -encrypt aes256 Pa5sV0Rd copy file1 file1.e
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- file1 [1]
 .          2014-01-02          2014-01-02 -A---- file1.e [2]
 endlist
 # sucessfully validate
-call backup -date %DATE% -decrypt aes256 Pa5sV0Rd validate file1.e
+call backup -decrypt aes256 Pa5sV0Rd validate file1.e
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .valid   %WORKSPACE%\file1.e
@@ -33,19 +33,19 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- file1.e [2]
 .          2014-01-02          2014-01-03 -A---- file2.e [3]
 endlist
-call backup -date %DATE% -decrypt aes256 Pa5sV0Rd validate file2.e
+call backup -decrypt aes256 Pa5sV0Rd validate file2.e
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .INVALID %WORKSPACE%\file2.e
 endoutput
 # use wrong password
-call backup -date %DATE% -decrypt aes256 5w0rDP15h validate file1.e
+call backup -decrypt aes256 5w0rDP15h validate file1.e
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .INVALID %WORKSPACE%\file1.e
 endoutput
 # fail on unencrypted file
-call backup -date %DATE% -decrypt aes256 Pa5sV0Rd validate file1
+call backup -decrypt aes256 Pa5sV0Rd validate file1
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .INVALID %WORKSPACE%\file1
@@ -64,7 +64,7 @@ create source\b -size 10100
 date + 1
 create source\c -size 11210
 date + 1
-call backup -date %DATE% -encrypt aes256 Pa55w0rD pack source archive.pack
+call backup -encrypt aes256 Pa55w0rD pack source archive.pack
 exitcode-verify 0
 list-verify .
 .          2014-01-05          2014-01-05 -A---- archive.pack [1]
@@ -74,14 +74,14 @@ list-verify .
 .          2014-01-04          2014-01-04 -A---- source\c [4]
 endlist
 # sucessfully validate
-call backup -date %DATE% -decrypt aes256 Pa55w0rD validate archive.pack
+call backup -decrypt aes256 Pa55w0rD validate archive.pack
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .valid   %WORKSPACE%\archive.pack
 endoutput
 # fail on corrupted file
 invert-range archive.pack 10000 1
-call backup -date %DATE% -decrypt aes256 Pa55w0rD validate archive.pack
+call backup -decrypt aes256 Pa55w0rD validate archive.pack
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .INVALID %WORKSPACE%\archive.pack
@@ -130,7 +130,7 @@ list-verify .
 .          2014-01-09          2014-01-09 -A---- source\c\t [8]
 .          2014-01-10          2014-01-10 -A---- source\c\v [9]
 endlist
-call backup -date %DATE% -encrypt aes256 pVSsw01d dynpack source archive 30000 -verify
+call backup -encrypt aes256 pVSsw01d dynpack source archive 30000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-11          2014-01-11 -A---- archive.0.dynpack [10]
@@ -153,7 +153,7 @@ list-verify .
 endlist
 
 test verify with wildcards
-call backup -date %DATE% -decrypt aes256 pVSsw01d validate archive.*.dynpack
+call backup -decrypt aes256 pVSsw01d validate archive.*.dynpack
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .valid   %WORKSPACE%\archive.0.dynpack
@@ -165,7 +165,7 @@ endoutput
 test verify mixed results
 invert-range archive.a.dynpack 10000 1
 invert-range archive.m.dynpack 10000 1
-call backup -date %DATE% -decrypt aes256 pVSsw01d validate archive.*.dynpack
+call backup -decrypt aes256 pVSsw01d validate archive.*.dynpack
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .valid   %WORKSPACE%\archive.0.dynpack
@@ -181,7 +181,7 @@ test null test
 date 2014-01-01
 mkdir source
 mkdir archive
-call backup -date %DATE% -encrypt aes256 pA5sW1oD backup source archive
+call backup -encrypt aes256 pA5sW1oD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -191,12 +191,12 @@ list-verify .
 endlist
 
 test validate empty archive
-call backup -date %DATE% -decrypt aes256 pA5sW1oD validate archive
+call backup -decrypt aes256 pA5sW1oD validate archive
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .valid   %WORKSPACE%\archive\check.bin
 endoutput
-call backup -date %DATE% -decrypt aes256 pA5sW1oD validate archive\2014-01-01T00+00+00
+call backup -decrypt aes256 pA5sW1oD validate archive\2014-01-01T00+00+00
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 endoutput
@@ -206,7 +206,7 @@ date + 1
 create source\test.txt -size 10000
 qlist .
 date + 1
-call backup -date %DATE% -encrypt aes256 pA5sW1oD backup source archive
+call backup -encrypt aes256 pA5sW1oD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -223,7 +223,7 @@ date + 1
 edit source\test.txt -size 10000
 qlist .
 date + 1
-call backup -date %DATE% -encrypt aes256 pA5sW1oD backup source archive
+call backup -encrypt aes256 pA5sW1oD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -239,7 +239,7 @@ endlist
 
 test carry forward
 date + 1
-call backup -date %DATE% -encrypt aes256 pA5sW1oD backup source archive
+call backup -encrypt aes256 pA5sW1oD backup source archive
 exitcode-verify 0
 list-verify .
 .                                         -----D archive\
@@ -256,7 +256,7 @@ list-verify .
 endlist
 
 test validate archive successfully
-call backup -date %DATE% -decrypt aes256 pA5sW1oD validate archive
+call backup -decrypt aes256 pA5sW1oD validate archive
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .valid   %WORKSPACE%\archive\2014-01-03T00+00+00\test.txt
@@ -267,7 +267,7 @@ endoutput
 
 test validate archive with corruption
 invert-range archive\2014-01-03T00+00+00\test.txt 5000 1
-call backup -date %DATE% -decrypt aes256 pA5sW1oD validate archive
+call backup -decrypt aes256 pA5sW1oD validate archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .INVALID %WORKSPACE%\archive\2014-01-03T00+00+00\test.txt

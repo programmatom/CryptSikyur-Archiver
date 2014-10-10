@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -17,7 +17,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
-call backup -date %DATE% dynpack source archive 100000 -nosplitlargefiles -verify
+call backup dynpack source archive 100000 -nosplitlargefiles -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         151 archive.0.dynpack [2]
@@ -25,7 +25,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         151 archive.0.dynpack [2]
@@ -39,7 +39,7 @@ rmdir target1
 
 test no change
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -nosplitlargefiles -verify
+call backup dynpack source archive 100000 -nosplitlargefiles -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         151 archive.0.dynpack [4]
@@ -47,7 +47,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         151 archive.0.dynpack [4]
@@ -64,7 +64,7 @@ date + 1
 edit source\large.txt -size 450000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -nosplitlargefiles -verify
+call backup dynpack source archive 100000 -nosplitlargefiles -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-05 -A----         151 archive.0.dynpack [6]
@@ -72,7 +72,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-04 -A----      450000 source\large.txt [5]
 endlist
-call backup -date %DATE% dynunpack archive target3
+call backup dynunpack archive target3
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-05 -A----         151 archive.0.dynpack [6]
@@ -96,7 +96,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         658 archive.0.dynpack [2]
@@ -108,7 +108,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         658 archive.0.dynpack [2]
@@ -127,7 +127,7 @@ rmdir target1
 test force recreate one segment
 date + 1
 delete archive.a.dynpack
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         658 archive.0.dynpack [8]
@@ -139,7 +139,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         658 archive.0.dynpack [8]
@@ -160,7 +160,7 @@ date + 1
 edit source\large.txt -size 350000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-05 -A----         538 archive.0.dynpack [11]
@@ -171,7 +171,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-04 -A----      350000 source\large.txt [10]
 endlist
-call backup -date %DATE% dynunpack archive target3
+call backup dynunpack archive target3
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-05 -A----         538 archive.0.dynpack [11]
@@ -191,7 +191,7 @@ date + 1
 edit source\large.txt -size 50000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-07 -A----         152 archive.0.dynpack [17]
@@ -199,7 +199,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-06 -A----       50000 source\large.txt [16]
 endlist
-call backup -date %DATE% dynunpack archive target4
+call backup dynunpack archive target4
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-07 -A----         152 archive.0.dynpack [17]
@@ -216,7 +216,7 @@ date + 1
 edit source\large.txt -size 150000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-09 -A----         291 archive.0.dynpack [20]
@@ -225,7 +225,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-02          2014-01-08 -A----      150000 source\large.txt [19]
 endlist
-call backup -date %DATE% dynunpack archive target5
+call backup dynunpack archive target5
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-09 -A----         291 archive.0.dynpack [20]
@@ -247,7 +247,7 @@ mkdir source
 create source\not-so-large -size 500000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         154 archive.0.dynpack [2]
@@ -255,7 +255,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\not-so-large [1]
 endlist
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         154 archive.0.dynpack [2]
@@ -268,7 +268,7 @@ endlist
 rmdir target1
 # rerun with unchanged file data, but with lower threshhold
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         154 archive.0.dynpack [4]
@@ -276,7 +276,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\not-so-large [1]
 endlist
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         154 archive.0.dynpack [4]
@@ -295,7 +295,7 @@ mkdir source
 create source\large -size 500000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         756 archive.0.dynpack [2]
@@ -308,7 +308,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\large [1]
 endlist
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-02 -A----         756 archive.0.dynpack [2]
@@ -326,7 +326,7 @@ endlist
 rmdir target1
 # rerun with unchanged file data, but with higher threshhold
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         756 archive.0.dynpack [9]
@@ -339,7 +339,7 @@ list-verify . -sizes
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\large [1]
 endlist
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-02          2014-01-03 -A----         756 archive.0.dynpack [9]
@@ -376,7 +376,7 @@ date + 1
 touch source\z -modified
 date + 1
 qlist .
-call backup -date %DATE% dynpack source archive 510000 -verify
+call backup dynpack source archive 510000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-08 -A----         340 archive.0.dynpack [4]
@@ -389,7 +389,7 @@ list-verify . -sizes
 .          2014-01-06          2014-01-07 -A----       90000 source\z [3]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-08 -A----         340 archive.0.dynpack [4]
@@ -408,7 +408,7 @@ endlist
 rmdir target1
 # rerun with unchanged file data, but with lower threshhold
 date + 1
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-10 -A----         340 archive.0.dynpack [8]
@@ -421,7 +421,7 @@ list-verify . -sizes
 .          2014-01-06          2014-01-07 -A----       90000 source\z [3]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-10 -A----         340 archive.0.dynpack [8]
@@ -457,7 +457,7 @@ date + 1
 touch source\z -modified
 date + 1
 qlist .
-call backup -date %DATE% dynpack source archive 100000 -verify
+call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-08 -A----         924 archive.0.dynpack [4]
@@ -474,7 +474,7 @@ list-verify . -sizes
 .          2014-01-06          2014-01-07 -A----        1000 source\z [3]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-08 -A----         924 archive.0.dynpack [4]
@@ -497,7 +497,7 @@ endlist
 rmdir target1
 # rerun with unchanged file data, but with higher threshhold
 date + 1
-call backup -date %DATE% dynpack source archive 1000000 -verify
+call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-10 -A----         924 archive.0.dynpack [12]
@@ -514,7 +514,7 @@ list-verify . -sizes
 .          2014-01-06          2014-01-07 -A----        1000 source\z [3]
 endlist
 date + 1
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
 .          2014-01-08          2014-01-10 -A----         924 archive.0.dynpack [12]
@@ -549,9 +549,9 @@ create source\02-medium -size 3000000
 create source\03-small -size 1000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 10000000
+call backup dynpack source archive 10000000
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- archive.0.dynpack [5]
@@ -570,7 +570,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- target1\03-small [4]
 endlist
 rmdir target1
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 4\; SIGNATURE\: .*$
@@ -585,9 +585,9 @@ endoutput
 
 test drop target size, expected no change
 date + 1
-call backup -date %DATE% dynpack source archive 5000000
+call backup dynpack source archive 5000000
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
@@ -606,7 +606,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- target2\03-small [4]
 endlist
 rmdir target2
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 5\; SIGNATURE\: .*$
@@ -622,9 +622,9 @@ endoutput
 test drop target size and delete segment, expected splitting
 date + 1
 delete archive.m.dynpack
-call backup -date %DATE% dynpack source archive 5000000
+call backup dynpack source archive 5000000
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target3
+call backup dynunpack archive target3
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-04 -A---- archive.0.dynpack [10]
@@ -644,7 +644,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- target3\03-small [4]
 endlist
 rmdir target3
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 8\; SIGNATURE\: .*$
@@ -678,9 +678,9 @@ create source\06-medium3 -size 4500000
 create source\07-medium4 -size 4500000
 qlist .
 date + 1
-call backup -date %DATE% dynpack source archive 10000000
+call backup dynpack source archive 10000000
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target1
+call backup dynunpack archive target1
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- archive.0.dynpack [9]
@@ -707,7 +707,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- target1\07-medium4 [8]
 endlist
 rmdir target1
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 4\; SIGNATURE\: .*$
@@ -726,9 +726,9 @@ endoutput
 
 test drop target size, expected no change
 date + 1
-call backup -date %DATE% dynpack source archive 5000000
+call backup dynpack source archive 5000000
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target2
+call backup dynunpack archive target2
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-03 -A---- archive.0.dynpack [13]
@@ -755,7 +755,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- target2\07-medium4 [8]
 endlist
 rmdir target2
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 5\; SIGNATURE\: .*$
@@ -775,9 +775,9 @@ endoutput
 test drop target size and delete segment, expected splitting
 date + 1
 delete archive.m.dynpack
-call backup -date %DATE% dynpack source archive 5000000
+call backup dynpack source archive 5000000
 exitcode-verify 0
-call backup -date %DATE% dynunpack archive target3
+call backup dynunpack archive target3
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-04 -A---- archive.0.dynpack [14]
@@ -805,7 +805,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- target3\07-medium4 [8]
 endlist
 rmdir target3
-call backup -date %DATE% dumppack archive.0.dynpack
+call backup dumppack archive.0.dynpack
 exitcode-verify 0
 lastoutput-verify
 *SERIAL\: 8\; SIGNATURE\: .*$

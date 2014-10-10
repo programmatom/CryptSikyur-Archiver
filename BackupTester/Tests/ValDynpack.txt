@@ -1,4 +1,4 @@
-command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
 #opencover backup
 
 date-format yyyy-MM-dd
@@ -15,17 +15,17 @@ date + 1
 list-verify .
 .                                         -----D source\
 endlist
-call backup -date %DATE% -encrypt aes256 pAs5W0rD dynpack source archive 1000000 -verify
+call backup -encrypt aes256 pAs5W0rD dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify .
 .          2014-01-02          2014-01-02 -A---- archive.0.dynpack [1]
 .                                         -----D source\
 endlist
-call backup -date %DATE% -decrypt aes256 pAs5W0rD valdynpack archive
+call backup -decrypt aes256 pAs5W0rD valdynpack archive
 exitcode-verify 0
 # fake segment file - should fail cryptographic authentication
 create archive.a.dynpack -size 10000
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pAs5W0rD valdynpack archive
+call backup -concurrency 0 -decrypt aes256 pAs5W0rD valdynpack archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
@@ -36,9 +36,9 @@ endoutput
 # subsequent tests in this file inject/substitute segments in a way
 # that tests validation of serial number, signature, MAC, etc.
 #delete archive.a.dynpack
-#call backup -date %DATE% -encrypt aes256 pAs5W0rD pack source archive.a.dynpack
+#call backup -encrypt aes256 pAs5W0rD pack source archive.a.dynpack
 #exitcode-verify 0
-#call backup -concurrency 0 -date %DATE% -decrypt aes256 pAs5W0rD valdynpack archive
+#call backup -concurrency 0 -decrypt aes256 pAs5W0rD valdynpack archive
 #exitcode-verify not 0
 #lastoutput-verify -workspacepathhack
 #.Segment a: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!
@@ -67,7 +67,7 @@ create source\k -size 9800
 create source\l -size 9800
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive 35000 -verify
+call backup -encrypt aes256 pASsw0Rd dynpack source archive 35000 -verify
 exitcode-verify 0
 # save old copy
 mkdir old
@@ -104,12 +104,12 @@ list-verify .
 endlist
 
 test successful validation of basic multisegment archive
-call backup -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify 0
 
 test validate old with missing file
 delete archive.m.dynpack
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
@@ -118,7 +118,7 @@ lastoutput-verify -workspacepathhack
 endoutput
 copy old\archive.m.dynpack archive.m.dynpack
 # sanity check - successful validation
-call backup -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify 0
 
 test create updated version of archive
@@ -137,7 +137,7 @@ edit source\k -size 9800
 edit source\l -size 9800
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive 35000 -verify
+call backup -encrypt aes256 pASsw0Rd dynpack source archive 35000 -verify
 exitcode-verify 0
 # save new copy
 mkdir new
@@ -180,13 +180,13 @@ list-verify .
 endlist
 
 test successful validation of updated archive
-call backup -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify 0
 
 test validate detect rollback of file
 delete archive.g.dynpack
 copy old\archive.g.dynpack archive.g.dynpack
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify not 0
 # not exactly an elegant way of reporting the error
 lastoutput-verify -workspacepathhack
@@ -200,7 +200,7 @@ copy new\archive.g.dynpack archive.g.dynpack
 test validate detect rollback of manifest
 delete archive.0.dynpack
 copy old\archive.0.dynpack archive.0.dynpack
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
@@ -232,11 +232,11 @@ copy old\archive.g.dynpack archive.g.dynpack
 copy old\archive.m.dynpack archive.m.dynpack
 copy old\archive.s.dynpack archive.s.dynpack
 # sanity check - successful validation
-call backup -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify 0
 delete archive.a.dynpack
 copy new\archive.a.dynpack archive.a.dynpack
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
@@ -249,11 +249,11 @@ copy old\archive.a.dynpack archive.a.dynpack
 
 test validate roll-forward of manifest file
 # sanity check - successful validation
-call backup -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify 0
 delete archive.0.dynpack
 copy new\archive.0.dynpack archive.0.dynpack
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd valdynpack archive
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
@@ -285,10 +285,10 @@ create source\h -size 9800
 create source\i -size 9800
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive1 35000 -verify
+call backup -encrypt aes256 pASsw0Rd dynpack source archive1 35000 -verify
 exitcode-verify 0
 # sanity check - successful validation
-call backup -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive1
+call backup -decrypt aes256 pASsw0Rd valdynpack archive1
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive1.0.dynpack [10]
@@ -322,10 +322,10 @@ create source\h -size 9800
 create source\i -size 9800
 date + 1
 qlist .
-call backup -date %DATE% -encrypt aes256 pASsw0Rd dynpack source archive2 35000 -verify
+call backup -encrypt aes256 pASsw0Rd dynpack source archive2 35000 -verify
 exitcode-verify 0
 # sanity check - successful validation
-call backup -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive1
+call backup -decrypt aes256 pASsw0Rd valdynpack archive1
 exitcode-verify 0
 list-verify .
 .          2014-01-03          2014-01-03 -A---- archive1.0.dynpack [10]
@@ -373,13 +373,13 @@ list-verify .
 .          2014-01-04          2014-01-04 -A---- source\i [22]
 endlist
 # this validation should reject the cross-substituted file
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd valdynpack archive1
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd valdynpack archive1
 exitcode-verify not 0
 lastoutput-verify
 .Reading archive1.0.dynpack
 .Segment m: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!
 endoutput
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd dynunpack archive1 target1
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd dynunpack archive1 target1
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive1.0.dynpack
@@ -414,7 +414,7 @@ list-verify .
 .          2014-01-02          2014-01-02 -A---- target1\c [3]
 endlist
 rmdir target1
-call backup -concurrency 0 -date %DATE% -decrypt aes256 pASsw0Rd -nomacprevalidate dynunpack archive1 target2
+call backup -concurrency 0 -decrypt aes256 pASsw0Rd -nomacprevalidate dynunpack archive1 target2
 exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Reading archive1.0.dynpack

@@ -36,6 +36,7 @@ namespace Backup
     //
     ////////////////////////////////////////////////////////////////////////////
 
+#if false
     // A pass-through stream that is completely transparent except that it refuses
     // to Close() the underlying stream - used as a work-around for framework-provided
     // streams that always close the underlying even when not desired (e.g. CryptoStream)
@@ -94,6 +95,7 @@ namespace Backup
             inner.Write(buffer, offset, count);
         }
     }
+#endif
 
     public interface ICheckValueGenerator : IDisposable
     {
