@@ -10,15 +10,12 @@ module one file
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -33,12 +30,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\a [1]
@@ -56,12 +49,8 @@ list-verify a
 .          2014-01-02          2014-01-02 -A---- y\a [1]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-04 -A---- x\a [2]
@@ -78,12 +67,8 @@ list-verify a
 .          2014-01-02          2014-01-04 -A---- y\a [2]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -98,12 +83,8 @@ list-verify a
 .          2014-01-08          2014-01-08 -A---- y\b [3]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-08          2014-01-08 -A---- x\b [3]
@@ -121,12 +102,8 @@ list-verify a
 .          2014-01-08          2014-01-10 -A---- y\b [4]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-08          2014-01-10 -A---- x\b [4]
@@ -143,12 +120,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -159,15 +132,12 @@ module one directory
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -182,12 +152,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -204,12 +170,8 @@ list-verify a
 .                                         -----D y\m\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -224,12 +186,8 @@ list-verify a
 .                                         -----D y\n\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\n\
@@ -246,12 +204,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -262,15 +216,12 @@ module file/directory disambiguation - left
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -285,12 +236,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\a [1]
@@ -309,12 +256,8 @@ list-verify a
 .          2014-01-02          2014-01-02 -A---- y\a [1]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -331,12 +274,8 @@ list-verify a
 .                                         -----D y\
 .                                         -----D y\a\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -358,12 +297,8 @@ list-verify a
 .          2014-01-05          2014-01-05 -A---- y\a\foo [2]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-06          2014-01-06 -A---- x\a [3]
@@ -376,15 +311,12 @@ module file/directory disambiguation - right
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -399,12 +331,8 @@ list-verify a
 .          2014-01-02          2014-01-02 -A---- y\a [1]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\a [1]
@@ -423,12 +351,8 @@ list-verify a
 .                                         -----D y\a\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -445,12 +369,8 @@ list-verify a
 .                                         -----D y\a\
 .          2014-01-05          2014-01-05 -A---- y\a\foo [2]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -472,12 +392,8 @@ list-verify a
 .          2014-01-06          2014-01-06 -A---- y\a [3]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-06          2014-01-06 -A---- x\a [3]
@@ -490,15 +406,12 @@ module multiple files
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -516,12 +429,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\c [1]
@@ -551,12 +460,8 @@ list-verify a
 .          2014-01-03          2014-01-03 -A---- y\f [2]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-05          2014-01-05 -A---- x\b [3]
@@ -598,12 +503,8 @@ list-verify a
 .          2014-01-12          2014-01-12 -A---- y\h [8]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-10          2014-01-10 -A---- x\a [6]
@@ -645,12 +546,8 @@ list-verify a
 .          2014-01-12          2014-01-12 -A---- y\h [8]
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-15          2014-01-15 -A---- x\b [9]
@@ -674,15 +571,12 @@ module merge conflicts - create both sides
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -701,9 +595,7 @@ endlist
 
 test ignore
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -717,8 +609,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff (Shift-W to reverse)
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\m [1]
@@ -728,9 +618,7 @@ endlist
 date + 1
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -745,8 +633,6 @@ lastoutput-verify -workspacepathhack
 .L: keep "%WORKSPACE%\a\x\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\m [1]
@@ -755,17 +641,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\m [1]
@@ -776,12 +658,8 @@ endlist
 test resetup
 delete a\x\m
 delete a\y\m
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -799,9 +677,7 @@ list-verify a
 endlist
 
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 endinput
 exitcode-verify 0
@@ -816,8 +692,6 @@ lastoutput-verify -workspacepathhack
 .R: keep "%WORKSPACE%\a\y\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-08          2014-01-08 -A---- x\m [4]
@@ -826,17 +700,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-08          2014-01-08 -A---- x\m [4]
@@ -849,17 +719,14 @@ module merge conflict - modify both sides
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-01 -A---- x\m [1]
@@ -878,9 +745,7 @@ list-verify a
 .                                         -----D y\
 .          2014-01-01          2014-01-02 -A---- y\m [3]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -894,8 +759,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff (Shift-W to reverse)
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-03 -A---- x\m [2]
@@ -905,9 +768,7 @@ endlist
 date + 1
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -922,8 +783,6 @@ lastoutput-verify -workspacepathhack
 .L: keep "%WORKSPACE%\a\x\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-03 -A---- x\m [2]
@@ -932,17 +791,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-03 -A---- x\m [2]
@@ -953,12 +808,8 @@ endlist
 test resetup
 delete a\x\m
 delete a\y\m
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -971,12 +822,8 @@ list-verify a
 .          2014-01-06          2014-01-06 -A---- x\m [4]
 .                                         -----D y\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-06          2014-01-06 -A---- x\m [4]
@@ -996,9 +843,7 @@ list-verify a
 endlist
 
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 endinput
 exitcode-verify 0
@@ -1013,8 +858,6 @@ lastoutput-verify -workspacepathhack
 .R: keep "%WORKSPACE%\a\y\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-06          2014-01-08 -A---- x\m [6]
@@ -1023,17 +866,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-06          2014-01-08 -A---- x\m [6]
@@ -1046,17 +885,14 @@ module merge conflict - modify left, delete right
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-01 -A---- x\m [1]
@@ -1074,9 +910,7 @@ list-verify a
 .                                         -----D y\
 endlist
 # BUGBUG - ignore does not keep conflict
-#move s\x\sync.txt a\x\sync.txt
-#move s\y\sync.txt a\y\sync.txt
-#call-with-input backup sync a\x a\y
+#call-with-input backup sync a\x a\y s
 #.i
 #endinput
 #exitcode-verify 0
@@ -1090,8 +924,6 @@ endlist
 #.  W: windiff
 #.
 #endoutput
-#move a\x\sync.txt s\x\sync.txt
-#move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-02 -A---- x\m [2]
@@ -1099,9 +931,7 @@ list-verify a
 endlist
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -1116,8 +946,6 @@ lastoutput-verify -workspacepathhack
 .L: keep "%WORKSPACE%\a\x\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-02 -A---- x\m [2]
@@ -1126,17 +954,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-02 -A---- x\m [2]
@@ -1147,12 +971,8 @@ endlist
 test resetup
 delete a\x\m
 delete a\y\m
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1164,12 +984,8 @@ list-verify a
 .          2014-01-04          2014-01-04 -A---- x\m [3]
 .                                         -----D y\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-04 -A---- x\m [3]
@@ -1186,9 +1002,7 @@ list-verify a
 endlist
 
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 endinput
 exitcode-verify 0
@@ -1203,25 +1017,19 @@ lastoutput-verify -workspacepathhack
 .R: delete "%WORKSPACE%\a\x\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1232,17 +1040,14 @@ module merge conflict - delete left, modify right
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-01 -A---- x\m [1]
@@ -1260,9 +1065,7 @@ list-verify a
 .          2014-01-01          2014-01-02 -A---- y\m [2]
 endlist
 # BUGBUG - ignore does not keep conflict
-#move s\x\sync.txt a\x\sync.txt
-#move s\y\sync.txt a\y\sync.txt
-#call-with-input backup sync a\x a\y
+#call-with-input backup sync a\x a\y s
 #.i
 #endinput
 #exitcode-verify 0
@@ -1276,8 +1079,6 @@ endlist
 #.  W: windiff
 #.
 #endoutput
-#move a\x\sync.txt s\x\sync.txt
-#move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1285,9 +1086,7 @@ list-verify a
 endlist
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -1302,25 +1101,19 @@ lastoutput-verify -workspacepathhack
 .L: delete "%WORKSPACE%\a\y\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1329,12 +1122,8 @@ endlist
 test resetup
 delete a\x\m
 delete a\y\m
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1346,12 +1135,8 @@ list-verify a
 .          2014-01-04          2014-01-04 -A---- x\m [3]
 .                                         -----D y\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-04 -A---- x\m [3]
@@ -1368,9 +1153,7 @@ list-verify a
 endlist
 
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 endinput
 exitcode-verify 0
@@ -1385,8 +1168,6 @@ lastoutput-verify -workspacepathhack
 .R: keep "%WORKSPACE%\a\y\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-05 -A---- x\m [4]
@@ -1395,17 +1176,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-05 -A---- x\m [4]
@@ -1418,17 +1195,14 @@ module merge conflict - modify left, replace with directory right
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-01 -A---- x\m [1]
@@ -1447,9 +1221,7 @@ list-verify a
 .                                         -----D y\
 .                                         -----D y\m\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -1463,8 +1235,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff (Shift-W to reverse)
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-02 -A---- x\m [2]
@@ -1473,9 +1243,7 @@ list-verify a
 endlist
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -1490,8 +1258,6 @@ lastoutput-verify -workspacepathhack
 .L: keep "%WORKSPACE%\a\x\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-02 -A---- x\m [2]
@@ -1500,17 +1266,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-02 -A---- x\m [2]
@@ -1521,12 +1283,8 @@ endlist
 test resetup
 delete a\x\m
 delete a\y\m
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1538,12 +1296,8 @@ list-verify a
 .          2014-01-04          2014-01-04 -A---- x\m [3]
 .                                         -----D y\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-04 -A---- x\m [3]
@@ -1562,9 +1316,7 @@ list-verify a
 endlist
 
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 endinput
 exitcode-verify 0
@@ -1579,8 +1331,6 @@ lastoutput-verify -workspacepathhack
 .R: keep "%WORKSPACE%\a\y\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -1589,18 +1339,14 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .m
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -1613,17 +1359,14 @@ module merge conflict - replace with directory left, modify right
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 create a\x\m
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-01          2014-01-01 -A---- x\m [1]
@@ -1642,9 +1385,7 @@ list-verify a
 .                                         -----D y\
 .          2014-01-01          2014-01-02 -A---- y\m [2]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -1659,8 +1400,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff (Shift-W to reverse)
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -1669,9 +1408,7 @@ list-verify a
 endlist
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -1687,8 +1424,6 @@ lastoutput-verify -workspacepathhack
 .L: keep "%WORKSPACE%\a\x\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -1697,18 +1432,14 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .m
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -1719,12 +1450,8 @@ endlist
 test resetup
 rmdir a\x\m
 rmdir a\y\m
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1736,12 +1463,8 @@ list-verify a
 .          2014-01-04          2014-01-04 -A---- x\m [3]
 .                                         -----D y\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-04 -A---- x\m [3]
@@ -1760,9 +1483,7 @@ list-verify a
 endlist
 
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 endinput
 exitcode-verify 0
@@ -1778,8 +1499,6 @@ lastoutput-verify -workspacepathhack
 .R: keep "%WORKSPACE%\a\y\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-05 -A---- x\m [4]
@@ -1788,17 +1507,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-04          2014-01-05 -A---- x\m [4]
@@ -1811,18 +1526,15 @@ module merge conflict - replace left directory with file, modify right directory
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 mkdir a\x\d
 create a\x\d\m
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -1845,9 +1557,7 @@ list-verify a
 .                                         -----D y\d\
 .          2014-01-01          2014-01-02 -A---- y\d\m [3]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -1861,8 +1571,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff (Shift-W to reverse)
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-03          2014-01-03 -A---- x\d [2]
@@ -1872,9 +1580,7 @@ list-verify a
 endlist
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -1889,8 +1595,6 @@ lastoutput-verify -workspacepathhack
 .L: keep "%WORKSPACE%\a\x\d"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-03          2014-01-03 -A---- x\d [2]
@@ -1899,17 +1603,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-03          2014-01-03 -A---- x\d [2]
@@ -1920,12 +1620,8 @@ endlist
 test resetup
 delete a\x\d
 delete a\y\d
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -1939,12 +1635,8 @@ list-verify a
 .          2014-01-04          2014-01-04 -A---- x\d\m [4]
 .                                         -----D y\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -1968,9 +1660,7 @@ endlist
 
 # BUGBUG - shouldn't have to resolve items in subdirectory after top-level decision
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 .r
 endinput
@@ -1994,8 +1684,6 @@ lastoutput-verify -workspacepathhack
 .R: keep "%WORKSPACE%\a\y\d\m"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2006,18 +1694,14 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .d
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2032,18 +1716,15 @@ module merge conflict - modify left directory content, replace right directory w
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 mkdir a\x\d
 create a\x\d\m
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2066,9 +1747,7 @@ list-verify a
 .                                         -----D y\
 .          2014-01-03          2014-01-03 -A---- y\d [3]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -2083,8 +1762,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff (Shift-W to reverse)
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2094,9 +1771,7 @@ list-verify a
 endlist
 
 test select left
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .l
 endinput
 exitcode-verify 0
@@ -2112,8 +1787,6 @@ lastoutput-verify -workspacepathhack
 .L: keep "%WORKSPACE%\a\x\d"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2124,18 +1797,14 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .d
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2148,12 +1817,8 @@ endlist
 test resetup
 rmdir a\x\d
 rmdir a\y\d
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -2167,12 +1832,8 @@ list-verify a
 .          2014-01-04          2014-01-04 -A---- x\d\m [4]
 .                                         -----D y\
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2196,9 +1857,7 @@ endlist
 
 # BUGBUG - shouldn't have to resolve items in subdirectory after top-level decision
 test select right
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 endinput
 exitcode-verify 0
@@ -2214,8 +1873,6 @@ lastoutput-verify -workspacepathhack
 .R: keep "%WORKSPACE%\a\y\d"
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-06          2014-01-06 -A---- x\d [6]
@@ -2224,17 +1881,13 @@ list-verify a
 endlist
 
 test verify conflict cleared
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
 timeout 30
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .
 endoutput
 timeout none
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-06          2014-01-06 -A---- x\d [6]
@@ -2263,10 +1916,8 @@ create a\x\d\h.txt
 date + 1
 create a\x\i.txt
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2306,9 +1957,7 @@ list-verify a
 .                                         -----D y\
 .          2014-01-05          2014-01-05 -A---- y\i.txt [4]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -2323,8 +1972,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2342,8 +1989,7 @@ module merge conflict - delete left directory, modify right directory content
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
@@ -2358,10 +2004,8 @@ create a\x\d\h.txt
 date + 1
 create a\x\i.txt
 date + 1
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\d\
@@ -2401,9 +2045,7 @@ list-verify a
 .          2014-01-04          2014-01-09 -A---- y\d\h.txt [7]
 .          2014-01-05          2014-01-10 -A---- y\i.txt [8]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .i
 endinput
 exitcode-verify 0
@@ -2418,8 +2060,6 @@ lastoutput-verify -workspacepathhack
 .  W: windiff
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-05          2014-01-10 -A---- x\i.txt [8]
@@ -2437,15 +2077,12 @@ module directory delete failure due to file read-only
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -2473,12 +2110,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -2509,12 +2142,8 @@ list-verify a
 .          2014-01-04          2014-01-04 -A---- y\m\c.txt [3]
 .          2014-01-05          2014-01-08 -A---- y\n.txt [5]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-05          2014-01-08 -A---- x\n.txt [5]
@@ -2527,15 +2156,12 @@ module directory delete failure due to file in use
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -2562,12 +2188,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -2600,9 +2222,7 @@ list-verify a
 endlist
 open a\y\m\b.txt wx
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call-with-input backup sync a\x a\y
+call-with-input backup sync a\x a\y s
 .r
 .c
 .c
@@ -2626,8 +2246,6 @@ lastoutput-verify -workspacepathhack
 .
 .
 endoutput
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 close-all
 list-verify a
 .                                         -----D x\

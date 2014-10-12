@@ -10,15 +10,12 @@ module excluded directories
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -59,12 +56,8 @@ list-verify a
 .                                         -----D y\
 endlist
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -exclude m -exclude n
+call backup sync a\x a\y s -exclude m -exclude n
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -116,12 +109,8 @@ list-verify a
 .          2014-01-07          2014-01-07 -A---- y\o\six.txt [5]
 .          2014-01-02          2014-01-02 -A---- y\one.txt [6]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -exclude m\t -exclude n
+call backup sync a\x a\y s -exclude m\t -exclude n
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -147,12 +136,8 @@ endlist
 
 test sync all
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -220,12 +205,8 @@ list-verify a
 .          2014-01-07          2014-01-15 -A---- y\o\six.txt [11]
 .          2014-01-02          2014-01-10 -A---- y\one.txt [12]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -exclude m\t -exclude n
+call backup sync a\x a\y s -exclude m\t -exclude n
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -293,12 +274,8 @@ list-verify a
 .          2014-01-07          2014-01-30 -A---- y\o\six.txt [23]
 .          2014-01-02          2014-01-25 -A---- y\one.txt [24]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -exclude m\t -exclude n
+call backup sync a\x a\y s -exclude m\t -exclude n
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -352,12 +329,8 @@ list-verify a
 .          2014-01-07          2014-01-30 -A---- y\o\six.txt [23]
 .          2014-01-02          2014-01-25 -A---- y\one.txt [24]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -390,15 +363,12 @@ module skipped extensions
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -436,12 +406,8 @@ date + 1
 qlist .
 
 test sync, excluding all actual (l2r)
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .foo -skip .bar -skip .txt
+call backup sync a\x a\y s -skip .foo -skip .bar -skip .txt
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -466,12 +432,8 @@ list-verify a
 endlist
 
 test sync, enabling .txt (l2r)
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .foo -skip .bar
+call backup sync a\x a\y s -skip .foo -skip .bar
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -525,12 +487,8 @@ edit a\x\eleven.foo
 date + 1
 edit a\x\twelve.bar
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .foo
+call backup sync a\x a\y s -skip .foo
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -592,12 +550,8 @@ delete a\x\a\one.txt
 delete a\x\a\l\four.txt
 delete a\x\b\seven.txt
 delete a\x\ten.txt
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .foo -skip .txt
+call backup sync a\x a\y s -skip .foo -skip .txt
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -656,12 +610,8 @@ list-verify a\y
 .          2014-01-11          2014-02-16 -A---- ten.txt [40]
 .          2014-01-13          2014-02-17 -A---- twelve.bar [41]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .txt
+call backup sync a\x a\y s -skip .txt
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -702,12 +652,8 @@ delete a\y\b\nine.bar
 delete a\y\b\eight.foo
 delete a\y\eleven.foo
 delete a\y\twelve.bar
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .txt -skip .bar
+call backup sync a\x a\y s -skip .txt -skip .bar
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -728,12 +674,8 @@ list-verify a
 endlist
 
 test reinclude all (.foo and .bar cross-propagated)
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -766,15 +708,12 @@ module skipped extensions not applied to directory names
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -799,12 +738,8 @@ date + 1
 qlist .
 
 test sync, excluding all actual (l2r)
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .foo -skip .bar -skip .txt
+call backup sync a\x a\y s -skip .foo -skip .bar -skip .txt
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -832,12 +767,8 @@ create a\y\b.foo\ten.foo
 date + 1
 create a\y\eleven.foo
 date + 1
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .foo
+call backup sync a\x a\y s -skip .foo
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\a\
@@ -872,15 +803,12 @@ module excluded file (not directory) item
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D y\
@@ -902,12 +830,8 @@ date + 1
 create a\y\r.bar
 date + 1
 qlist .
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .foo
+call backup sync a\x a\y s -skip .foo
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-02          2014-01-02 -A---- x\m.txt [1]
@@ -930,17 +854,14 @@ module modified excluded files (subdirs or extensions) in deleted directories ar
 
 mkdir a\x
 mkdir a\y
-mkdir s\x
-mkdir s\y
+mkdir s
 
 test initial setup
 date 2014-01-01
 mkdir a\x\m
 mkdir a\x\m\w
-call backup sync a\x a\y
+call backup sync a\x a\y s
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -971,12 +892,8 @@ create a\x\s.txt
 date + 1
 qlist a\x
 qlist .
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .bar -exclude m\w
+call backup sync a\x a\y s -skip .bar -exclude m\w
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .                                         -----D x\m\
@@ -1025,12 +942,8 @@ list-verify a
 .          2014-01-07          2014-01-07 -A---- y\q.foo [4]
 .          2014-01-09          2014-01-15 -A---- y\s.txt [14]
 endlist
-move s\x\sync.txt a\x\sync.txt
-move s\y\sync.txt a\y\sync.txt
-call backup sync a\x a\y -skip .bar -exclude m\w
+call backup sync a\x a\y s -skip .bar -exclude m\w
 exitcode-verify 0
-move a\x\sync.txt s\x\sync.txt
-move a\y\sync.txt s\y\sync.txt
 list-verify a
 .                                         -----D x\
 .          2014-01-07          2014-01-13 -A---- x\q.foo [10]

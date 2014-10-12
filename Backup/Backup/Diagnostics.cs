@@ -559,9 +559,33 @@ namespace Backup
         }
 
 
-        private readonly KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates;
+        public class NullFaultInstanceNode : IFaultInstance
+        {
+            public IFaultInstance Select(string tag)
+            {
+                return this;
+            }
 
-        public static readonly FaultInstanceNode Null = new FaultInstanceNode((KeyValuePair<IFaultPredicate, FaultTemplateNode>[])null);
+            public IFaultInstance Select(string tag, long l)
+            {
+                return this;
+            }
+
+            public IFaultInstance Select(string tag, string s)
+            {
+                return this;
+            }
+
+            public IFaultPredicate SelectPredicate(string tag)
+            {
+                return FaultInstancePredicate.Null;
+            }
+        }
+
+        public static readonly IFaultInstance Null = new NullFaultInstanceNode();
+
+
+        private readonly KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates;
 
         public FaultInstanceNode(FaultTemplateNode templateNode)
         {
@@ -759,10 +783,34 @@ namespace Backup
         // Fast predicate evaluator for performance-sensitive code
         private class FaultInstancePredicate : IFaultPredicate
         {
+            private class NullFaultInstancePredicate : IFaultPredicate
+            {
+                public IFaultPredicate Clone()
+                {
+                    return this;
+                }
+
+                public bool Test()
+                {
+                    return false;
+                }
+
+                public bool Test(long l)
+                {
+                    return false;
+                }
+
+                public bool Test(string s)
+                {
+                    return false;
+                }
+            }
+
+            public static readonly IFaultPredicate Null = new NullFaultInstancePredicate();
+
+
             private readonly KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates;
             private readonly FaultInstanceNode owner;
-
-            public static readonly FaultInstancePredicate Null = new FaultInstancePredicate(null, null);
 
             public FaultInstancePredicate(KeyValuePair<IFaultPredicate, FaultTemplateNode>[] predicates, FaultInstanceNode owner)
             {
@@ -1079,7 +1127,6 @@ namespace Backup
             Kill,
             Custom,
         }
-
 
         private string tag;
         private FaultTemplateNode parent;

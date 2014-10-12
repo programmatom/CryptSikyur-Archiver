@@ -2513,9 +2513,11 @@ namespace Backup
             return false;
         }
 
-        private const string SyncSavedManifestName = "sync.txt";
-        private const string SyncSavedManifestNewName = "sync0.txt";
-        internal static void Sync(string rootL, string rootR, Context context, string[] args)
+        private const string SyncManifestLocalPrefix = "local";
+        private const string SyncManifestRemotePrefix = "remote";
+        private const string SyncManifestSavedSuffix = "sync.txt";
+        private const string SyncManifestNewSuffix = "sync0.txt";
+        internal static void Sync(string rootL, string rootR, string repository, Context context, string[] args)
         {
             bool resolveSkip = false;
 
@@ -2539,31 +2541,38 @@ namespace Backup
                     excludedItems.Set(item.Key);
                 }
             }
+#if false
             excludedItems.Set(SyncSavedManifestName);
             excludedItems.Set(SyncSavedManifestNewName);
             InvariantStringSet suppressLoggingItems = new InvariantStringSet();
             suppressLoggingItems.Set(SyncSavedManifestName);
             suppressLoggingItems.Set(SyncSavedManifestNewName);
+#endif
+
+            string manifestLocalSaved = Path.Combine(repository, SyncManifestLocalPrefix + SyncManifestSavedSuffix);
+            string manifestLocalNew = Path.Combine(repository, SyncManifestLocalPrefix + SyncManifestNewSuffix);
+            string manifestRemoteSaved = Path.Combine(repository, SyncManifestRemotePrefix + SyncManifestSavedSuffix);
+            string manifestRemoteNew = Path.Combine(repository, SyncManifestRemotePrefix + SyncManifestNewSuffix);
 
             EnumerateHierarchy currentEntriesL = new EnumerateHierarchy(rootL);
             currentEntriesL.MoveNext();
             EnumerateFile previousEntriesL = new EnumerateFile(rootL);
-            if (File.Exists(Path.Combine(rootL, SyncSavedManifestName)))
+            if (File.Exists(manifestLocalSaved))
             {
-                previousEntriesL = new EnumerateFile(rootL, Path.Combine(rootL, SyncSavedManifestName));
+                previousEntriesL = new EnumerateFile(rootL, manifestLocalSaved);
             }
             previousEntriesL.MoveNext();
-            TextWriter newEntriesL = new StreamWriter(Path.Combine(rootL, SyncSavedManifestNewName), false/*append*/, Encoding.UTF8);
+            TextWriter newEntriesL = new StreamWriter(manifestLocalNew, false/*append*/, Encoding.UTF8);
 
             EnumerateHierarchy currentEntriesR = new EnumerateHierarchy(rootR);
             currentEntriesR.MoveNext();
             EnumerateFile previousEntriesR = new EnumerateFile(rootR);
-            if (File.Exists(Path.Combine(rootR, SyncSavedManifestName)))
+            if (File.Exists(manifestRemoteSaved))
             {
-                previousEntriesR = new EnumerateFile(rootR, Path.Combine(rootR, SyncSavedManifestName));
+                previousEntriesR = new EnumerateFile(rootR, manifestRemoteSaved);
             }
             previousEntriesR.MoveNext();
-            TextWriter newEntriesR = new StreamWriter(Path.Combine(rootR, SyncSavedManifestNewName), false/*append*/, Encoding.UTF8);
+            TextWriter newEntriesR = new StreamWriter(manifestRemoteNew, false/*append*/, Encoding.UTF8);
 
             try
             {
@@ -2580,7 +2589,15 @@ namespace Backup
                     {
                         if (log != null)
                         {
-                            if (!suppressLoggingItems.Contains(currentEntriesL.Current) && (rootExclusion || extensionExclusion))
+                            if (
+#if false
+                                !suppressLoggingItems.Contains(currentEntriesL.Current) &&(
+#endif
+rootExclusion || extensionExclusion
+#if false
+                                )
+#endif
+)
                             {
                                 log.WriteLine("SKIP \"{0}{1}\"", currentEntriesL.Current, Directory.Exists(Path.Combine(rootL, currentEntriesL.Current)) ? "\\" : String.Empty);
                             }
@@ -2596,7 +2613,15 @@ namespace Backup
                     {
                         if (log != null)
                         {
-                            if (!suppressLoggingItems.Contains(currentEntriesR.Current) && (rootExclusion || extensionExclusion))
+                            if (
+#if false
+                                !suppressLoggingItems.Contains(currentEntriesR.Current) && (
+#endif
+rootExclusion || extensionExclusion
+#if false
+                                )
+#endif
+)
                             {
                                 log.WriteLine("SKIP \"{0}{1}\"", currentEntriesR.Current, Directory.Exists(Path.Combine(rootR, currentEntriesR.Current)) ? "\\" : String.Empty);
                             }
@@ -3053,16 +3078,16 @@ namespace Backup
             }
 
 
-            if (File.Exists(Path.Combine(rootL, SyncSavedManifestName)))
+            if (File.Exists(manifestLocalSaved))
             {
-                File.Delete(Path.Combine(rootL, SyncSavedManifestName));
+                File.Delete(manifestLocalSaved);
             }
-            if (File.Exists(Path.Combine(rootR, SyncSavedManifestName)))
+            if (File.Exists(manifestRemoteSaved))
             {
-                File.Delete(Path.Combine(rootR, SyncSavedManifestName));
+                File.Delete(manifestRemoteSaved);
             }
-            File.Move(Path.Combine(rootL, SyncSavedManifestNewName), Path.Combine(rootL, SyncSavedManifestName));
-            File.Move(Path.Combine(rootR, SyncSavedManifestNewName), Path.Combine(rootR, SyncSavedManifestName));
+            File.Move(manifestLocalNew, manifestLocalSaved);
+            File.Move(manifestRemoteNew, manifestRemoteSaved);
         }
 
 
@@ -12016,17 +12041,18 @@ namespace Backup
                         break;
 
                     case "sync":
-                        if ((i + 2 > args.Length) || context.dirsOnly)
+                        if ((i + 3 > args.Length) || context.dirsOnly)
                         {
                             throw new UsageException();
                         }
                         else
                         {
-                            string[] argsExtra = new string[args.Length - (i + 2)];
-                            Array.Copy(args, i + 2, argsExtra, 0, argsExtra.Length);
+                            string[] argsExtra = new string[args.Length - (i + 3)];
+                            Array.Copy(args, i + 3, argsExtra, 0, argsExtra.Length);
                             Sync(
                                 EnsureRootedLocalPath(args[i]),
                                 EnsureRootedLocalPath(args[i + 1]),
+                                EnsureRootedLocalPath(args[i + 2]),
                                 context,
                                 argsExtra);
                         }
