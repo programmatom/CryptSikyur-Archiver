@@ -257,26 +257,6 @@ namespace Backup
 
     // Supported crypto system configurations
 
-#if false
-    public class CryptoSystemAES128 : CryptoSystemComposable
-    {
-        // why not 256? see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html
-        // but for an alternate viewpoint, see http://www.daemonology.net/blog/2009-07-31-thoughts-on-AES.html
-
-        public CryptoSystemAES128()
-            : base(new CryptoSystemDefaultRNG(), new CryptoSystemBlockCipherAES128(), new CryptoSystemAuthenticationHMACSHA256(), new CryptoSystemKeyGenerationRfc2898Rfc5869())
-        {
-        }
-
-        public override string Name { get { return "aes128"; } }
-        public override string Description { get { return "AES-128 CTR, HMAC-SHA-256"; } }
-
-        public override bool Weak { get { return false; } }
-
-        public override string UniquePersistentCiphersuiteIdentifier { get { return "\x02"; } }
-    }
-#endif
-
     // There was some controversy over AES after attacks came to light on the 192- and 256-bit
     // key variants. The problems are twofold: 1) insufficient additional rounds and 2) weak
     // key schedules in the higher rounds. As a result, there are related-key attacks, where
@@ -354,9 +334,6 @@ namespace Backup
             // - standardized, and probably the *primary* standard today (2014)
             // - certainly the most scrutinized and attacked cipher today and has remained standing
             // - sufficient security with high performance (and hardware acceleration) available if needed
-#if false
-            new CryptoSystemAES128(),
-#endif
             new CryptoSystemAES256(),
 
             // Serpent was a runner-up in the AES competition. It is theoretically more secure,
@@ -1172,102 +1149,6 @@ namespace Backup
         {
         }
     }
-
-#if false
-    // Composable module implementing AES-128 block cipher
-    public sealed class CryptoSystemBlockCipherAES128 : CryptoSystemBlockCipherAES
-    {
-        protected override int KeyLengthBits { get { return 128; } }
-
-        private sealed class CipherTestVector
-        {
-            internal readonly byte[] key;
-            internal readonly byte[] iv;
-            internal readonly byte[] plainText;
-            internal readonly byte[] cipherText;
-
-            internal CipherTestVector(string key, string iv, string plainText, string cipherText)
-            {
-                this.key = HexUtility.HexDecode(key);
-                this.iv = iv != null ? HexUtility.HexDecode(iv) : null;
-                this.plainText = HexUtility.HexDecode(plainText);
-                this.cipherText = HexUtility.HexDecode(cipherText);
-            }
-        }
-
-        // from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
-        // see also http://csrc.nist.gov/groups/STM/cavp/index.html
-        private readonly static CipherTestVector[] TestVectorsAES128ECB = new CipherTestVector[]
-        {
-            // ECB-AES128.Encrypt (appendix A section F.1.1 of above, page 24)
-            new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", null, "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4"),
-        };
-        private readonly static CipherTestVector[] TestVectorsAES128CTR = new CipherTestVector[]
-        {
-            // CTR-AES128.Encrypt (appendix A section F.5.1 of above, page 55)
-            new CipherTestVector("2b7e151628aed2a6abf7158809cf4f3c", "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff", "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710", "874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff5ae4df3edbd5d35e5b4f09020db03eab1e031dda2fbe03d1792170a0f3009cee"),
-        };
-
-        public override void Test()
-        {
-            base.Test();
-
-            foreach (CipherTestVector test in TestVectorsAES128ECB)
-            {
-                ICryptoTransform transform;
-                byte[] result;
-
-                using (transform = GetAlgorithm().CreateEncryptor(test.key, test.iv))
-                {
-                    result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
-                    if (!Core.ArrayEqual(test.cipherText, result))
-                    {
-                        throw new ApplicationException("AES128-ECB implementation defect");
-                    }
-                }
-
-                using (transform = GetAlgorithm().CreateDecryptor(test.key, test.iv))
-                {
-                    result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
-                    if (!Core.ArrayEqual(test.plainText, result))
-                    {
-                        throw new ApplicationException("AES128-ECB implementation defect");
-                    }
-                }
-            }
-
-            foreach (CipherTestVector test in TestVectorsAES128CTR)
-            {
-                using (SymmetricAlgorithm algorithm = GetAlgorithm())
-                {
-                    ICryptoTransform transform;
-                    byte[] result;
-
-                    algorithm.IV = test.iv;
-                    algorithm.Key = test.key;
-
-                    using (transform = new CryptoPrimitiveCounterModeTransform(algorithm, test.iv.Length * 8))
-                    {
-                        result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
-                        if (!Core.ArrayEqual(test.cipherText, result))
-                        {
-                            throw new ApplicationException("AES128-CTR implementation defect");
-                        }
-                    }
-
-                    using (transform = new CryptoPrimitiveCounterModeTransform(algorithm, test.iv.Length * 8))
-                    {
-                        result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
-                        if (!Core.ArrayEqual(test.plainText, result))
-                        {
-                            throw new ApplicationException("AES128-CTR implementation defect");
-                        }
-                    }
-                }
-            }
-        }
-    }
-#endif
 
     // Composable module implementing AES-256 block cipher
     public sealed class CryptoSystemBlockCipherAES256 : CryptoSystemBlockCipherAES

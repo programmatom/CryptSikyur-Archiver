@@ -431,12 +431,6 @@ namespace Backup
         private const int MaxBytesPerWebRequest = 50 * 1024 * 1024; // force upload fail & resumable after this many bytes (to exercise the resume code)
         private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
 
-#if false
-        // .NET HttpWebRequest (2.0 anyway) seems plagued by hangs and race conditions for long-running
-        // requests or spotty networks. Prefer to use my own simpler implementation.
-        private readonly bool? UseCustomHttpImplementation = true; // null == both (arbitrarily selected), false == HttpWebRequest, true == custom
-#endif
-
         protected readonly RemoteAccessControl remoteAccessControl;
         protected readonly bool enableResumableUploads;
 
@@ -1194,10 +1188,6 @@ namespace Backup
         private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", "Content-Length", "Accept-Encoding", "Expect", "Authorization" };
         protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
         {
-#if false
-            bool useCustomHttpImplementation = UseCustomHttpImplementation.HasValue ? UseCustomHttpImplementation.Value : ((DateTime.Now.Minute % 5) % 2 != 0); // how'd-ya like dem apples?
-#endif
-
             if (requestHeaders == null)
             {
                 requestHeaders = new KeyValuePair<string, string>[0];
@@ -1363,492 +1353,87 @@ namespace Backup
                 }
             }
 
-#if false
-            if (trace != null)
+
+            // Custom HTTP request implementation
+
+            Uri uri = new Uri(url);
+            IPAddress hostAddress;
+            webStatusCode = DNSLookupName(uri.Host, out hostAddress, trace, faultInstanceContext);
+            if (webStatusCode != WebExceptionStatus.Success)
             {
-                trace.WriteLine("DoWebActionOnce: using http implementation {0}", useCustomHttpImplementation ? "Backup.WebMethodsBase.SocketHttpRequest" : "System.Net.HttpWebRequest");
+                if (trace != null)
+                {
+                    trace.WriteLine("DNSLookupName returned error: {0} ({1})", (int)webStatusCode, webStatusCode);
+                }
+                goto Error;
             }
-#endif
 
-#if false
-            if (useCustomHttpImplementation)
-#endif
+            // generally, headers in ForbiddenRequestHeaders[] are managed by SocketHttpRequest
+            Dictionary<string, bool> requestHeadersSeen = new Dictionary<string, bool>();
+            List<KeyValuePair<string, string>> requestHeadersList = new List<KeyValuePair<string, string>>();
+            requestHeadersList.Add(new KeyValuePair<string, string>("Authorization", String.Format("{0} {1}", "Bearer", accessToken)));
+            foreach (KeyValuePair<string, string> header in requestHeaders)
             {
-                // My own HTTP request-making code
+                Debug.Assert(Array.IndexOf(ForbiddenHeaders, header.Key) < 0);
+                requestHeadersList.Add(header);
+                requestHeadersSeen[header.Key] = true;
+            }
+            if (!requestHeadersSeen.ContainsKey("Accept"))
+            {
+                requestHeadersList.Add(new KeyValuePair<string, string>("Accept", "*/*"));
+            }
+            if (!requestHeadersSeen.ContainsKey("User-Agent"))
+            {
+                requestHeadersList.Add(new KeyValuePair<string, string>("User-Agent", UserAgent));
+            }
+            // omitted: Accept-Language - is there any need for it in this application?
 
+            KeyValuePair<string, string>[] responseHeaders;
+            string finalUrl;
+            webStatusCode = SocketHttpRequest(
+                uri,
+                hostAddress,
+                verb,
+                requestHeadersList.ToArray(),
+                requestBodySource,
+                out httpStatusCode,
+                out responseHeaders,
+                responseBodyDestination,
+                out finalUrl,
+                progressTrackerUpload,
+                progressTrackerDownload,
+                trace,
+                faultInstanceContext);
 
-                Uri uri = new Uri(url);
-                IPAddress hostAddress;
-                webStatusCode = DNSLookupName(uri.Host, out hostAddress, trace, faultInstanceContext);
-                if (webStatusCode != WebExceptionStatus.Success)
+            for (int i = 0; i < responseHeadersOut.Length; i++)
+            {
+                int index = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, responseHeadersOut[i].Key); });
+                if (index >= 0)
+                {
+                    responseHeadersOut[i] = new KeyValuePair<string, string>(responseHeadersOut[i].Key, responseHeaders[index].Value);
+                }
+            }
+
+            if ((httpStatusCode == (HttpStatusCode)401) && !accessDeniedRetried)
+            {
+                if (accessTokenOverride == null)
                 {
                     if (trace != null)
                     {
-                        trace.WriteLine("DNSLookupName returned error: {0} ({1})", (int)webStatusCode, webStatusCode);
+                        trace.WriteLine("Received access denied (401); invalidating access token and retrying");
                     }
-                    goto Error;
+                    accessDeniedRetried = true; // retry only once for failed auth
+                    remoteAccessControl.InvalidateAccessToken(accessToken, trace);
+                    goto RetryAuthFailure;
                 }
-
-                // generally, headers in ForbiddenRequestHeaders[] are managed by SocketHttpRequest
-                Dictionary<string, bool> requestHeadersSeen = new Dictionary<string, bool>();
-                List<KeyValuePair<string, string>> requestHeadersList = new List<KeyValuePair<string, string>>();
-                requestHeadersList.Add(new KeyValuePair<string, string>("Authorization", String.Format("{0} {1}", "Bearer", accessToken)));
-                foreach (KeyValuePair<string, string> header in requestHeaders)
-                {
-                    Debug.Assert(Array.IndexOf(ForbiddenHeaders, header.Key) < 0);
-                    requestHeadersList.Add(header);
-                    requestHeadersSeen[header.Key] = true;
-                }
-                if (!requestHeadersSeen.ContainsKey("Accept"))
-                {
-                    requestHeadersList.Add(new KeyValuePair<string, string>("Accept", "*/*"));
-                }
-                if (!requestHeadersSeen.ContainsKey("User-Agent"))
-                {
-                    requestHeadersList.Add(new KeyValuePair<string, string>("User-Agent", UserAgent));
-                }
-                // omitted: Accept-Language - is there any need for it in this application?
-
-                KeyValuePair<string, string>[] responseHeaders;
-                string finalUrl;
-                webStatusCode = SocketHttpRequest(
-                    uri,
-                    hostAddress,
-                    verb,
-                    requestHeadersList.ToArray(),
-                    requestBodySource,
-                    out httpStatusCode,
-                    out responseHeaders,
-                    responseBodyDestination,
-                    out finalUrl,
-                    progressTrackerUpload,
-                    progressTrackerDownload,
-                    trace,
-                    faultInstanceContext);
-
-                for (int i = 0; i < responseHeadersOut.Length; i++)
-                {
-                    int index = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, responseHeadersOut[i].Key); });
-                    if (index >= 0)
-                    {
-                        responseHeadersOut[i] = new KeyValuePair<string, string>(responseHeadersOut[i].Key, responseHeaders[index].Value);
-                    }
-                }
-
-                if ((httpStatusCode == (HttpStatusCode)401) && !accessDeniedRetried)
-                {
-                    if (accessTokenOverride == null)
-                    {
-                        if (trace != null)
-                        {
-                            trace.WriteLine("Received access denied (401); invalidating access token and retrying");
-                        }
-                        accessDeniedRetried = true; // retry only once for failed auth
-                        remoteAccessControl.InvalidateAccessToken(accessToken, trace);
-                        goto RetryAuthFailure;
-                    }
-                    else
-                    {
-                        if (trace != null)
-                        {
-                            trace.WriteLine("Received access denied (401); accessTokenOverride exists, so failing to caller");
-                        }
-                    }
-                }
-            }
-#if false
-            else
-            {
-                // asynchronous .NET HttpWebRequest
-
-
-                Exception exception = null;
-                bool abort = false;
-                bool progress = false;
-                TextWriter traceInner = trace;
-                using (ManualResetEvent finished = new ManualResetEvent(false))
-                {
-                    AsyncCallback responseAction = delegate(IAsyncResult asyncResult)
-                    {
-                        progress = true;
-                        if (abort)
-                        {
-                            return;
-                        }
-
-                        if (traceInner != null)
-                        {
-                            traceInner.WriteLine("HttpWebAction response delegate entered");
-                        }
-
-                        try
-                        {
-                            HttpWebRequest request = (HttpWebRequest)asyncResult.AsyncState;
-                            using (HttpWebResponse response = (HttpWebResponse)request.EndGetResponse(asyncResult))
-                            {
-                                for (int i = 0; i < responseHeadersOut.Length; i++)
-                                {
-                                    responseHeadersOut[i] = new KeyValuePair<string, string>(responseHeadersOut[i].Key, response.Headers[responseHeadersOut[i].Key]);
-                                }
-
-                                long? responseLengthExpected = null;
-                                if (!String.IsNullOrEmpty(response.Headers[HttpResponseHeader.ContentLength]))
-                                {
-                                    if (traceInner != null)
-                                    {
-                                        traceInner.WriteLine(" response Content-Length header={0}", response.Headers[HttpResponseHeader.ContentLength]);
-                                    }
-                                    responseLengthExpected = Int64.Parse(response.Headers[HttpResponseHeader.ContentLength]);
-
-                                    if (progressTrackerDownload != null)
-                                    {
-                                        progressTrackerDownload.UpdateTotal(responseLengthExpected.Value);
-                                    }
-                                }
-
-                                long responseLengthActual = 0;
-                                if (responseBodyDestination != null)
-                                {
-                                    using (Stream responseStream = response.GetResponseStream())
-                                    {
-                                        byte[] buffer = new byte[Core.Constants.BufferSize];
-                                        int read;
-                                        while ((read = responseStream.Read(buffer, 0, buffer.Length)) != 0)
-                                        {
-                                            networkThrottle.WaitBytes(read);
-
-                                            progress = true;
-                                            responseBodyDestination.Write(buffer, 0, read);
-
-                                            if (progressTrackerDownload != null)
-                                            {
-                                                progressTrackerDownload.Current = responseBodyDestination.Position;
-                                            }
-                                        }
-                                        responseLengthActual = responseBodyDestination.Length;
-                                        if (traceInner != null)
-                                        {
-                                            traceInner.WriteLine(" actual response length={0}", responseLengthActual);
-                                        }
-
-                                        if (responseLengthExpected.HasValue && (responseLengthExpected.Value != responseLengthActual))
-                                        {
-                                            webStatusCode = WebExceptionStatus.ReceiveFailure;
-                                            return;
-                                        }
-                                    }
-                                }
-
-                                webStatusCode = WebExceptionStatus.Success;
-                                httpStatusCode = response.StatusCode;
-                            }
-                        }
-                        catch (Exception localException)
-                        {
-                            if (traceInner != null)
-                            {
-                                traceInner.WriteLine("HttpWebAction response delegate caught exception: {0}", localException);
-                            }
-
-                            exception = localException;
-                        }
-                        finally
-                        {
-                            if (traceInner != null)
-                            {
-                                traceInner.WriteLine("HttpWebAction response delegate exited; finished.Set()");
-                            }
-
-                            finished.Set();
-                        }
-                    };
-
-                    AsyncCallback requestAction = delegate(IAsyncResult asyncResult)
-                    {
-                        progress = true;
-                        if (abort)
-                        {
-                            return;
-                        }
-
-                        if (traceInner != null)
-                        {
-                            traceInner.WriteLine("HttpWebAction request delegate entered");
-                        }
-
-                        try
-                        {
-                            HttpWebRequest request = (HttpWebRequest)asyncResult.AsyncState;
-                            using (Stream requestStream = request.EndGetRequestStream(asyncResult))
-                            {
-                                if (requestBodySource != null)
-                                {
-                                    // this permits testing of resumable upload
-                                    long requestBytesSentThisRequest = 0;
-                                    long requestBytesSentTotal = requestBodySource.Position; // "bytes thus far" over multiple requests of a resumable upload
-
-                                    byte[] buffer = new byte[Core.Constants.BufferSize];
-                                    int read;
-                                    while ((read = requestBodySource.Read(buffer, 0, buffer.Length)) != 0)
-                                    {
-                                        progress = true;
-
-                                        requestStream.Write(buffer, 0, read);
-                                        networkThrottle.WaitBytes(read);
-
-                                        requestBytesSentTotal += read;
-                                        requestBytesSentThisRequest += read;
-
-                                        if (progressTrackerUpload != null)
-                                        {
-                                            progressTrackerUpload.Current = requestBytesSentTotal;
-                                        }
-
-                                        if (enableResumableUploads)
-                                        {
-                                            // If the remote service supports restartable uploads (indicated by the
-                                            // subclass constructor setting enableRestartableUploads), then we can do
-                                            // the following:
-                                            // 1. The upload can be aborted as a matter of course after a decent number
-                                            //    of bytes for the purpose of exercising the resume branch of the code.
-
-                                            if (requestBytesSentThisRequest > MaxBytesPerWebRequest)
-                                            {
-                                                if (trace != null)
-                                                {
-                                                    trace.WriteLine("Sent {0} bytes this request, more than MaxBytesPerWebRequest ({1}); simulating connection break for resume testing", requestBytesSentThisRequest, MaxBytesPerWebRequest);
-                                                }
-                                                throw new TimeoutException();
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            request.BeginGetResponse(responseAction, request);
-                        }
-                        catch (Exception localException)
-                        {
-                            if (traceInner != null)
-                            {
-                                traceInner.WriteLine("HttpWebAction request delegate caught exception: {0}", localException);
-                                traceInner.WriteLine("HttpWebAction request delegate exited on exception; finished.Set()");
-                            }
-
-                            exception = localException;
-                            finished.Set();
-
-                            return;
-                        }
-
-                        if (traceInner != null)
-                        {
-                            traceInner.WriteLine("HttpWebAction request delegate exited normally; now expecting invocation of response delegate");
-                        }
-                    };
-
-                    // Request process begins here
-                    IAsyncResult asyncResultTop;
-                    HttpWebRequest requestTop;
-                    {
-                        requestTop = (HttpWebRequest)HttpWebRequest.Create(url);
-                        requestTop.Method = verb;
-                        requestTop.UserAgent = UserAgent;
-
-                        // Use of Authorization header is considered better than use of url query parameter
-                        // because it avoids the possibility of access tokens being written to server/proxy logs
-                        requestTop.Headers["Authorization"] = String.Format("{0} {1}", "Bearer", accessToken);
-
-                        // Is there any harm in always writing Content-Length header?
-                        requestTop.ContentLength = requestBodySource != null ? requestBodySource.Length - requestBodySource.Position : 0;
-                        if ((requestBodySource != null) && (requestBodySource.Length >= Core.Constants.BufferSize))
-                        {
-                            // Turn off .NET in-memory stream buffering if request body is large
-                            requestTop.AllowWriteStreamBuffering = false;
-                        }
-
-                        foreach (KeyValuePair<string, string> header in requestHeaders)
-                        {
-                            switch (header.Key)
-                            {
-                                default:
-                                    try
-                                    {
-                                        requestTop.Headers[header.Key] = header.Value;
-                                    }
-                                    catch (ArgumentException)
-                                    {
-                                        throw;
-                                    }
-                                    break;
-
-                                // These headers can't be written with the generic method
-                                case "Accept":
-                                    requestTop.Accept = header.Value;
-                                    break;
-                                case "Content-Type":
-                                    requestTop.ContentType = header.Value;
-                                    break;
-                                case "Range":
-                                    {
-                                        const string BytesPrefix = "bytes=";
-                                        if (!header.Value.StartsWith(BytesPrefix))
-                                        {
-                                            throw new InvalidOperationException();
-                                        }
-                                        string[] parts = header.Value.Substring(BytesPrefix.Length).Split(new char[] { '-' });
-                                        if (parts.Length != 2)
-                                        {
-                                            throw new InvalidOperationException();
-                                        }
-                                        long startPosition = Int64.Parse(parts[0]);
-                                        long endPositionInclusive = Int64.Parse(parts[1]);
-                                        if ((startPosition > Int32.MaxValue)
-                                            || (endPositionInclusive > Int32.MaxValue))
-                                        {
-                                            throw new OverflowException("HTTP range request can't be done with HttpWebRequest - file range values exceed Int32 capacity");
-                                        }
-
-                                        requestTop.AddRange("bytes", (int)startPosition, (int)endPositionInclusive);
-                                    }
-                                    break;
-                            }
-                        }
-
-                        if (hasRequestBody)
-                        {
-                            if (trace != null)
-                            {
-                                trace.WriteLine("DoWebActionOnce initiating asynchronous request using request.BeginGetRequestStream()");
-                            }
-                            asyncResultTop = requestTop.BeginGetRequestStream(requestAction, requestTop);
-                        }
-                        else
-                        {
-                            if (trace != null)
-                            {
-                                trace.WriteLine("DoWebActionOnce initiating asynchronous request using request.BeginGetResponse()");
-                            }
-                            asyncResultTop = requestTop.BeginGetResponse(responseAction, requestTop);
-                        }
-                    }
-
-                    // There seems to be a bug in HttpWebRequest where, if the network has been broken
-                    // (e.g. by turning off the wireless radio), calls to BeginGetRequestStream() or
-                    // BeginGetResponse() will complete but the task delegates will never get invoked.
-                    // It appears to hang indefinitely. It doesn't appear to matter whether
-                    // asyncResultTop.AsyncWaitHandle is used to wait on or not. This failsafe timeout
-                    // mechanism recovers from the hang.
-                    const int FailsafeTimeoutSeconds = 2 * 60;
-                    while (!finished.WaitOne(FailsafeTimeoutSeconds * 1000))
-                    {
-                        if (progress)
-                        {
-                            // as long as something happened this cycle, keep waiting
-                            progress = false;
-                            continue;
-                        }
-
-                        if (trace != null)
-                        {
-                            trace.WriteLine("DoWebActionOnce reached failsafe timeout with no progress waiting for HttpWebRequest - aborting (possible program defect)");
-                        }
-
-                        // Abort logic is because sometimes remote servers stall a connection for so long
-                        // that the failsafe timeout occurs, but then the request eventually moves forward.
-                        // In that case, the "trace" log object has been disposed invocation of the delegate
-                        // which writes to it causes a fatal exception on the thread. If we're aborting due
-                        // to failsafe timeout, do our best to clean up ephemeral state and tell the
-                        // delegates to give up.
-                        abort = true;
-                        traceInner = null;
-                        try
-                        {
-                            requestTop.Abort();
-                        }
-                        catch (Exception abortException)
-                        {
-                            if (trace != null)
-                            {
-                                trace.WriteLine("DoWebActionOnce exception ocurred calling HttpWebRequest.Abort() - ignoring: {0}", abortException);
-                            }
-                        }
-
-                        exception = new TimeoutException("Web access timeout");
-                        break;
-                    }
-                }
-
-                if (exception != null)
+                else
                 {
                     if (trace != null)
                     {
-                        trace.WriteLine(" deferred exception received from asynchronous processing: {0}", exception);
+                        trace.WriteLine("Received access denied (401); accessTokenOverride exists, so failing to caller");
                     }
-
-                    if (exception is WebException)
-                    {
-                        WebException webException = (WebException)exception;
-                        webStatusCode = webException.Status;
-
-                        WebResponse response = webException.Response;
-                        if (response != null)
-                        {
-                            HttpWebResponse httpWebResponse;
-                            if ((httpWebResponse = response as HttpWebResponse) != null)
-                            {
-                                // make sure to capture response headers even for exceptions (non-2xx status codes)
-                                for (int i = 0; i < responseHeadersOut.Length; i++)
-                                {
-                                    responseHeadersOut[i] = new KeyValuePair<string, string>(responseHeadersOut[i].Key, response.Headers[responseHeadersOut[i].Key]);
-                                }
-
-                                httpStatusCode = httpWebResponse.StatusCode;
-
-                                if (httpStatusCode == HttpStatusCode.Unauthorized)
-                                {
-                                    if (!accessDeniedRetried)
-                                    {
-                                        if (accessTokenOverride == null)
-                                        {
-                                            if (trace != null)
-                                            {
-                                                trace.WriteLine("Received access denied (401); invalidating access token and retrying");
-                                            }
-                                            accessDeniedRetried = true; // retry only once for failed auth
-                                            remoteAccessControl.InvalidateAccessToken(accessToken, trace);
-                                            goto RetryAuthFailure;
-                                        }
-                                        else
-                                        {
-                                            if (trace != null)
-                                            {
-                                                trace.WriteLine("Received access denied (401); accessTokenOverride exists, so failing to caller");
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else if (exception is TimeoutException)
-                    {
-                        webStatusCode = WebExceptionStatus.Timeout;
-                    }
-                    //else if (exception is IOException)
-                    //{
-                    //    IOException ioException = (IOException)exception;
-                    //
-                    //    // anything meaningful to be done here?
-                    //}
-                    else
-                    {
-                        webStatusCode = WebExceptionStatus.UnknownError;
-                    }
-
-                    goto Error;
                 }
             }
-#endif
 
 
         Error:
@@ -2605,146 +2190,16 @@ namespace Backup
         // Desktop application tutorial: https://developers.google.com/accounts/docs/OAuth2InstalledApp
         // https://developers.google.com/drive/v2/reference/
 
-#if false
-        private Dictionary<string, List<GoogleDriveFile>> childrenMap;
-        private string rootId;
-#endif
-
         public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext)
             : base(remoteAccessControl, true/*enableResumableUploads*/)
         {
             if (trace != null)
             {
-                trace.WriteLine("+GoogleDriveWebMethods constructor");
-            }
-
-#if false
-            // Google doesn't have a method to get the listing of files for a given folder -
-            // children listing only has IDs, requiring a separate HTTP request for each
-            // child to find out the filename ("title") property. (https://developers.google.com/drive/v2/reference/children#resource)
-            // So here we get the listing of *all* files and use the parent collections on
-            // each file to construct the hierarchy. (Also, files can be put into multiple
-            // folders - like hard links.)
-
-            // TODO: investigate if "query filter" can be used to make per-parent flat list
-            // requests, which would work more like conventional directory hierarchy and avoid
-            // pulling down file metadata for items not in any of the path directories.
-
-            GoogleDriveFile[] files = GetRemoteFlatFilesList(trace, faultInstanceContext);
-
-            childrenMap = new Dictionary<string, List<GoogleDriveFile>>(files.Length + 1);
-            Dictionary<string, bool> roots = new Dictionary<string, bool>(1);
-            foreach (GoogleDriveFile file in files)
-            {
-                childrenMap.Add(file.Id, new List<GoogleDriveFile>());
-                foreach (GoogleDriveParent parent in file.Parents)
-                {
-                    if (parent.IsRoot)
-                    {
-                        if (!roots.ContainsKey(parent.Id))
-                        {
-                            roots.Add(parent.Id, false);
-                            childrenMap.Add(parent.Id, new List<GoogleDriveFile>());
-                        }
-                    }
-                }
-            }
-
-            if (trace != null)
-            {
-                trace.WriteLine("root folder count: {0}", roots.Count);
-                foreach (KeyValuePair<string, bool> root in roots)
-                {
-                    trace.WriteLine("  {0}", root.Key);
-                }
-            }
-            if (roots.Count != 1)
-            {
-                throw new InvalidDataException("Multiple root folders not supported");
-            }
-            foreach (KeyValuePair<string, bool> root in roots)
-            {
-                rootId = root.Key;
-                break;
-            }
-
-            foreach (GoogleDriveFile file in files)
-            {
-                foreach (GoogleDriveParent parent in file.Parents)
-                {
-                    childrenMap[parent.Id].Add(file);
-                }
-            }
-#endif
-
-            if (trace != null)
-            {
-                trace.WriteLine("-GoogleDriveWebMethods constructor");
+                trace.WriteLine("*GoogleDriveWebMethods constructor");
             }
         }
 
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)403; } }
-
-#if false
-        private class GoogleDriveFile
-        {
-            // https://developers.google.com/drive/v2/reference/files/list
-
-            public readonly RemoteFileSystemEntry Entry;
-
-            public string Id { get { return Entry.Id; } }
-            public string Title { get { return Entry.Name; } }
-
-            public readonly string MimeType;
-
-            public readonly bool Hidden;
-            public readonly bool Trashed;
-
-            public readonly GoogleDriveParent[] Parents;
-
-            public GoogleDriveFile(RemoteFileSystemEntry entry, string mimeType, bool hidden, bool trashed, GoogleDriveParent[] parents)
-            {
-                this.Entry = entry;
-                this.MimeType = mimeType;
-                this.Hidden = hidden;
-                this.Trashed = trashed;
-                this.Parents = parents;
-            }
-
-            public override string ToString()
-            {
-                StringBuilder parentString = new StringBuilder();
-                foreach (GoogleDriveParent parent in Parents)
-                {
-                    if (parentString.Length != 0)
-                    {
-                        parentString.Append(", ");
-                    }
-                    parentString.Append(parent);
-                }
-                return String.Format("id={0} title={1} mimeType={2} parents=[{3}]", Entry.Id, Entry.Name, MimeType, parentString);
-            }
-        }
-
-        private class GoogleDriveParent
-        {
-            public readonly string Id;
-            public readonly string ParentLink;
-            public readonly bool IsRoot;
-
-            public GoogleDriveParent(string id, string parentLink, bool isRoot)
-            {
-                this.Id = id;
-                this.ParentLink = parentLink;
-                this.IsRoot = isRoot;
-            }
-
-            public override string ToString()
-            {
-                return String.Format("{{id={0} parentLink={1} isRoot={2}}}", Id, ParentLink, IsRoot);
-            }
-        }
-#endif
 
         private const string SelfLinkUrlPrefix = "https://www.googleapis.com/drive/v2/files/";
 
@@ -2752,157 +2207,6 @@ namespace Backup
         {
             return SelfLinkUrlPrefix + fileId;
         }
-
-#if false
-        private static string SelfLinkToFileId(string selfLink)
-        {
-            if (!selfLink.StartsWith(SelfLinkUrlPrefix))
-            {
-                throw new InvalidDataException();
-            }
-            string fileId = selfLink.Substring(SelfLinkUrlPrefix.Length);
-            if (fileId.IndexOfAny(new char[] { '/', '?', '&' }) >= 0)
-            {
-                throw new InvalidDataException();
-            }
-            return fileId;
-        }
-#endif
-
-#if false
-        private GoogleDriveFile[] GetRemoteFlatFilesList(TextWriter trace, IFaultInstance faultInstanceContext)
-        {
-            List<GoogleDriveFile> aggregateItems = new List<GoogleDriveFile>();
-
-            if (trace != null)
-            {
-                trace.WriteLine("+GetRemoteFlatFilesList()");
-            }
-
-            string pageToken = null;
-
-            do
-            {
-                // see: https://developers.google.com/drive/v2/reference/files/list
-                // ask for total files (flat), maximum page size (1000 per), omit trashed items
-                string url = "https://www.googleapis.com/drive/v2/files?maxResults=1000&trashed=false";
-                if (pageToken != null)
-                {
-                    url = String.Concat(url, url.IndexOf('?') < 0 ? "?" : "&", "pageToken=", pageToken);
-                }
-                // Add the "fields" query parameter to reduce the amount of json fields returned
-                // to just the relevant ones. These are consumed in the code below in this method,
-                // but see also GoogleDriveWebMethods.FileSystemEntryFromJSON().
-                // (see https://developers.google.com/drive/web/performance#partial-response)
-                const string fields = "nextPageToken,items(id,title,mimeType,createdDate,modifiedDate,fileSize,labels/hidden,labels/trashed,parents(id,parentLink,isRoot))";
-                if (!String.IsNullOrEmpty(fields))
-                {
-                    url = String.Concat(url, url.IndexOf('?') < 0 ? "?" : "&", "fields=", fields);
-                }
-
-
-                string response;
-                WebExceptionStatus webStatusCode;
-                HttpStatusCode httpStatusCode;
-                bool result = DoWebActionJSON2JSONWithRetry(
-                    url,
-                    "GET",
-                    null/*jsonRequestBody*/,
-                    out response,
-                    out webStatusCode,
-                    out httpStatusCode,
-                    trace,
-                    faultInstanceContext);
-                if (!result)
-                {
-                    if (trace != null)
-                    {
-                        trace.WriteLine("-GetRemoteFlatFilesList result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
-                    }
-                    throw new ApplicationException("Failure occurred accessing remote service");
-                }
-
-
-                // NOTICE: if you change the fields being accessed (including in FileSystemEntryFromJSON()
-                // or relating to GoogleDriveParent) make sure to change the "fields" restriction
-                // above in this method or the json won't have your fields!
-
-                // https://developers.google.com/drive/v2/reference/files
-                // https://developers.google.com/drive/v2/reference/files/list
-                // https://developers.google.com/drive/v2/reference/files#resource
-                JSONDictionary json = new JSONDictionary(response);
-                JSONDictionary[] entries;
-                json.TryGetValueAs("nextPageToken", out pageToken);
-                if (!json.TryGetValueAs("items", out entries))
-                {
-                    throw new InvalidDataException();
-                }
-                GoogleDriveFile[] items = new GoogleDriveFile[entries.Length];
-                for (int i = 0; i < entries.Length; i++)
-                {
-                    RemoteFileSystemEntry entry = FileSystemEntryFromJSON(entries[i]);
-
-                    string mimeType;
-                    if (!entries[i].TryGetValueAs("mimeType", out mimeType))
-                    {
-                        throw new InvalidDataException();
-                    }
-
-                    bool hidden = false;
-                    bool trashed = false;
-                    JSONDictionary labels;
-                    entries[i].TryGetValueAs("labels", out labels);
-                    if (labels != null)
-                    {
-                        if (!labels.TryGetValueAs("hidden", out hidden)
-                            || !labels.TryGetValueAs("trashed", out trashed))
-                        {
-                            throw new InvalidDataException();
-                        }
-                    }
-
-                    JSONDictionary[] parents;
-                    entries[i].TryGetValueAs("parents", out parents);
-                    GoogleDriveParent[] parentsList = new GoogleDriveParent[parents != null ? parents.Length : 0];
-                    for (int j = 0; j < parentsList.Length; j++)
-                    {
-                        string id2, parentLink;
-                        bool isRoot;
-                        if (!parents[j].TryGetValueAs("id", out id2)
-                            || !parents[j].TryGetValueAs("parentLink", out parentLink)
-                            || !parents[j].TryGetValueAs("isRoot", out isRoot))
-                        {
-                            throw new InvalidDataException();
-                        }
-                        parentsList[j] = new GoogleDriveParent(id2, parentLink, isRoot);
-                    }
-
-                    items[i] = new GoogleDriveFile(entry, mimeType, hidden, trashed, parentsList);
-                }
-
-                if (trace != null)
-                {
-                    trace.WriteLine("  create {0} items", items.Length);
-                    for (int i = 0; i < items.Length; i++)
-                    {
-                        trace.WriteLine("  [{0}]: {1}", i, items[i]);
-                    }
-                }
-
-                aggregateItems.AddRange(items);
-
-            } while (pageToken != null);
-
-
-            if (trace != null)
-            {
-                trace.WriteLine("-GetRemoteFlatFilesList total={0}", aggregateItems.Count);
-                trace.WriteLine();
-            }
-
-            return aggregateItems.ToArray();
-        }
-#endif
 
         private static RemoteFileSystemEntry FileSystemEntryFromJSON(JSONDictionary json)
         {
@@ -2922,57 +2226,6 @@ namespace Backup
             return new RemoteFileSystemEntry(id, title, mimeType == "application/vnd.google-apps.folder", DateTime.Parse(createdDate), DateTime.Parse(modifiedDate), Int64.Parse(fileSize));
         }
 
-#if false
-        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
-        {
-            if (trace != null)
-            {
-                trace.WriteLine("+RemoteGetFileSystemEntries(folderId={0})", folderId);
-            }
-
-            if (String.IsNullOrEmpty(folderId))
-            {
-                folderId = rootId;
-            }
-
-            List<GoogleDriveFile> children = childrenMap[folderId];
-            List<RemoteFileSystemEntry> items = new List<RemoteFileSystemEntry>(children.Count);
-            Dictionary<string, RemoteFileSystemEntry> titles = new Dictionary<string, RemoteFileSystemEntry>(children.Count);
-            foreach (GoogleDriveFile child in children)
-            {
-                if (/*child.Hidden || */child.Trashed)
-                {
-                    continue;
-                }
-
-                RemoteFileSystemEntry first;
-                if (!titles.TryGetValue(child.Title, out first))
-                {
-                    first = child.Entry;
-                    items.Add(first);
-                    titles.Add(first.Name, first);
-                }
-                else
-                {
-                    RemoteFileSystemEntry duplicate = child.Entry;
-                    first.Duplicates.Add(duplicate);
-                }
-            }
-
-            if (trace != null)
-            {
-                trace.WriteLine("  return {0} items", items.Count);
-                for (int i = 0; i < items.Count; i++)
-                {
-                    trace.WriteLine("  [{0}]: {1}", i, items[i]);
-                }
-                trace.WriteLine("-RemoteGetFileSystemEntries");
-                trace.WriteLine();
-            }
-
-            return items.ToArray();
-        }
-#else
         public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<RemoteFileSystemEntry> aggregateItems = new List<RemoteFileSystemEntry>();
@@ -3053,48 +2306,6 @@ namespace Backup
                 {
                     RemoteFileSystemEntry entry = FileSystemEntryFromJSON(entries[i]);
 
-#if false
-                    string mimeType;
-                    if (!entries[i].TryGetValueAs("mimeType", out mimeType))
-                    {
-                        throw new InvalidDataException();
-                    }
-
-                    bool hidden = false;
-                    bool trashed = false;
-                    JSONDictionary labels;
-                    entries[i].TryGetValueAs("labels", out labels);
-                    if (labels != null)
-                    {
-                        if (!labels.TryGetValueAs("hidden", out hidden)
-                            || !labels.TryGetValueAs("trashed", out trashed))
-                        {
-                            throw new InvalidDataException();
-                        }
-                    }
-
-                    JSONDictionary[] parents;
-                    entries[i].TryGetValueAs("parents", out parents);
-#endif
-#if false
-                    GoogleDriveParent[] parentsList = new GoogleDriveParent[parents != null ? parents.Length : 0];
-                    for (int j = 0; j < parentsList.Length; j++)
-                    {
-                        string id2, parentLink;
-                        bool isRoot;
-                        if (!parents[j].TryGetValueAs("id", out id2)
-                            || !parents[j].TryGetValueAs("parentLink", out parentLink)
-                            || !parents[j].TryGetValueAs("isRoot", out isRoot))
-                        {
-                            throw new InvalidDataException();
-                        }
-                        parentsList[j] = new GoogleDriveParent(id2, parentLink, isRoot);
-                    }
-#endif
-
-#if false
-                    items[i] = new GoogleDriveFile(entry, mimeType, hidden, trashed, parentsList);
-#endif
                     items[i] = entry;
                 }
 
@@ -3120,7 +2331,6 @@ namespace Backup
 
             return aggregateItems.ToArray();
         }
-#endif
 
         public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext)
         {

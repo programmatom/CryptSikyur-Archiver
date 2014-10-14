@@ -36,67 +36,6 @@ namespace Backup
     //
     ////////////////////////////////////////////////////////////////////////////
 
-#if false
-    // A pass-through stream that is completely transparent except that it refuses
-    // to Close() the underlying stream - used as a work-around for framework-provided
-    // streams that always close the underlying even when not desired (e.g. CryptoStream)
-    public class CloseBarrierStream : Stream
-    {
-        private Stream inner;
-
-        public CloseBarrierStream(Stream inner)
-        {
-            this.inner = inner;
-        }
-
-        public override bool CanRead { get { return inner.CanRead; } }
-        public override bool CanSeek { get { return inner.CanSeek; } }
-        public override bool CanTimeout { get { return inner.CanTimeout; } }
-        public override bool CanWrite { get { return inner.CanWrite; } }
-        public override long Length { get { return inner.Length; } }
-        public override long Position { get { return inner.Position; } set { inner.Position = value; } }
-
-        public override void Close()
-        {
-            inner = null;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            Close();
-        }
-
-        public override void Flush()
-        {
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            return inner.Read(buffer, offset, count);
-        }
-
-        public override int ReadByte()
-        {
-            return inner.ReadByte();
-        }
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            return inner.Seek(offset, origin);
-        }
-
-        public override void SetLength(long value)
-        {
-            inner.SetLength(value);
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            inner.Write(buffer, offset, count);
-        }
-    }
-#endif
-
     public interface ICheckValueGenerator : IDisposable
     {
         void ProcessBlock(byte[] buffer, int start, int count);

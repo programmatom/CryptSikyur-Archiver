@@ -473,18 +473,7 @@ namespace FileUtilityTester
                                     if (args[i] == "-size")
                                     {
                                         i++;
-#if false
-                                        try
-                                        {
-#endif
                                         size = Int64.Parse(args[i]);
-#if false
-                                        }
-                                        catch (FormatException)
-                                        {
-                                            size = Int64.Parse(variables[args[i]].ToString());
-                                        }
-#endif
                                     }
                                     else if (args[i] == "-value")
                                     {
