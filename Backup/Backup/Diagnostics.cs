@@ -1090,7 +1090,7 @@ namespace Backup
 
         private static string PrepareString(string s)
         {
-            return String.Concat("\"", s.Replace("\"", "\\\""), "\"");
+            return String.Concat("\"", (s != null ? s.Replace("\"", "\\\"") : null), "\"");
         }
     }
 

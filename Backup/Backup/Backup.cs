@@ -2234,10 +2234,7 @@ namespace Backup
                     return false;
                 }
 
-                string[] parts = line.Split(new char[] { '\t' });
-                current = parts[2];
-                currentAttributes = (FileAttributes)Int32.Parse(parts[0]);
-                currentLastWrite = DateTime.FromBinary(Int64.Parse(parts[1]));
+                ParseLine(line, out current, out currentAttributes, out currentLastWrite);
 
                 return true;
             }
@@ -2332,6 +2329,14 @@ namespace Backup
                 }
                 return encoded.Count > 0 ? new String(Encoding.UTF8.GetChars(encoded.ToArray())) : null;
             }
+
+            public static void ParseLine(string line, out string path, out FileAttributes attributes, out DateTime lastWrite)
+            {
+                string[] parts = line.Split('\t');
+                path = parts[2];
+                attributes = (FileAttributes)Int32.Parse(parts[0]);
+                lastWrite = DateTime.FromBinary(Int64.Parse(parts[1]));
+            }
         }
 
         private static int SyncPathCompare(string l, string r)
@@ -2358,7 +2363,7 @@ namespace Backup
             return 0;
         }
 
-        private static void SyncChange(string sourceRoot, string targetRoot, string path, int codePath, TextWriter log, bool l2r)
+        private static void SyncChange(string sourceRoot, string targetRoot, string path, int codePath, TextWriter log, bool l2r, ref bool flush, IFaultInstance faultContext)
         {
             try
             {
@@ -2383,6 +2388,7 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "del", String.Empty, targetPath);
                     }
+                    faultContext.Select("del", targetPath);
                     File.SetAttributes(targetPath, File.GetAttributes(targetPath) & ~FileAttributes.ReadOnly);
                     File.Delete(targetPath);
                 }
@@ -2392,6 +2398,7 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "rmdir /s", String.Empty, targetPath);
                     }
+                    faultContext.Select("rmdir", targetPath);
                     bool retry = false;
                     try
                     {
@@ -2422,9 +2429,11 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "copy", "to", targetPath);
                     }
+                    faultContext.Select("copy", targetPath);
                     try
                     {
                         File.Copy(sourcePath, targetPath);
+                        flush = true;
                     }
                     catch (PathTooLongException exception)
                     {
@@ -2445,9 +2454,11 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "mkdir", String.Empty, targetPath);
                     }
+                    faultContext.Select("mkdir", targetPath);
                     try
                     {
                         Directory.CreateDirectory(targetPath);
+                        flush = true;
                     }
                     catch (PathTooLongException exception)
                     {
@@ -2468,7 +2479,7 @@ namespace Backup
             }
         }
 
-        const FileAttributes SyncPropagatedAttributes = FileAttributes.ReadOnly | FileAttributes.Directory;
+        private const FileAttributes SyncPropagatedAttributes = FileAttributes.ReadOnly | FileAttributes.Directory;
 
         private static bool SyncSubdirChanged(string root, EnumerateHierarchy currentEntries, EnumerateFile previousEntries, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems)
         {
@@ -2513,12 +2524,218 @@ namespace Backup
             return false;
         }
 
+        private class VolumeFlushHelper : IDisposable
+        {
+            private IntPtr volumeHandle;
+            private readonly string volumePath;
+
+            // http://msdn.microsoft.com/en-us/library/windows/desktop/aa364439%28v=vs.85%29.aspx
+            [DllImport("Kernel32.dll", SetLastError = true)]
+            private static extern bool FlushFileBuffers(IntPtr hFile);
+
+            [DllImport("Kernel32.dll", SetLastError = true)]
+            private static extern bool CloseHandle(IntPtr hObject);
+
+            // http://msdn.microsoft.com/en-us/library/windows/desktop/aa363858%28v=vs.85%29.aspx
+            private const Int32 GENERIC_WRITE = 0x40000000;
+            private const Int32 FILE_SHARE_READ = 1;
+            private const Int32 FILE_SHARE_WRITE = 2;
+            private const Int32 OPEN_EXISTING = 3;
+            [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            private static extern IntPtr CreateFile(string lpFileName, Int32 dwDesiredAccess, Int32 dwShareMode, IntPtr lpSecurityAttributes, Int32 dwCreationDisposition, Int32 dwFlagsAndAttributes, IntPtr hTemplateFile);
+
+            // http://msdn.microsoft.com/en-us/library/windows/desktop/aa364996%28v=vs.85%29.aspx
+            private const int MAX_PATH = 260;
+            [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            private static extern bool GetVolumePathName(string lpszFileName, [Out] StringBuilder lpszVolumePathName, Int32 cchBufferLength);
+
+            public VolumeFlushHelper(string root)
+            {
+                StringBuilder volumePathBuffer = new StringBuilder(MAX_PATH);
+                if (!GetVolumePathName(@"\\.\" + root, volumePathBuffer, MAX_PATH))
+                {
+                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+                volumePath = volumePathBuffer.ToString();
+                volumePath = volumePath.Substring(0, volumePath.Length - 1); // remote trailing backslash
+                volumeHandle = CreateFile(volumePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+                if (Marshal.GetLastWin32Error() != 0)
+                {
+                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+            }
+
+            public static void Add(ref VolumeFlushHelper[] helpers, string root)
+            {
+                VolumeFlushHelper helper = new VolumeFlushHelper(root);
+                for (int i = 0; i < helpers.Length; i++)
+                {
+                    if (String.Equals(helpers[i].VolumePath, helper.VolumePath))
+                    {
+                        helper.Dispose();
+                        return;
+                    }
+                }
+                Array.Resize(ref helpers, helpers.Length + 1);
+                helpers[helpers.Length - 1] = helper;
+            }
+
+            public static void Flush(VolumeFlushHelper[] helpers)
+            {
+                for (int i = 0; i < helpers.Length; i++)
+                {
+                    helpers[i].Flush();
+                }
+            }
+
+            public static void Dispose(VolumeFlushHelper[] helpers)
+            {
+                for (int i = 0; i < helpers.Length; i++)
+                {
+                    helpers[i].Dispose();
+                    helpers[i] = null;
+                }
+            }
+
+            public string VolumePath { get { return volumePath; } }
+
+            public void Flush()
+            {
+                if (!FlushFileBuffers(volumeHandle))
+                {
+                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+            }
+
+            public void Dispose()
+            {
+                if (!volumeHandle.Equals(IntPtr.Zero))
+                {
+                    CloseHandle(volumeHandle);
+                    volumeHandle = IntPtr.Zero;
+                }
+            }
+        }
+
+        private static long PositionOfLastLineBreak(Stream stream)
+        {
+            byte[] pattern = Encoding.UTF8.GetBytes(Environment.NewLine);
+            long offset = 0;
+            long last = 0;
+            byte[] buffer = new byte[Constants.BufferSize + pattern.Length - 1];
+
+            int remaining = stream.Read(buffer, 0, buffer.Length);
+            while (remaining != 0)
+            {
+                for (int i = 0; i < remaining - (pattern.Length - 1); i++)
+                {
+                    if (buffer[i] == pattern[0])
+                    {
+                        for (int j = 1; j < pattern.Length; j++)
+                        {
+                            if (buffer[i + j] != pattern[j])
+                            {
+                                goto Next;
+                            }
+                        }
+
+                        last = offset + i + pattern.Length;
+
+                    Next:
+                        ;
+                    }
+                }
+
+                if (remaining != buffer.Length)
+                {
+                    break;
+                }
+
+                Buffer.BlockCopy(buffer, Constants.BufferSize, buffer, 0, pattern.Length - 1);
+                offset += Constants.BufferSize;
+                remaining -= Constants.BufferSize;
+
+                int read = stream.Read(buffer, pattern.Length - 1, Constants.BufferSize);
+                remaining += read;
+            }
+
+            return last;
+        }
+
+        private static void SyncRollForward(string manifestNewRecovery, TextWriter newEntries, EnumerateHierarchy currentEntries, EnumerateFile previousEntries, TextWriter log, string logTag)
+        {
+            if (File.Exists(manifestNewRecovery))
+            {
+                if (log != null)
+                {
+                    log.WriteLine("(Resuming an incomplete operation)");
+                }
+
+                using (Stream stream = new FileStream(manifestNewRecovery, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                {
+                    // if last line of file is incomplete, truncate to last complete line
+                    long end = PositionOfLastLineBreak(stream);
+                    stream.Position = 0;
+                    stream.SetLength(end);
+
+                    // roll forward new manifest to previous failure point
+                    string last = null;
+                    using (TextReader reader = new StreamReader(stream, Encoding.UTF8))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            newEntries.WriteLine(line);
+                            last = line;
+                        }
+                    }
+                    newEntries.Flush();
+
+                    if (last != null)
+                    {
+                        string lastPath;
+                        FileAttributes attributes;
+                        DateTime lastWrite;
+                        EnumerateFile.ParseLine(last, out lastPath, out attributes, out lastWrite);
+
+                        if (log != null)
+                        {
+                            log.WriteLine("Roll forward {0} to {1}", logTag, lastPath);
+                        }
+
+                        // fast-forward current and previous iterators
+                        while (currentEntries.Valid && (SyncPathCompare(currentEntries.Current, lastPath) <= 0))
+                        {
+                            currentEntries.MoveNext();
+                        }
+                        while (previousEntries.Valid && (SyncPathCompare(previousEntries.Current, lastPath) <= 0))
+                        {
+                            previousEntries.MoveNext();
+                        }
+                    }
+                }
+
+                File.Delete(manifestNewRecovery);
+
+                if (log != null)
+                {
+                    log.WriteLine();
+                }
+            }
+        }
+
         private const string SyncManifestLocalPrefix = "local";
         private const string SyncManifestRemotePrefix = "remote";
         private const string SyncManifestSavedSuffix = "sync.txt";
         private const string SyncManifestNewSuffix = "sync0.txt";
+        private const string SyncManifestBackupExtension = ".bak";
+        private const string SyncManifestRecoveryExtension = ".rec";
         internal static void Sync(string rootL, string rootR, string repository, Context context, string[] args)
         {
+            // In this method, suffix L == "Left" or "Local" and R == "Right" or "Remote". Clever, eh?
+
+            IFaultInstance faultInstanceSync = context.faultInjectionRoot.Select("Sync", String.Format("{0}|{1}", rootL, rootR));
+
             bool resolveSkip = false;
 
             string diagnosticPath;
@@ -2531,6 +2748,9 @@ namespace Backup
                 log.WriteLine();
             }
 
+            bool flushVolumeEnabled;
+            GetAdHocArgument(ref args, "-flushvols", false/*defaultValue*/, true/*explicitValue*/, out flushVolumeEnabled);
+
             InvariantStringSet excludedExtensions;
             InvariantStringSet excludedItems;
             GetExclusionArguments(args, out excludedExtensions, true/*relative*/, out excludedItems);
@@ -2541,18 +2761,64 @@ namespace Backup
                     excludedItems.Set(item.Key);
                 }
             }
-#if false
-            excludedItems.Set(SyncSavedManifestName);
-            excludedItems.Set(SyncSavedManifestNewName);
-            InvariantStringSet suppressLoggingItems = new InvariantStringSet();
-            suppressLoggingItems.Set(SyncSavedManifestName);
-            suppressLoggingItems.Set(SyncSavedManifestNewName);
-#endif
+
+            VolumeFlushHelper[] volumeFlushHelpers = new VolumeFlushHelper[0];
+            if (flushVolumeEnabled)
+            {
+                try
+                {
+                    VolumeFlushHelper.Add(ref volumeFlushHelpers, rootL);
+                    VolumeFlushHelper.Add(ref volumeFlushHelpers, rootR);
+                    VolumeFlushHelper.Add(ref volumeFlushHelpers, repository);
+                }
+                catch (Exception exception)
+                {
+                    throw new ApplicationException("Option to flush volume buffers (-flushvols) requires administrative privileges", exception);
+                }
+            }
 
             string manifestLocalSaved = Path.Combine(repository, SyncManifestLocalPrefix + SyncManifestSavedSuffix);
+            string manifestLocalSavedBackup = manifestLocalSaved + SyncManifestBackupExtension;
             string manifestLocalNew = Path.Combine(repository, SyncManifestLocalPrefix + SyncManifestNewSuffix);
+            string manifestLocalNewRecovery = manifestLocalNew + SyncManifestRecoveryExtension;
             string manifestRemoteSaved = Path.Combine(repository, SyncManifestRemotePrefix + SyncManifestSavedSuffix);
+            string manifestRemoteSavedBackup = manifestRemoteSaved + SyncManifestBackupExtension;
             string manifestRemoteNew = Path.Combine(repository, SyncManifestRemotePrefix + SyncManifestNewSuffix);
+            string manifestRemoteNewRecovery = manifestRemoteNew + SyncManifestRecoveryExtension;
+
+            // If program failed while committing manifests, restore missing manifest from backup
+            if (!File.Exists(manifestLocalSaved) && File.Exists(manifestLocalSavedBackup))
+            {
+                File.Move(manifestLocalSavedBackup, manifestLocalSaved);
+            }
+            if (!File.Exists(manifestRemoteSaved) && File.Exists(manifestRemoteSavedBackup))
+            {
+                File.Move(manifestRemoteSavedBackup, manifestRemoteSaved);
+            }
+
+            // If program failed and left "new" unfinished manifests, save for recovery
+            if (File.Exists(manifestLocalNew))
+            {
+                try
+                {
+                    File.Delete(manifestLocalNewRecovery);
+                }
+                catch (FileNotFoundException)
+                {
+                }
+                File.Move(manifestLocalNew, manifestLocalNewRecovery);
+            }
+            if (File.Exists(manifestRemoteNew))
+            {
+                try
+                {
+                    File.Delete(manifestRemoteNewRecovery);
+                }
+                catch (FileNotFoundException)
+                {
+                }
+                File.Move(manifestRemoteNew, manifestRemoteNewRecovery);
+            }
 
             EnumerateHierarchy currentEntriesL = new EnumerateHierarchy(rootL);
             currentEntriesL.MoveNext();
@@ -2574,11 +2840,29 @@ namespace Backup
             previousEntriesR.MoveNext();
             TextWriter newEntriesR = new StreamWriter(manifestRemoteNew, false/*append*/, Encoding.UTF8);
 
+            SyncRollForward(manifestLocalNewRecovery, newEntriesL, currentEntriesL, previousEntriesL, log, "local");
+            SyncRollForward(manifestRemoteNewRecovery, newEntriesR, currentEntriesR, previousEntriesR, log, "remote");
+
             try
             {
+                VolumeFlushHelper.Flush(volumeFlushHelpers);
+
+                bool flush = false;
             Loop:
                 while (currentEntriesL.Valid || currentEntriesR.Valid)
                 {
+                    if (flush)
+                    {
+                        newEntriesL.Flush();
+                        newEntriesR.Flush();
+                        VolumeFlushHelper.Flush(volumeFlushHelpers);
+                        flush = false;
+                    }
+
+                    IFaultInstance faultInstanceIteration = faultInstanceSync.Select("Iteration");
+                    IFaultInstance faultInstanceLeftEntry = faultInstanceIteration.Select("LeftEntry", currentEntriesL.Valid ? currentEntriesL.CurrentFullPath : null);
+                    IFaultInstance faultInstanceRightEntry = faultInstanceIteration.Select("RightEntry", currentEntriesR.Valid ? currentEntriesR.CurrentFullPath : null);
+
                     int codePath = -1;
 
                     bool rootExclusion = false;
@@ -2589,15 +2873,7 @@ namespace Backup
                     {
                         if (log != null)
                         {
-                            if (
-#if false
-                                !suppressLoggingItems.Contains(currentEntriesL.Current) &&(
-#endif
-rootExclusion || extensionExclusion
-#if false
-                                )
-#endif
-)
+                            if (rootExclusion || extensionExclusion)
                             {
                                 log.WriteLine("SKIP \"{0}{1}\"", currentEntriesL.Current, Directory.Exists(Path.Combine(rootL, currentEntriesL.Current)) ? "\\" : String.Empty);
                             }
@@ -2613,15 +2889,7 @@ rootExclusion || extensionExclusion
                     {
                         if (log != null)
                         {
-                            if (
-#if false
-                                !suppressLoggingItems.Contains(currentEntriesR.Current) && (
-#endif
-rootExclusion || extensionExclusion
-#if false
-                                )
-#endif
-)
+                            if (rootExclusion || extensionExclusion)
                             {
                                 log.WriteLine("SKIP \"{0}{1}\"", currentEntriesR.Current, Directory.Exists(Path.Combine(rootR, currentEntriesR.Current)) ? "\\" : String.Empty);
                             }
@@ -2756,7 +3024,7 @@ rootExclusion || extensionExclusion
                                 {
                                     codePath = 101;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -2766,7 +3034,7 @@ rootExclusion || extensionExclusion
                             else if (changedR)
                             {
                                 codePath = 102;
-                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
+                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
                                 currentEntriesL.MoveNext();
                             }
                             else
@@ -2863,7 +3131,7 @@ rootExclusion || extensionExclusion
                                 {
                                     codePath = 201;
                                 }
-                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
+                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
                                 currentEntriesR.MoveNext();
                             }
                             else if (changedR)
@@ -2872,7 +3140,7 @@ rootExclusion || extensionExclusion
                                 {
                                     codePath = 202;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -2997,7 +3265,7 @@ rootExclusion || extensionExclusion
                                     codePath = 301;
                                 }
                                 bool dirR = currentEntriesR.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -3019,7 +3287,7 @@ rootExclusion || extensionExclusion
                                     codePath = 302;
                                 }
                                 bool dirL = currentEntriesL.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3075,19 +3343,47 @@ rootExclusion || extensionExclusion
                     log.Close();
                     log = null;
                 }
+
+                VolumeFlushHelper.Dispose(volumeFlushHelpers);
             }
 
 
+            DateTime localCreated = context.now;
             if (File.Exists(manifestLocalSaved))
             {
+                localCreated = File.GetCreationTime(manifestLocalSaved);
+                try
+                {
+                    DateTime created = File.GetCreationTime(manifestLocalSaved);
+                    File.Copy(manifestLocalSaved, manifestLocalSavedBackup, true/*overwrite*/);
+                    File.SetCreationTime(manifestLocalSavedBackup, created);
+                }
+                catch (Exception)
+                {
+                }
                 File.Delete(manifestLocalSaved);
             }
+            DateTime remoteCreated = context.now;
             if (File.Exists(manifestRemoteSaved))
             {
+                remoteCreated = File.GetCreationTime(manifestRemoteSaved);
+                try
+                {
+                    DateTime created = File.GetCreationTime(manifestRemoteSaved);
+                    File.Copy(manifestRemoteSaved, manifestRemoteSavedBackup, true/*overwrite*/);
+                    File.SetCreationTime(manifestRemoteSavedBackup, created);
+                }
+                catch (Exception)
+                {
+                }
                 File.Delete(manifestRemoteSaved);
             }
             File.Move(manifestLocalNew, manifestLocalSaved);
+            File.SetCreationTime(manifestLocalSaved, localCreated);
+            File.SetLastWriteTime(manifestLocalSaved, context.now);
             File.Move(manifestRemoteNew, manifestRemoteSaved);
+            File.SetCreationTime(manifestRemoteSaved, remoteCreated);
+            File.SetLastWriteTime(manifestRemoteSaved, context.now);
         }
 
 

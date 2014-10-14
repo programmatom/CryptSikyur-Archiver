@@ -68,6 +68,7 @@
     <Content Include="SplitBasic.txt" />
     <Content Include="SyncBasic.txt" />
     <Content Include="SyncExclusions.txt" />
+    <Content Include="SyncFaults.txt" />
     <Content Include="SyncLogging.txt" />
     <Content Include="TestScripts.txt" />
     <Content Include="RemoteBasic.txt" />

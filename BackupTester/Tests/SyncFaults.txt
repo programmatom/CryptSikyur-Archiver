@@ -1,0 +1,582 @@
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module add two files - left
+
+timeout 30
+
+mkdir a\x
+mkdir a\y
+mkdir s
+
+test initial setup
+date 2014-01-01
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test interrupted files
+date + 1
+create a\x\1.txt
+create a\x\2.txt
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\2.txt [2]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\1.txt [1]
+.                                         -----D s\
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt [3]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[4\]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt [3]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[4\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\t1\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\t1\.txt
+endfile
+
+test resume and finish
+date + 1
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\2.txt [2]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\2.txt [2]
+.                                         -----D s\
+.          2014-01-01          2014-01-03 -A---- s\localsync.txt [5]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [3]
+.          2014-01-01          2014-01-03 -A---- s\remotesync.txt [5]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [3]
+endlist
+
+
+module add two files - right
+
+timeout 30
+
+mkdir a\x
+mkdir a\y
+mkdir s
+
+test initial setup
+date 2014-01-01
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+
+test interrupted files
+date + 1
+create a\y\1.txt
+create a\y\2.txt
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\1.txt [1]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\2.txt [2]
+.                                         -----D s\
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt [3]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[4\]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt [3]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[4\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\t1\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\t1\.txt
+endfile
+
+test resume and finish
+date + 1
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\2.txt [2]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\1.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\2.txt [2]
+.                                         -----D s\
+.          2014-01-01          2014-01-03 -A---- s\localsync.txt [5]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [3]
+.          2014-01-01          2014-01-03 -A---- s\remotesync.txt [5]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [3]
+endlist
+
+
+module add crossing
+
+timeout 30
+
+mkdir a\x
+mkdir a\y
+mkdir s
+
+test initial setup
+date 2014-01-01
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\a.txt
+create a\y\b.txt
+create a\x\c.txt
+create a\y\d.txt
+create a\x\e.txt
+create a\y\f.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- x\e.txt [3]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- y\f.txt [6]
+endlist
+
+test interrupt - after a.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\y\f.txt [6]
+.                                         -----D s\
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[8\]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[8\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+endfile
+
+test interrupt - after b.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\y\f.txt [6]
+.                                         -----D s\
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[9\]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[9\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+endfile
+
+test interrupt - after c.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\y\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\y\f.txt [6]
+.                                         -----D s\
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[10\]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[10\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+
+test interrupt - after d.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\x\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\y\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\y\f.txt [6]
+.                                         -----D s\
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[11\]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[11\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+*[0-9]+\t[0-9-]+\td\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+*[0-9]+\t[0-9-]+\td\.txt
+endfile
+
+test interrupt - after e.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\x\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\y\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\y\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- a\y\f.txt [6]
+.                                         -----D s\
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[12\]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt [7]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[12\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+*[0-9]+\t[0-9-]+\td\.txt
+*[0-9]+\t[0-9-]+\te\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\ta\.txt
+*[0-9]+\t[0-9-]+\tb\.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+*[0-9]+\t[0-9-]+\td\.txt
+*[0-9]+\t[0-9-]+\te\.txt
+endfile
+
+test finish (f.txt)
+date + 1
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\x\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\x\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- a\x\f.txt [6]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- a\y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- a\y\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- a\y\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- a\y\f.txt [6]
+.                                         -----D s\
+.          2014-01-01          2014-01-08 -A---- s\localsync.txt [13]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [7]
+.          2014-01-01          2014-01-08 -A---- s\remotesync.txt [13]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [7]
+endlist
+
+
+module delete/update crossing
+
+timeout 30
+
+mkdir a\x
+mkdir a\y
+mkdir s
+
+test initial setup
+date 2014-01-01
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify a
+.                                         -----D x\
+.                                         -----D y\
+endlist
+date + 1
+create a\x\a.txt
+create a\y\b.txt
+create a\x\c.txt
+create a\y\d.txt
+create a\x\e.txt
+create a\y\f.txt
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- x\e.txt [3]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- y\f.txt [6]
+endlist
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify a
+.                                         -----D x\
+.          2014-01-02          2014-01-02 -A---- x\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- x\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- x\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- x\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- x\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- x\f.txt [6]
+.                                         -----D y\
+.          2014-01-02          2014-01-02 -A---- y\a.txt [1]
+.          2014-01-02          2014-01-02 -A---- y\b.txt [4]
+.          2014-01-02          2014-01-02 -A---- y\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- y\d.txt [5]
+.          2014-01-02          2014-01-02 -A---- y\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- y\f.txt [6]
+endlist
+date + 1
+delete a\x\a.txt
+delete a\y\b.txt
+edit a\x\c.txt
+delete a\x\d.txt
+delete a\y\e.txt
+edit a\y\f.txt
+
+test interrupt - after a.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-02 -A---- a\x\b.txt [4]
+.          2014-01-02          2014-01-03 -A---- a\x\c.txt [7]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- a\x\f.txt [6]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-03 -A---- a\y\f.txt [8]
+.                                         -----D s\
+.          2014-01-01          2014-01-02 -A---- s\localsync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A--Z- s\\localsync0\.txt \[0\]
+.          2014-01-01          2014-01-02 -A---- s\remotesync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A--Z- s\\remotesync0\.txt \[0\]
+endlist
+file-verify s\localsync0.txt
+endfile
+file-verify s\remotesync0.txt
+endfile
+
+test interrupt - after b.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-03 -A---- a\x\c.txt [7]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- a\x\f.txt [6]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-02 -A---- a\y\c.txt [2]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-03 -A---- a\y\f.txt [8]
+.                                         -----D s\
+.          2014-01-01          2014-01-02 -A---- s\localsync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[10\]
+.          2014-01-01          2014-01-02 -A---- s\remotesync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[10\]
+endlist
+file-verify s\localsync0.txt
+endfile
+file-verify s\remotesync0.txt
+endfile
+
+test interrupt - after c.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-03 -A---- a\x\c.txt [7]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- a\x\f.txt [6]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-03 -A---- a\y\c.txt [7]
+.          2014-01-02          2014-01-02 -A---- a\y\d.txt [5]
+.          2014-01-02          2014-01-03 -A---- a\y\f.txt [8]
+.                                         -----D s\
+.          2014-01-01          2014-01-02 -A---- s\localsync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[11\]
+.          2014-01-01          2014-01-02 -A---- s\remotesync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[11\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+
+test interrupt - after d.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-03 -A---- a\x\c.txt [7]
+.          2014-01-02          2014-01-02 -A---- a\x\e.txt [3]
+.          2014-01-02          2014-01-02 -A---- a\x\f.txt [6]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-03 -A---- a\y\c.txt [7]
+.          2014-01-02          2014-01-03 -A---- a\y\f.txt [8]
+.                                         -----D s\
+.          2014-01-01          2014-01-02 -A---- s\localsync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[11\]
+.          2014-01-01          2014-01-02 -A---- s\remotesync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[11\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+
+test interrupt - after e.txt
+date + 1
+call backup -injectfault kill /Sync/Iteration[count:2] sync a\x a\y s
+exitcode-verify not 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-03 -A---- a\x\c.txt [7]
+.          2014-01-02          2014-01-02 -A---- a\x\f.txt [6]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-03 -A---- a\y\c.txt [7]
+.          2014-01-02          2014-01-03 -A---- a\y\f.txt [8]
+.                                         -----D s\
+.          2014-01-01          2014-01-02 -A---- s\localsync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\localsync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\localsync0\.txt \[11\]
+.          2014-01-01          2014-01-02 -A---- s\remotesync.txt [9]
+.          2014-01-01          2014-01-01 -A---- s\remotesync.txt.bak [10]
+*          [0-9-]+          [0-9-]+ -A---- s\\remotesync0\.txt \[11\]
+endlist
+file-verify s\localsync0.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+file-verify s\remotesync0.txt
+*[0-9]+\t[0-9-]+\tc\.txt
+endfile
+
+test finish (f.txt)
+date + 1
+call backup sync a\x a\y s
+exitcode-verify 0
+list-verify .
+.                                         -----D a\
+.                                         -----D a\x\
+.          2014-01-02          2014-01-03 -A---- a\x\c.txt [7]
+.          2014-01-02          2014-01-03 -A---- a\x\f.txt [8]
+.                                         -----D a\y\
+.          2014-01-02          2014-01-03 -A---- a\y\c.txt [7]
+.          2014-01-02          2014-01-03 -A---- a\y\f.txt [8]
+.                                         -----D s\
+.          2014-01-01          2014-01-09 -A---- s\localsync.txt [12]
+.          2014-01-01          2014-01-02 -A---- s\localsync.txt.bak [9]
+.          2014-01-01          2014-01-09 -A---- s\remotesync.txt [12]
+.          2014-01-01          2014-01-02 -A---- s\remotesync.txt.bak [9]
+endlist
