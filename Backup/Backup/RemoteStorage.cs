@@ -431,9 +431,11 @@ namespace Backup
         private const int MaxBytesPerWebRequest = 50 * 1024 * 1024; // force upload fail & resumable after this many bytes (to exercise the resume code)
         private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
 
+#if false
         // .NET HttpWebRequest (2.0 anyway) seems plagued by hangs and race conditions for long-running
         // requests or spotty networks. Prefer to use my own simpler implementation.
         private readonly bool? UseCustomHttpImplementation = true; // null == both (arbitrarily selected), false == HttpWebRequest, true == custom
+#endif
 
         protected readonly RemoteAccessControl remoteAccessControl;
         protected readonly bool enableResumableUploads;
@@ -1192,7 +1194,9 @@ namespace Backup
         private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", "Content-Length", "Accept-Encoding", "Expect", "Authorization" };
         protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
         {
+#if false
             bool useCustomHttpImplementation = UseCustomHttpImplementation.HasValue ? UseCustomHttpImplementation.Value : ((DateTime.Now.Minute % 5) % 2 != 0); // how'd-ya like dem apples?
+#endif
 
             if (requestHeaders == null)
             {
@@ -1359,12 +1363,16 @@ namespace Backup
                 }
             }
 
+#if false
             if (trace != null)
             {
                 trace.WriteLine("DoWebActionOnce: using http implementation {0}", useCustomHttpImplementation ? "Backup.WebMethodsBase.SocketHttpRequest" : "System.Net.HttpWebRequest");
             }
+#endif
 
+#if false
             if (useCustomHttpImplementation)
+#endif
             {
                 // My own HTTP request-making code
 
@@ -1448,6 +1456,7 @@ namespace Backup
                     }
                 }
             }
+#if false
             else
             {
                 // asynchronous .NET HttpWebRequest
@@ -1839,6 +1848,7 @@ namespace Backup
                     goto Error;
                 }
             }
+#endif
 
 
         Error:
