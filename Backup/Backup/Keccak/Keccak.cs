@@ -68,18 +68,17 @@ namespace Keccak
 
         protected override byte[] HashFinal()
         {
+            // Per SHA3 definition, bits 0b01 are appended to the message stream
+            // (see 6.1 SHA-3 Hash Functions of http://csrc.nist.gov/publications/drafts/fips-202/fips_202_draft.pdf)
+            // Bits in a partially-filled message byte fill in starting from highest bit
+            // (see A.2 Examples of http://csrc.nist.gov/publications/drafts/fips-202/fips_202_draft.pdf)
+            byte[] FinalPadding = new byte[] { 0x80 };
+            const int FinalPaddingBitLength = 2;
+            inner.DoUpdate(FinalPadding, 0, FinalPaddingBitLength);
+
             byte[] hash = new byte[inner.GetDigestSize()];
             inner.DoFinal(hash, 0);
             return hash;
-        }
-
-        // bit-length delimited function for testing
-        protected byte[] ComputeHashBitLength(byte[] data, int lengthBits, byte[] padding, int paddingBits)
-        {
-            inner.Reset();
-            inner.DoUpdate(data, 0, lengthBits);
-            inner.DoUpdate(padding, 0, paddingBits);
-            return HashFinal();
         }
 
         public override void Initialize()
@@ -98,7 +97,7 @@ namespace Keccak
             internal TestVector(BitLength bits, string data, int dataBitLength, string digest)
             {
                 this.bits = bits;
-                this.data = !String.IsNullOrEmpty(data) ? HexUtility.HexDecode(data) : null;
+                this.data = !String.IsNullOrEmpty(data) ? HexUtility.HexDecode(data) : new byte[0];
                 this.dataBitLength = dataBitLength;
                 this.digest = HexUtility.HexDecode(digest);
             }
@@ -147,9 +146,6 @@ namespace Keccak
         public static void Test()
         {
             List<TestVector> testVectors = new List<TestVector>(TestVectors);
-
-            byte[] padding = new byte[] { 0x80 };
-            const int paddingBits = 2;
 
             if (EnableComprehensiveTest)
             {
@@ -216,7 +212,8 @@ namespace Keccak
             foreach (TestVector testVector in testVectors)
             {
                 KeccakHashAlgorithm algorithm = KeccakHashAlgorithm.Create(testVector.bits);
-                byte[] digest = algorithm.ComputeHashBitLength(testVector.data, testVector.dataBitLength, padding, paddingBits);
+                Debug.Assert(testVector.dataBitLength % 8 == 0);
+                byte[] digest = algorithm.ComputeHash(testVector.data, 0, testVector.dataBitLength / 8);
                 if (!Core.ArrayEqual(digest, testVector.digest))
                 {
                     throw new ApplicationException(String.Format("Keccak implementation defect ({0})", testVector.source));

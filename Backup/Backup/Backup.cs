@@ -1154,7 +1154,7 @@ namespace Backup
             }
         }
 
-        public struct Context
+        public class Context
         {
             public CompressionOption compressionOption;
             public bool doNotPreValidateMAC;
@@ -1180,6 +1180,10 @@ namespace Backup
 
             public FaultTemplateNode faultInjectionTemplateRoot;
             public IFaultInstance faultInjectionRoot;
+
+            public Context()
+            {
+            }
 
             public Context(Context original)
             {
@@ -5475,6 +5479,8 @@ namespace Backup
 
                 // used for large files split across multiple segments - optional
                 Range = 8,
+
+                Digest = 9, // field id 9 will always be a SHA3-256, base-64 encoded
             }
 
             internal const int SupportedVersionNumber = 1;
@@ -5593,11 +5599,13 @@ namespace Backup
 
             private RangeRecord range; // null if file is not split
 
+            private byte[] digest; // null if hash not present
+
             private PackedFileHeaderRecord()
             {
             }
 
-            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, string segmentName, ulong segmentSerialNumber, RangeRecord range)
+            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, string segmentName, ulong segmentSerialNumber, RangeRecord range, byte[] digest)
             {
                 if (range != null)
                 {
@@ -5617,15 +5625,17 @@ namespace Backup
                 this.segmentSerialNumber = segmentSerialNumber;
 
                 this.range = range;
+
+                this.digest = digest;
             }
 
             internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, string segmentName, ulong segmentSerialNumber)
-                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, segmentName, segmentSerialNumber, null/*range*/)
+                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, segmentName, segmentSerialNumber, null/*range*/, null/*digest*/)
             {
             }
 
-            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, RangeRecord range)
-                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, null/*segmentName*/, 0/*segmentSerialNumber*/, range)
+            internal PackedFileHeaderRecord(object subpath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, HeaderAttributes attributes, long embeddedStreamLength, RangeRecord range, byte[] digest)
+                : this(subpath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, null/*segmentName*/, 0/*segmentSerialNumber*/, range, digest)
             {
             }
 
@@ -5701,6 +5711,12 @@ namespace Backup
                     {
                         BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.Range);
                         BinaryWriteUtils.WriteStringUtf8(checkedStream, range.ToString());
+                    }
+
+                    if (digest != null)
+                    {
+                        BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.Digest);
+                        BinaryWriteUtils.WriteStringUtf8(checkedStream, Convert.ToBase64String(digest));
                     }
 
                     BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.Terminator);
@@ -5858,6 +5874,21 @@ namespace Backup
                                     }
                                 }
                                 break;
+
+                            case Fields.Digest:
+                                try
+                                {
+                                    digest = Convert.FromBase64String(value);
+                                }
+                                catch (Exception)
+                                {
+                                    if (strict)
+                                    {
+                                        throw;
+                                    }
+                                    // else leave hash field null
+                                }
+                                break;
                         }
                     }
 
@@ -5941,6 +5972,12 @@ namespace Backup
 
                 // range invariant
                 if ((range != null) && (range.Length != embeddedStreamLength))
+                {
+                    throw new InvalidOperationException();
+                }
+
+                // ensure SHA3-256 hash array is correct length
+                if ((digest != null) && (digest.Length != 256 / 8))
                 {
                     throw new InvalidOperationException();
                 }
@@ -6049,6 +6086,57 @@ namespace Backup
                     return range == null ? embeddedStreamLength : range.TotalFileLength;
                 }
             }
+
+            internal byte[] Digest
+            {
+                get
+                {
+                    return digest;
+                }
+                set
+                {
+                    if ((value != null) && (value.Length != 256 / 8))
+                    {
+                        throw new ArgumentException();
+                    }
+                    digest = value;
+                }
+            }
+
+            internal void SetDigest(Stream stream, long bytesToRead)
+            {
+                using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new CryptoPrimitiveHashCheckValueGeneratorSHA3_256()))
+                {
+                    byte[] buffer = new byte[Constants.BufferSize];
+                    while (bytesToRead > 0)
+                    {
+                        int read = checkedStream.Read(buffer, 0, (int)Math.Min(bytesToRead, buffer.Length));
+                        if (read == 0)
+                        {
+                            break;
+                        }
+                        bytesToRead -= read;
+                    }
+
+                    checkedStream.Close();
+                    digest = checkedStream.CheckValue;
+                }
+            }
+
+            internal void SetDigest(string root, long bytesToRead)
+            {
+                string partialPath = subpath.ToString();
+                const string Prefix = @".\";
+                if (!partialPath.StartsWith(Prefix))
+                {
+                    throw new InvalidOperationException();
+                }
+                partialPath = partialPath.Substring(Prefix.Length);
+                using (Stream stream = new FileStream(Path.Combine(root, partialPath), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    SetDigest(stream, bytesToRead);
+                }
+            }
         }
 
         private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableRetry, Context context, TextWriter trace)
@@ -6113,7 +6201,8 @@ namespace Backup
                         !directory ? File.GetLastWriteTimeUtc(file) : default(DateTime),
                         PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(file)),
                         embeddedStreamLength,
-                        range);
+                        range,
+                        null/*digest*/);
                     header.Write(stream);
 
 
@@ -6390,6 +6479,14 @@ namespace Backup
                 get
                 {
                     return header.Range;
+                }
+            }
+
+            internal byte[] Digest
+            {
+                get
+                {
+                    return header.Digest;
                 }
             }
 
@@ -7092,6 +7189,10 @@ namespace Backup
                         {
                             Console.WriteLine("   {0}", file.Range);
                         }
+                        if (file.Digest != null)
+                        {
+                            Console.WriteLine("   {0}", HexUtility.HexEncode(file.Digest));
+                        }
                     }
 
                     if (sourceFileList.Count > 1)
@@ -7395,15 +7496,15 @@ namespace Backup
 
             private readonly int diagnosticSerialNumber = Interlocked.Increment(ref dynpackDiagnosticSerialNumberGenerator);
 
-            internal FileRecord(SegmentRecord segment, FilePath partialPath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, PackedFileHeaderRecord.HeaderAttributes attributes, long embeddedStreamLength, PackedFileHeaderRecord.RangeRecord range)
+            internal FileRecord(SegmentRecord segment, FilePath partialPath, DateTime creationTimeUtc, DateTime lastWriteTimeUtc, PackedFileHeaderRecord.HeaderAttributes attributes, long embeddedStreamLength, PackedFileHeaderRecord.RangeRecord range, byte[] digest)
             {
                 this.segment = segment;
-                this.header = new PackedFileHeaderRecord(partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, range);
+                this.header = new PackedFileHeaderRecord(partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, range, digest);
                 headerOverhead = header.GetHeaderLength();
             }
 
             internal FileRecord(FileRecord original)
-                : this(original.Segment, original.PartialPath, original.CreationTimeUtc, original.LastWriteTimeUtc, original.Attributes, original.EmbeddedStreamLength, original.Range)
+                : this(original.Segment, original.PartialPath, original.CreationTimeUtc, original.LastWriteTimeUtc, original.Attributes, original.EmbeddedStreamLength, original.Range, original.Digest)
             {
             }
 
@@ -7481,6 +7582,28 @@ namespace Backup
                 }
             }
 
+            internal byte[] Digest
+            {
+                get
+                {
+                    return header.Digest;
+                }
+                set
+                {
+                    header.Digest = value;
+                }
+            }
+
+            internal void SetDigest(Stream stream, long bytesToRead)
+            {
+                header.SetDigest(stream, bytesToRead);
+            }
+
+            internal void SetDigest(string root, long bytesToRead)
+            {
+                header.SetDigest(root, bytesToRead);
+            }
+
             internal void WriteHeader(Stream stream)
             {
                 header.SegmentName = null;
@@ -7535,12 +7658,12 @@ namespace Backup
 
                                 if (!largeFileSegmentSize.HasValue || (inputStreamLength <= largeFileSegmentSize.Value))
                                 {
-                                    files.Add(new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, inputStreamLength, null/*range*/));
+                                    files.Add(new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, inputStreamLength, null/*range*/, null/*digest*/));
                                 }
                                 else
                                 {
                                     // estimate overhead (tries to reserve worst case)
-                                    int headerOverhead = new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, inputStreamLength, null/*range*/).HeaderOverhead;
+                                    int headerOverhead = new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, inputStreamLength, null/*range*/, null/*digest*/).HeaderOverhead;
                                     headerOverhead += 1/*opcode*/ + 1/*length*/ + new PackedFileHeaderRecord.RangeRecord(inputStreamLength, inputStreamLength, inputStreamLength).ToString().Length;
                                     long largeFileSegmentSizeThisInstance = largeFileSegmentSize.Value - headerOverhead;
                                     if (largeFileSegmentSizeThisInstance <= 0)
@@ -7554,7 +7677,7 @@ namespace Backup
                                     {
                                         long currentLength = Math.Min(inputStreamLength - currentStart, largeFileSegmentSizeThisInstance);
                                         long currentEnd = currentStart + currentLength - 1;
-                                        files.Add(new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, currentLength, new PackedFileHeaderRecord.RangeRecord(currentStart, currentEnd, inputStreamLength)));
+                                        files.Add(new FileRecord(null/*segment*/, partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, currentLength, new PackedFileHeaderRecord.RangeRecord(currentStart, currentEnd, inputStreamLength), null/*digest*/));
                                         currentStart += largeFileSegmentSizeThisInstance;
                                     }
                                 }
@@ -7585,7 +7708,7 @@ namespace Backup
                     // for subdirectories, only if it is empty add it explicitly
                     if (initialFilesCount == files.Count)
                     {
-                        files.Add(new FileRecord(null/*segment*/, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)), default(DateTime), default(DateTime), PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(subdirectory)), 0, null/*range*/));
+                        files.Add(new FileRecord(null/*segment*/, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)), default(DateTime), default(DateTime), PackedFileHeaderRecord.ToHeaderAttributes(File.GetAttributes(subdirectory)), 0, null/*range*/, null/*digest*/));
                     }
                 }
                 else
@@ -7826,6 +7949,7 @@ namespace Backup
             bool verifyNonDirtyMetadata = false;
             string diagnosticPath = null;
             bool windiff = false;
+            bool ignoreUnchangedFiles = false;
 
             {
                 bool parsed = true;
@@ -7860,6 +7984,9 @@ namespace Backup
                             break;
                         case "-windiff":
                             GetAdHocArgument(ref args, "-windiff", false/*default*/, true/*explicit*/, out windiff);
+                            break;
+                        case "-ignoreunchanged":
+                            GetAdHocArgument(ref args, "-ignoreunchanged", false/*default*/, true/*explicit*/, out ignoreUnchangedFiles);
                             break;
                     }
                 }
@@ -8137,7 +8264,7 @@ namespace Backup
                                                 throw new InvalidDataException("Segment serial number inconsistent");
                                             }
 
-                                            previousFiles.Add(new FileRecord(segment, pathFactory.Create(header.Subpath), header.CreationTimeUtc, header.LastWriteTimeUtc, header.Attributes, header.EmbeddedStreamLength, header.Range));
+                                            previousFiles.Add(new FileRecord(segment, pathFactory.Create(header.Subpath), header.CreationTimeUtc, header.LastWriteTimeUtc, header.Attributes, header.EmbeddedStreamLength, header.Range, header.Digest));
                                         }
 
                                         BinaryReadUtils.RequireAtEOF(stream);
@@ -8317,6 +8444,11 @@ namespace Backup
                             // occurs after merging.
                             // Therefore, marking dirty is not done here in any case.
 
+                            if (ignoreUnchangedFiles)
+                            {
+                                currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
+                            }
+
                             mergedFiles.Add(currentFiles[iCurrent]);
                             iCurrent++;
                         }
@@ -8331,6 +8463,11 @@ namespace Backup
                                 }
 
                                 // IMPORTANT: see comment in "Added(1)" clause about marking dirty
+
+                                if (ignoreUnchangedFiles)
+                                {
+                                    currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
+                                }
 
                                 mergedFiles.Add(currentFiles[iCurrent]);
                                 iCurrent++;
@@ -8354,6 +8491,24 @@ namespace Backup
                                 bool creationChanged = !previousFiles[iPrevious].CreationTimeUtc.Equals(currentFiles[iCurrent].CreationTimeUtc);
                                 bool lastWriteChanged = !previousFiles[iPrevious].LastWriteTimeUtc.Equals(currentFiles[iCurrent].LastWriteTimeUtc);
                                 bool rangeChanged = !PackedFileHeaderRecord.RangeRecord.Equals(previousFiles[iPrevious].Range, currentFiles[iCurrent].Range);
+                                if (ignoreUnchangedFiles && !rangeChanged && (creationChanged || lastWriteChanged))
+                                {
+                                    currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
+                                    if ((previousFiles[iPrevious].Digest != null)
+                                        && ArrayEqual(previousFiles[iPrevious].Digest, currentFiles[iCurrent].Digest)) // missing previous hash will cause arrays to be not equal, preventing suppression
+                                    {
+                                        if (traceDynpack != null)
+                                        {
+                                            traceDynpack.WriteLine("Changed: {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
+                                            traceDynpack.WriteLine("       : {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
+                                            traceDynpack.WriteLine("       (reason: creation-changed={0} lastwrite-changed={1} range-changed={2})", creationChanged, lastWriteChanged, rangeChanged);
+                                            traceDynpack.WriteLine("       SUPPRESSED because -ignoreunchanged specified and file hash values indicate content unchanged");
+                                            traceDynpack.Write("       ");
+                                        }
+                                        creationChanged = false;
+                                        lastWriteChanged = false;
+                                    }
+                                }
                                 if (creationChanged || lastWriteChanged || rangeChanged)
                                 {
                                     if (traceDynpack != null)
@@ -8370,6 +8525,11 @@ namespace Backup
                                     if (traceDynpack != null)
                                     {
                                         traceDynpack.WriteLine("Unchanged: {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
+                                    }
+
+                                    if ((previousFiles[iPrevious].Digest != null) && (mergedFiles[mergedFiles.Count - 1].Digest == null))
+                                    {
+                                        mergedFiles[mergedFiles.Count - 1].Digest = previousFiles[iPrevious].Digest;
                                     }
                                 }
 

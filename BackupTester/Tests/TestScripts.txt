@@ -34,6 +34,7 @@ DynpackExclusions.txt
 DynpackLogging.txt
 DynpackLargeFileSplitting.txt
 DynpackRangeFaults.txt
+DynpackIgnoreUnchanged.txt
 # TODO: dynpack case sensitivity disambiguation
 # TODO: segment name insertion algorithm
 

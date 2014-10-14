@@ -623,6 +623,21 @@ namespace Backup
         public int OutputLengthBytes { get { return 1024 / 8; } } // hash algorithm final result length
     }
 
+    // Technically, SHA3 (Keccak) is not an 'iterated' hash provider.
+    // BlockLengthBytes has no meaning for SHA3, and HMAC is unnecessary for generating MAC with SHA3.
+    public sealed class CryptoPrimitiveIteratedHashProviderSHA3_256 : ICryptoPrimitiveIteratedHashProvider
+    {
+        public HashAlgorithm GetHash()
+        {
+            HashAlgorithm hash = KeccakHashAlgorithm.Create(KeccakHashAlgorithm.BitLength.SHA3_256);
+            Debug.Assert(hash.HashSize == OutputLengthBytes * 8);
+            return hash;
+        }
+
+        public int BlockLengthBytes { get { throw new NotSupportedException(); } } // iterated hash algorithm internal block length
+        public int OutputLengthBytes { get { return 256 / 8; } } // hash algorithm final result length
+    }
+
 
     // Notes on keying the HMAC function (in this application):
     //
@@ -1039,6 +1054,20 @@ namespace Backup
             byte[] prk;
             hkdf.Extract(sessionSalt, masterKey, out prk);
             hkdf.Expand(prk, null/*info*/, sessionKeyMaterialLength, out sessionKeyMaterial);
+
+            // Task: determine if omission of 'info' could relate to security weaknesses.
+            // In particular, if key lengths can be changed (dynamically specified), in certain
+            // cases an attacker could provoke a related-key attack by coercing a counterparty
+            // into changing key lengths. The general mitigation is to incorporate the key
+            // length(s) into the derived bits by adding an encoding of them in the 'info'
+            // parameter. (Related-key attacks are an issue with weak ciphers such as TripleDES,
+            // and increasingly for AES-256 due to the weak key schedule.)
+            //
+            // In practice in this application, key lengths are defined statically as part of
+            // the ciphersuite, and are not dynamically changeable. Therefore, there should not
+            // be a risk of related key attack. However, if ciphersuites are added that permit
+            // dynamic key length specification (e.g. in the file header), then that weakness
+            // should be mitigated by encoding the lengths in the 'info' parameter.
         }
 
         public virtual void Test()
@@ -1863,6 +1892,17 @@ namespace Backup
     {
         public CryptoPrimitiveHashCheckValueGeneratorSkein1024()
             : base(new CryptoPrimitiveIteratedHashProviderSkein1024())
+        {
+        }
+    }
+
+    // Specific implementation of a check value generator via SHA3-256 (Keccak) hash function:
+    // http://csrc.nist.gov/publications/drafts/fips-202/fips_202_draft.pdf
+    // http://en.wikipedia.org/wiki/SHA-3
+    public class CryptoPrimitiveHashCheckValueGeneratorSHA3_256: CryptoPrimitiveHashCheckValueGenerator
+    {
+        public CryptoPrimitiveHashCheckValueGeneratorSHA3_256()
+            : base(new CryptoPrimitiveIteratedHashProviderSHA3_256())
         {
         }
     }

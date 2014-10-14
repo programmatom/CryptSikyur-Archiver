@@ -222,7 +222,7 @@ namespace Org.BouncyCastle.Crypto.Digests
 #if false
         private void DoUpdate(byte[] data, int off, long databitlen)
 #else
-        // exposed for testing purposes
+        // exposed to permit appending padding
         internal void DoUpdate(byte[] data, int off, long databitlen)
 #endif
         {

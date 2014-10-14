@@ -1,0 +1,553 @@
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module verify non-enabled behavior
+
+test create test scenario
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\d -size 9500
+create source\e -size 9500
+create source\f -size 9500
+date + 1
+qlist .
+delete source\d
+delete source\e
+delete source\f
+call backup dynpack source archive 30000
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target1
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target1\
+.          2014-01-01          2014-01-01 -A---- target1\a [1]
+.          2014-01-01          2014-01-01 -A---- target1\b [2]
+.          2014-01-01          2014-01-01 -A---- target1\c [3]
+endlist
+rmdir target1
+
+# expect manifest, segment 'a', and file 'b' to be changed
+test change timestamp, but do not change data [1]
+date + 1
+touch source\b
+call backup dynpack source archive 30000
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-03 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target2
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-03 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target2\
+.          2014-01-01          2014-01-01 -A---- target2\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- target2\b [2]
+.          2014-01-01          2014-01-01 -A---- target2\c [3]
+endlist
+rmdir target2
+
+# expect manifest, segment 'a', and file 'b' to be changed
+test change timestamp, but do not change data [2]
+date + 1
+touch source\b
+call backup dynpack source archive 30000
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [11]
+.          2014-01-02          2014-01-04 -A---- archive.a.dynpack [12]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-04 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target3
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [11]
+.          2014-01-02          2014-01-04 -A---- archive.a.dynpack [12]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-04 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target3\
+.          2014-01-01          2014-01-01 -A---- target3\a [1]
+# changed
+.          2014-01-01          2014-01-04 -A---- target3\b [2]
+.          2014-01-01          2014-01-01 -A---- target3\c [3]
+endlist
+rmdir target3
+
+# expect manifest, segment 'a', and file 'b' to be changed
+test change timestamp and data
+date + 1
+edit source\b -size 9500
+qlist .
+call backup dynpack source archive 30000
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack [14]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [15]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- source\b [13]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target4
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack [14]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [15]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- source\b [13]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target4\
+.          2014-01-01          2014-01-01 -A---- target4\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- target4\b [13]
+.          2014-01-01          2014-01-01 -A---- target4\c [3]
+endlist
+rmdir target4
+
+# expect manifest, segment 'a', and file 'b' to be changed
+test change timestamp, but do not change data [3]
+date + 1
+touch source\b
+qlist .
+call backup dynpack source archive 30000
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-06 -A---- archive.0.dynpack [16]
+.          2014-01-02          2014-01-06 -A---- archive.a.dynpack [17]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-06 -A---- source\b [13]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target5
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-06 -A---- archive.0.dynpack [16]
+.          2014-01-02          2014-01-06 -A---- archive.a.dynpack [17]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-06 -A---- source\b [13]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target5\
+.          2014-01-01          2014-01-01 -A---- target5\a [1]
+# changed
+.          2014-01-01          2014-01-06 -A---- target5\b [13]
+.          2014-01-01          2014-01-01 -A---- target5\c [3]
+endlist
+rmdir target5
+
+#test modify data, but don't change timestamp
+# for performance reasons, this scenario is not supported
+
+
+module verify enabled behavior from beginning
+
+test create test scenario
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\d -size 9500
+create source\e -size 9500
+create source\f -size 9500
+date + 1
+qlist .
+delete source\d
+delete source\e
+delete source\f
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target1
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target1\
+.          2014-01-01          2014-01-01 -A---- target1\a [1]
+.          2014-01-01          2014-01-01 -A---- target1\b [2]
+.          2014-01-01          2014-01-01 -A---- target1\c [3]
+endlist
+rmdir target1
+
+# expect manifest to be changed
+# segment 'a' and file 'b' unchanged
+test change timestamp, but do not change data [1]
+date + 1
+touch source\b
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target2
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target2\
+.          2014-01-01          2014-01-01 -A---- target2\a [1]
+# unchanged
+.          2014-01-01          2014-01-01 -A---- target2\b [2]
+.          2014-01-01          2014-01-01 -A---- target2\c [3]
+endlist
+rmdir target2
+
+# expect manifest to be changed
+# segment 'a' and file 'b' unchanged
+test change timestamp, but do not change data [2]
+date + 1
+touch source\b
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [10]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-04 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target3
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [10]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-04 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target3\
+.          2014-01-01          2014-01-01 -A---- target3\a [1]
+# unchanged
+.          2014-01-01          2014-01-01 -A---- target3\b [2]
+.          2014-01-01          2014-01-01 -A---- target3\c [3]
+endlist
+rmdir target3
+
+# expect manifest, segment 'a', and file 'b' to be changed
+test change timestamp and data
+date + 1
+edit source\b -size 9500
+qlist .
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack [12]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- source\b [11]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target4
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack [12]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- source\b [11]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target4\
+.          2014-01-01          2014-01-01 -A---- target4\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- target4\b [11]
+.          2014-01-01          2014-01-01 -A---- target4\c [3]
+endlist
+rmdir target4
+
+# expect manifest to be changed
+# segment 'a' and file 'b' unchanged
+test change timestamp, but do not change data [3]
+date + 1
+touch source\b
+qlist .
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-06 -A---- archive.0.dynpack [14]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-06 -A---- source\b [11]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target5
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-06 -A---- archive.0.dynpack [14]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-06 -A---- source\b [11]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target5\
+.          2014-01-01          2014-01-01 -A---- target5\a [1]
+# unchanged
+.          2014-01-01          2014-01-05 -A---- target5\b [11]
+.          2014-01-01          2014-01-01 -A---- target5\c [3]
+endlist
+rmdir target5
+
+#test modify data, but don't change timestamp
+# for performance reasons, this scenario is not supported
+
+
+module verify enabled behavior from initially non-enabled
+
+test create test scenario
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\d -size 9500
+create source\e -size 9500
+create source\f -size 9500
+date + 1
+qlist .
+delete source\d
+delete source\e
+delete source\f
+call backup dynpack source archive 30000
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target1
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-02 -A---- archive.0.dynpack [7]
+.          2014-01-02          2014-01-02 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target1\
+.          2014-01-01          2014-01-01 -A---- target1\a [1]
+.          2014-01-01          2014-01-01 -A---- target1\b [2]
+.          2014-01-01          2014-01-01 -A---- target1\c [3]
+endlist
+rmdir target1
+
+# expect manifest, segment 'a', and file 'b' to be changed,
+# because initial manifest does not contain hash values
+test change timestamp, but do not change data [1]
+date + 1
+touch source\b
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-03 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target2
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-03 -A---- archive.0.dynpack [9]
+.          2014-01-02          2014-01-03 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target2\
+.          2014-01-01          2014-01-01 -A---- target2\a [1]
+# changed
+.          2014-01-01          2014-01-03 -A---- target2\b [2]
+.          2014-01-01          2014-01-01 -A---- target2\c [3]
+endlist
+rmdir target2
+
+# this time, hash will be present in the manifest file
+# expect manifest to be changed
+# segment 'a' and file 'b' unchanged
+test change timestamp, but do not change data [2]
+date + 1
+touch source\b
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [11]
+.          2014-01-02          2014-01-03 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-04 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target3
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-04 -A---- archive.0.dynpack [11]
+.          2014-01-02          2014-01-03 -A---- archive.a.dynpack [10]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-04 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target3\
+.          2014-01-01          2014-01-01 -A---- target3\a [1]
+# unchanged (second time)
+.          2014-01-01          2014-01-03 -A---- target3\b [2]
+.          2014-01-01          2014-01-01 -A---- target3\c [3]
+endlist
+rmdir target3
+
+# expect manifest, segment 'a', and file 'b' to be changed
+test change timestamp and data
+date + 1
+edit source\b -size 9500
+qlist .
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack [13]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [14]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- source\b [12]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target4
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-05 -A---- archive.0.dynpack [13]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [14]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- source\b [12]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target4\
+.          2014-01-01          2014-01-01 -A---- target4\a [1]
+# changed
+.          2014-01-01          2014-01-05 -A---- target4\b [12]
+.          2014-01-01          2014-01-01 -A---- target4\c [3]
+endlist
+rmdir target4
+
+# expect manifest to be changed
+# segment 'a' and file 'b' unchanged
+test change timestamp, but do not change data [3]
+date + 1
+touch source\b
+qlist .
+call backup dynpack source archive 30000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-06 -A---- archive.0.dynpack [15]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [14]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-06 -A---- source\b [12]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive target4
+exitcode-verify 0
+list-verify .
+.          2014-01-02          2014-01-06 -A---- archive.0.dynpack [15]
+.          2014-01-02          2014-01-05 -A---- archive.a.dynpack [14]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+# changed
+.          2014-01-01          2014-01-06 -A---- source\b [12]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.                                         -----D target4\
+.          2014-01-01          2014-01-01 -A---- target4\a [1]
+# unchanged
+.          2014-01-01          2014-01-05 -A---- target4\b [12]
+.          2014-01-01          2014-01-01 -A---- target4\c [3]
+endlist
+rmdir target4
+
+#test modify data, but don't change timestamp
+# for performance reasons, this scenario is not supported

@@ -52,6 +52,7 @@
     <Content Include="DirBasic.txt" />
     <Content Include="DynpackBasic.txt" />
     <Content Include="DynpackExclusions.txt" />
+    <Content Include="DynpackIgnoreUnchanged.txt" />
     <Content Include="DynpackLargeFileSplitting.txt" />
     <Content Include="DynpackLogging.txt" />
     <Content Include="DynpackRangeFaults.txt" />
