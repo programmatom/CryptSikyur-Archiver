@@ -2363,7 +2363,7 @@ namespace Backup
             return 0;
         }
 
-        private static void SyncChange(string sourceRoot, string targetRoot, string path, int codePath, TextWriter log, bool l2r, ref bool flush, IFaultInstance faultContext)
+        private static void SyncChange(string sourceRoot, string targetRoot, string path, int codePath, TextWriter log, bool l2r, IVolumeFlushHelperCollection volumeFlushHelperCollection, IFaultInstance faultContext)
         {
             try
             {
@@ -2433,7 +2433,7 @@ namespace Backup
                     try
                     {
                         File.Copy(sourcePath, targetPath);
-                        flush = true;
+                        volumeFlushHelperCollection.MarkDirty(targetPath);
                     }
                     catch (PathTooLongException exception)
                     {
@@ -2458,7 +2458,7 @@ namespace Backup
                     try
                     {
                         Directory.CreateDirectory(targetPath);
-                        flush = true;
+                        volumeFlushHelperCollection.MarkDirty(targetPath);
                     }
                     catch (PathTooLongException exception)
                     {
@@ -2524,10 +2524,206 @@ namespace Backup
             return false;
         }
 
-        private class VolumeFlushHelper : IDisposable
+        private interface IVolumeFlushHelperCollection : IDisposable
         {
-            private IntPtr volumeHandle;
-            private readonly string volumePath;
+            int Add(string path);
+            void MarkDirty(int index);
+            void MarkDirty(string path);
+            bool Dirty();
+            void Flush();
+        }
+
+        private class NullVolumeFlushHelperCollection : IVolumeFlushHelperCollection
+        {
+            private bool dirty = true;
+
+            public int Add(string path)
+            {
+                return 0;
+            }
+
+            public void MarkDirty(int index)
+            {
+                dirty = true;
+            }
+
+            public void MarkDirty(string path)
+            {
+                dirty = true;
+            }
+
+            public bool Dirty()
+            {
+                return dirty;
+            }
+
+            public void Flush()
+            {
+                dirty = false;
+            }
+
+            public void Dispose()
+            {
+            }
+        }
+
+        private class VolumeFlushHelperCollection : IVolumeFlushHelperCollection
+        {
+            private KeyValuePair<VolumeFlushHelper, bool>[] volumes = new KeyValuePair<VolumeFlushHelper, bool>[0];
+            private static bool GetFinalPathNameByHandle_Available = true;
+
+            public VolumeFlushHelperCollection()
+            {
+            }
+
+            private int Find(string volumePath)
+            {
+                for (int i = 0; i < volumes.Length; i++)
+                {
+                    if (String.Equals(volumePath, volumes[i].Key.VolumePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            // volume is initially marked dirty when added, but not if already present
+            private int AddVolume(string volumePath)
+            {
+                int index = Find(volumePath);
+                if (index >= 0)
+                {
+                    return index;
+                }
+
+                Array.Resize(ref volumes, volumes.Length + 1);
+                volumes[volumes.Length - 1] = new KeyValuePair<VolumeFlushHelper, bool>(new VolumeFlushHelper(volumePath), true/*dirty*/);
+                return volumes.Length - 1;
+            }
+
+            public int Add(string path)
+            {
+                string volumePath = GetVolumePath(path);
+                return AddVolume(volumePath);
+            }
+
+            public void MarkDirty(int index)
+            {
+                volumes[index] = new KeyValuePair<VolumeFlushHelper, bool>(volumes[index].Key, true/*dirty*/);
+            }
+
+            public void MarkDirty(string path)
+            {
+                string volumePath = GetVolumePath(path);
+
+                int index = Find(volumePath);
+                if (index >= 0)
+                {
+                    MarkDirty(index);
+                    return;
+                }
+
+                AddVolume(volumePath);
+            }
+
+            public bool Dirty()
+            {
+                for (int i = 0; i < volumes.Length; i++)
+                {
+                    if (volumes[i].Value)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            public void Flush()
+            {
+                for (int i = 0; i < volumes.Length; i++)
+                {
+                    if (volumes[i].Value)
+                    {
+                        volumes[i].Key.Flush();
+                        volumes[i] = new KeyValuePair<VolumeFlushHelper, bool>(volumes[i].Key, false/*dirty*/);
+                    }
+                }
+            }
+
+            public void Dispose()
+            {
+                for (int i = 0; i < volumes.Length; i++)
+                {
+                    volumes[i].Key.Dispose();
+                }
+                volumes = new KeyValuePair<VolumeFlushHelper, bool>[0];
+            }
+
+            private const string Q = @"\\?\";
+            private const string D = @"\\.\";
+            private static string GetVolumePath(string path)
+            {
+                string normalizedPath = null;
+
+                if (GetFinalPathNameByHandle_Available)
+                {
+                    IntPtr hPath;
+                    if (Directory.Exists(path))
+                    {
+                        hPath = CreateFile(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero);
+                    }
+                    else
+                    {
+                        hPath = CreateFile(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+                    }
+                    if (Marshal.GetLastWin32Error() != 0)
+                    {
+                        Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                    }
+                    try
+                    {
+                        StringBuilder normalizedPathBuffer = new StringBuilder(MAX_PATH);
+                        try
+                        {
+                            if (0 == GetFinalPathNameByHandle(hPath, normalizedPathBuffer, MAX_PATH, FILE_NAME_NORMALIZED))
+                            {
+                                Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                            }
+                            normalizedPath = normalizedPathBuffer.ToString();
+                        }
+                        catch (EntryPointNotFoundException)
+                        {
+                            // GetFinalPathNameByHandle not available on WinXP
+                        }
+                    }
+                    finally
+                    {
+                        CloseHandle(hPath);
+                    }
+                }
+                if (normalizedPath == null)
+                {
+                    // WinXP fallback
+                    normalizedPath = Q + path;
+                }
+
+                StringBuilder volumePathBuffer = new StringBuilder(MAX_PATH);
+                if (!GetVolumePathName(normalizedPath, volumePathBuffer, MAX_PATH))
+                {
+                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+                string volumePath = volumePathBuffer.ToString();
+                if (volumePath[volumePath.Length - 1] == '\\')
+                {
+                    volumePath = volumePath.Substring(0, volumePath.Length - 1);
+                }
+
+                Debug.Assert(volumePath.StartsWith(Q));
+                volumePath = D + volumePath.Substring(Q.Length);
+
+                return volumePath;
+            }
 
             // http://msdn.microsoft.com/en-us/library/windows/desktop/aa364439%28v=vs.85%29.aspx
             [DllImport("Kernel32.dll", SetLastError = true)]
@@ -2541,6 +2737,7 @@ namespace Backup
             private const Int32 FILE_SHARE_READ = 1;
             private const Int32 FILE_SHARE_WRITE = 2;
             private const Int32 OPEN_EXISTING = 3;
+            private const Int32 FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
             [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
             private static extern IntPtr CreateFile(string lpFileName, Int32 dwDesiredAccess, Int32 dwShareMode, IntPtr lpSecurityAttributes, Int32 dwCreationDisposition, Int32 dwFlagsAndAttributes, IntPtr hTemplateFile);
 
@@ -2549,70 +2746,46 @@ namespace Backup
             [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
             private static extern bool GetVolumePathName(string lpszFileName, [Out] StringBuilder lpszVolumePathName, Int32 cchBufferLength);
 
-            public VolumeFlushHelper(string root)
-            {
-                StringBuilder volumePathBuffer = new StringBuilder(MAX_PATH);
-                if (!GetVolumePathName(@"\\.\" + root, volumePathBuffer, MAX_PATH))
-                {
-                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
-                }
-                volumePath = volumePathBuffer.ToString();
-                volumePath = volumePath.Substring(0, volumePath.Length - 1); // remote trailing backslash
-                volumeHandle = CreateFile(volumePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
-                if (Marshal.GetLastWin32Error() != 0)
-                {
-                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
-                }
-            }
+            // http://msdn.microsoft.com/en-us/library/windows/desktop/aa364962%28v=vs.85%29.aspx
+            private const Int32 FILE_NAME_NORMALIZED = 0;
+            [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            private static extern Int32 GetFinalPathNameByHandle(IntPtr hFile, [Out] StringBuilder lpszFilePath, Int32 cchFilePath, Int32 dwFlags);
 
-            public static void Add(ref VolumeFlushHelper[] helpers, string root)
+            private class VolumeFlushHelper : IDisposable
             {
-                VolumeFlushHelper helper = new VolumeFlushHelper(root);
-                for (int i = 0; i < helpers.Length; i++)
+                private IntPtr volumeHandle;
+                private readonly string volumePath;
+
+                public VolumeFlushHelper(string volumePath)
                 {
-                    if (String.Equals(helpers[i].VolumePath, helper.VolumePath))
+                    this.volumePath = volumePath;
+                    volumeHandle = CreateFile(volumePath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+                    if (Marshal.GetLastWin32Error() != 0)
                     {
-                        helper.Dispose();
-                        return;
+                        Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
                     }
                 }
-                Array.Resize(ref helpers, helpers.Length + 1);
-                helpers[helpers.Length - 1] = helper;
-            }
 
-            public static void Flush(VolumeFlushHelper[] helpers)
-            {
-                for (int i = 0; i < helpers.Length; i++)
+                public string VolumePath { get { return volumePath; } }
+
+                public void Flush()
                 {
-                    helpers[i].Flush();
+                    if (!volumeHandle.Equals(IntPtr.Zero))
+                    {
+                        if (!FlushFileBuffers(volumeHandle))
+                        {
+                            Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                        }
+                    }
                 }
-            }
 
-            public static void Dispose(VolumeFlushHelper[] helpers)
-            {
-                for (int i = 0; i < helpers.Length; i++)
+                public void Dispose()
                 {
-                    helpers[i].Dispose();
-                    helpers[i] = null;
-                }
-            }
-
-            public string VolumePath { get { return volumePath; } }
-
-            public void Flush()
-            {
-                if (!FlushFileBuffers(volumeHandle))
-                {
-                    Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
-                }
-            }
-
-            public void Dispose()
-            {
-                if (!volumeHandle.Equals(IntPtr.Zero))
-                {
-                    CloseHandle(volumeHandle);
-                    volumeHandle = IntPtr.Zero;
+                    if (!volumeHandle.Equals(IntPtr.Zero))
+                    {
+                        CloseHandle(volumeHandle);
+                        volumeHandle = IntPtr.Zero;
+                    }
                 }
             }
         }
@@ -2762,16 +2935,18 @@ namespace Backup
                 }
             }
 
-            VolumeFlushHelper[] volumeFlushHelpers = new VolumeFlushHelper[0];
+            IVolumeFlushHelperCollection volumeFlushHelperCollection = new NullVolumeFlushHelperCollection();
+            int volumeFlushHelperRepository = -1;
             if (flushVolumeEnabled)
             {
+                volumeFlushHelperCollection = new VolumeFlushHelperCollection();
                 try
                 {
-                    VolumeFlushHelper.Add(ref volumeFlushHelpers, rootL);
-                    VolumeFlushHelper.Add(ref volumeFlushHelpers, rootR);
-                    VolumeFlushHelper.Add(ref volumeFlushHelpers, repository);
+                    volumeFlushHelperCollection.Add(rootL);
+                    volumeFlushHelperCollection.Add(rootR);
+                    volumeFlushHelperRepository = volumeFlushHelperCollection.Add(repository);
                 }
-                catch (Exception exception)
+                catch (UnauthorizedAccessException exception)
                 {
                     throw new ApplicationException("Option to flush volume buffers (-flushvols) requires administrative privileges", exception);
                 }
@@ -2845,18 +3020,17 @@ namespace Backup
 
             try
             {
-                VolumeFlushHelper.Flush(volumeFlushHelpers);
+                volumeFlushHelperCollection.Flush();
 
-                bool flush = false;
             Loop:
                 while (currentEntriesL.Valid || currentEntriesR.Valid)
                 {
-                    if (flush)
+                    if (volumeFlushHelperCollection.Dirty())
                     {
                         newEntriesL.Flush();
                         newEntriesR.Flush();
-                        VolumeFlushHelper.Flush(volumeFlushHelpers);
-                        flush = false;
+                        volumeFlushHelperCollection.MarkDirty(volumeFlushHelperRepository);
+                        volumeFlushHelperCollection.Flush();
                     }
 
                     IFaultInstance faultInstanceIteration = faultInstanceSync.Select("Iteration");
@@ -3024,7 +3198,7 @@ namespace Backup
                                 {
                                     codePath = 101;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -3034,7 +3208,7 @@ namespace Backup
                             else if (changedR)
                             {
                                 codePath = 102;
-                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
+                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
                                 currentEntriesL.MoveNext();
                             }
                             else
@@ -3131,7 +3305,7 @@ namespace Backup
                                 {
                                     codePath = 201;
                                 }
-                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
+                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
                                 currentEntriesR.MoveNext();
                             }
                             else if (changedR)
@@ -3140,7 +3314,7 @@ namespace Backup
                                 {
                                     codePath = 202;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3265,7 +3439,7 @@ namespace Backup
                                     codePath = 301;
                                 }
                                 bool dirR = currentEntriesR.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -3287,7 +3461,7 @@ namespace Backup
                                     codePath = 302;
                                 }
                                 bool dirL = currentEntriesL.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, ref flush, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
                                     EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3344,7 +3518,7 @@ namespace Backup
                     log = null;
                 }
 
-                VolumeFlushHelper.Dispose(volumeFlushHelpers);
+                volumeFlushHelperCollection.Dispose();
             }
 
 
