@@ -2,6 +2,7 @@
  *  Copyright © 2014 Thomas R. Lawrence
  *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
  *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
+ *    except: "Keccak/*.cs", which are Copyright © 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
  * 
  *  GNU General Public License
  * 
@@ -26,8 +27,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
+
 using Serpent;
 using SkeinFish;
+using Keccak;
 
 namespace Backup
 {
@@ -839,9 +842,9 @@ namespace Backup
 
         private sealed class KeyedHashTestVector
         {
-            internal byte[] key;
-            internal byte[] data;
-            internal byte[] digest;
+            internal readonly byte[] key;
+            internal readonly byte[] data;
+            internal readonly byte[] digest;
 
             internal KeyedHashTestVector(string key, string data, string digest)
             {
