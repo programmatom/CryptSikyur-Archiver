@@ -77,7 +77,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1023456\s+[0-9a-zA-Z]* remotefile$
 endoutput
 
@@ -108,7 +107,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+654321\s+[0-9a-zA-Z]* remotefile$
 endoutput
 

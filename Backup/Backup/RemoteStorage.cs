@@ -2595,8 +2595,10 @@ namespace Backup
         // Desktop application tutorial: https://developers.google.com/accounts/docs/OAuth2InstalledApp
         // https://developers.google.com/drive/v2/reference/
 
+#if false
         private Dictionary<string, List<GoogleDriveFile>> childrenMap;
         private string rootId;
+#endif
 
         public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext)
             : base(remoteAccessControl, true/*enableResumableUploads*/)
@@ -2606,6 +2608,7 @@ namespace Backup
                 trace.WriteLine("+GoogleDriveWebMethods constructor");
             }
 
+#if false
             // Google doesn't have a method to get the listing of files for a given folder -
             // children listing only has IDs, requiring a separate HTTP request for each
             // child to find out the filename ("title") property. (https://developers.google.com/drive/v2/reference/children#resource)
@@ -2662,6 +2665,7 @@ namespace Backup
                     childrenMap[parent.Id].Add(file);
                 }
             }
+#endif
 
             if (trace != null)
             {
@@ -2671,6 +2675,7 @@ namespace Backup
 
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)403; } }
 
+#if false
         private class GoogleDriveFile
         {
             // https://developers.google.com/drive/v2/reference/files/list
@@ -2729,6 +2734,7 @@ namespace Backup
                 return String.Format("{{id={0} parentLink={1} isRoot={2}}}", Id, ParentLink, IsRoot);
             }
         }
+#endif
 
         private const string SelfLinkUrlPrefix = "https://www.googleapis.com/drive/v2/files/";
 
@@ -2737,6 +2743,7 @@ namespace Backup
             return SelfLinkUrlPrefix + fileId;
         }
 
+#if false
         private static string SelfLinkToFileId(string selfLink)
         {
             if (!selfLink.StartsWith(SelfLinkUrlPrefix))
@@ -2750,7 +2757,9 @@ namespace Backup
             }
             return fileId;
         }
+#endif
 
+#if false
         private GoogleDriveFile[] GetRemoteFlatFilesList(TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<GoogleDriveFile> aggregateItems = new List<GoogleDriveFile>();
@@ -2883,6 +2892,7 @@ namespace Backup
 
             return aggregateItems.ToArray();
         }
+#endif
 
         private static RemoteFileSystemEntry FileSystemEntryFromJSON(JSONDictionary json)
         {
@@ -2902,6 +2912,7 @@ namespace Backup
             return new RemoteFileSystemEntry(id, title, mimeType == "application/vnd.google-apps.folder", DateTime.Parse(createdDate), DateTime.Parse(modifiedDate), Int64.Parse(fileSize));
         }
 
+#if false
         public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
@@ -2951,6 +2962,155 @@ namespace Backup
 
             return items.ToArray();
         }
+#else
+        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
+        {
+            List<RemoteFileSystemEntry> aggregateItems = new List<RemoteFileSystemEntry>();
+
+            if (trace != null)
+            {
+                trace.WriteLine("+RemoteGetFileSystemEntries(folderId={0})", folderId);
+            }
+
+            string pageToken = null;
+
+            do
+            {
+                // see: https://developers.google.com/drive/v2/reference/files/list
+                // ask for total files (flat), maximum page size (1000 per), omit trashed items
+                string url = "https://www.googleapis.com/drive/v2/files?maxResults=1000&trashed=false";
+                if (pageToken != null)
+                {
+                    url = String.Concat(url, url.IndexOf('?') < 0 ? "?" : "&", "pageToken=", pageToken);
+                }
+                // Add the "q" query search parameter to restrict set of items to search criteria
+                // (either root folder or specified folderId)
+                // (see https://developers.google.com/drive/web/search-parameters)
+                string search = String.Format("'{0}' in parents", String.IsNullOrEmpty(folderId) ? "root" : folderId);
+                if (!String.IsNullOrEmpty(search))
+                {
+                    url = String.Concat(url, url.IndexOf('?') < 0 ? "?" : "&", "q=", HttpUtility.UrlEncode(search));
+                }
+                // Add the "fields" query parameter to reduce the amount of json fields returned
+                // to just the relevant ones. These are consumed in the code below in this method,
+                // but see also GoogleDriveWebMethods.FileSystemEntryFromJSON().
+                // (see https://developers.google.com/drive/web/performance#partial-response)
+                const string fields = "nextPageToken,items(id,title,mimeType,createdDate,modifiedDate,fileSize,labels/hidden,labels/trashed,parents(id,parentLink,isRoot))";
+                if (!String.IsNullOrEmpty(fields))
+                {
+                    url = String.Concat(url, url.IndexOf('?') < 0 ? "?" : "&", "fields=", fields);
+                }
+
+
+                string response;
+                WebExceptionStatus webStatusCode;
+                HttpStatusCode httpStatusCode;
+                bool result = DoWebActionJSON2JSONWithRetry(
+                    url,
+                    "GET",
+                    null/*jsonRequestBody*/,
+                    out response,
+                    out webStatusCode,
+                    out httpStatusCode,
+                    trace,
+                    faultInstanceContext);
+                if (!result)
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-GetRemoteFlatFilesList result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    }
+                    throw new ApplicationException("Failure occurred accessing remote service");
+                }
+
+
+                // NOTICE: if you change the fields being accessed (including in FileSystemEntryFromJSON()
+                // or relating to GoogleDriveParent) make sure to change the "fields" restriction
+                // above in this method or the json won't have your fields!
+
+                // https://developers.google.com/drive/v2/reference/files
+                // https://developers.google.com/drive/v2/reference/files/list
+                // https://developers.google.com/drive/v2/reference/files#resource
+                JSONDictionary json = new JSONDictionary(response);
+                JSONDictionary[] entries;
+                json.TryGetValueAs("nextPageToken", out pageToken);
+                if (!json.TryGetValueAs("items", out entries))
+                {
+                    throw new InvalidDataException();
+                }
+                RemoteFileSystemEntry[] items = new RemoteFileSystemEntry[entries.Length];
+                for (int i = 0; i < entries.Length; i++)
+                {
+                    RemoteFileSystemEntry entry = FileSystemEntryFromJSON(entries[i]);
+
+#if false
+                    string mimeType;
+                    if (!entries[i].TryGetValueAs("mimeType", out mimeType))
+                    {
+                        throw new InvalidDataException();
+                    }
+
+                    bool hidden = false;
+                    bool trashed = false;
+                    JSONDictionary labels;
+                    entries[i].TryGetValueAs("labels", out labels);
+                    if (labels != null)
+                    {
+                        if (!labels.TryGetValueAs("hidden", out hidden)
+                            || !labels.TryGetValueAs("trashed", out trashed))
+                        {
+                            throw new InvalidDataException();
+                        }
+                    }
+
+                    JSONDictionary[] parents;
+                    entries[i].TryGetValueAs("parents", out parents);
+#endif
+#if false
+                    GoogleDriveParent[] parentsList = new GoogleDriveParent[parents != null ? parents.Length : 0];
+                    for (int j = 0; j < parentsList.Length; j++)
+                    {
+                        string id2, parentLink;
+                        bool isRoot;
+                        if (!parents[j].TryGetValueAs("id", out id2)
+                            || !parents[j].TryGetValueAs("parentLink", out parentLink)
+                            || !parents[j].TryGetValueAs("isRoot", out isRoot))
+                        {
+                            throw new InvalidDataException();
+                        }
+                        parentsList[j] = new GoogleDriveParent(id2, parentLink, isRoot);
+                    }
+#endif
+
+#if false
+                    items[i] = new GoogleDriveFile(entry, mimeType, hidden, trashed, parentsList);
+#endif
+                    items[i] = entry;
+                }
+
+                if (trace != null)
+                {
+                    trace.WriteLine("  create {0} items", items.Length);
+                    for (int i = 0; i < items.Length; i++)
+                    {
+                        trace.WriteLine("  [{0}]: {1}", i, items[i]);
+                    }
+                }
+
+                aggregateItems.AddRange(items);
+
+            } while (pageToken != null);
+
+
+            if (trace != null)
+            {
+                trace.WriteLine("-RemoteGetFileSystemEntries total={0}", aggregateItems.Count);
+                trace.WriteLine();
+            }
+
+            return aggregateItems.ToArray();
+        }
+#endif
 
         public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext)
         {
@@ -2967,7 +3127,7 @@ namespace Backup
             string[] remotePathParts = remotePath.Split(new char[] { '/' });
             int remotePathPartsLength = remotePathParts.Length + (includeLast ? 0 : -1);
 
-            RemoteFileSystemEntry currentDirectory = new RemoteFileSystemEntry(rootId, null, true, default(DateTime), default(DateTime), -1);
+            RemoteFileSystemEntry currentDirectory = new RemoteFileSystemEntry(null/*folderId*/, null, true, default(DateTime), default(DateTime), -1);
             for (int i = 1; i < remotePathPartsLength; i++)
             {
                 string remotePathPart = remotePathParts[i];

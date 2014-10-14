@@ -155,7 +155,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - fatal error in initial request
@@ -178,7 +177,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - simulate 404 error - should retry and succeed
@@ -195,7 +193,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+300000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
@@ -216,7 +213,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+300000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
@@ -242,7 +238,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - fatal error in initial PUT request
@@ -267,7 +262,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - simulate 404 error - should restart and succeed
@@ -284,7 +278,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
@@ -305,7 +298,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
@@ -327,7 +319,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile5$
 endoutput
 # remove
@@ -353,7 +344,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - fatal error in initial PUT request
@@ -379,7 +369,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - simulate 404 error - should restart and succeed
@@ -398,7 +387,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
@@ -422,7 +410,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
@@ -448,7 +435,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - fatal error in 2b-3 PUT request
@@ -474,7 +460,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 endoutput
 
 test upload file - simulate 404 error - should restart and succeed
@@ -493,7 +478,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1500000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
@@ -517,7 +501,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1500000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
@@ -543,7 +526,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z]* Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+1500000\s+[0-9a-zA-Z]* remotefile5$
 endoutput
 # remove
