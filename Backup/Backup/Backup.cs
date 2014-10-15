@@ -2534,7 +2534,7 @@ namespace Backup
             int Add(string path);
             void MarkDirty(int index);
             void MarkDirty(string path);
-            bool Dirty();
+            bool FlushNeeded();
             void Flush();
         }
 
@@ -2557,7 +2557,7 @@ namespace Backup
                 dirty = true;
             }
 
-            public bool Dirty()
+            public bool FlushNeeded()
             {
                 return dirty;
             }
@@ -2575,10 +2575,18 @@ namespace Backup
         private class VolumeFlushHelperCollection : IVolumeFlushHelperCollection
         {
             private KeyValuePair<VolumeFlushHelper, bool>[] volumes = new KeyValuePair<VolumeFlushHelper, bool>[0];
+            private readonly TextWriter log;
+
+            private const int DirtyCountFlushThreshhold = 25;
+            private int dirtyCount;
+            private const int DirtyFlushIntervalSeconds = 15;
+            private DateTime lastDirtyStart;
+
             private static bool GetFinalPathNameByHandle_Available = true;
 
-            public VolumeFlushHelperCollection()
+            public VolumeFlushHelperCollection(TextWriter log)
             {
+                this.log = log;
             }
 
             private int Find(string volumePath)
@@ -2604,6 +2612,10 @@ namespace Backup
 
                 Array.Resize(ref volumes, volumes.Length + 1);
                 volumes[volumes.Length - 1] = new KeyValuePair<VolumeFlushHelper, bool>(new VolumeFlushHelper(volumePath), true/*dirty*/);
+                if (dirtyCount++ == 0)
+                {
+                    lastDirtyStart = DateTime.Now;
+                }
                 return volumes.Length - 1;
             }
 
@@ -2616,6 +2628,10 @@ namespace Backup
             public void MarkDirty(int index)
             {
                 volumes[index] = new KeyValuePair<VolumeFlushHelper, bool>(volumes[index].Key, true/*dirty*/);
+                if (dirtyCount++ == 0)
+                {
+                    lastDirtyStart = DateTime.Now;
+                }
             }
 
             public void MarkDirty(string path)
@@ -2632,8 +2648,11 @@ namespace Backup
                 AddVolume(volumePath);
             }
 
-            public bool Dirty()
+            public bool FlushNeeded()
             {
+                return (dirtyCount >= DirtyCountFlushThreshhold)
+                    || ((dirtyCount > 0) && (lastDirtyStart.AddSeconds(DirtyFlushIntervalSeconds) < DateTime.Now));
+#if false
                 for (int i = 0; i < volumes.Length; i++)
                 {
                     if (volumes[i].Value)
@@ -2642,17 +2661,40 @@ namespace Backup
                     }
                 }
                 return false;
+#endif
             }
 
             public void Flush()
             {
+                dirtyCount = 0;
+
+                StringBuilder logMessage = null;
+                if (log != null)
+                {
+                    logMessage = new StringBuilder();
+                }
+
                 for (int i = 0; i < volumes.Length; i++)
                 {
                     if (volumes[i].Value)
                     {
+                        if (log != null)
+                        {
+                            if (logMessage.Length != 0)
+                            {
+                                logMessage.Append(", ");
+                            }
+                            logMessage.Append(volumes[i].Key.VolumePath.Substring(D.Length));
+                        }
+
                         volumes[i].Key.Flush();
                         volumes[i] = new KeyValuePair<VolumeFlushHelper, bool>(volumes[i].Key, false/*dirty*/);
                     }
+                }
+
+                if (log != null)
+                {
+                    log.WriteLine("[flush {0}]", logMessage);
                 }
             }
 
@@ -2944,7 +2986,7 @@ namespace Backup
             int volumeFlushHelperRepository = -1;
             if (flushVolumeEnabled)
             {
-                volumeFlushHelperCollection = new VolumeFlushHelperCollection();
+                volumeFlushHelperCollection = new VolumeFlushHelperCollection(log);
                 try
                 {
                     volumeFlushHelperCollection.Add(rootL);
@@ -3008,7 +3050,7 @@ namespace Backup
                 previousEntriesL = new EnumerateFile(rootL, manifestLocalSaved);
             }
             previousEntriesL.MoveNext();
-            TextWriter newEntriesL = new StreamWriter(manifestLocalNew, false/*append*/, Encoding.UTF8);
+            TextWriter newEntriesLPermanent = new StreamWriter(manifestLocalNew, false/*append*/, Encoding.UTF8);
 
             EnumerateHierarchy currentEntriesR = new EnumerateHierarchy(rootR);
             currentEntriesR.MoveNext();
@@ -3018,22 +3060,35 @@ namespace Backup
                 previousEntriesR = new EnumerateFile(rootR, manifestRemoteSaved);
             }
             previousEntriesR.MoveNext();
-            TextWriter newEntriesR = new StreamWriter(manifestRemoteNew, false/*append*/, Encoding.UTF8);
+            TextWriter newEntriesRPermanent = new StreamWriter(manifestRemoteNew, false/*append*/, Encoding.UTF8);
 
-            SyncRollForward(manifestLocalNewRecovery, newEntriesL, currentEntriesL, previousEntriesL, log, "local");
-            SyncRollForward(manifestRemoteNewRecovery, newEntriesR, currentEntriesR, previousEntriesR, log, "remote");
+            SyncRollForward(manifestLocalNewRecovery, newEntriesLPermanent, currentEntriesL, previousEntriesL, log, "local");
+            SyncRollForward(manifestRemoteNewRecovery, newEntriesRPermanent, currentEntriesR, previousEntriesR, log, "remote");
 
+            TextWriter newEntriesLTemporary = new StringWriter();
+            TextWriter newEntriesRTemporary = new StringWriter();
             try
             {
+                newEntriesLPermanent.Flush();
+                newEntriesRPermanent.Flush();
+                volumeFlushHelperCollection.MarkDirty(volumeFlushHelperRepository);
                 volumeFlushHelperCollection.Flush();
 
             Loop:
                 while (currentEntriesL.Valid || currentEntriesR.Valid)
                 {
-                    if (volumeFlushHelperCollection.Dirty())
+                    if (volumeFlushHelperCollection.FlushNeeded())
                     {
-                        newEntriesL.Flush();
-                        newEntriesR.Flush();
+                        volumeFlushHelperCollection.Flush();
+
+                        newEntriesLPermanent.Write(newEntriesLTemporary);
+                        newEntriesLPermanent.Flush();
+                        newEntriesLTemporary = new StringWriter();
+
+                        newEntriesRPermanent.Write(newEntriesRTemporary);
+                        newEntriesRPermanent.Flush();
+                        newEntriesRTemporary = new StringWriter();
+
                         volumeFlushHelperCollection.MarkDirty(volumeFlushHelperRepository);
                         volumeFlushHelperCollection.Flush();
                     }
@@ -3205,8 +3260,8 @@ namespace Backup
                                 }
                                 if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
-                                    EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
-                                    EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                 }
                                 currentEntriesL.MoveNext();
                             }
@@ -3321,8 +3376,8 @@ namespace Backup
                                 }
                                 if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
-                                    EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
-                                    EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                 }
                                 currentEntriesR.MoveNext();
                             }
@@ -3446,8 +3501,8 @@ namespace Backup
                                 bool dirR = currentEntriesR.CurrentIsDirectory;
                                 if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
-                                    EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
-                                    EnumerateFile.WriteLine(newEntriesR, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                 }
                                 currentEntriesL.MoveNext();
                                 currentEntriesR.MoveNext();
@@ -3468,8 +3523,8 @@ namespace Backup
                                 bool dirL = currentEntriesL.CurrentIsDirectory;
                                 if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
                                 {
-                                    EnumerateFile.WriteLine(newEntriesL, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
-                                    EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
+                                    EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                 }
                                 currentEntriesL.MoveNext();
                                 if (dirL)
@@ -3484,8 +3539,8 @@ namespace Backup
                             else
                             {
                                 codePath = 303;
-                                EnumerateFile.WriteLine(newEntriesL, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
-                                EnumerateFile.WriteLine(newEntriesR, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
+                                EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
+                                EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                 currentEntriesL.MoveNext();
                                 currentEntriesR.MoveNext();
                             }
@@ -3506,13 +3561,19 @@ namespace Backup
             }
             finally
             {
+                newEntriesLPermanent.Write(newEntriesLTemporary);
+                newEntriesRPermanent.Write(newEntriesRTemporary);
+
                 previousEntriesL.Close();
                 currentEntriesL.Close();
-                newEntriesL.Close();
+                newEntriesLPermanent.Close();
 
                 previousEntriesR.Close();
                 currentEntriesR.Close();
-                newEntriesR.Close();
+                newEntriesRPermanent.Close();
+
+                volumeFlushHelperCollection.MarkDirty(volumeFlushHelperRepository);
+                volumeFlushHelperCollection.Flush();
 
                 if (log != null)
                 {
