@@ -551,3 +551,235 @@ rmdir target4
 
 #test modify data, but don't change timestamp
 # for performance reasons, this scenario is not supported
+
+
+module regression - handling of 1) not initially specified, 2) when directory goes from non-empty to empty
+
+test create scenario
+date 2014-01-01
+mkdir source
+mkdir source\dir
+create source\dir\file
+qlist .
+# not initially specified
+call backup dynpack source archive 1000000
+exitcode-verify 0
+call backup dynunpack archive target1
+list-verify .
+.          2014-01-01          2014-01-01 -A---- archive.0.dynpack [2]
+.          2014-01-01          2014-01-01 -A---- archive.a.dynpack [3]
+.                                         -----D source\
+.                                         -----D source\dir\
+.          2014-01-01          2014-01-01 -A---- source\dir\file [1]
+.                                         -----D target1\
+.                                         -----D target1\dir\
+.          2014-01-01          2014-01-01 -A---- target1\dir\file [1]
+endlist
+rmdir target1
+
+test make change
+date + 1
+delete source\dir\file
+# now specified
+call backup dynpack source archive 1000000 -ignoreunchanged
+exitcode-verify 0
+call backup dynunpack archive target2
+list-verify .
+.          2014-01-01          2014-01-02 -A---- archive.0.dynpack [4]
+.          2014-01-01          2014-01-02 -A---- archive.a.dynpack [5]
+.                                         -----D source\
+.                                         -----D source\dir\
+.                                         -----D target2\
+.                                         -----D target2\dir\
+endlist
+rmdir target2
+
+
+module ensure non-redundant hash computation for split large files [enabled from start]
+
+test create scenario
+date 2014-01-01
+mkdir proofs
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\d -size 9500
+qlist .
+date + 1
+# verify correct functioning of fault point
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000 -ignoreunchanged
+exitcode-verify not 0
+list-verify .
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\d [4]
+endlist
+
+test modify to have large split file
+date + 1
+delete source\b
+delete source\c
+create source\bc -size 27000
+qlist .
+date + 1
+# fault point should not be hit (count:3 should be max, because 3 files, despite splitting bc into 2 extra parts)
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-04 -A---- archive.0.dynpack [7]
+.          2014-01-04          2014-01-04 -A---- archive.a.dynpack [8]
+.          2014-01-04          2014-01-04 -A---- archive.g.dynpack [9]
+.          2014-01-04          2014-01-04 -A---- archive.m.dynpack [10]
+.          2014-01-04          2014-01-04 -A---- archive.s.dynpack [11]
+.          2014-01-04          2014-01-04 -A---- archive.v.dynpack [12]
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-03          2014-01-03 -A---- source\bc [6]
+.          2014-01-01          2014-01-01 -A---- source\d [4]
+endlist
+
+test change timestamps only
+date + 1
+touch source\a
+touch source\bc
+touch source\d
+# fault point should not be hit
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-05 -A---- archive.0.dynpack [13]
+.          2014-01-04          2014-01-04 -A---- archive.a.dynpack [8]
+.          2014-01-04          2014-01-04 -A---- archive.g.dynpack [9]
+.          2014-01-04          2014-01-04 -A---- archive.m.dynpack [10]
+.          2014-01-04          2014-01-04 -A---- archive.s.dynpack [11]
+.          2014-01-04          2014-01-04 -A---- archive.v.dynpack [12]
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-05 -A---- source\a [1]
+.          2014-01-03          2014-01-05 -A---- source\bc [6]
+.          2014-01-01          2014-01-05 -A---- source\d [4]
+endlist
+
+test no changes
+date + 1
+# fault point should not be hit
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-06 -A---- archive.0.dynpack [14]
+.          2014-01-04          2014-01-04 -A---- archive.a.dynpack [8]
+.          2014-01-04          2014-01-04 -A---- archive.g.dynpack [9]
+.          2014-01-04          2014-01-04 -A---- archive.m.dynpack [10]
+.          2014-01-04          2014-01-04 -A---- archive.s.dynpack [11]
+.          2014-01-04          2014-01-04 -A---- archive.v.dynpack [12]
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-05 -A---- source\a [1]
+.          2014-01-03          2014-01-05 -A---- source\bc [6]
+.          2014-01-01          2014-01-05 -A---- source\d [4]
+endlist
+
+
+module ensure non-redundant hash computation for split large files [disabled at start, enabled 2nd pass]
+
+test create scenario
+date 2014-01-01
+mkdir proofs
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\d -size 9500
+qlist .
+date + 1
+# verify correct functioning of fault point
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000 -ignoreunchanged
+exitcode-verify not 0
+list-verify .
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\d [4]
+endlist
+
+test modify to have large split file
+date + 1
+delete source\b
+delete source\c
+create source\bc -size 27000
+qlist .
+date + 1
+# fault point should not be hit (count:3 should be max, because 3 files, despite splitting bc into 2 extra parts)
+# -ignoreunchanged is omitted here
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-04 -A---- archive.0.dynpack [7]
+.          2014-01-04          2014-01-04 -A---- archive.a.dynpack [8]
+.          2014-01-04          2014-01-04 -A---- archive.g.dynpack [9]
+.          2014-01-04          2014-01-04 -A---- archive.m.dynpack [10]
+.          2014-01-04          2014-01-04 -A---- archive.s.dynpack [11]
+.          2014-01-04          2014-01-04 -A---- archive.v.dynpack [12]
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-03          2014-01-03 -A---- source\bc [6]
+.          2014-01-01          2014-01-01 -A---- source\d [4]
+endlist
+
+test change timestamps only
+date + 1
+touch source\a
+touch source\bc
+touch source\d
+# fault point should not be hit
+# -ignoreunchanged is added for first time here
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-05 -A---- archive.0.dynpack [13]
+.          2014-01-04          2014-01-05 -A---- archive.a.dynpack [14]
+.          2014-01-04          2014-01-05 -A---- archive.g.dynpack [15]
+.          2014-01-04          2014-01-05 -A---- archive.m.dynpack [16]
+.          2014-01-04          2014-01-05 -A---- archive.s.dynpack [17]
+.          2014-01-04          2014-01-05 -A---- archive.v.dynpack [18]
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-05 -A---- source\a [1]
+.          2014-01-03          2014-01-05 -A---- source\bc [6]
+.          2014-01-01          2014-01-05 -A---- source\d [4]
+endlist
+
+test no changes
+date + 1
+# fault point should not be hit
+call backup -tracefaultpoints -injectfault proof:proofs\killed1 throw /DynamicPack/SetDigest[count:4] dynpack source archive 10000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2014-01-04          2014-01-06 -A---- archive.0.dynpack [19]
+.          2014-01-04          2014-01-05 -A---- archive.a.dynpack [14]
+.          2014-01-04          2014-01-05 -A---- archive.g.dynpack [15]
+.          2014-01-04          2014-01-05 -A---- archive.m.dynpack [16]
+.          2014-01-04          2014-01-05 -A---- archive.s.dynpack [17]
+.          2014-01-04          2014-01-05 -A---- archive.v.dynpack [18]
+.                                         -----D proofs\
+*          [0-9-]+          [0-9-]+ -A---- proofs\\killed1 \[5\]
+.                                         -----D source\
+.          2014-01-01          2014-01-05 -A---- source\a [1]
+.          2014-01-03          2014-01-05 -A---- source\bc [6]
+.          2014-01-01          2014-01-05 -A---- source\d [4]
+endlist

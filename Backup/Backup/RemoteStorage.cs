@@ -1745,7 +1745,7 @@ namespace Backup
             }
         }
 
-        public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)(-99); } } // Microsoft is not rate-limited
+        public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)(-99); } } // Bogus value - Microsoft does not rate-limit
 
         private const string UploadLocationUrlPrefix = "https://apis.live.net/v5.0/";
         private const string UploadLocationContentUrlSuffix = "/content/";

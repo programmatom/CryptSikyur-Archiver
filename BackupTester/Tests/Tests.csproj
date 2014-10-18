@@ -56,6 +56,7 @@
     <Content Include="DynpackLargeFileSplitting.txt" />
     <Content Include="DynpackLogging.txt" />
     <Content Include="DynpackRangeFaults.txt" />
+    <Content Include="DynpackTransactionality.txt" />
     <Content Include="PackAttributes.txt" />
     <Content Include="PackBasic.txt" />
     <Content Include="PackExclusions.txt" />

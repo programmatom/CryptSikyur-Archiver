@@ -55,33 +55,6 @@ namespace JSON
         T this[int index] { get; }
     }
 
-    public sealed class StringIndexer : IIndexable<char>
-    {
-        private string s;
-
-        public StringIndexer(string s)
-        {
-            this.s = s;
-        }
-
-        public int Length { get { return s.Length; } }
-        public char this[int index] { get { return s[index]; } }
-    }
-
-    public sealed class ArrayIndexer<T> : IIndexable<T>
-    {
-        private T[] s;
-
-        public ArrayIndexer(T[] s)
-        {
-            this.s = s;
-        }
-
-        public int Length { get { return s.Length; } }
-        public T this[int index] { get { return s[index]; } }
-    }
-
-
     // http://json.org or http://www.ietf.org/rfc/rfc4627.txt
     public class JSONDictionary
     {
@@ -105,6 +78,32 @@ namespace JSON
             {
                 dictionary.Add(this.items[i].Key, i); // duplicates forbidden - throws
             }
+        }
+
+        public sealed class StringIndexer : IIndexable<char>
+        {
+            private string s;
+
+            public StringIndexer(string s)
+            {
+                this.s = s;
+            }
+
+            public int Length { get { return s.Length; } }
+            public char this[int index] { get { return s[index]; } }
+        }
+
+        public sealed class ArrayIndexer<T> : IIndexable<T>
+        {
+            private T[] s;
+
+            public ArrayIndexer(T[] s)
+            {
+                this.s = s;
+            }
+
+            public int Length { get { return s.Length; } }
+            public T this[int index] { get { return s[index]; } }
         }
 
         // General public accessors

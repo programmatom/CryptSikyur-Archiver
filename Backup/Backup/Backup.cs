@@ -2652,16 +2652,6 @@ namespace Backup
             {
                 return (dirtyCount >= DirtyCountFlushThreshhold)
                     || ((dirtyCount > 0) && (lastDirtyStart.AddSeconds(DirtyFlushIntervalSeconds) < DateTime.Now));
-#if false
-                for (int i = 0; i < volumes.Length; i++)
-                {
-                    if (volumes[i].Value)
-                    {
-                        return true;
-                    }
-                }
-                return false;
-#endif
             }
 
             public void Flush()
@@ -3561,6 +3551,8 @@ namespace Backup
             }
             finally
             {
+                volumeFlushHelperCollection.Flush();
+
                 newEntriesLPermanent.Write(newEntriesLTemporary);
                 newEntriesRPermanent.Write(newEntriesRTemporary);
 
@@ -8505,8 +8497,11 @@ namespace Backup
                             // occurs after merging.
                             // Therefore, marking dirty is not done here in any case.
 
-                            if (ignoreUnchangedFiles)
+                            if (ignoreUnchangedFiles
+                                && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0)
+                                && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                             {
+                                faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
                                 currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
                             }
 
@@ -8525,8 +8520,11 @@ namespace Backup
 
                                 // IMPORTANT: see comment in "Added(1)" clause about marking dirty
 
-                                if (ignoreUnchangedFiles)
+                                if (ignoreUnchangedFiles
+                                    && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0)
+                                    && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                                 {
+                                    faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
                                     currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
                                 }
 
@@ -8552,11 +8550,39 @@ namespace Backup
                                 bool creationChanged = !previousFiles[iPrevious].CreationTimeUtc.Equals(currentFiles[iCurrent].CreationTimeUtc);
                                 bool lastWriteChanged = !previousFiles[iPrevious].LastWriteTimeUtc.Equals(currentFiles[iCurrent].LastWriteTimeUtc);
                                 bool rangeChanged = !PackedFileHeaderRecord.RangeRecord.Equals(previousFiles[iPrevious].Range, currentFiles[iCurrent].Range);
-                                if (ignoreUnchangedFiles && !rangeChanged && (creationChanged || lastWriteChanged))
+                                if (ignoreUnchangedFiles && !rangeChanged && (creationChanged || lastWriteChanged)
+                                    && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0))
                                 {
-                                    currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
-                                    if ((previousFiles[iPrevious].Digest != null)
-                                        && ArrayEqual(previousFiles[iPrevious].Digest, currentFiles[iCurrent].Digest)) // missing previous hash will cause arrays to be not equal, preventing suppression
+                                    byte[] currentDigest, previousDigest;
+                                    if ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0))
+                                    {
+                                        faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
+                                        currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
+                                        currentDigest = currentFiles[iCurrent].Digest;
+                                    }
+                                    else
+                                    {
+                                        int i = iCurrent;
+                                        while ((i > 0) && (currentFiles[i].Range.Start != 0))
+                                        {
+                                            i--;
+                                        }
+                                        currentDigest = currentFiles[i].Digest;
+                                    }
+                                    if ((previousFiles[iPrevious].Range == null) || (previousFiles[iPrevious].Range.Start == 0))
+                                    {
+                                        previousDigest = previousFiles[iPrevious].Digest;
+                                    }
+                                    else
+                                    {
+                                        int i = iPrevious;
+                                        while ((i > 0) && (previousFiles[i].Range.Start != 0))
+                                        {
+                                            i--;
+                                        }
+                                        previousDigest = previousFiles[i].Digest;
+                                    }
+                                    if ((previousDigest != null) && ArrayEqual(previousDigest, currentDigest)) // missing previous hash will cause arrays to be not equal, preventing suppression
                                     {
                                         if (traceDynpack != null)
                                         {
@@ -9090,6 +9116,8 @@ namespace Backup
                 // numbers) are permitted after this point
 
 
+                IFaultInstance faultDynamicPackStage = faultDynamicPack.Select("Stage", "1-start");
+
                 using (ConcurrentMessageLog messagesLog = new ConcurrentMessageLog(Interactive(), true/*enableSequencing*/))
                 {
                     int threadCount = GetConcurrency(fileManager, context);
@@ -9103,6 +9131,7 @@ namespace Backup
 
 
                         // remove abandoned temp files
+                        faultDynamicPackStage = faultDynamicPack.Select("Stage", "2-remove-temporary-files");
                         fatal = 0;
                         {
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
@@ -9128,6 +9157,7 @@ namespace Backup
 
                                 if (segmentFileName.EndsWith(DynPackTempFileExtension))
                                 {
+                                    IFaultInstance faultDynamicPackFileOperation = faultDynamicPackStage.Select("Delete", segmentFileName);
                                     long sequenceNumber = messagesLog.GetSequenceNumber();
                                     concurrent.Do(
                                         String.Format("delete-tempfile:{0}", segmentFileName),
@@ -9170,6 +9200,7 @@ namespace Backup
                         // verify integrity of non-dirty segments - note this validates metadata
                         // (i.e. the structure of the segment pack file) but DOES NOT verify content
                         // of each file.
+                        faultDynamicPackStage = faultDynamicPack.Select("Stage", "3-validate-nondirty-segment-files");
                         List<string> badSegments = new List<string>(); // multi-threaded: lock this!
                         if (verifyNonDirtyMetadata)
                         {
@@ -9196,6 +9227,7 @@ namespace Backup
                                 {
                                     string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
 
+                                    IFaultInstance faultDynamicPackFileOperation = faultDynamicPackStage.Select("Validate", segmentFileName);
                                     long sequenceNumber = messagesLog.GetSequenceNumber();
                                     concurrent.Do(
                                         String.Format("validate-nondirty:{0}", segmentFileName),
@@ -9317,37 +9349,37 @@ namespace Backup
                                                                         break;
                                                                     }
                                                                 }
-                                                                if (invalid)
-                                                                {
-                                                                    segment.Dirty.Set();
-                                                                    // dirty segment will be removed in subsequent pass
+                                                            }
+                                                            if (invalid)
+                                                            {
+                                                                segment.Dirty.Set();
+                                                                // dirty segment will be removed in subsequent pass
 
-                                                                    try
+                                                                try
+                                                                {
+                                                                    string tempFile = Path.GetTempFileName();
+                                                                    fileRef.CopyLocal(tempFile, true/*overwrite*/);
+                                                                    string message = String.Format("Copied of corrupt segment \"{0}\" to \"{1}\"", segmentFileName, tempFile);
+                                                                    if (traceDynpack != null)
                                                                     {
-                                                                        string tempFile = Path.GetTempFileName();
-                                                                        fileRef.CopyLocal(tempFile, true/*overwrite*/);
-                                                                        string message = String.Format("Copied of corrupt segment \"{0}\" to \"{1}\"", segmentFileName, tempFile);
-                                                                        if (traceDynpack != null)
-                                                                        {
-                                                                            traceDynpack.WriteLine(message);
-                                                                        }
-                                                                        messages.WriteLine(ConsoleColor.Yellow, message);
+                                                                        traceDynpack.WriteLine(message);
                                                                     }
-                                                                    catch (IOException exception)
+                                                                    messages.WriteLine(ConsoleColor.Yellow, message);
+                                                                }
+                                                                catch (IOException exception)
+                                                                {
+                                                                    if (threadTraceDynPack != null)
                                                                     {
-                                                                        if (threadTraceDynPack != null)
-                                                                        {
-                                                                            threadTraceDynPack.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
-                                                                        }
-                                                                        messages.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
-                                                                        uint hr = (uint)Marshal.GetHRForException(exception);
-                                                                        if (hr != 0x80070070/*out of disk space*/)
-                                                                        {
-                                                                            Interlocked.Exchange(ref fatal, 1);
-                                                                            throw;
-                                                                        }
-                                                                        // running out of disk space saving the invalid segment was regarded as non-fatal
+                                                                        threadTraceDynPack.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
                                                                     }
+                                                                    messages.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
+                                                                    uint hr = (uint)Marshal.GetHRForException(exception);
+                                                                    if (hr != 0x80070070/*out of disk space*/)
+                                                                    {
+                                                                        Interlocked.Exchange(ref fatal, 1);
+                                                                        throw;
+                                                                    }
+                                                                    // running out of disk space saving the invalid segment was regarded as non-fatal
                                                                 }
                                                             }
 
@@ -9393,18 +9425,36 @@ namespace Backup
                         }
 
                         // Backup (or remove if !safe) dirty segments
+                        faultDynamicPackStage = faultDynamicPack.Select("Stage", "4-backup-dirty-segment-files");
                         fatal = 0;
                         {
-                            List<string> namesToBackupOrRemove = new List<string>(segments.Count + 1);
-                            namesToBackupOrRemove.Add(DynPackManifestName);
+                            List<KeyValuePair<string, bool>> namesToBackupOrRemove = new List<KeyValuePair<string, bool>>();
+                            namesToBackupOrRemove.Add(new KeyValuePair<string, bool>(DynPackManifestName, false/*backup*/));
                             foreach (SegmentRecord segment in segments)
                             {
                                 if (segment.Dirty.Value)
                                 {
-                                    namesToBackupOrRemove.Add(segment.Name);
+                                    namesToBackupOrRemove.Add(new KeyValuePair<string, bool>(segment.Name, false/*backup*/));
                                 }
                             }
-                            foreach (string nameEnum in namesToBackupOrRemove)
+                            string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
+                            foreach (string file in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
+                            {
+                                Debug.Assert(file.StartsWith(targetFileNamePrefix, StringComparison.OrdinalIgnoreCase));
+
+                                string suffix = file.Substring(targetFileNamePrefix.Length);
+
+                                if (!suffix.StartsWith("-") && suffix.EndsWith(DynPackFileExtension))
+                                {
+                                    suffix = suffix.Substring(0, suffix.Length - DynPackFileExtension.Length);
+                                    if ((suffix != DynPackManifestName)
+                                        && (null == segments.Find(delegate(SegmentRecord a) { return a.Name == suffix; })))
+                                    {
+                                        namesToBackupOrRemove.Add(new KeyValuePair<string, bool>(suffix, true/*unreferenced*/));
+                                    }
+                                }
+                            }
+                            foreach (KeyValuePair<string, bool> nameEnum in namesToBackupOrRemove)
                             {
                                 concurrent.WaitQueueEmpty();
                                 if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
@@ -9420,16 +9470,18 @@ namespace Backup
                                 // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
                                 // variable) in order to capture each value in the anonymous method.
                                 // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
-                                string name = nameEnum;
+                                string name = nameEnum.Key;
+                                bool unreferenced = nameEnum.Value;
 
+                                string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", name, DynPackFileExtension);
+                                string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".-", name, DynPackFileExtension);
+
+                                IFaultInstance faultDynamicPackFileOperation = faultDynamicPackStage.Select("RenameOld", segmentFileName);
                                 long sequenceNumber = messagesLog.GetSequenceNumber();
                                 concurrent.Do(
                                     String.Format("rename-old-segment:{0}", name),
                                     delegate(ConcurrentTasks.ITaskContext taskContext)
                                     {
-                                        string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", name, DynPackFileExtension);
-                                        string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".-", name, DynPackFileExtension);
-
                                         using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
                                         {
                                             using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
@@ -9448,12 +9500,12 @@ namespace Backup
                                                             // run finally completes. (Which means delete the "newer" to keep the backup.)
                                                             if ((!manifest && !safe) || fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
                                                             {
-                                                                messages.WriteLine("Deleting (segment dirty): {0}", segmentFileName);
+                                                                messages.WriteLine("Deleting (segment {1}): {0}", segmentFileName, unreferenced ? "unreferenced" : "dirty");
                                                                 fileManager.Delete(segmentFileName, threadTraceFileManager);
                                                             }
                                                             else
                                                             {
-                                                                messages.WriteLine("Renaming (segment dirty): {0} to {1}", segmentFileName, segmentBackupFileName);
+                                                                messages.WriteLine("Renaming (segment {2}): {0} to {1}", segmentFileName, segmentBackupFileName, unreferenced ? "unreferenced" : "dirty");
                                                                 fileManager.Rename(segmentFileName, segmentBackupFileName, threadTraceFileManager);
                                                             }
                                                         }
@@ -9524,10 +9576,11 @@ namespace Backup
                             }
                         }
 
-                        // Save manifest, diagnostic file, and html file
+                        // Save manifest and diagnostic file
                         // these tasks are done synchronously since they represent a small fraction of
                         // run time for a large job.
                         {
+                            faultDynamicPackStage = faultDynamicPack.Select("Stage", "5-write-diagnostic-file");
                             if (diagnosticPath != null)
                             {
                                 string newDiagnosticFile = Path.Combine(diagnosticPath, manifestFileName + DynPackManifestLogFileExtension);
@@ -9595,7 +9648,7 @@ namespace Backup
                                             writer.WriteLine("{0} BAD SEGMENTS DETECTED DURING VERIFICATION:", badSegments.Count);
                                             foreach (string badSegment in badSegments)
                                             {
-                                                writer.WriteLine("  {1}", badSegment);
+                                                writer.WriteLine("  {0}", badSegment);
                                             }
                                         }
                                     }
@@ -9638,6 +9691,7 @@ namespace Backup
 
 
                             // Write actual archive manifest
+                            faultDynamicPackStage = faultDynamicPack.Select("Stage", "6-write-manifest-file");
                             if (traceDynpack != null)
                             {
                                 traceDynpack.WriteLine("Writing: {0}", manifestFileName);
@@ -9733,7 +9787,9 @@ namespace Backup
                                         });
                                 }
 
+                                faultDynamicPackStage.Select("Wrote", manifestTempFileName);
                                 fileManager.Commit(fileRef, manifestTempFileName, manifestFileName, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
+                                faultDynamicPackStage.Select("Committed", manifestFileName);
                             }
                         }
 
@@ -9826,6 +9882,7 @@ namespace Backup
 
 
                         // Archive modified segments (concurrently)
+                        faultDynamicPackStage = faultDynamicPack.Select("Stage", "7-write-segment-files");
                         long sharedSequenceNumber = messagesLog.GetSequenceNumber();
                         using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sharedSequenceNumber))
                         {
@@ -9855,6 +9912,8 @@ namespace Backup
                             {
                                 string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
                                 string segmentTempFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackTempFileExtension;
+
+                                IFaultInstance faultDynamicPackFileOperation = faultDynamicPackStage.Select("ArchiveSegment", segmentFileName);
 
                                 long sequenceNumber = sharedSequenceNumber; // messagesLog.GetSequenceNumber();
 
@@ -10013,13 +10072,16 @@ namespace Backup
                                                                 }
                                                                 finally
                                                                 {
+                                                                    faultDynamicPackFileOperation.Select("Wrote", segmentTempFileName);
                                                                     if (!succeeded)
                                                                     {
                                                                         fileManager.Abandon(fileRef, segmentTempFileName, threadTraceFileManager);
+                                                                        faultDynamicPackFileOperation.Select("Abandoned", segmentFileName);
                                                                     }
                                                                     else
                                                                     {
                                                                         fileManager.Commit(fileRef, segmentTempFileName, segmentFileName, false/*overwrite*/, progressTracker, threadTraceFileManager);
+                                                                        faultDynamicPackFileOperation.Select("Committed", segmentFileName);
                                                                     }
                                                                 }
                                                             }
@@ -10069,9 +10131,11 @@ namespace Backup
                                 throw new ApplicationException("Unable to continue after last error");
                             }
                         }
+                        faultDynamicPackStage = faultDynamicPack.Select("Stage", "8-write-segment-files-completed");
 
 
                         // upon successful completion - delete unreferenced items (backups and abandoned segments)
+                        faultDynamicPackStage = faultDynamicPack.Select("Stage", "9-remove-backup-files");
                         fatal = 0;
                         {
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
@@ -10111,7 +10175,7 @@ namespace Backup
                                                 {
                                                     using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                     {
-                                                        messages.WriteLine("Deleting ({0} file): {1}", suffix.StartsWith("-") ? "backup" : "unreferenced", segmentFileName);
+                                                        messages.WriteLine("Deleting (backup file): {0}", segmentFileName);
                                                         try
                                                         {
                                                             using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
@@ -10154,6 +10218,7 @@ namespace Backup
 
 
                         // end concurrent region
+                        faultDynamicPackStage = faultDynamicPack.Select("Stage", "10-finished");
                     }
                 }
             }
@@ -11868,7 +11933,7 @@ namespace Backup
 
                                 // specialized command for undoing a failed/incomplete partial dynpack update
                                 case "dynpack-rollback":
-                                    if (args.Length < 3)
+                                    if (args.Length < 2)
                                     {
                                         throw new ArgumentException();
                                     }

@@ -1,0 +1,937 @@
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace -tracefaultpoints
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module transactionality - 1 - change manifest only
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+
+test basic - unchanged, failed before new manifest
+# basic scenario - no changes, failure before new manifest is written
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6-write-manifest-file'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-02          2014-01-02 -A---- x.-0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup
+
+test rerun with completion, ensure success (backup x.-0.dynpack will be used)
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target1
+exitcode-verify 0
+dirs-equal-verify target1 source
+rmdir target1
+
+test restore previous; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup archive
+list-verify archive
+.          2014-01-02          2014-01-02 -A---- x.-0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup remote archive dynpack-rollback x
+exitcode-verify 0
+list-verify archive
+.          2014-01-04          2014-01-04 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+exitcode-verify 0
+dirs-equal-verify target2 source
+rmdir target2
+
+
+module transactionality - 2a - change segment
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+copy source source-original
+
+test change one segment, fail before segment written
+date + 1
+edit source\h -size 9500
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'7-write-segment-files']/ArchiveSegment[stringequal:'x.m.dynpack'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup-1
+
+test rerun with completion, ensure success (backup x.-0.dynpack will be used)
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-01          2014-01-04 -A---- x.0.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-04          2014-01-04 -A---- x.m.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target1
+exitcode-verify 0
+dirs-equal-verify target1 source
+rmdir target1
+
+test restore previous; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup-1 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call-with-input backup remote archive dynpack-rollback x
+.y
+endinput
+exitcode-verify 0
+lastoutput-verify
+.A newer manifest also exists (x.0.dynpack). Are you sure you want to roll back? [y/n] 
+.deleting x.0.dynpack
+.renaming x.-0.dynpack to x.0.dynpack
+.renaming x.-m.dynpack to x.m.dynpack
+endoutput
+list-verify archive
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-05          2014-01-05 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+exitcode-verify 0
+dirs-equal-verify target2 source-original
+rmdir target2
+
+test return to first failed state, run to create new x.m.dynpack and fail
+date + 1
+rmdir archive
+copy archive-backup-1 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-06 -A---- x.0.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-06          2014-01-06 -A---- x.m.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup-2
+
+test rerun with completion, ensure success (backup x.-0.dynpack will be used)
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-01          2014-01-07 -A---- x.0.dynpack [18]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-06          2014-01-06 -A---- x.m.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+exitcode-verify 0
+dirs-equal-verify target2 source
+rmdir target2
+
+test restore second failed state; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup-2 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-06 -A---- x.0.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-06          2014-01-06 -A---- x.m.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call-with-input backup remote archive dynpack-rollback x
+.y
+endinput
+exitcode-verify 0
+lastoutput-verify
+.A newer manifest also exists (x.0.dynpack). Are you sure you want to roll back? [y/n] 
+.deleting x.0.dynpack
+.renaming x.-0.dynpack to x.0.dynpack
+.deleting x.m.dynpack
+.renaming x.-m.dynpack to x.m.dynpack
+endoutput
+list-verify archive
+.          2014-01-01          2014-01-08 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-06          2014-01-08 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target3
+exitcode-verify 0
+dirs-equal-verify target3 source-original
+rmdir target3
+
+
+module transactionality - 2b - change segment, then change it again
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+copy source source-original
+
+test change one segment, fail after segment written
+date + 1
+edit source\h -size 9500
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-03 -A---- x.m.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+
+test modify segment again, update and fail after written
+date + 1
+edit source\h -size 9500
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-05 -A---- x.m.dynpack [17]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup-1
+
+test rerun with completion, ensure success
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-01          2014-01-06 -A---- x.0.dynpack [18]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-05 -A---- x.m.dynpack [17]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target1
+exitcode-verify 0
+dirs-equal-verify target1 source
+rmdir target1
+
+test restore previous; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup-1 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-05 -A---- x.m.dynpack [17]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call-with-input backup remote archive dynpack-rollback x
+.y
+endinput
+exitcode-verify 0
+lastoutput-verify
+.A newer manifest also exists (x.0.dynpack). Are you sure you want to roll back? [y/n] 
+.deleting x.0.dynpack
+.renaming x.-0.dynpack to x.0.dynpack
+.deleting x.m.dynpack
+.renaming x.-m.dynpack to x.m.dynpack
+endoutput
+list-verify archive
+.          2014-01-01          2014-01-07 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-07 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+exitcode-verify 0
+dirs-equal-verify target2 source-original
+rmdir target2
+
+
+module transactionality - 3a - delete segment
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+copy source source-original
+
+test delete segment
+date + 1
+delete source\g
+delete source\h
+delete source\i
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup-1
+
+test rerun with completion, ensure success (backup x.-0.dynpack will be used)
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-01          2014-01-04 -A---- x.0.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target1
+exitcode-verify 0
+dirs-equal-verify target1 source
+rmdir target1
+
+test restore previous; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup-1 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call-with-input backup remote archive dynpack-rollback x
+.y
+endinput
+exitcode-verify 0
+lastoutput-verify
+.A newer manifest also exists (x.0.dynpack). Are you sure you want to roll back? [y/n] 
+.deleting x.0.dynpack
+.renaming x.-0.dynpack to x.0.dynpack
+.renaming x.-m.dynpack to x.m.dynpack
+endoutput
+list-verify archive
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-05          2014-01-05 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+exitcode-verify 0
+dirs-equal-verify target2 source-original
+rmdir target2
+
+
+module transactionality - 3b - change segment, then delete it
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+copy source source-original
+
+test change one segment, fail after segment written
+date + 1
+edit source\h -size 9500
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-03 -A---- x.m.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+
+test delete segment
+date + 1
+delete source\g
+delete source\h
+delete source\i
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup-1
+
+test rerun with completion, ensure success (backup x.-0.dynpack will be used)
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-01          2014-01-06 -A---- x.0.dynpack [17]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target1
+exitcode-verify 0
+dirs-equal-verify target1 source
+rmdir target1
+
+test restore previous; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup-1 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call-with-input backup remote archive dynpack-rollback x
+.y
+endinput
+exitcode-verify 0
+lastoutput-verify
+.A newer manifest also exists (x.0.dynpack). Are you sure you want to roll back? [y/n] 
+.deleting x.0.dynpack
+.renaming x.-0.dynpack to x.0.dynpack
+.renaming x.-m.dynpack to x.m.dynpack
+endoutput
+list-verify archive
+.          2014-01-01          2014-01-07 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-07          2014-01-07 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+exitcode-verify 0
+dirs-equal-verify target2 source-original
+rmdir target2
+
+
+module transactionality - 4a - add segment (can't be rolled back, but will be skipped by dynunpack)
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+copy source source-original
+
+test add segment, fail after segment written
+date + 1
+create source\j -size 9500
+create source\k -size 9500
+create source\l -size 9500
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-03          2014-01-03 -A---- x.p.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup-1
+
+test rerun with completion, ensure success (backup x.-0.dynpack will be used)
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-01          2014-01-04 -A---- x.0.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-03          2014-01-03 -A---- x.p.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target1
+exitcode-verify 0
+dirs-equal-verify target1 source
+rmdir target1
+
+test restore previous; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup-1 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-03          2014-01-03 -A---- x.p.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call-with-input backup remote archive dynpack-rollback x
+.y
+endinput
+exitcode-verify 0
+lastoutput-verify
+.A newer manifest also exists (x.0.dynpack). Are you sure you want to roll back? [y/n] 
+.deleting x.0.dynpack
+.renaming x.-0.dynpack to x.0.dynpack
+endoutput
+list-verify archive
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+# BUGBUG: ideally would delete the new segment, but that requires redesign (i.e. reading of manifest backup to determine which files are unreferenced)
+# at least dynunpack will not unpack the extraneous segment.
+.          2014-01-03          2014-01-03 -A---- x.p.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+# dynunpack returns error code because of presence of extraneous segment, but does unpack valid segments
+exitcode-verify not 0
+lastoutput-verify
+.Reading x.0.dynpack
+.Error: x.p.dynpack is not a member of this archive
+.Unpacking x.a.dynpack
+.Unpacking x.m.dynpack
+.Unpacking x.s.dynpack
+endoutput
+dirs-equal-verify target2 source-original
+rmdir target2
+
+
+module transactionality - 4b - add segment, then remove (can't be rolled back, but will be skipped by dynunpack)
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+copy source source-original
+
+test add segment, fail after segment written
+date + 1
+create source\j -size 9500
+create source\k -size 9500
+create source\l -size 9500
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-01          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-03          2014-01-03 -A---- x.p.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+
+test remove new segment, fail after segment write
+date + 1
+delete source\j
+delete source\k
+delete source\l
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-05          2014-01-05 -A---- x.-p.dynpack [15]
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+copy archive archive-backup-1
+
+test rerun with completion, ensure success
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify archive
+.          2014-01-01          2014-01-06 -A---- x.0.dynpack [17]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target1
+exitcode-verify 0
+dirs-equal-verify target1 source
+rmdir target1
+
+test restore previous; invoke roll-back tool to restore to previous archive
+date + 1
+rmdir archive
+copy archive-backup-1 archive
+list-verify archive
+.          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
+.          2014-01-05          2014-01-05 -A---- x.-p.dynpack [15]
+.          2014-01-01          2014-01-05 -A---- x.0.dynpack [16]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call-with-input backup remote archive dynpack-rollback x
+.y
+endinput
+exitcode-verify 0
+lastoutput-verify
+.A newer manifest also exists (x.0.dynpack). Are you sure you want to roll back? [y/n] 
+.deleting x.0.dynpack
+.renaming x.-0.dynpack to x.0.dynpack
+.renaming x.-p.dynpack to x.p.dynpack
+endoutput
+list-verify archive
+.          2014-01-01          2014-01-07 -A---- x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+# BUGBUG: ideally would delete the new segment, but that requires redesign (i.e. reading of manifest backup to determine which files are unreferenced)
+# at least dynunpack will not unpack the extraneous segment.
+.          2014-01-07          2014-01-07 -A---- x.p.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+call backup dynunpack archive\x target2
+# dynunpack returns error code because of presence of extraneous segment, but does unpack valid segments
+exitcode-verify not 0
+lastoutput-verify
+.Reading x.0.dynpack
+.Error: x.p.dynpack is not a member of this archive
+.Unpacking x.a.dynpack
+.Unpacking x.m.dynpack
+.Unpacking x.s.dynpack
+endoutput
+dirs-equal-verify target2 source-original
+rmdir target2
+
+
+module commit process - verify create to temp name, then rename to final name (manifest and segments)
+
+test setup
+date 2014-01-01
+mkdir source
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2014-01-01          2014-01-01 -A---- archive\x.0.dynpack [10]
+.          2014-01-01          2014-01-01 -A---- archive\x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- archive\x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- archive\x.s.dynpack [13]
+.                                         -----D source\
+.          2014-01-01          2014-01-01 -A---- source\a [1]
+.          2014-01-01          2014-01-01 -A---- source\b [2]
+.          2014-01-01          2014-01-01 -A---- source\c [3]
+.          2014-01-01          2014-01-01 -A---- source\g [4]
+.          2014-01-01          2014-01-01 -A---- source\h [5]
+.          2014-01-01          2014-01-01 -A---- source\i [6]
+.          2014-01-01          2014-01-01 -A---- source\m [7]
+.          2014-01-01          2014-01-01 -A---- source\n [8]
+.          2014-01-01          2014-01-01 -A---- source\o [9]
+endlist
+
+test 2-phase commit of manifest file
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6-write-manifest-file']/Wrote dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-02          2014-01-02 -A---- x.-0.dynpack [10]
+*          [0-9-]+          [0-9-]+ -A---- x\.0\.tmp \[14\]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6-write-manifest-file']/Committed dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-02          2014-01-02 -A---- x.-0.dynpack [10]
+.          2014-01-03          2014-01-03 -A---- x.0.dynpack [14]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-01          2014-01-01 -A---- x.m.dynpack [12]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+
+test 2-phase commit of segment file
+date + 1
+edit source\h -size 9500
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage/ArchiveSegment[stringequal:'x.m.dynpack']/Wrote dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-02          2014-01-02 -A---- x.-0.dynpack [10]
+.          2014-01-05          2014-01-05 -A---- x.-m.dynpack [12]
+.          2014-01-03          2014-01-05 -A---- x.0.dynpack [15]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+*          [0-9-]+          [0-9-]+ -A---- x\.m\.tmp \[16\]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage/ArchiveSegment[stringequal:'x.m.dynpack']/Committed dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify archive
+.          2014-01-02          2014-01-02 -A---- x.-0.dynpack [10]
+.          2014-01-05          2014-01-05 -A---- x.-m.dynpack [12]
+.          2014-01-03          2014-01-06 -A---- x.0.dynpack [17]
+.          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
+.          2014-01-06          2014-01-06 -A---- x.m.dynpack [18]
+.          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
+endlist
+
+
+# TODO - unresolved:
+# - Should "-verify" rename bad segments to -x form [proposed behavior] or always delete outright [current behavior]?

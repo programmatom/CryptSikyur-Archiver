@@ -1206,11 +1206,11 @@ namespace Backup
                     throw new ArgumentException();
                 }
 
-                bool hasPredicate;
+                bool hasPredicate = false;
                 {
                     int oldi = i;
                     t = NextToken(arg, ref i);
-                    if (!(hasPredicate = String.Equals(t, "[")) && !String.Equals(t, "/"))
+                    if ((t != null) && !(hasPredicate = String.Equals(t, "[")) && !String.Equals(t, "/"))
                     {
                         throw new ArgumentException();
                     }
