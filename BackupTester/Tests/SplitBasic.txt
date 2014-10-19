@@ -18,30 +18,30 @@ exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- source [1]
 .          2014-01-02          2014-01-02 -A---- target.0 [1]
-.          2014-01-02          2014-01-02 -A---- target.sha256 [2]
+.          2014-01-02          2014-01-02 -A---- target.sha512 [2]
 endlist
-file-verify target.sha256
-.bedf889a826e831278b6532189a3142329cfb74bcb23c085bf768223f7463a8e
+file-verify target.sha512
+.5e6335871dc83da89b6faaf87471f1497b8e962a9930a1a7fb7ac9c20933cbe8eb6442c6e239eeedb41e0ba59289c3c3148fedd80d0e746c6dc45247f126e534
 endfile
 date + 1
 call backup unsplit target recombined
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Incorporating %WORKSPACE%\target.0
-.Incorporating %WORKSPACE%\target.sha256
-.SHA256=bedf889a826e831278b6532189a3142329cfb74bcb23c085bf768223f7463a8e
-.  SHA256 hashes match
+.Incorporating %WORKSPACE%\target.sha512
+.SHA512=5e6335871dc83da89b6faaf87471f1497b8e962a9930a1a7fb7ac9c20933cbe8eb6442c6e239eeedb41e0ba59289c3c3148fedd80d0e746c6dc45247f126e534
+.  SHA512 hashes match
 endoutput
 list-verify .
 .          2014-01-03          2014-01-03 -A---- recombined [1]
 .          2014-01-01          2014-01-01 -A---- source [1]
 .          2014-01-02          2014-01-02 -A---- target.0 [1]
-.          2014-01-02          2014-01-02 -A---- target.sha256 [2]
+.          2014-01-02          2014-01-02 -A---- target.sha512 [2]
 endlist
 
 test cleanup
 delete target.0
-delete target.sha256
+delete target.sha512
 delete recombined
 list-verify .
 .          2014-01-01          2014-01-01 -A---- source [1]
@@ -56,10 +56,10 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- source [1]
 .          2014-01-04          2014-01-04 -A---- target.0 [3]
 .          2014-01-04          2014-01-04 -A---- target.1 [4]
-.          2014-01-04          2014-01-04 -A---- target.sha256 [2]
+.          2014-01-04          2014-01-04 -A---- target.sha512 [2]
 endlist
-file-verify target.sha256
-.bedf889a826e831278b6532189a3142329cfb74bcb23c085bf768223f7463a8e
+file-verify target.sha512
+.5e6335871dc83da89b6faaf87471f1497b8e962a9930a1a7fb7ac9c20933cbe8eb6442c6e239eeedb41e0ba59289c3c3148fedd80d0e746c6dc45247f126e534
 endfile
 date + 1
 call backup unsplit target recombined
@@ -67,16 +67,16 @@ exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Incorporating %WORKSPACE%\target.0
 .Incorporating %WORKSPACE%\target.1
-.Incorporating %WORKSPACE%\target.sha256
-.SHA256=bedf889a826e831278b6532189a3142329cfb74bcb23c085bf768223f7463a8e
-.  SHA256 hashes match
+.Incorporating %WORKSPACE%\target.sha512
+.SHA512=5e6335871dc83da89b6faaf87471f1497b8e962a9930a1a7fb7ac9c20933cbe8eb6442c6e239eeedb41e0ba59289c3c3148fedd80d0e746c6dc45247f126e534
+.  SHA512 hashes match
 endoutput
 list-verify .
 .          2014-01-05          2014-01-05 -A---- recombined [1]
 .          2014-01-01          2014-01-01 -A---- source [1]
 .          2014-01-04          2014-01-04 -A---- target.0 [3]
 .          2014-01-04          2014-01-04 -A---- target.1 [4]
-.          2014-01-04          2014-01-04 -A---- target.sha256 [2]
+.          2014-01-04          2014-01-04 -A---- target.sha512 [2]
 endlist
 
 test file tampering
@@ -90,14 +90,14 @@ exitcode-verify not 0
 lastoutput-verify -workspacepathhack
 .Incorporating %WORKSPACE%\target.0
 .Incorporating %WORKSPACE%\target.1
-.Incorporating %WORKSPACE%\target.sha256
-.SHA256=9116a19ac99eefbe1217258e5c1eabe6da50a5677aca2cee26e098113562bd5c
-.  SHA256 hashes do not match, FILE IS DAMAGED
+.Incorporating %WORKSPACE%\target.sha512
+.SHA512=e74119e6012c34ad7310d95a3c2e1eb015021fe264a2291bab2d312641cdff8a0fed4857b4530745ba05c01d6a68d85a7203b260ace9132eff6d8be02814c851
+.  SHA512 hashes do not match, FILE IS DAMAGED
 endoutput
 list-verify .
 .          2014-01-07          2014-01-07 -A---- recombined [6]
 .          2014-01-01          2014-01-01 -A---- source [1]
 .          2014-01-04          2014-01-06 -A---- target.0 [5]
 .          2014-01-04          2014-01-04 -A---- target.1 [4]
-.          2014-01-04          2014-01-04 -A---- target.sha256 [2]
+.          2014-01-04          2014-01-04 -A---- target.sha512 [2]
 endlist

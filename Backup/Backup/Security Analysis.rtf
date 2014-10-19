@@ -116,19 +116,22 @@ The master key derivation algorithm is required to be computationally expensive 
 \b V-1. Block Ciphers\b0\par
 \par
 The tool currently supports the following ciphersuites:\par
-- AES-128 (Rijndael), plus HMAC-SHA-256 for authentication\par
-- Serpent-256 (128 bit block size), plus HMAC-SHA-256 for authentication\par
-- ThreeFish-1024 (1024 bit block size), plus HMAC-Skein-1024 (1024-bit block size) for authentication\par
+- AES-256 (Rijndael; 128 bit block size), plus HMAC-SHA2-512-256 (SHA2-512 truncated to 256 bits) for authentication\par
+- Serpent-256 (128 bit block size), plus HMAC-SHA2-512-256 (SHA2-512 truncated to 256 bits)  for authentication\par
+- ThreeFish-1024 (1024 bit block size), plus HMAC-Skein-1024-512 (Skein-1024 truncated to 512 bits) for authentication\par
 \par
 The set of ciphersuites was chosen to be small but functional. In particular, the program designer regarded it as risky to provide too many options because of the increase in size of test matrix and because it is difficult for a user to know how to choose an option. The three options are considered individually here:\par
 \par
-\ul AES-128\ulnone\par
+\ul AES-256\ulnone\par
 \par
 The AES standard is showing it's age. A number of attacks have been mounted compromising most of the rounds. Some cryptographers are suggesting that new uses of AES should increase the number of rounds, but there is no agreement. The risk is that AES may become vulnerable in a relatively short amount of time.\par
 \par
-In addition, AES-128 with a 128 bit key only provides a marginal security margin against brute-force attacks these days. Unfortunately, the version of AES with 192 or 256 bit keys is seen as weak due to a weak key schedule, and therefore not buying anything over AES-128 (see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html).\par
-\par
+\i TODO: redo this section\par
+\i0 In addition, AES-128 with a 128 bit key only provides a marginal security margin against brute-force attacks these days. Unfortunately, the version of AES with 192 or 256 bit keys is seen as weak due to a weak key schedule, and therefore not buying anything over AES-128 (see https://www.schneier.com/blog/archives/2009/07/another_new_aes.html).\par
+//\par
 In more detail, because of the birthday bound problem (which says, given a key of 2^(n) length, key-reuse collisions can be expected after observing only approx. 2^(n/2) messages), a 128-bit key in general only provides a 64-bit level of security against brute-force attacks. This is a theoretical argument, but a number of real attacks are based on it. It is generally accepted that computing power is reaching the point where 64-bit security is not sufficient.\par
+\par
+TODO: discuss AES-256 with weak key schedule attack and why random key selection mitigates against related-key attacks.\par
 \par
 The implementation of AES (Rijndael) used is provided by the .NET Framework (minimum 2.0), which wraps the Windows CryptoAPI library.\par
 \par
@@ -145,9 +148,9 @@ ThreeFish was chosen to provide a very long key length and cipher block length, 
 \par
 \b V-2. Hash and HMAC\b0\par
 \par
-The HMAC-SHA-256 construction used for authentication (validation of key and data) has so far withstood attacks well. This one is used in the AES and Serpent ciphersuites.\par
+The HMAC-SHA2-512-256 construction used for authentication (validation of key and data) has so far withstood attacks well. This one is used in the AES and Serpent ciphersuites.\par
 \par
-The generic HMAC primitive is implemented in the source code of the tool. The implementation of SHA-256 used is provided by the .NET Framework (minimum 2.0), which wraps the Windows CryptoAPI library.\par
+The generic HMAC primitive is implemented in the source code of the tool. The implementation of SHA2-512 used is provided by the .NET Framework (minimum 2.0), which wraps the Windows CryptoAPI library.\par
 \par
 The HMAC-Skein-1024 construction (used in the ThreeFish ciphersuite) has not been validated due to a lack of publicly available test vectors, other than a very brief self-test in the Skein module. In fact, the HMAC-Skein-1024 construction has some risk to it, mainly due to it's novelty. HMAC is well-respected at this point. Skein was designed to be strong, and underwent scrutiny as part of the NIST SHA-3 competition (it was not selected). Since Skein is not a standard, it draws only modest analytical attention vs. standardized algorithms. Therefore, any weaknesses may go undetected for a long time.\par
 \par
@@ -165,8 +168,8 @@ V-4. General Comments on Correctness\b0\par
 The tool runs a small set of test vectors for each cryptographic primitive every time it starts. If, for some reason, an implementation becomes broken, the tool will fail to start with an error message indicating which primitive failed it's self-test. It is remotely possible but highly unlikely for a systematic change (e.g. .NET version change, compiler change, machine architecture change, etc) to break a primitive in a way that it still passes it's self-test.\par
 \par
 \ul The following primitives self-test every launch:\ulnone\par
-HKDF-SHA-256 (key expansion and extraction)\par
-HMAC-SHA-256\par
+HKDF-SHA2-512 (key expansion and extraction)\par
+HMAC-SHA2-512-256\par
 AES\par
 Serpent\par
 Skein (in a very basic way)\par
@@ -174,7 +177,8 @@ ThreeFish (in a very basic way, by virtue of it underlying Skein)\par
 CTR-mode block cipher composition (see section VI-2-B)\par
 \par
 \ul The following primitives do not self-test:\ulnone\par
-SHA-256 (mitigated by the fact that HMAC-SHA-256 does self-test)\par
+SHA2-512\par
+HMAC-SHA2-512-256 (mitigated by the fact that HMAC-SHA2-256 does self-test)\par
 Default cryptographic random number generator (.NET system-provided)\par
 HMAC-Skein-1024 (due to a lack of publicly confirmed test vectors)\par
 \par
@@ -219,18 +223,18 @@ Recall from section IV that the password/passphrase is used to derive a 1024-bit
 3. If a file key is compromised by a known-plaintext attack (for example, see section VI-1), it is \i difficult\i0  to to discover the master key or password.\par
 \par
 In fact, two keys are derived for each file: a cipher key and a signing key for use with the MAC function (and a third value is derived, the initial counter value; see VI-2-B). The size of the cipher key depends on the ciphersuite used:\par
-- 128 bits for AES-128\par
+- 256 bits for AES-256\par
 - 256 bits for Serpent-256\par
 - 1024 bits for ThreeFish-1024\par
 The size of the signing key depends on the MAC function used:\par
-- 256 bits for HMAC-SHA-256\par
+- 1024 bits for HMAC-SHA2-512-256\par
 - 1024 bits for HMAC-Skein-1024\par
 \par
 See section V-1 for a discussion of key lengths and security.\par
 \par
-The keys are derived using HKDF-SHA-256, which provides an extract function for turning the pseudorandom master key into a (practically) arbitrary number of bits for derived key material. The HKDF extract function requires random salt, which exists on a per-file basis. That file salt is stored at the beginning of each file (after the shared password salt), and is a 1024-bit string of random bits, generated by the random number generator (see section V-3). This amount of salt should more than enough randomness for all foreseeable applications and revisions of this tool.\par
+The keys are derived using HKDF-SHA2-512, which provides an extract function for turning the pseudorandom master key into a (practically) arbitrary number of bits for derived key material. The HKDF extract function requires random salt, which exists on a per-file basis. That file salt is stored at the beginning of each file (after the shared password salt), and is a 1024-bit string of random bits, generated by the random number generator (see section V-3). This amount of salt should more than enough randomness for all foreseeable applications and revisions of this tool.\par
 \par
-HKDF-SHA-256 is considered secure at this time, and therefore should be adequate for the foreseeable future.\par
+HKDF-SHA2-512 is considered secure at this time, and therefore should be adequate for the foreseeable future.\par
 \par
 \b VI-2-B. Cipher Mode of Operation\b0\par
 \par
@@ -244,7 +248,7 @@ The use of CTR mode eliminates the need for any padding scheme, so no padding is
 \par
 \b VI-2-C. Protecting File Authenticity\b0\par
 \par
-File authenticity is protected using the HMAC construction, using SHA-256 or Skein-1024, depending on the selected ciphersuite, and keyed with a per-file signing key that is HKDF-SHA-256-derived from the master key and the per-file salt. The MAC thus computed is appended after the stream of ciphertext. The program uses an Encrypt-then-MAC scheme. The MAC is computed over the entire preceding data stream, including the password salt and per-file random salt and the entire ciphertext.\par
+File authenticity is protected using the HMAC construction, using SHA2-512-256 or Skein-1024-512, depending on the selected ciphersuite, and keyed with a per-file signing key that is HKDF-SHA2-512-derived from the master key and the per-file salt. The MAC thus computed is appended after the stream of ciphertext. The program uses an Encrypt-then-MAC scheme. The MAC is computed over the entire preceding data stream, including the password salt and per-file random salt and the entire ciphertext.\par
 \par
 One theoretical advantage of using the Encrypt-then-MAC scheme is that it allows streams to be validated (and rejected if invalid) before any encryption is done. This is safest, in particular if there is a possibility of defects existing in the underlying archive management code. Consider the case of a buffer-overrun-with-code-execution defect in the underlying archive parsing code. Assume an attacker figured out how to create a malicious archive that triggers the buffer overrun, without having discovered the keys. If the attacker can convince the user to extract a maliciously prepared archive, he could take advantage of such a defect. If the MAC is validated first before any decryption occurs, this avenue of attack is closed off. Note that in the past, just random data has been enough to trigger some buffer-overruns with code execution. As an example, random ciphertext could produce corrupt archive metadata, causing a buffer overflow. Somewhere else in the ciphertext could be malicious code that ends up residing in a buffer, where it could potentially be invoked as a result of the buffer-overrun-with-code-execution. Since the tool is written in a memory-managed environment with full-time strict data structure bounds checking, it is not expected to be vulnerable to this particular attack. Nonetheless, non-code-execution defects might still exist, such as program crashes or the insertion of files in destructive filesystem locations, such as by corrupting the target file path of an extracted file, if the program's checks to prevent escaping the extract target directory do not work function properly.\par
 \par
@@ -366,7 +370,7 @@ The design of DPAPI has the following implications as far as it is used in this 
 \par
 3. DPAPI may be configured to encrypt data in a way that provides wider access than just the user's logon credential. There may be recovery keys registered with the Windows domain that allow backup/recovery agents to decrypt the data, or IT agents to recover data without need the user's credential. The CRYPTPROTECT_NO_RECOVERY flag that is supposed to prevent recovery keys from being generated, which is appropriate for ephemeral data. However, the flag is essentially undocumented and it is very difficult to verify if the operating system actually honors it.\par
 \par
-4. DPAPI has been aroudn a while and has used various ciphers in different editions of Microsoft operating systems. Triple-DES was used in earlier versions of Windows XP. It is expected that more recent versions of Windows use AES encryption, but as a rule, Microsoft does not disclose the inner workings of DPAPI. Passcape has disclosed it's forensic reverse-engineering (see link at start of this section); according to them, Windows 7 uses AES-256 in CBC mode.\par
+4. DPAPI has been around a while and has used various ciphers in different editions of Microsoft operating systems. Triple-DES was used in earlier versions of Windows XP. It is expected that more recent versions of Windows use AES encryption, but as a rule, Microsoft does not disclose the inner workings of DPAPI. Passcape has disclosed it's forensic reverse-engineering (see link at start of this section); according to them, Windows 7 uses AES-256 in CBC mode.\par
 \par
 In general, the DPAPI provides moderate security, practically equivalent to being able to break the user's login password, with the additional weaknesses itemized above. For the purpose of the application, this is considered adequate. However, a critical analysis should consider the following guidelines on \i how\i0  DPAPI is used, in order to minimize user remote resource exposure risk. In particular:\par
 1. DPAPI should only be used to store ephemeral secrets so that there is a very short window during which compromise of a protected stream can do damage.\par

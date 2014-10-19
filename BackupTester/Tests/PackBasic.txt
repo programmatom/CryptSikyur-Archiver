@@ -533,7 +533,7 @@ endlist
 test corrupt last byte (MAC) of file
 copy archive.pack archive2.pack
 date + 1
-# magic: corrupt last byte of file (part of sha256 HMAC check value)
+# magic: corrupt last byte of file (part of sha512 HMAC check value)
 invert-range archive2.pack -1 1
 date + 1
 call backup -decrypt aes256 P1s5M0Rb unpack archive2.pack copy

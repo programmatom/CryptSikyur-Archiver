@@ -76,7 +76,7 @@ delete file1.u4
 test prevalidation with only MAC damage
 delete file1.e
 copy file1.e.backup file1.e
-# magic: corrupt last byte of file (part of sha256 HMAC check value)
+# magic: corrupt last byte of file (part of sha512 HMAC check value)
 invert-range file1.e -1 1
 call-with-input backup -decrypt aes256 Pa5sV0Rd copy file1.e file1.u5
 .r
@@ -193,7 +193,7 @@ rmdir target4
 test prevalidation with only MAC damage
 delete archive.pack
 copy archive.pack.backup archive.pack
-# magic: damage 2nd file - last byte (part of sha256 HMAC check value)
+# magic: damage 2nd file - last byte (part of sha512 HMAC check value)
 invert-range archive.pack -1 1
 call backup -decrypt aes256 Pa5sV0Rd unpack archive.pack target5
 exitcode-verify not 0
