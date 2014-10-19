@@ -9,10 +9,10 @@ The tool itself resides in subdirectory Backup. A brief summary of features:
 - Dynamic pack mode - creates a multi-segment archive supporting partial updates, suitable for synchronizing to a cloud storage
     * Includes integration with Microsoft OneDrive and Google Drive
 - Encryption and integrity support for pack and dynamic pack modes
-    * ciphers: AES-128, Serpent-256 ThreeFish-1024 with SHA-2(256)-HMAC integrity validation
+    * ciphers: AES-256 or Serpent-256 with HMAC-SHA2-512-256 integrity validation or ThreeFish-1024 with HMAC-Skein-1024-512 integrity validation
 - Decremental backup mode to local drive on file granularity (most recent checkpoint is simply a filesystem copy)
 - Syncronize two local file hierarchies
-- Pack mode (like tar)
+- Single file archive mode (like tar)
 
 Documentation and security analysis can be found in the program directory (Backup/Backup/*.rtf)
 
