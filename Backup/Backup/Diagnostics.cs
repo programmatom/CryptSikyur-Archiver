@@ -43,12 +43,19 @@ namespace Backup
     {
         public static TextWriter CreateLogFile(string prefix)
         {
+            string logFilePath;
+            return CreateLogFile(prefix, out logFilePath);
+        }
+
+        public static TextWriter CreateLogFile(string prefix, out string tracePath)
+        {
+            tracePath = null;
             DateTime now = DateTime.Now; // use actual time, not context.now time, for the trace file name
             Stream traceStream = null;
             int i = 1;
             while (traceStream == null)
             {
-                string tracePath = Path.Combine(Path.GetTempPath(), String.Format("{0}-{1:yyyy-MM-ddTHH-mm-ss}+{2}.log", prefix, now, i++));
+                tracePath = Path.Combine(Path.GetTempPath(), String.Format("{0}-{1:yyyy-MM-ddTHH-mm-ss}+{2}.log", prefix, now, i++));
                 try
                 {
                     traceStream = new FileStream(tracePath, FileMode.Create, FileAccess.Write, FileShare.Read, 1/*smallest possible buffer*/);
@@ -122,9 +129,16 @@ namespace Backup
         private string lastTimestamp;
         private int lastTimestampSequenceNumber;
 
+        private readonly string echoLogFilePath;
+        private TextWriter echoWriter;
+
+        private const string EchoLogPrefix = "in-flight-task-trace";
+
         public TaskWriter(TextWriter finalDestination)
         {
             this.finalDestination = finalDestination;
+            this.echoWriter = Logging.CreateLogFile(EchoLogPrefix, out echoLogFilePath);
+
             this.WriteLine("*** TASK LOG BEGIN ***");
         }
 
@@ -154,6 +168,15 @@ namespace Backup
             }
             finalDestination.Write(sb.ToString());
             finalDestination.Flush();
+
+            echoWriter.Dispose();
+            try
+            {
+                File.Delete(echoLogFilePath);
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private void FlushLine(int oldEnd)
@@ -175,7 +198,10 @@ namespace Backup
                 }
 
                 string prefix = String.Format(" {0}.{1:0000} {2} ", timestamp, lastTimestampSequenceNumber++, taskSerialNumber);
-                lines.Add(String.Concat(prefix, current.Substring(0, index)));
+                string line = String.Concat(prefix, current.Substring(0, index));
+                lines.Add(line);
+                echoWriter.WriteLine(line);
+                echoWriter.Flush();
                 index += Environment.NewLine.Length;
                 current = current.Substring(index, current.Length - index);
                 start = 0;

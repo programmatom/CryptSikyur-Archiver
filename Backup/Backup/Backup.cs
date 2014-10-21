@@ -33,9 +33,11 @@ using System.Threading;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using Keccak;
+
 namespace Backup
 {
-    public class Core
+    public static class Core
     {
         ////////////////////////////////////////////////////////////////////////////
         //
@@ -904,12 +906,12 @@ namespace Backup
             return false;
         }
 
-        internal static void GetPasswordArgument(string[] args, ref int i, string prompt, out Crypto.ICryptoSystem algorithm, out ProtectedArray<byte> password)
+        internal static void GetPasswordArgument(string[] args, ref int i, string prompt, out ICryptoSystem algorithm, out ProtectedArray<byte> password)
         {
             if (i < args.Length)
             {
                 string name = args[i];
-                algorithm = Array.Find(Crypto.CryptoSystems.List, delegate(Crypto.ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
+                algorithm = Array.Find(CryptoSystems.List, delegate(ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
                 if (algorithm == null)
                 {
                     throw new UsageException();
@@ -1096,7 +1098,7 @@ namespace Backup
                 }
             }
 
-            public CryptoMasterKeyCacheEntry Get(ProtectedArray<byte> password, byte[] passwordSalt, int rfc2898Rounds, Crypto.ICryptoSystem system)
+            public CryptoMasterKeyCacheEntry Get(ProtectedArray<byte> password, byte[] passwordSalt, int rfc2898Rounds, ICryptoSystem system)
             {
                 lock (this)
                 {
@@ -1114,7 +1116,7 @@ namespace Backup
                 }
             }
 
-            public CryptoMasterKeyCacheEntry GetDefault(ProtectedArray<byte> password, Crypto.ICryptoSystem system, bool forceNewKeys)
+            public CryptoMasterKeyCacheEntry GetDefault(ProtectedArray<byte> password, ICryptoSystem system, bool forceNewKeys)
             {
                 lock (this)
                 {
@@ -1135,7 +1137,7 @@ namespace Backup
 
         public class CryptoContext
         {
-            public Crypto.ICryptoSystem algorithm;
+            public ICryptoSystem algorithm;
             public ProtectedArray<byte> password;
             // forceNewKeys will make multi-file archives run slower because it forces a new
             // random salt in each file, causing (slow) master key derivation to have to be
@@ -1261,7 +1263,7 @@ namespace Backup
                 }
             }
 
-            public void Write(Stream stream, Crypto.ICryptoSystem algorithm)
+            public void Write(Stream stream, ICryptoSystem algorithm)
             {
                 if (!Valid(algorithm))
                 {
@@ -1277,7 +1279,7 @@ namespace Backup
                 BinaryWriteUtils.WriteVariableLengthByteArray(stream, extra != null ? extra : new byte[0]);
             }
 
-            public bool Valid(Crypto.ICryptoSystem algorithm)
+            public bool Valid(ICryptoSystem algorithm)
             {
                 const int LegacyMinimumRfc2898Rounds = 20000;
 
@@ -1327,7 +1329,7 @@ namespace Backup
             }
         }
 
-        internal static void CopyStream(Stream inputStream, Stream outputStream, bool macValidated, EncryptedFileContainerHeader fchInput, Crypto.CryptoKeygroup inputKeys, Context context)
+        internal static void CopyStream(Stream inputStream, Stream outputStream, bool macValidated, EncryptedFileContainerHeader fchInput, CryptoKeygroup inputKeys, Context context)
         {
             StreamStack.DoWithStreamStack(
                 inputStream,
@@ -1385,7 +1387,7 @@ namespace Backup
                 },
                 delegate(Stream finalInputStream)
                 {
-                    Crypto.CryptoKeygroup outputKeys = null;
+                    CryptoKeygroup outputKeys = null;
                     EncryptedFileContainerHeader fchOutput = null;
                     if ((context.cryptoOption == EncryptionOption.Encrypt) ||
                         (context.cryptoOption == EncryptionOption.Recrypt))
@@ -1471,7 +1473,7 @@ namespace Backup
                         {
                             using (Stream sourceStream = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                             {
-                                Crypto.CryptoKeygroup sourceKeys = null;
+                                CryptoKeygroup sourceKeys = null;
                                 EncryptedFileContainerHeader fchSource = null;
                                 if (sourceStream.Length != 0)
                                 {
@@ -1568,7 +1570,7 @@ namespace Backup
         {
             bool result = false;
 
-            Crypto.CryptoKeygroup keysFirst = null;
+            CryptoKeygroup keysFirst = null;
             EncryptedFileContainerHeader fchFirst = null;
             if ((context.cryptoOption == EncryptionOption.Decrypt) ||
                 (context.cryptoOption == EncryptionOption.Recrypt))
@@ -1577,7 +1579,7 @@ namespace Backup
                 context.decrypt.algorithm.DeriveSessionKeys(context.decrypt.GetMasterKeyEntry(fchFirst.passwordSalt, fchFirst.rfc2898Rounds).MasterKey, fchFirst.fileSalt, out keysFirst);
             }
 
-            Crypto.CryptoKeygroup keysSecond = null;
+            CryptoKeygroup keysSecond = null;
             EncryptedFileContainerHeader fchSecond = null;
             if ((context.cryptoOption == EncryptionOption.Encrypt) ||
                 (context.cryptoOption == EncryptionOption.Recrypt))
@@ -3756,7 +3758,7 @@ namespace Backup
                             using (FileStream fileStream = File.Open(Path.Combine(archiveFolder, (context.compressionOption == CompressionOption.Compress) ? "checkc.bin" : "check.bin"), FileMode.Open))
                             {
                                 EncryptedFileContainerHeader fch = new EncryptedFileContainerHeader(fileStream, true/*peek*/, cryptoContext);
-                                Crypto.CryptoKeygroup keys;
+                                CryptoKeygroup keys;
                                 cryptoContext.algorithm.DeriveSessionKeys(cryptoContext.GetMasterKeyEntry(fch.passwordSalt, fch.rfc2898Rounds).MasterKey, fch.fileSalt, out keys);
 
                                 StreamStack.DoWithStreamStack(
@@ -3826,7 +3828,7 @@ namespace Backup
                     CryptoMasterKeyCacheEntry entry = context.encrypt.GetDefaultMasterKeyEntry();
                     EncryptedFileContainerHeader fch = new EncryptedFileContainerHeader(context.encrypt);
                     fch.passwordSalt = entry.PasswordSalt;
-                    Crypto.CryptoKeygroup keys;
+                    CryptoKeygroup keys;
                     context.encrypt.algorithm.DeriveNewSessionKeys(entry.MasterKey, out fch.fileSalt, out keys);
 
                     string checkFilePath = Path.Combine(archiveFolder, (context.compressionOption == CompressionOption.Compress) ? "checkc.bin" : "check.bin");
@@ -4522,7 +4524,7 @@ namespace Backup
         }
 #endif
 
-        internal static void Backup(string source, string archiveFolder, Context context, string[] args)
+        internal static void BackupDecremental(string source, string archiveFolder, Context context, string[] args)
         {
             if (!Directory.Exists(source))
             {
@@ -5270,7 +5272,7 @@ namespace Backup
             {
                 long length = stream.Length;
 
-                using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new Crypto.CryptoPrimitiveHashCheckValueGeneratorSHA2_512()))
+                using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new CryptoPrimitiveHashCheckValueGeneratorSHA2_512()))
                 {
                     int parts = (int)((length + size - 1) / size);
                     int digits = parts.ToString().Length;
@@ -5336,7 +5338,7 @@ namespace Backup
 
             using (Stream stream = File.Open(destinationFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                using (CheckedWriteStream checkedStream = new CheckedWriteStream(stream, new Crypto.CryptoPrimitiveHashCheckValueGeneratorSHA2_512()))
+                using (CheckedWriteStream checkedStream = new CheckedWriteStream(stream, new CryptoPrimitiveHashCheckValueGeneratorSHA2_512()))
                 {
                     foreach (KeyValuePair<string, bool> file1 in files)
                     {
@@ -5415,7 +5417,7 @@ namespace Backup
                         // zero-length "encrypted" files are considered valid because backup creates them in checkpoints
                         if (fileStream.Length != 0)
                         {
-                            Crypto.CryptoKeygroup keys;
+                            CryptoKeygroup keys;
                             EncryptedFileContainerHeader fch = null;
                             try
                             {
@@ -6158,7 +6160,7 @@ namespace Backup
 
             internal void SetDigest(Stream stream, long bytesToRead)
             {
-                using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new Crypto.CryptoPrimitiveHashCheckValueGeneratorSHA3_256()))
+                using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new CryptoPrimitiveHashCheckValueGeneratorSHA3_256()))
                 {
                     byte[] buffer = new byte[Constants.BufferSize];
                     while (bytesToRead > 0)
@@ -6366,7 +6368,7 @@ namespace Backup
 
             using (Stream fileStream = new FileStream(targetFile, FileMode.CreateNew, FileAccess.Write))
             {
-                Crypto.CryptoKeygroup keys = null;
+                CryptoKeygroup keys = null;
                 EncryptedFileContainerHeader fch = null;
                 if (context.cryptoOption == EncryptionOption.Encrypt)
                 {
@@ -6627,7 +6629,7 @@ namespace Backup
                 }
 
 
-                Crypto.CryptoKeygroup keys = null;
+                CryptoKeygroup keys = null;
                 EncryptedFileContainerHeader fch = null;
                 if (context.cryptoOption == EncryptionOption.Decrypt)
                 {
@@ -8122,7 +8124,7 @@ namespace Backup
                         {
                             using (Stream fileStream = fileRef.Read())
                             {
-                                Crypto.CryptoKeygroup keysManifest = null;
+                                CryptoKeygroup keysManifest = null;
                                 EncryptedFileContainerHeader fchManifest = null;
                                 if (context.cryptoOption == EncryptionOption.Encrypt)
                                 {
@@ -9707,7 +9709,7 @@ namespace Backup
                             {
                                 using (Stream fileStream = fileRef.Write())
                                 {
-                                    Crypto.CryptoKeygroup keys = null;
+                                    CryptoKeygroup keys = null;
                                     EncryptedFileContainerHeader fch = null;
                                     if (context.cryptoOption == EncryptionOption.Encrypt)
                                     {
@@ -9980,7 +9982,7 @@ namespace Backup
                                                                         {
                                                                         }
 
-                                                                        Crypto.CryptoKeygroup keys = null;
+                                                                        CryptoKeygroup keys = null;
                                                                         EncryptedFileContainerHeader fch = null;
                                                                         if (context.cryptoOption == EncryptionOption.Encrypt)
                                                                         {
@@ -10256,7 +10258,6 @@ namespace Backup
                     threadCount = Math.Max(threadCount, Constants.ConcurrencyForComputeBound);
                 }
             }
-            WebMethodsBase.EnsureConcurrency(threadCount);
             return threadCount;
         }
 
@@ -12112,7 +12113,7 @@ namespace Backup
         {
             StringBuilder sb = new StringBuilder();
             bool first = true;
-            foreach (Crypto.ICryptoSystem cryptoSystem in Crypto.CryptoSystems.List)
+            foreach (ICryptoSystem cryptoSystem in CryptoSystems.List)
             {
                 if (!first)
                 {
@@ -12159,11 +12160,11 @@ namespace Backup
             Console.WriteLine("");
             Console.WriteLine("Cryptography configurations:");
             int maxWidth = 0;
-            foreach (Crypto.ICryptoSystem cryptoSystem in Crypto.CryptoSystems.List)
+            foreach (ICryptoSystem cryptoSystem in CryptoSystems.List)
             {
                 maxWidth = Math.Max(maxWidth, cryptoSystem.Name.Length);
             }
-            foreach (Crypto.ICryptoSystem cryptoSystem in Crypto.CryptoSystems.List)
+            foreach (ICryptoSystem cryptoSystem in CryptoSystems.List)
             {
                 Console.WriteLine("  {0,-" + maxWidth.ToString() + "} {1}", cryptoSystem.Name, cryptoSystem.Description);
             }
@@ -12219,9 +12220,9 @@ namespace Backup
             // implementation validations
             {
                 CRC32.Test();
-                Keccak.KeccakHashAlgorithm.Test();
+                KeccakHashAlgorithm.Test();
                 Dictionary<string, bool> uniquePersistedID = new Dictionary<string, bool>();
-                foreach (Crypto.ICryptoSystem cryptoSystem in Crypto.CryptoSystems.List)
+                foreach (ICryptoSystem cryptoSystem in CryptoSystems.List)
                 {
                     cryptoSystem.Test();
                     uniquePersistedID.Add(cryptoSystem.UniquePersistentCiphersuiteIdentifier, false);
@@ -12583,7 +12584,7 @@ namespace Backup
                             {
                                 ConsoleWriteLineColor(ConsoleColor.Yellow, "WARNING: Use of encryption in \"backup\" archiving mode is not recommended. Filenames and directory structure can provide substantial information to an adversary, even if the file contents can't be read.");
                             }
-                            Backup(
+                            BackupDecremental(
                                 EnsureRootedLocalPath(args[i]),
                                 EnsureRootedLocalPath(args[i + 1]),
                                 context,

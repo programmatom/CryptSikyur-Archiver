@@ -187,7 +187,7 @@ namespace Keccak
                             {
                                 throw new InvalidDataException(testFile.filename);
                             }
-                            data = HexUtility.HexDecode(line.Substring(Msg.Length));
+                            data = Backup.HexUtility.HexDecode(line.Substring(Msg.Length));
 
                             line = reader.ReadLine();
 

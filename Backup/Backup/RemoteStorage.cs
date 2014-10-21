@@ -88,15 +88,71 @@ namespace Backup
                 Thread.Sleep(delay);
             }
         }
+    }
 
-        private const int RateLimitExceededBackoffMilliseconds = 5000;
-        public static void WaitRateLimitExceededBackoff(TextWriter trace, HttpStatusCode rateLimitStatusCode)
+    public class RateLimitHelper
+    {
+        private DateTime notBefore;
+        private Random random = new Random();
+
+        public RateLimitHelper()
         {
+        }
+
+        private const int DefaultRateLimitExceededBackoffMilliseconds = 5;
+        private const int ExtraDelayMaxMilliseconds = 5000;
+        private const int ScalingFactor = 2;
+
+        public void WaitRateLimitExceededBackoff(TextWriter trace, HttpStatusCode rateLimitStatusCode, int? requestedDelaySeconds)
+        {
+            int delay = ScalingFactor * (requestedDelaySeconds.HasValue ? requestedDelaySeconds.Value * 1000 : DefaultRateLimitExceededBackoffMilliseconds);
             if (trace != null)
             {
-                trace.WriteLine("Remote API rate limit exceeded (status={1}), delaying {0} msec", RateLimitExceededBackoffMilliseconds, rateLimitStatusCode);
+                trace.WriteLine("Remote API rate limit exceeded (status={1}), delaying {0} msec", delay, rateLimitStatusCode);
             }
-            Thread.Sleep(RateLimitExceededBackoffMilliseconds); // remote API calls/second exceeded
+
+            lock (this)
+            {
+                DateTime currentBase = notBefore >= DateTime.Now ? notBefore : DateTime.Now;
+                notBefore = currentBase.AddMilliseconds(delay);
+            }
+
+            Wait(null);
+        }
+
+        public void Wait(TextWriter trace)
+        {
+            bool lockedOut = false;
+            while (true)
+            {
+                lock (this)
+                {
+                    if (notBefore < DateTime.Now)
+                    {
+                        break;
+                    }
+                    if (!lockedOut)
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine("(delaying because of rate limiting lock-out interval)");
+                        }
+                    }
+                    lockedOut = true;
+                }
+
+                Thread.Sleep(1000);
+            }
+
+            if (lockedOut)
+            {
+                int extraDelay;
+                lock (this)
+                {
+                    extraDelay = random.Next(ExtraDelayMaxMilliseconds);
+                }
+                Thread.Sleep(extraDelay);
+            }
         }
     }
 
@@ -118,6 +174,8 @@ namespace Backup
         // to RemoteDriveAuth.exe to obtain new access token. Therefore, it is always
         // in its encrypted & encoded state in this process
         private string refreshTokenProtected; // protected with CryptProtectMemory and hex-encoded; null if not enabled
+
+        private DateTime accessTokenExpiration;
 
         // All accesses are through critical section to prevent multiple re-authorizations
         // from occurring simultaneously if access token has expired.
@@ -161,6 +219,12 @@ namespace Backup
                 if (trace != null)
                 {
                     trace.WriteLine("+RemoteAccessControl.GetAccessToken");
+                }
+
+                if (accessTokenExpiration < DateTime.Now)
+                {
+                    accessToken = null;
+                    trace.WriteLine(" expiration time reached - reauthorizing");
                 }
 
                 if (accessToken == null)
@@ -287,6 +351,9 @@ namespace Backup
             {
                 expiresIn.Reveal();
                 expires_in = Int64.Parse(Encoding.UTF8.GetString(expiresIn.ExposeArray()));
+                // expire in 1/2 the given window, to allow plenty of time for large file
+                // uploads to complete without receiving an unauthorized error.
+                accessTokenExpiration = DateTime.Now.AddSeconds(expires_in / 2);
             }
             if (trace != null)
             {
@@ -304,6 +371,7 @@ namespace Backup
 
             if (trace != null)
             {
+                trace.WriteLine(" [expiration set to [{0}]", accessTokenExpiration);
                 trace.WriteLine("-RemoteAccessControl.Authenticate - {0}", DateTime.Now);
             }
         }
@@ -437,6 +505,7 @@ namespace Backup
 
         protected readonly Random random = new Random(); // for exponential backoff retry delays
 
+        private static RateLimitHelper rateLimitHelper = new RateLimitHelper();
         private static NetworkThrottle networkThrottle = new NetworkThrottle();
 
         private WebMethodsBase()
@@ -452,17 +521,6 @@ namespace Backup
 
 
         // Global controls
-
-        public static void EnsureConcurrency(int threadCount)
-        {
-            // It seems that System.Net.HttpWebRequest is hanging because the concurrency
-            // exceeds the number of connections permitted to a given remote host. Ensure here
-            // that the system will allow the number of threads we'll be using.
-            if (ServicePointManager.DefaultConnectionLimit < threadCount)
-            {
-                ServicePointManager.DefaultConnectionLimit = threadCount;
-            }
-        }
 
         private class NetworkThrottle
         {
@@ -516,6 +574,7 @@ namespace Backup
         // Configurable methods
 
         public abstract HttpStatusCode RateLimitStatusCode { get; }
+        public abstract string RateLimitRetryAfterHeader { get; }
 
 
         // Implementation
@@ -694,8 +753,10 @@ namespace Backup
 
                         // read response header and body
 
+                        const string ContentLengthHeaderPrefix = "Content-Length:";
                         Stream responseBodyDestination;
                         long contentLength;
+                        int contentLengthIndex = -1;
                         bool chunked = false;
                         {
                             string line;
@@ -718,10 +779,13 @@ namespace Backup
                             }
                             httpStatus = (HttpStatusCode)Int32.Parse(parts[1]);
 
-                            if ((verb == "GET") && (httpStatus != (HttpStatusCode)200/*OK*/) && (httpStatus != (HttpStatusCode)206/*PartialContent*/))
+                            if (((verb == "GET") && (httpStatus != (HttpStatusCode)200/*OK*/) && (httpStatus != (HttpStatusCode)206/*PartialContent*/))
+                                || ((verb == "DELETE") && (httpStatus != (HttpStatusCode)204/*No Content*/)))
                             {
                                 // For GET, if not 200 or 206, then do not modify normal response stream as this
                                 // is not data from the requested object but rather error details.
+                                // For DELETE, if not 204, then try to use exceptional response stream because
+                                // normal stream is usually null since typically no response is expected.
                                 responseBodyDestination = responseBodyDestinationExceptional != null ? responseBodyDestinationExceptional : responseBodyDestinationNormal;
                             }
                             else
@@ -744,8 +808,7 @@ namespace Backup
                             }
                             else
                             {
-                                const string ContentLengthHeaderPrefix = "Content-Length:";
-                                int contentLengthIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(ContentLengthHeaderPrefix); });
+                                contentLengthIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(ContentLengthHeaderPrefix); });
                                 if (contentLengthIndex >= 0)
                                 {
                                     contentLength = Int64.Parse(responseHeaders[contentLengthIndex].Substring(ContentLengthHeaderPrefix.Length));
@@ -771,6 +834,7 @@ namespace Backup
 
                         long responseBodyTotalRead = 0;
                         int chunkRemaining = 0;
+                        bool chunkedTransferTerminatedNormally = false;
                         while (responseBodyTotalRead < contentLength)
                         {
                             long needed = contentLength - responseBodyTotalRead;
@@ -806,6 +870,7 @@ namespace Backup
                                     if (chunkRemaining == 0)
                                     {
                                         contentLength = responseBodyTotalRead;
+                                        chunkedTransferTerminatedNormally = true;
                                     }
                                 }
 
@@ -826,6 +891,17 @@ namespace Backup
                             }
 
                             faultPredicateReadResponse.Test(responseBodyTotalRead); // may throw FaultInjectionException or FaultInjectionPayloadException
+                        }
+
+                        if (chunked && chunkedTransferTerminatedNormally)
+                        {
+                            // synthesize a Content-Length header from chunked transfer
+                            if (contentLengthIndex < 0)
+                            {
+                                contentLengthIndex = responseHeaders.Length;
+                                Array.Resize(ref responseHeaders, responseHeaders.Length + 1);
+                            }
+                            responseHeaders[contentLengthIndex] = String.Format("{0} {1}", ContentLengthHeaderPrefix, contentLength);
                         }
                     }
                 }
@@ -1331,6 +1407,8 @@ namespace Backup
                     responseBodyDestination.SetLength(responseBodyDestination.Position);
                 }
             }
+            // other headers
+            int? retryAfterSeconds = null;
 
             string accessToken;
             if (accessTokenOverride == null)
@@ -1356,6 +1434,8 @@ namespace Backup
 
 
             // Custom HTTP request implementation
+
+            rateLimitHelper.Wait(trace); // do not make request if rate limit epoch is in effect
 
             Uri uri = new Uri(url);
             IPAddress hostAddress;
@@ -1414,6 +1494,14 @@ namespace Backup
                     responseHeadersOut[i] = new KeyValuePair<string, string>(responseHeadersOut[i].Key, responseHeaders[index].Value);
                 }
             }
+            if (RateLimitRetryAfterHeader != null)
+            {
+                int index = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, RateLimitRetryAfterHeader); });
+                if (index >= 0)
+                {
+                    retryAfterSeconds = Int32.Parse(responseHeaders[index].Value);
+                }
+            }
 
             if ((httpStatusCode == (HttpStatusCode)401) && !accessDeniedRetried)
             {
@@ -1438,6 +1526,11 @@ namespace Backup
 
 
         Error:
+
+            if (httpStatusCode == RateLimitStatusCode)
+            {
+                rateLimitHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode, retryAfterSeconds);
+            }
 
             bool result = (webStatusCode == WebExceptionStatus.Success)
                 && (((int)httpStatusCode >= 200) && ((int)httpStatusCode <= 299));
@@ -1480,10 +1573,6 @@ namespace Backup
                 if (networkErrorRetries <= RetryHelper.MaxRetries)
                 {
                     RetryHelper.WaitExponentialBackoff(networkErrorRetries, trace);
-                    if (httpStatusCodeOut == RateLimitStatusCode)
-                    {
-                        RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
-                    }
 
                     // reset state
                     if ((requestBodySource != null) && (requestBodySource.Position != requestBodySourcePosition))
@@ -1633,7 +1722,7 @@ namespace Backup
             }
         }
 
-        protected bool DownloadFileWithResume(string url, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
+        protected bool DownloadFileWithResume(string url, Stream streamDownloadInto, long? expectedFileSize, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             // ProgressTracker is problematic here because we don't have the download target
             // length until response headers are recieved. Callee has to update for us.
@@ -1677,6 +1766,13 @@ namespace Backup
                     trace.WriteLine("setting totalContentLength to {0}", totalContentLength.Value);
                 }
             }
+            if (!totalContentLength.HasValue && expectedFileSize.HasValue)
+            {
+                // If no Content-Length header was returned (e.g. because of failed chunked transfer),
+                // caller may know the expected file length (due to metadata) and can override that
+                // by passing in value for expectedFileSize.
+                totalContentLength = expectedFileSize.Value;
+            }
             if (!totalContentLength.HasValue)
             {
                 streamDownloadInto.Position = 0;
@@ -1714,10 +1810,6 @@ namespace Backup
                 }
 
                 RetryHelper.WaitExponentialBackoff(retry, trace);
-                if (httpStatusCode == RateLimitStatusCode)
-                {
-                    RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
-                }
 
                 goto Retry;
             }
@@ -1745,7 +1837,8 @@ namespace Backup
             }
         }
 
-        public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)(-99); } } // Bogus value - Microsoft does not rate-limit
+        public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)420; } }
+        public override string RateLimitRetryAfterHeader { get { return "Retry-After"; } }
 
         private const string UploadLocationUrlPrefix = "https://apis.live.net/v5.0/";
         private const string UploadLocationContentUrlSuffix = "/content/";
@@ -1899,7 +1992,7 @@ namespace Backup
 
             string url = String.Format("{0}?pretty=false", FileIdToUploadLocation(fileId, true/*content*/));
 
-            if (!DownloadFileWithResume(url, streamDownloadInto, progressTracker, trace, faultInstanceContext))
+            if (!DownloadFileWithResume(url, streamDownloadInto, null/*expectedFileSize*/, progressTracker, trace, faultInstanceContext))
             {
                 if (trace != null)
                 {
@@ -2201,6 +2294,7 @@ namespace Backup
         }
 
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)403; } }
+        public override string RateLimitRetryAfterHeader { get { return null; } }
 
         private const string SelfLinkUrlPrefix = "https://www.googleapis.com/drive/v2/files/";
 
@@ -2400,10 +2494,21 @@ namespace Backup
                 throw new InvalidDataException();
             }
 
+            // Google sometimes uses chunked transfer, which would prevent resumption of
+            // failed transfer because Content-Length can't be known in that case. However,
+            // the metadata has the "fileSize" property which can be used to override the
+            // lack of a header.
+            string fileSize;
+            if (!metadata.TryGetValueAs("fileSize", out fileSize))
+            {
+                throw new InvalidDataException();
+            }
+            long fileSizeBytes = Int64.Parse(fileSize);
+
 
             // https://developers.google.com/drive/web/manage-downloads
 
-            if (!DownloadFileWithResume(downloadUrl, streamDownloadInto, progressTracker, trace, faultInstanceContext))
+            if (!DownloadFileWithResume(downloadUrl, streamDownloadInto, fileSizeBytes, progressTracker, trace, faultInstanceContext))
             {
                 if (trace != null)
                 {
@@ -2463,10 +2568,6 @@ namespace Backup
             else
             {
                 RetryHelper.WaitExponentialBackoff(startOver, trace);
-                if (httpStatusCode == RateLimitStatusCode)
-                {
-                    RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
-                }
             }
 
             if (httpStatusCode == (HttpStatusCode)401)
@@ -2564,10 +2665,6 @@ namespace Backup
             else
             {
                 RetryHelper.WaitExponentialBackoff(retry, trace);
-                if (httpStatusCode == RateLimitStatusCode)
-                {
-                    RetryHelper.WaitRateLimitExceededBackoff(trace, RateLimitStatusCode); // remote API calls/second exceeded
-                }
             }
             if (!resuming)
             {

@@ -319,7 +319,7 @@ exitcode-verify not 0
 lastoutput-verify -workspacepathhack -ignoreextralines
 .Reading archive.0.dynpack
 .Unpacking archive.a.dynpack
-.Exception processing archive.m.dynpack: Backup.Core+ExitCodeException: Individual archived file data check values do not match
+*Exception processing archive\.m\.dynpack\: .*ExitCodeException\: Individual archived file data check values do not match
 *   at .*$
 *   at .*$
 *   at .*$
@@ -377,7 +377,7 @@ lastoutput-verify -workspacepathhack -ignoreextralines
 .
 .Error:
 .Arithmetic operation resulted in an overflow.
-*   at Backup\.BinaryReadUtils\.ReadVariableLengthQuantity.*\(Stream stream\) in .*$
+*   at .*$
 endoutput
 list-verify .
 .          2014-01-10          2014-01-10 -A---- archive.0.dynpack [15]

@@ -8,7 +8,7 @@ fail-pause on
 
 module add two files - left
 
-timeout 30
+timeout 60
 
 mkdir a\x
 mkdir a\y
@@ -71,7 +71,7 @@ endlist
 
 module add two files - right
 
-timeout 30
+timeout 60
 
 mkdir a\x
 mkdir a\y
@@ -134,7 +134,7 @@ endlist
 
 module add crossing
 
-timeout 30
+timeout 60
 
 mkdir a\x
 mkdir a\y
@@ -366,7 +366,7 @@ endlist
 
 module delete/update crossing
 
-timeout 30
+timeout 60
 
 mkdir a\x
 mkdir a\y

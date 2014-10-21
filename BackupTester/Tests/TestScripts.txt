@@ -38,6 +38,7 @@ DynpackIgnoreUnchanged.txt
 DynpackTransactionality.txt
 # TODO: dynpack case sensitivity disambiguation
 # TODO: segment name insertion algorithm
+# TODO: dynunpack with journalling and resumability
 
 ValidateBasic.txt
 ValidateEncryption.txt
