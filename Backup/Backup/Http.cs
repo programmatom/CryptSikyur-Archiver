@@ -77,7 +77,10 @@ namespace Http
         public int? SendTimeout; // milliseconds; 0 or -1 is infinite
         public int? ReceiveTimeout; // milliseconds; 0 or -1 is infinite
 
-        public HttpSettings(bool enableResumableUploads, int? maxBytesPerWebRequest, ICertificatePinning certificatePinning, INetworkThrottle networkThrottle, int? sendTimeout, int? receiveTimeout)
+        public IPAddress Socks5Address;
+        public int Socks5Port;
+
+        public HttpSettings(bool enableResumableUploads, int? maxBytesPerWebRequest, ICertificatePinning certificatePinning, INetworkThrottle networkThrottle, int? sendTimeout, int? receiveTimeout, IPAddress socks5Address, int socks5Port)
         {
             this.EnableResumableUploads = enableResumableUploads;
             this.MaxBytesPerWebRequest = maxBytesPerWebRequest;
@@ -85,11 +88,111 @@ namespace Http
             this.NetworkThrottle = networkThrottle;
             this.SendTimeout = sendTimeout;
             this.ReceiveTimeout = receiveTimeout;
+            this.Socks5Address = socks5Address;
+            this.Socks5Port = socks5Port;
         }
     }
 
     public static class HttpMethods
     {
+        private static WebExceptionStatus Socks5Handshake(Socket socket, string hostName, int hostPort)
+        {
+            // socks5 greeting
+            byte[] proxyGreeting = new byte[]
+                {
+                    0x05, // socks5
+                    1, // count of supported authentication methods
+                    0x00, // "no auth" as the one supported method
+                };
+
+            socket.Send(proxyGreeting);
+
+            byte[] proxyGreetingResponse = new byte[4096];
+            {
+                int read = socket.Receive(proxyGreetingResponse);
+                Array.Resize(ref proxyGreetingResponse, read);
+            }
+
+            if (proxyGreetingResponse[0] != 0x05)
+            {
+                return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Not_Socks5;
+            }
+            if (proxyGreetingResponse[1] != 0)
+            {
+                return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Wont_Support_Auth_Method;
+            }
+
+            const bool useTcp = true;
+            const IPAddress hostAddress = null; // always have proxy resolve to avoid leaking DNS requests
+            List<byte> connect = new List<byte>(new byte[]
+            {
+                0x05, // socks5
+                useTcp ? (byte)0x01 : (byte)0x03, // type (1 = TCP stream, 2 = TCP binding (incoming), 3 = associate UDP port)
+                0x00, // reserved
+                hostAddress != null ? (byte)0x01 : (byte)0x03, // address type (1 = ipv4 [4 bytes], 3 = domain name [1 len + chars], 4 = ipv6 [16 bytes])
+            });
+            if (hostAddress != null)
+            {
+                connect.AddRange(hostAddress.GetAddressBytes());
+            }
+            else
+            {
+                if (hostName.Length > Byte.MaxValue)
+                {
+                    throw new ArgumentOutOfRangeException();
+                }
+                connect.Add((byte)hostName.Length);
+                connect.AddRange(Encoding.ASCII.GetBytes(hostName));
+            }
+            connect.AddRange(new byte[]
+                {
+                    (byte)(hostPort >> 8), // destination port hb
+                    (byte)hostPort, // destination port lb
+                });
+
+            socket.Send(connect.ToArray());
+
+            byte[] connectResponse = new byte[4096];
+            {
+                int read = socket.Receive(connectResponse);
+                Array.Resize(ref connectResponse, read);
+            }
+
+            if (connectResponse.Length != 10)
+            {
+                return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Malformed_Response;
+            }
+            if (connectResponse[0] != 0x05)
+            {
+                return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Not_Socks5;
+            }
+            switch (connectResponse[1])
+            {
+                default:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Unknown;
+                case 0x00:
+                    break;
+                case 0x01:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_General_Failure;
+                case 0x02:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Not_Allowed_By_Ruleset;
+                case 0x03:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Network_Unreachable;
+                case 0x04:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Host_Unreachable;
+                case 0x05:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Refused;
+                case 0x06:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_TTL_Expired;
+                case 0x07:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Protocol_Error;
+                case 0x08:
+                    return WebExceptionStatus.UnknownError;// SocketResultCode.Socks_Proxy_Rejected_Connection_Address_Type_Not_Supported;
+            }
+
+            return WebExceptionStatus.Success;
+        }
+
         private static string StreamReadLine(Stream stream)
         {
             StringBuilder sb = new StringBuilder();
@@ -120,9 +223,21 @@ namespace Http
             {
                 IFaultInstance faultInstanceMethod = faultInstanceContext.Select("SocketHttpRequest", String.Format("{0}|{1}", verb, uri));
 
+                bool useSocks5 = settings.Socks5Address != null;
+                IPAddress connectionAddress = useSocks5 ? settings.Socks5Address : hostAddress;
+                int connectionPort = useSocks5 ? settings.Socks5Port : uri.Port;
+                if (useSocks5 && (hostAddress != null))
+                {
+                    throw new InvalidOperationException("hostAddress must not have been resolved if using socks5 - DNS leak!");
+                }
+
                 using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
                 {
-                    socket.Connect(hostAddress, uri.Port);
+                    socket.Connect(connectionAddress, connectionPort);
+                    if (trace != null)
+                    {
+                        trace.WriteLine("Connected to {0}", socket.RemoteEndPoint);
+                    }
 
                     if (settings.SendTimeout.HasValue)
                     {
@@ -131,6 +246,15 @@ namespace Http
                     if (settings.ReceiveTimeout.HasValue)
                     {
                         socket.ReceiveTimeout = settings.ReceiveTimeout.Value;
+                    }
+
+                    if (useSocks5)
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine("Socks5 Proxy Handshake {0}:{1}", settings.Socks5Address, settings.Socks5Port);
+                        }
+                        Socks5Handshake(socket, uri.Authority, uri.Port);
                     }
 
                     List<string> headers = new List<string>();
@@ -166,6 +290,8 @@ namespace Http
                                 trace.WriteLine("  remote certificate: {0}", ssl.RemoteCertificate != null ? ssl.RemoteCertificate.ToString(true/*verbose*/).Replace(Environment.NewLine, ";") : null);
                                 //trace.WriteLine("  local certificate: {0}", ssl.LocalCertificate != null ? ssl.LocalCertificate.ToString(true/*verbose*/).Replace(Environment.NewLine, ";") : null);
                                 trace.WriteLine("  check cert revocation: {0}", ssl.CheckCertRevocationStatus);
+
+                                trace.WriteLine("Connected to {0}", socket.RemoteEndPoint);
                             }
 
                             if (!ssl.IsAuthenticated || !ssl.IsEncrypted || !ssl.IsSigned || !(ssl.SslProtocol >= System.Security.Authentication.SslProtocols.Tls))

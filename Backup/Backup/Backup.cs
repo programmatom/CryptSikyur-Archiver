@@ -1183,6 +1183,9 @@ namespace Backup
             public FaultTemplateNode faultInjectionTemplateRoot;
             public IFaultInstance faultInjectionRoot;
 
+            public System.Net.IPAddress socks5Address;
+            public int socks5Port;
+
             public Context()
             {
             }
@@ -12525,6 +12528,26 @@ namespace Backup
                         }
                         int maxRetries = Int32.Parse(args[i]);
                         RetryHelper.SetMaxRetries(maxRetries);
+                    }
+                    else if (args[i] == "-socks5")
+                    {
+                        i++;
+                        if (!(i < args.Length))
+                        {
+                            throw new UsageException();
+                        }
+                        string proxy = args[i];
+                        int colon = proxy.IndexOf(':');
+                        if (colon < 0)
+                        {
+                            context.socks5Address = new System.Net.IPAddress(new byte[] { 127, 0, 0, 1 });
+                        }
+                        else
+                        {
+                            context.socks5Address = System.Net.IPAddress.Parse(proxy.Substring(0, colon));
+                            proxy = proxy.Substring(colon + 1);
+                        }
+                        context.socks5Port = Int32.Parse(proxy);
                     }
                     else
                     {

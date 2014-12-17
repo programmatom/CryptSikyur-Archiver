@@ -520,7 +520,7 @@ namespace Backup
             throw new NotSupportedException();
         }
 
-        protected WebMethodsBase(RemoteAccessControl remoteAccessControl, bool enableResumableUploads)
+        protected WebMethodsBase(RemoteAccessControl remoteAccessControl, bool enableResumableUploads, IPAddress socks5Address, int socks5Port)
         {
             this.remoteAccessControl = remoteAccessControl;
 
@@ -530,7 +530,9 @@ namespace Backup
                 this/*certificatePinning*/,
                 networkThrottle,
                 SendTimeout,
-                ReceiveTimeout);
+                ReceiveTimeout,
+                socks5Address,
+                socks5Port);
         }
 
 
@@ -599,13 +601,13 @@ namespace Backup
         public bool CertificatePinningEnabled
         {
             get
-            { 
+            {
 #if false
                 return certificatePinningEnabled;
 #else
                 return false;
 #endif
-            } 
+            }
         }
 
         public bool ValidatePinnedCertificate(string host, IPAddress hostAddress, X509Certificate certificate, TextWriter trace)
@@ -868,15 +870,20 @@ namespace Backup
             rateLimitHelper.Wait(trace); // do not make request if rate limit epoch is in effect
 
             Uri uri = new Uri(url);
-            IPAddress hostAddress;
-            webStatusCode = HttpMethods.DNSLookupName(uri.Host, out hostAddress, trace, faultInstanceContext);
-            if (webStatusCode != WebExceptionStatus.Success)
+            IPAddress hostAddress = null;
+            if (settings.Socks5Address == null)
             {
-                if (trace != null)
+                // Only resolve remote host address if not using socks5, to avoid DNS leaks
+
+                webStatusCode = HttpMethods.DNSLookupName(uri.Host, out hostAddress, trace, faultInstanceContext);
+                if (webStatusCode != WebExceptionStatus.Success)
                 {
-                    trace.WriteLine("DNSLookupName returned error: {0} ({1})", (int)webStatusCode, webStatusCode);
+                    if (trace != null)
+                    {
+                        trace.WriteLine("DNSLookupName returned error: {0} ({1})", (int)webStatusCode, webStatusCode);
+                    }
+                    goto Error;
                 }
-                goto Error;
             }
 
             // generally, headers in ForbiddenRequestHeaders[] are managed by SocketHttpRequest
@@ -1259,8 +1266,8 @@ namespace Backup
         // REST API - Files: http://msdn.microsoft.com/en-us/library/dn631834.aspx
         // REST API - Folders: http://msdn.microsoft.com/en-us/library/dn631836.aspx
 
-        public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext)
-            : base(remoteAccessControl, false/*enableResumableUploads*/)
+        public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext)
+            : base(remoteAccessControl, false/*enableResumableUploads*/, socks5Address, socks5Port)
         {
             if (trace != null)
             {
@@ -1726,8 +1733,8 @@ namespace Backup
         // Desktop application tutorial: https://developers.google.com/accounts/docs/OAuth2InstalledApp
         // https://developers.google.com/drive/v2/reference/
 
-        public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext)
-            : base(remoteAccessControl, true/*enableResumableUploads*/)
+        public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext)
+            : base(remoteAccessControl, true/*enableResumableUploads*/, socks5Address, socks5Port)
         {
             if (trace != null)
             {
@@ -2703,11 +2710,11 @@ namespace Backup
         }
 
 
-        private delegate IWebMethods CreateWebMethodsMethod(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext);
+        private delegate IWebMethods CreateWebMethodsMethod(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext);
         private static readonly KeyValuePair<string, CreateWebMethodsMethod>[] SupportedServices = new KeyValuePair<string, CreateWebMethodsMethod>[]
             {
-                new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new MicrosoftOneDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
-                new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new GoogleDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
+                new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext) { return new MicrosoftOneDriveWebMethods(remoteAccessControl, socks5Address, socks5Port, trace, faultInstanceContext); }),
+                new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext) { return new GoogleDriveWebMethods(remoteAccessControl, socks5Address, socks5Port, trace, faultInstanceContext); }),
             };
 
         private const string TraceFilePrefix = "remotestoragetrace";
@@ -2751,7 +2758,7 @@ namespace Backup
 
                 remoteAccessControl = new RemoteAccessControl(String.Concat("https://", SupportedServices[serviceSelector].Key), true/*enableRefreshToken*/, refreshTokenProtected, masterTrace);
 
-                remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl, masterTrace, faultInstanceRoot);
+                remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl, context.socks5Address, context.socks5Port, masterTrace, faultInstanceRoot);
 
                 remoteDirectoryEntry = remoteWebMethods.NavigateRemotePath(remoteDirectory, true/*includeLast*/, masterTrace, faultInstanceRoot);
                 if (masterTrace != null)
