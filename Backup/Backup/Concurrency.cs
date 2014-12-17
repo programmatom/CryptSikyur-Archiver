@@ -87,16 +87,33 @@ namespace Backup
         {
             internal string line;
             internal ConsoleColor? color;
+            internal bool newline;
 
-            internal Line(string line)
-            {
-                this.line = line;
-            }
-
-            internal Line(string line, ConsoleColor color)
+            private Line(string line, ConsoleColor? color, bool newline)
             {
                 this.line = line;
                 this.color = color;
+                this.newline = newline;
+            }
+
+            internal Line(string line)
+                : this(line, null, true)
+            {
+            }
+
+            internal Line(string line, ConsoleColor color)
+                : this(line, color, true)
+            {
+            }
+
+            internal Line(string line, bool newline)
+                : this(line, null, newline)
+            {
+            }
+
+            internal Line(string line, ConsoleColor color, bool newline)
+                : this(line, (ConsoleColor?)color, newline)
+            {
             }
         }
 
@@ -141,6 +158,12 @@ namespace Backup
             {
                 Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
                 lines.Add(new Line(String.Format(format, arg), color));
+            }
+
+            public void Write(string line)
+            {
+                Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
+                lines.Add(new Line(line, false));
             }
 
             public void Dispose()
@@ -296,7 +319,14 @@ namespace Backup
                 {
                     Console.ForegroundColor = line.color.Value;
                 }
-                Console.WriteLine(line.line);
+                if (line.newline)
+                {
+                    Console.WriteLine(line.line);
+                }
+                else
+                {
+                    Console.Write(line.line);
+                }
                 if (line.color.HasValue)
                 {
                     Console.ForegroundColor = old;

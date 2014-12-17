@@ -39,8 +39,31 @@ namespace Backup
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    public class Logging
+    public class LogWriter : StreamWriter
     {
+        protected LogWriter(Stream stream, Encoding encoding)
+            : base(stream, encoding)
+        {
+        }
+
+        public override void Write(char value)
+        {
+            base.Write(value);
+        }
+
+        public override void Write(char[] buffer, int index, int count)
+        {
+            base.Write(buffer, index, count);
+            Flush();
+        }
+
+        public override void Write(string value)
+        {
+            base.Write(value);
+            Flush();
+        }
+
+
         public static TextWriter CreateLogFile(string prefix)
         {
             string logFilePath;
@@ -58,14 +81,18 @@ namespace Backup
                 tracePath = Path.Combine(Path.GetTempPath(), String.Format("{0}-{1:yyyy-MM-ddTHH-mm-ss}+{2}.log", prefix, now, i++));
                 try
                 {
-                    traceStream = new FileStream(tracePath, FileMode.Create, FileAccess.Write, FileShare.Read, 1/*smallest possible buffer*/);
+                    traceStream = new FileStream(tracePath, FileMode.Create, FileAccess.Write, FileShare.Read);
                 }
                 catch (IOException)
                 {
                     // file in use - try another name
                 }
+                catch (UnauthorizedAccessException)
+                {
+                    // file permissions do not permit overwrite - try another name
+                }
             }
-            return StreamWriter.Synchronized(new StreamWriter(traceStream, Encoding.UTF8, 1/*smallest possible buffer*/));
+            return StreamWriter.Synchronized(new LogWriter(traceStream, Encoding.UTF8));
         }
 
 
@@ -119,7 +146,7 @@ namespace Backup
         }
     }
 
-    public class TaskWriter : TextWriter
+    public class TaskLogWriter : TextWriter
     {
         private static int taskSerialNumberGenerator;
         private int taskSerialNumber = Interlocked.Increment(ref taskSerialNumberGenerator);
@@ -134,17 +161,17 @@ namespace Backup
 
         private const string EchoLogPrefix = "in-flight-task-trace";
 
-        public TaskWriter(TextWriter finalDestination)
+        public TaskLogWriter(TextWriter finalDestination)
         {
             this.finalDestination = finalDestination;
-            this.echoWriter = Logging.CreateLogFile(EchoLogPrefix, out echoLogFilePath);
+            this.echoWriter = LogWriter.CreateLogFile(EchoLogPrefix, out echoLogFilePath);
 
             this.WriteLine("*** TASK LOG BEGIN ***");
         }
 
         public static TextWriter Create(TextWriter finalDestination)
         {
-            return finalDestination != null ? new TaskWriter(finalDestination) : null;
+            return finalDestination != null ? new TaskLogWriter(finalDestination) : null;
         }
 
         public override Encoding Encoding
@@ -952,7 +979,7 @@ namespace Backup
         public FaultTraceNode(IFaultInstance underlying)
         {
             this.underlying = underlying;
-            trace = Logging.CreateLogFile(FaultTraceFilePrefix);
+            trace = LogWriter.CreateLogFile(FaultTraceFilePrefix);
         }
 
         protected FaultTraceNode(TextWriter trace, string prefix, IFaultInstance underlying)

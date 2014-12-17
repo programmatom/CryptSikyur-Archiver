@@ -41,6 +41,7 @@
     <Compile Include="Cryptography.cs" />
     <Compile Include="Diagnostics.cs" />
     <Compile Include="HexUtility.cs" />
+    <Compile Include="Http.cs" />
     <Compile Include="IArchiveFileManager.cs" />
     <Compile Include="Backup.cs" />
     <Compile Include="Keccak\Arrays.cs" />

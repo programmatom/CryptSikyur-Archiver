@@ -25,18 +25,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.IO;
-using System.IO.Compression;
 using System.Net;
-using System.Net.Security;
-using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Web;
 
 using Backup;
+using Http;
 using JSON;
 
 namespace Backup
@@ -234,7 +232,7 @@ namespace Backup
 
                 if (trace != null)
                 {
-                    trace.WriteLine("-RemoteAccessControl.GetAccessToken returns {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
+                    trace.WriteLine("-RemoteAccessControl.GetAccessToken returns {0}", LogWriter.ScrubSecuritySensitiveValue(accessToken));
                 }
                 return accessToken;
             }
@@ -246,7 +244,7 @@ namespace Backup
             {
                 if (trace != null)
                 {
-                    trace.WriteLine("+RemoteAccessControl.InvalidateOldAccessToken: {0}", Logging.ScrubSecuritySensitiveValue(callerAccessToken));
+                    trace.WriteLine("+RemoteAccessControl.InvalidateOldAccessToken: {0}", LogWriter.ScrubSecuritySensitiveValue(callerAccessToken));
                 }
 
                 if (String.Equals(callerAccessToken, accessToken))
@@ -262,7 +260,7 @@ namespace Backup
                 {
                     if (trace != null)
                     {
-                        trace.WriteLine(" doing nothing - not the current token {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
+                        trace.WriteLine(" doing nothing - not the current token {0}", LogWriter.ScrubSecuritySensitiveValue(accessToken));
                     }
                 }
 
@@ -301,10 +299,10 @@ namespace Backup
             }
             if (trace != null)
             {
-                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, arg3.Length > 2 ? Logging.ScrubSecuritySensitiveValue(arg3) : arg3, arg4);
+                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, arg3.Length > 2 ? LogWriter.ScrubSecuritySensitiveValue(arg3) : arg3, arg4);
                 trace.WriteLine("exit code: {0}", exitCode);
                 trace.WriteLine("output:");
-                trace.WriteLine(exitCode == 0 ? Logging.ScrubSecuritySensitiveValue(output) : output);
+                trace.WriteLine(exitCode == 0 ? LogWriter.ScrubSecuritySensitiveValue(output) : output);
                 trace.WriteLine();
             }
 
@@ -358,8 +356,8 @@ namespace Backup
             if (trace != null)
             {
                 trace.WriteLine("Acquired tokens:");
-                trace.WriteLine("  access_token={0}", Logging.ScrubSecuritySensitiveValue(accessToken));
-                trace.WriteLine("  refresh_token={0}", Logging.ScrubSecuritySensitiveValue(refreshTokenProtected));
+                trace.WriteLine("  access_token={0}", LogWriter.ScrubSecuritySensitiveValue(accessToken));
+                trace.WriteLine("  refresh_token={0}", LogWriter.ScrubSecuritySensitiveValue(refreshTokenProtected));
                 trace.WriteLine("  other: expires_in={0}", expires_in);
                 trace.WriteLine();
             }
@@ -484,6 +482,7 @@ namespace Backup
         }
     }
 
+
     public interface IWebMethods
     {
         RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext);
@@ -495,18 +494,26 @@ namespace Backup
         void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext);
     }
 
-    public abstract class WebMethodsBase
+    public abstract class WebMethodsBase : ICertificatePinning
     {
         private const int MaxBytesPerWebRequest = 50 * 1024 * 1024; // force upload fail & resumable after this many bytes (to exercise the resume code)
         private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
+        private const int SendTimeout = 60 * 1000;
+        private const int ReceiveTimeout = 60 * 1000;
+
+        private HttpSettings settings;
 
         protected readonly RemoteAccessControl remoteAccessControl;
-        protected readonly bool enableResumableUploads;
 
         protected readonly Random random = new Random(); // for exponential backoff retry delays
 
+        private bool certificatePinningEnabled;
+#if false
+        private KeyValuePair<string, string[]>[] certificatePinningPublicKeys;
+#endif
+
         private static RateLimitHelper rateLimitHelper = new RateLimitHelper();
-        private static NetworkThrottle networkThrottle = new NetworkThrottle();
+        private static INetworkThrottle networkThrottle = new NetworkThrottle(); // not changeable after creation
 
         private WebMethodsBase()
         {
@@ -516,20 +523,27 @@ namespace Backup
         protected WebMethodsBase(RemoteAccessControl remoteAccessControl, bool enableResumableUploads)
         {
             this.remoteAccessControl = remoteAccessControl;
-            this.enableResumableUploads = enableResumableUploads;
+
+            settings = new HttpSettings(
+                enableResumableUploads,
+                MaxBytesPerWebRequest,
+                this/*certificatePinning*/,
+                networkThrottle,
+                SendTimeout,
+                ReceiveTimeout);
         }
 
 
         // Global controls
 
-        private class NetworkThrottle
+        private class NetworkThrottle : INetworkThrottle
         {
-            public virtual void WaitBytes(int count)
+            public void WaitBytes(int count)
             {
             }
         }
 
-        private class ActiveNetworkThrottle : NetworkThrottle
+        private class ActiveNetworkThrottle : INetworkThrottle
         {
             private const int MinApproximateBytesPerSecond = 100;
             private int approximateBytesPerSecond;
@@ -543,7 +557,7 @@ namespace Backup
                 this.approximateBytesPerSecond = approximateBytesPerSecond;
             }
 
-            public override void WaitBytes(int count)
+            public void WaitBytes(int count)
             {
                 lock (this)
                 {
@@ -571,6 +585,102 @@ namespace Backup
         }
 
 
+        // Certificate pinning
+
+        // Certificate pinning pre-registers the public key of well-known services and requires
+        // an actual TLS connection to present a validated certificate using the same public key,
+        // as proof that the service has the correct private key. This defeats certain MITM
+        // attacks mounted by, e.g. corrupt/inept CAs.
+        // https://www.owasp.org/index.php/Certificate_and_Public_Key_Pinning
+        // also,
+        // TODO: monitor RFC for acceptance and adopt for servers that begin supporting it
+        // (so far: http://tools.ietf.org/html/draft-ietf-websec-key-pinning-21)
+
+        public bool CertificatePinningEnabled
+        {
+            get
+            { 
+#if false
+                return certificatePinningEnabled;
+#else
+                return false;
+#endif
+            } 
+        }
+
+        public bool ValidatePinnedCertificate(string host, IPAddress hostAddress, X509Certificate certificate, TextWriter trace)
+        {
+#if false
+            // TODO: this code is not flexible enough. Use X509Chain to allow ancestor certs to be pinned
+            // see:
+            // https://wiki.mozilla.org/SecurityEngineering/Public_Key_Pinning
+            // https://wiki.mozilla.org/SecurityEngineering/Public_Key_Pinning/Implementation_Details
+            // also
+            // https://src.chromium.org/viewvc/chrome/trunk/src/net/http/transport_security_state_static.json
+
+            string publicKey = ExtractPublicKey(certificate);
+
+            if (trace != null)
+            {
+                trace.WriteLine("*ValidatePinnedCertificate: validating host={0} addr={1} publicKey={2}", host, hostAddress, publicKey);
+            }
+
+            if (!certificatePinningEnabled)
+            {
+                return true;
+            }
+
+            foreach (KeyValuePair<string, string[]> candidate in certificatePinningPublicKeys)
+            {
+                if (candidate.Key.StartsWith("*.") ? host.EndsWith("." + candidate.Key.Substring(2)) : host.Equals(candidate.Key))
+                {
+                    foreach (string candidatePublicKey in candidate.Value)
+                    {
+                        if (String.Equals(publicKey, candidatePublicKey))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+#endif
+
+            return false;
+        }
+
+#if false
+        protected static string ExtractPublicKey(X509Certificate certificate)
+        {
+            return certificate.GetPublicKeyString();
+        }
+
+        protected void RegisterPinnedCertificates(bool enable, KeyValuePair<string, string[]>[] hostsPublicKeys, TextWriter trace)
+        {
+            if (!enable && (hostsPublicKeys != null) && (hostsPublicKeys.Length != 0))
+            {
+                throw new ArgumentException();
+            }
+
+            if (trace != null)
+            {
+                trace.WriteLine("*RegisterPinnedCertificates: enable={0}", enable);
+                foreach (KeyValuePair<string, string[]> item in hostsPublicKeys)
+                {
+                    string publicKeys = null;
+                    foreach (string key in item.Value)
+                    {
+                        publicKeys = String.Concat(publicKeys != null ? ", " : null, key);
+                    }
+                    trace.WriteLine("  {{host={0}, publicKeys[]={{{1}}}}}", item.Key, publicKeys);
+                }
+            }
+
+            certificatePinningEnabled = enable;
+            certificatePinningPublicKeys = hostsPublicKeys;
+        }
+#endif
+
+
         // Configurable methods
 
         public abstract HttpStatusCode RateLimitStatusCode { get; }
@@ -578,686 +688,6 @@ namespace Backup
 
 
         // Implementation
-
-
-        private static string StreamReadLine(Stream stream)
-        {
-            StringBuilder sb = new StringBuilder();
-            byte[] buffer = new byte[1];
-            int read;
-            while ((read = stream.Read(buffer, 0, 1)) > 0)
-            {
-                sb.Append((char)buffer[0]);
-                if ((sb.Length >= 2) && (sb[sb.Length - 2] == '\r') && (sb[sb.Length - 1] == '\n'))
-                {
-                    sb.Length = sb.Length - 2; // remove CR-LF
-                    break;
-                }
-            }
-            return sb.ToString();
-        }
-
-        private const int SendTimeout = 60 * 1000;
-        private const int ReceiveTimeout = 60 * 1000;
-        private WebExceptionStatus SocketRequest(Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
-        {
-            byte[] buffer = new byte[Core.Constants.BufferSize];
-
-            bool useTLS = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
-
-            httpStatus = (HttpStatusCode)0;
-            responseHeaders = new string[0];
-
-            try
-            {
-                IFaultInstance faultInstanceMethod = faultInstanceContext.Select("SocketHttpRequest", String.Format("{0}|{1}", verb, uri));
-
-                using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
-                {
-                    socket.Connect(hostAddress, uri.Port);
-
-                    socket.SendTimeout = SendTimeout;
-                    socket.ReceiveTimeout = ReceiveTimeout;
-
-                    List<string> headers = new List<string>();
-                    using (Stream socketStream = !useTLS ? (Stream)new NetworkStream(socket, false/*ownsSocket*/) : (Stream)new SslStream(new NetworkStream(socket, false/*ownsSocket*/)))
-                    {
-                        if (useTLS)
-                        {
-                            SslStream ssl = (SslStream)socketStream;
-
-                            ssl.AuthenticateAsClient(uri.Host);
-
-                            if (trace != null)
-                            {
-                                trace.WriteLine("SSL/TLS connection properties:");
-                                trace.WriteLine("  ssl protocol: {0} ({1})", ssl.SslProtocol, (int)ssl.SslProtocol);
-                                trace.WriteLine("  key exchange algorithm: {0} ({1})", ssl.KeyExchangeAlgorithm, (int)ssl.KeyExchangeAlgorithm);
-                                trace.WriteLine("  key exchange strength: {0}", ssl.KeyExchangeStrength);
-                                trace.WriteLine("  cipher algorithm: {0} ({1})", ssl.CipherAlgorithm, (int)ssl.CipherAlgorithm);
-                                trace.WriteLine("  cipher strength: {0}", ssl.CipherStrength);
-                                trace.WriteLine("  hash algorithm: {0} ({1})", ssl.HashAlgorithm, (int)ssl.HashAlgorithm);
-                                trace.WriteLine("  hash strength: {0}", ssl.HashStrength);
-                                trace.WriteLine("  is authenticated: {0}", ssl.IsAuthenticated);
-                                trace.WriteLine("  is encrypted: {0}", ssl.IsEncrypted);
-                                trace.WriteLine("  is mutually authenticated: {0}", ssl.IsMutuallyAuthenticated);
-                                //trace.WriteLine("  is server: {0}", ssl.IsServer);
-                                trace.WriteLine("  is signed: {0}", ssl.IsSigned);
-                                trace.WriteLine("  remote certificate: {0}", ssl.RemoteCertificate != null ? ssl.RemoteCertificate.ToString(true/*verbose*/).Replace(Environment.NewLine, ";") : null);
-                                //trace.WriteLine("  local certificate: {0}", ssl.LocalCertificate != null ? ssl.LocalCertificate.ToString(true/*verbose*/).Replace(Environment.NewLine, ";") : null);
-                            }
-
-                            if (!ssl.IsAuthenticated || !ssl.IsEncrypted || !ssl.IsSigned/* || !(ssl.SslProtocol >= SslProtocols.Tls)*/)
-                            {
-                                throw new ApplicationException("TLS Unsecure");
-                            }
-                        }
-
-
-                        // write request header
-
-                        socketStream.Write(requestHeaderBytes, 0, requestHeaderBytes.Length);
-                        networkThrottle.WaitBytes(requestHeaderBytes.Length);
-
-                        // wait for 100-continue if two-stage request in use
-
-                        if (twoStageRequest)
-                        {
-                            if (trace != null)
-                            {
-                                trace.WriteLine("two-stage request - waiting for 100-Continue:");
-                            }
-
-                            string line2;
-                            List<string> headers2 = new List<string>();
-                            while (!String.IsNullOrEmpty(line2 = StreamReadLine(socketStream)))
-                            {
-                                headers2.Add(line2);
-                                if (trace != null)
-                                {
-                                    trace.WriteLine("  {0}", line2);
-                                }
-                            }
-                            string[] line2Parts;
-                            int code = -1;
-                            if ((headers2.Count < 1)
-                                || String.IsNullOrEmpty(headers2[0])
-                                || ((line2Parts = headers2[0].Split(new char[] { ' ' })).Length < 2)
-                                || (!line2Parts[0].StartsWith("HTTP"))
-                                || !Int32.TryParse(line2Parts[1], out code)
-                                || (code != 100))
-                            {
-                                if (trace != null)
-                                {
-                                    trace.WriteLine("did not receive 100-Continue, aborting.");
-                                }
-
-                                if (code != -1)
-                                {
-                                    if (trace != null)
-                                    {
-                                        trace.WriteLine("  server returned status code: {0} ({1})", (int)code, (HttpStatusCode)code);
-                                    }
-
-                                    responseHeaders = headers2.ToArray();
-                                    return WebExceptionStatus.Success; // caller will handle header
-                                }
-
-                                return WebExceptionStatus.ServerProtocolViolation; // unintelligible response
-                            }
-                        }
-
-
-                        // write request body
-
-                        IFaultPredicate faultPredicateWriteRequest = faultInstanceMethod.SelectPredicate("RequestBodyBytes");
-
-                        if (requestBodySource != null)
-                        {
-                            long requestBytesSent = 0;
-                            int read;
-                            while ((read = requestBodySource.Read(buffer, 0, buffer.Length)) != 0)
-                            {
-                                networkThrottle.WaitBytes(read);
-
-                                socketStream.Write(buffer, 0, read);
-                                requestBytesSent += read;
-
-                                if (progressTrackerUpload != null)
-                                {
-                                    progressTrackerUpload.Current = requestBodySource.Position;
-                                }
-
-                                faultPredicateWriteRequest.Test(requestBytesSent); // may throw FaultInjectionException or FaultInjectionPayloadException
-
-                                if (enableResumableUploads)
-                                {
-                                    // If the remote service supports restartable uploads (indicated by the
-                                    // subclass constructor setting enableRestartableUploads), then we can do
-                                    // the following:
-                                    // 1. The upload can be aborted as a matter of course after a decent number
-                                    //    of bytes for the purpose of exercising the resume branch of the code.
-
-                                    if (requestBytesSent > MaxBytesPerWebRequest)
-                                    {
-                                        if (trace != null)
-                                        {
-                                            trace.WriteLine("Sent {0} bytes this request, more than MaxBytesPerWebRequest ({1}); simulating connection break for resume testing", requestBytesSent, MaxBytesPerWebRequest);
-                                        }
-                                        return WebExceptionStatus.ReceiveFailure;
-                                    }
-                                }
-                            }
-                        }
-
-
-                        // read response header and body
-
-                        const string ContentLengthHeaderPrefix = "Content-Length:";
-                        Stream responseBodyDestination;
-                        long contentLength;
-                        int contentLengthIndex = -1;
-                        bool chunked = false;
-                        {
-                            string line;
-                            while (!String.IsNullOrEmpty(line = StreamReadLine(socketStream)))
-                            {
-                                headers.Add(line);
-                            }
-                            responseHeaders = headers.ToArray();
-
-                            if (headers.Count < 1)
-                            {
-                                return WebExceptionStatus.ServerProtocolViolation;
-                            }
-
-                            string[] parts = headers[0].Split((char)32);
-                            if ((parts.Length < 2)
-                                || (!parts[0].Equals("HTTP/1.1") && !parts[0].Equals("HTTP/1.0")))
-                            {
-                                return WebExceptionStatus.ServerProtocolViolation;
-                            }
-                            httpStatus = (HttpStatusCode)Int32.Parse(parts[1]);
-
-                            if (((verb == "GET") && (httpStatus != (HttpStatusCode)200/*OK*/) && (httpStatus != (HttpStatusCode)206/*PartialContent*/))
-                                || ((verb == "DELETE") && (httpStatus != (HttpStatusCode)204/*No Content*/)))
-                            {
-                                // For GET, if not 200 or 206, then do not modify normal response stream as this
-                                // is not data from the requested object but rather error details.
-                                // For DELETE, if not 204, then try to use exceptional response stream because
-                                // normal stream is usually null since typically no response is expected.
-                                responseBodyDestination = responseBodyDestinationExceptional != null ? responseBodyDestinationExceptional : responseBodyDestinationNormal;
-                            }
-                            else
-                            {
-                                // For all other verbs, or successful GET, put data in normal response stream.
-                                responseBodyDestination = responseBodyDestinationNormal;
-                            }
-
-                            chunked = false;
-                            const string TransferEncodingHeaderPrefix = "Transfer-Encoding:";
-                            int transferEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(TransferEncodingHeaderPrefix); });
-                            if (transferEncodingHeaderIndex >= 0)
-                            {
-                                chunked = responseHeaders[transferEncodingHeaderIndex].Substring(TransferEncodingHeaderPrefix.Length).Trim().Equals("chunked");
-                            }
-
-                            if (httpStatus == (HttpStatusCode)204)
-                            {
-                                contentLength = 0; // "204 No Content" response code - do not try to read
-                            }
-                            else
-                            {
-                                contentLengthIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(ContentLengthHeaderPrefix); });
-                                if (contentLengthIndex >= 0)
-                                {
-                                    contentLength = Int64.Parse(responseHeaders[contentLengthIndex].Substring(ContentLengthHeaderPrefix.Length));
-                                }
-                                else
-                                {
-                                    contentLength = responseBodyDestination != null ? Int64.MaxValue : 0;
-                                }
-                            }
-                        }
-
-                        // only needs to be approximate
-                        {
-                            int approximateResponseHeadersBytes = 0;
-                            foreach (string header in responseHeaders)
-                            {
-                                approximateResponseHeadersBytes += header.Length + Environment.NewLine.Length;
-                            }
-                            networkThrottle.WaitBytes(approximateResponseHeadersBytes);
-                        }
-
-                        IFaultPredicate faultPredicateReadResponse = faultInstanceMethod.SelectPredicate("ResponseBodyBytes");
-
-                        long responseBodyTotalRead = 0;
-                        int chunkRemaining = 0;
-                        bool chunkedTransferTerminatedNormally = false;
-                        while (responseBodyTotalRead < contentLength)
-                        {
-                            long needed = contentLength - responseBodyTotalRead;
-                            if (chunked)
-                            {
-                                if (chunkRemaining == 0)
-                                {
-                                SkipEmbeddedHeader:
-                                    if (responseBodyTotalRead > 0)
-                                    {
-                                        string s = StreamReadLine(socketStream);
-                                        if (!String.IsNullOrEmpty(s))
-                                        {
-                                            return WebExceptionStatus.ServerProtocolViolation;
-                                        }
-                                    }
-                                    string hex = StreamReadLine(socketStream);
-                                    if (0 <= hex.IndexOf(':'))
-                                    {
-                                        goto SkipEmbeddedHeader;
-                                    }
-                                    hex = hex.Trim();
-                                    chunkRemaining = 0;
-                                    foreach (char c in hex)
-                                    {
-                                        int value = "0123456789abcdef".IndexOf(Char.ToLower(c));
-                                        if (value < 0)
-                                        {
-                                            return WebExceptionStatus.ServerProtocolViolation;
-                                        }
-                                        chunkRemaining = (chunkRemaining << 4) + value;
-                                    }
-                                    if (chunkRemaining == 0)
-                                    {
-                                        contentLength = responseBodyTotalRead;
-                                        chunkedTransferTerminatedNormally = true;
-                                    }
-                                }
-
-                                needed = Math.Min(needed, chunkRemaining);
-                            }
-
-                            needed = Math.Min(buffer.Length, needed);
-                            Debug.Assert(needed >= 0);
-                            int read = socketStream.Read(buffer, 0, (int)needed);
-                            networkThrottle.WaitBytes(read);
-                            responseBodyDestination.Write(buffer, 0, read);
-                            chunkRemaining -= read;
-                            responseBodyTotalRead += read;
-
-                            if (progressTrackerDownload != null)
-                            {
-                                progressTrackerDownload.Current = responseBodyDestination.Position;
-                            }
-
-                            faultPredicateReadResponse.Test(responseBodyTotalRead); // may throw FaultInjectionException or FaultInjectionPayloadException
-                        }
-
-                        if (chunked && chunkedTransferTerminatedNormally)
-                        {
-                            // synthesize a Content-Length header from chunked transfer
-                            if (contentLengthIndex < 0)
-                            {
-                                contentLengthIndex = responseHeaders.Length;
-                                Array.Resize(ref responseHeaders, responseHeaders.Length + 1);
-                            }
-                            responseHeaders[contentLengthIndex] = String.Format("{0} {1}", ContentLengthHeaderPrefix, contentLength);
-                        }
-                    }
-                }
-            }
-            catch (FaultTemplateNode.FaultInjectionPayloadException exception)
-            {
-                if (trace != null)
-                {
-                    trace.WriteLine("FaultInjectionPayloadException: {0} [{1}] " + Environment.NewLine + "{2}", exception.Message, exception.Payload, exception.StackTrace);
-                }
-                const string webPrefix = "web=";
-                const string statusPrefix = "status=";
-                if (exception.Payload.StartsWith(webPrefix))
-                {
-                    return (WebExceptionStatus)Int32.Parse(exception.Payload.Substring(webPrefix.Length));
-                }
-                else if (exception.Payload.StartsWith(statusPrefix))
-                {
-                    httpStatus = (HttpStatusCode)Int32.Parse(exception.Payload.Substring(statusPrefix.Length));
-                    if ((responseHeaders != null) && (responseHeaders.Length > 0))
-                    {
-                        responseHeaders[0] = String.Format("{0} {1}", responseHeaders[0].Substring(0, responseHeaders[0].IndexOf(' ')), (int)httpStatus);
-                    }
-                    return WebExceptionStatus.ProtocolError;
-                }
-                else
-                {
-                    throw new InvalidOperationException("Invalid fault injection payload");
-                }
-            }
-            catch (Exception exception) // expect IOException, SocketException, at least...
-            {
-                if (trace != null)
-                {
-                    trace.WriteLine("Exception: {0}", exception);
-                }
-                return WebExceptionStatus.ReceiveFailure;
-            }
-
-            return WebExceptionStatus.Success;
-        }
-
-        private static readonly string[] SecuritySensitiveHeaders = new string[] { "Authorization" };
-        private static void WriteHeader(string key, string value, TextWriter headersWriter, TextWriter trace)
-        {
-            headersWriter.WriteLine("{0}: {1}", key, value);
-
-            if (trace != null)
-            {
-                string traceValue1 = null;
-                string traceValue2 = value;
-                if (Array.IndexOf(SecuritySensitiveHeaders, key) >= 0)
-                {
-                    traceValue2 = !String.IsNullOrEmpty(traceValue2) ? traceValue2 : String.Empty;
-                    const string BearerPrefix = "Bearer ";
-                    if (traceValue2.StartsWith(BearerPrefix))
-                    {
-                        traceValue1 = traceValue2.Substring(0, BearerPrefix.Length);
-                        traceValue2 = traceValue2.Substring(BearerPrefix.Length);
-                    }
-                    traceValue2 = Logging.ScrubSecuritySensitiveValue(traceValue2.Trim());
-                }
-                trace.WriteLine("  {0}: {1}{2}", key, traceValue1, traceValue2);
-            }
-        }
-
-        private static readonly string[] ForbiddenHeaders = new string[] { "Accept-Encoding", "Content-Length", "Expect", "Connection" };
-        private WebExceptionStatus SocketHttpRequest(Uri uri, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext)
-        {
-            if (trace != null)
-            {
-                trace.WriteLine("+SocketHttpRequest(url={0}, hostAddress={1}, verb={2}, request-body={3}, response-body={4})", uri, hostAddress, verb, Logging.ToString(requestBodySource), Logging.ToString(responseBodyDestination, true/*omitContent*/));
-            }
-
-            foreach (string forbiddenHeader in ForbiddenHeaders)
-            {
-                if (Array.FindIndex(requestHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, forbiddenHeader); }) >= 0)
-                {
-                    throw new ArgumentException();
-                }
-            }
-
-            int redirectCount = 0;
-            const int MaxRedirects = 15;
-            finalUrl = null;
-
-            // Use "Expect: 100-continue" method if larger than this - gives remote server a chance
-            // to reject request if Content-Length is exceeds service's max file size.
-            const int MaxOneStagePutBodyLength = 5 * 1024 * 1024;
-            bool twoStageRequest = (verb == "PUT") && (requestBodySource != null) && (requestBodySource.Length > MaxOneStagePutBodyLength);
-
-        Restart:
-            if (!uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
-                && !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException();
-            }
-
-            httpStatus = (HttpStatusCode)0;
-            responseHeaders = new KeyValuePair<string, string>[0];
-
-            byte[] requestHeaderBytes;
-            using (MemoryStream stream = new MemoryStream())
-            {
-                using (TextWriter writer = new StreamWriter(stream))
-                {
-                    string firstLine = String.Format("{0} {1} HTTP/1.1", verb, uri.PathAndQuery);
-                    writer.WriteLine(firstLine);
-                    if (trace != null)
-                    {
-                        trace.WriteLine("Request headers:");
-                        trace.WriteLine("  {0}", firstLine);
-                    }
-
-                    WriteHeader("Host", uri.Host, writer, trace);
-                    foreach (KeyValuePair<string, string> header in requestHeaders)
-                    {
-                        WriteHeader(header.Key, header.Value, writer, trace);
-                    }
-                    WriteHeader("Accept-Encoding", "gzip, deflate", writer, trace);
-                    // Is there any harm in always writing Content-Length header?
-                    WriteHeader("Content-Length", ((requestBodySource != null) && (requestBodySource.Length > requestBodySource.Position) ? requestBodySource.Length - requestBodySource.Position : 0).ToString(), writer, trace);
-                    if (twoStageRequest)
-                    {
-                        WriteHeader("Expect", "100-continue", writer, trace);
-                    }
-                    WriteHeader("Connection", "keep-alive", writer, trace); // HTTP 1.0 superstition
-                    writer.WriteLine();
-                }
-                requestHeaderBytes = stream.ToArray();
-            }
-
-
-            WebExceptionStatus result;
-            string[] responseHeadersLines;
-            long responseBodyDestinationStart, responseBodyDestinationEnd, responseBodyBytesReceived;
-            using (MemoryStream responseBodyDestinationExceptional = new MemoryStream())
-            {
-                responseBodyDestinationStart = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
-
-                result = SocketRequest(
-                    uri,
-                    verb,
-                    hostAddress,
-                    twoStageRequest,
-                    requestHeaderBytes,
-                    requestBodySource,
-                    out httpStatus,
-                    out responseHeadersLines,
-                    responseBodyDestination,
-                    responseBodyDestinationExceptional,
-                    progressTrackerUpload,
-                    progressTrackerDownload,
-                    trace,
-                    faultInstanceContext);
-
-                responseBodyDestinationEnd = (responseBodyDestination != null) ? responseBodyDestination.Position : 0;
-                responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
-
-                if (trace != null)
-                {
-                    trace.WriteLine("Socket request result: {0} ({1})", (int)result, result);
-                    trace.WriteLine("Response headers:");
-                    foreach (string s in responseHeadersLines)
-                    {
-                        trace.WriteLine("  {0}", s);
-                    }
-                }
-
-                List<KeyValuePair<string, string>> responseHeadersList = new List<KeyValuePair<string, string>>(responseHeadersLines.Length);
-                for (int i = 1; i < responseHeadersLines.Length; i++)
-                {
-                    int marker = responseHeadersLines[i].IndexOf(':');
-                    if (marker < 0)
-                    {
-                        throw new InvalidDataException();
-                    }
-                    string key = responseHeadersLines[i].Substring(0, marker);
-                    string value = responseHeadersLines[i].Substring(marker + 1).Trim();
-                    responseHeadersList.Add(new KeyValuePair<string, string>(key, value));
-                }
-                responseHeaders = responseHeadersList.ToArray();
-
-                if (responseBodyDestinationExceptional.Length != 0)
-                {
-                    DecompressStreamInPlace(responseBodyDestinationExceptional, responseHeaders, true/*updateHeaders*/);
-                    if (trace != null)
-                    {
-                        trace.WriteLine("unsuccessful GET (not 200 and not 206) response body: {0}", Logging.ToString(responseBodyDestinationExceptional));
-                    }
-                }
-            }
-
-            int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length"); });
-            if (contentLengthHeaderIndex >= 0)
-            {
-                long contentLengthExpected;
-                if (!Int64.TryParse(responseHeaders[contentLengthHeaderIndex].Value, out contentLengthExpected))
-                {
-                    return WebExceptionStatus.ServerProtocolViolation;
-                }
-                if (contentLengthExpected != responseBodyBytesReceived)
-                {
-                    if (result == WebExceptionStatus.Success)
-                    {
-                        result = WebExceptionStatus.ReceiveFailure;
-                    }
-                }
-            }
-
-            if (responseBodyDestination != null)
-            {
-                DecompressStreamInPlace(responseBodyDestination, ref responseBodyDestinationStart, ref responseBodyDestinationEnd, ref responseBodyBytesReceived, responseHeaders, true/*updateHeaders*/);
-            }
-
-            if ((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307))
-            {
-                int locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); });
-                if (locationHeaderIndex >= 0)
-                {
-                    if (trace != null)
-                    {
-                        if (Array.FindAll(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); }).Length > 1)
-                        {
-                            trace.WriteLine(" NOTICE: multiple Location response headers present - using first one (http status was {0} {1})", (int)httpStatus, httpStatus);
-                        }
-                    }
-
-                    redirectCount++;
-                    if (redirectCount > MaxRedirects)
-                    {
-                        result = WebExceptionStatus.UnknownError;
-                        goto Exit;
-                    }
-                    string location = responseHeaders[locationHeaderIndex].Value;
-                    if (location.StartsWith("/"))
-                    {
-                        uri = new Uri(uri, location);
-                    }
-                    else
-                    {
-                        uri = new Uri(location);
-                    }
-
-                    if (trace != null)
-                    {
-                        trace.WriteLine("auto-redirecting to {0}", uri);
-                    }
-
-                    goto Restart;
-                }
-            }
-
-
-            finalUrl = uri.ToString();
-
-        Exit:
-            if (trace != null)
-            {
-                trace.WriteLine("-SocketHttpRequest returns {0} ({1})", (int)result, result);
-            }
-            return result;
-        }
-
-        private static void DecompressStreamInPlace(Stream responseBodyDestination, ref long responseBodyDestinationStart, ref long responseBodyDestinationEnd, ref long responseBodyBytesReceived, KeyValuePair<string, string>[] responseHeaders, bool updateHeaders)
-        {
-            int contentEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Encoding"); });
-            if (contentEncodingHeaderIndex >= 0)
-            {
-                bool gzip = responseHeaders[contentEncodingHeaderIndex].Value.Equals("gzip", StringComparison.OrdinalIgnoreCase);
-                bool deflate = responseHeaders[contentEncodingHeaderIndex].Value.Equals("deflate", StringComparison.OrdinalIgnoreCase);
-                if (!gzip && !deflate)
-                {
-                    throw new NotSupportedException(String.Format("Content-Encoding: {0}", responseHeaders[contentEncodingHeaderIndex].Value));
-                }
-
-                byte[] buffer = new byte[Core.Constants.BufferSize];
-
-                string tempPath = Path.GetTempFileName();
-                using (Stream tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                {
-                    responseBodyDestination.Position = responseBodyDestinationStart;
-
-                    while (responseBodyDestinationEnd > responseBodyDestination.Position)
-                    {
-                        int needed = (int)Math.Min(buffer.Length, responseBodyDestinationEnd - responseBodyDestination.Position);
-                        int read;
-                        read = responseBodyDestination.Read(buffer, 0, needed);
-                        tempStream.Write(buffer, 0, read);
-                    }
-
-                    tempStream.Position = 0;
-
-                    responseBodyDestination.Position = responseBodyDestinationStart;
-                    responseBodyDestination.SetLength(responseBodyDestinationStart);
-
-                    using (Stream inputStream = gzip ? (Stream)new GZipStream(tempStream, CompressionMode.Decompress) : (Stream)new DeflateStream(tempStream, CompressionMode.Decompress))
-                    {
-                        int read;
-                        while ((read = inputStream.Read(buffer, 0, buffer.Length)) != 0)
-                        {
-                            responseBodyDestination.Write(buffer, 0, read);
-                        }
-                    }
-
-                    responseBodyDestinationEnd = responseBodyDestination.Position;
-                    responseBodyBytesReceived = responseBodyDestinationEnd - responseBodyDestinationStart;
-
-                    if (updateHeaders)
-                    {
-                        int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length"); });
-                        if (contentLengthHeaderIndex >= 0)
-                        {
-                            responseHeaders[contentLengthHeaderIndex] = new KeyValuePair<string, string>("Content-Length", responseBodyBytesReceived.ToString());
-                        }
-                    }
-                }
-                File.Delete(tempPath);
-
-                if (updateHeaders)
-                {
-                    responseHeaders[contentEncodingHeaderIndex] = new KeyValuePair<string, string>();
-                }
-            }
-        }
-
-        private static void DecompressStreamInPlace(Stream responseBodyDestination, KeyValuePair<string, string>[] responseHeaders, bool updateHeaders)
-        {
-            long responseBodyDestinationStart, responseBodyDestinationEnd, responseBodyBytesReceived;
-            responseBodyDestinationStart = 0;
-            responseBodyDestinationEnd = responseBodyBytesReceived = responseBodyDestination.Length;
-            DecompressStreamInPlace(responseBodyDestination, ref responseBodyDestinationStart, ref responseBodyDestinationEnd, ref responseBodyBytesReceived, responseHeaders, updateHeaders);
-        }
-
-        private static WebExceptionStatus DNSLookupName(string hostName, out IPAddress hostAddress, TextWriter trace, IFaultInstance faultInstanceContext)
-        {
-            hostAddress = null;
-            try
-            {
-                IPHostEntry hostInfo = Dns.GetHostEntry(hostName);
-                if (hostInfo.AddressList.Length < 1)
-                {
-                    return WebExceptionStatus.NameResolutionFailure;
-                }
-                hostAddress = hostInfo.AddressList[0];
-                return WebExceptionStatus.Success;
-            }
-            catch (Exception exception)
-            {
-                if (trace != null)
-                {
-                    trace.WriteLine("DNSLookupName caught exception: {0}", exception);
-                }
-                return WebExceptionStatus.NameResolutionFailure;
-            }
-        }
 
         // Throws exceptions for program defects and unrecoverable errors
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
@@ -1276,7 +706,7 @@ namespace Backup
 
             if (trace != null)
             {
-                trace.WriteLine("+DoWebActionOnce(url={0}, verb={1}, request-body={2}, response-body={3})", url, verb, Logging.ToString(requestBodySource), Logging.ToString(responseBodyDestination));
+                trace.WriteLine("+DoWebActionOnce(url={0}, verb={1}, request-body={2}, response-body={3})", url, verb, LogWriter.ToString(requestBodySource), LogWriter.ToString(responseBodyDestination));
             }
 
             foreach (KeyValuePair<string, string> header in requestHeaders)
@@ -1420,7 +850,7 @@ namespace Backup
                 accessToken = remoteAccessControl.GetAccessToken(trace);
                 if (trace != null)
                 {
-                    trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
+                    trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", LogWriter.ScrubSecuritySensitiveValue(accessToken));
                 }
             }
             else
@@ -1428,7 +858,7 @@ namespace Backup
                 accessToken = accessTokenOverride;
                 if (trace != null)
                 {
-                    trace.WriteLine("Acquiring access token (using same token for all requests): {0}", Logging.ScrubSecuritySensitiveValue(accessToken));
+                    trace.WriteLine("Acquiring access token (using same token for all requests): {0}", LogWriter.ScrubSecuritySensitiveValue(accessToken));
                 }
             }
 
@@ -1439,7 +869,7 @@ namespace Backup
 
             Uri uri = new Uri(url);
             IPAddress hostAddress;
-            webStatusCode = DNSLookupName(uri.Host, out hostAddress, trace, faultInstanceContext);
+            webStatusCode = HttpMethods.DNSLookupName(uri.Host, out hostAddress, trace, faultInstanceContext);
             if (webStatusCode != WebExceptionStatus.Success)
             {
                 if (trace != null)
@@ -1455,7 +885,7 @@ namespace Backup
             requestHeadersList.Add(new KeyValuePair<string, string>("Authorization", String.Format("{0} {1}", "Bearer", accessToken)));
             foreach (KeyValuePair<string, string> header in requestHeaders)
             {
-                Debug.Assert(Array.IndexOf(ForbiddenHeaders, header.Key) < 0);
+                Debug.Assert(!HttpMethods.IsHeaderForbidden(header.Key));
                 requestHeadersList.Add(header);
                 requestHeadersSeen[header.Key] = true;
             }
@@ -1471,7 +901,7 @@ namespace Backup
 
             KeyValuePair<string, string>[] responseHeaders;
             string finalUrl;
-            webStatusCode = SocketHttpRequest(
+            webStatusCode = HttpMethods.SocketHttpRequest(
                 uri,
                 hostAddress,
                 verb,
@@ -1484,7 +914,8 @@ namespace Backup
                 progressTrackerUpload,
                 progressTrackerDownload,
                 trace,
-                faultInstanceContext);
+                faultInstanceContext,
+                settings);
 
             for (int i = 0; i < responseHeadersOut.Length; i++)
             {
@@ -1538,7 +969,7 @@ namespace Backup
             {
                 if (responseBodyDestination != null)
                 {
-                    trace.WriteLine(" response-body={0}", Logging.ToString(responseBodyDestination));
+                    trace.WriteLine(" response-body={0}", LogWriter.ToString(responseBodyDestination));
                 }
                 trace.WriteLine("-DoWebActionOnce result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
             }
@@ -1553,7 +984,7 @@ namespace Backup
         {
             if (trace != null)
             {
-                trace.WriteLine("+DoWebActionWithRetry(url={0}, verb={1}, request-body={2}, response-body={3})", url, verb, Logging.ToString(requestBodySource), Logging.ToString(responseBodyDestination));
+                trace.WriteLine("+DoWebActionWithRetry(url={0}, verb={1}, request-body={2}, response-body={3})", url, verb, LogWriter.ToString(requestBodySource), LogWriter.ToString(responseBodyDestination));
             }
 
             long requestBodySourcePosition = requestBodySource != null ? requestBodySource.Position : 0;
@@ -1614,7 +1045,7 @@ namespace Backup
             {
                 if (responseBodyDestination != null)
                 {
-                    trace.WriteLine(" response-body={0}", Logging.ToString(responseBodyDestination));
+                    trace.WriteLine(" response-body={0}", LogWriter.ToString(responseBodyDestination));
                 }
                 trace.WriteLine("-DoWebActionWithRetry result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCodeOut, webStatusCodeOut, (int)httpStatusCodeOut, httpStatusCodeOut);
             }
@@ -1835,6 +1266,17 @@ namespace Backup
             {
                 trace.WriteLine("*MicrosoftOneDriveWebMethods constructor");
             }
+
+#if false
+            RegisterPinnedCertificates(
+                true/*enable*/,
+                new KeyValuePair<string, string[]>[]
+                {
+                    new KeyValuePair<string, string[]>("storage.live.com", new string [] { "3082010A0282010100B28A747C7A57775A4E67CDCDA0380167AEE06E34261DDF2FBE8BB954C9CB506E380ECE9A2FEA8F00442AA2B539835AC8F30C92E29D9CF26110109D775E39C07C8322F6CE4D10DA5DA08BA48311BE0F4E49113E9DE4D75CE1E4FEE39AD58351B8AE7F8EB750653DF5F8E439B9D040ABC570EFBD4454FA96B87D74149E5768D3375EDFFE531476038A28A73E5660B7205C1257397A74440E688D1BE0BA5AC8841ABBB2EE6B2164A62C7329E148DDD1389C7C20DD6CFF2D1ECEF07D2369062DD80C1AB7F06638703C36730BC1FFEEB434A09C535BDEC2EB95ECB8676672326327B3CB15F326814CD3803DA0AC2F0835D4BC04FA6183FE4B2D680F20EDDFDFF4F76F0203010001" }),
+                    new KeyValuePair<string, string[]>("apis.live.net", new string [] { "3082010A0282010100B28A747C7A57775A4E67CDCDA0380167AEE06E34261DDF2FBE8BB954C9CB506E380ECE9A2FEA8F00442AA2B539835AC8F30C92E29D9CF26110109D775E39C07C8322F6CE4D10DA5DA08BA48311BE0F4E49113E9DE4D75CE1E4FEE39AD58351B8AE7F8EB750653DF5F8E439B9D040ABC570EFBD4454FA96B87D74149E5768D3375EDFFE531476038A28A73E5660B7205C1257397A74440E688D1BE0BA5AC8841ABBB2EE6B2164A62C7329E148DDD1389C7C20DD6CFF2D1ECEF07D2369062DD80C1AB7F06638703C36730BC1FFEEB434A09C535BDEC2EB95ECB8676672326327B3CB15F326814CD3803DA0AC2F0835D4BC04FA6183FE4B2D680F20EDDFDFF4F76F0203010001" }),
+                },
+                trace);
+#endif
         }
 
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)420; } }
@@ -2291,6 +1733,17 @@ namespace Backup
             {
                 trace.WriteLine("*GoogleDriveWebMethods constructor");
             }
+
+#if false
+            RegisterPinnedCertificates(
+                true/*enable*/,
+                new KeyValuePair<string, string[]>[]
+                {
+                    new KeyValuePair<string, string[]>("*.googleapis.com", new string [] { "3082010A0282010100871681B4AD11115CA845C7B1E2E71AAC60E567384D74BD8D5F2B021BEBBD71DCAA43C0F60E27F54C74882E0196467CCE256A6DA51012FA4545EA1B0E79D418FD98B763B8997FE7B0361235E31D52BDCC56808D6BA50AF3DA093EE6B96C866D0A9017AF77DE92D9C2FBB68AC5A27129ECE8258CA19AADD78BD1FAC89FE98998AAB1580B13B6A06864CFA02FEADBF88F6F329D4FFDE7017377CBA12CB6DFB2B9DFD28008CC77A1C82F5EAD25DAA126BFF8F5F2E1C20B57E4D12A2285A4CF4D195E2624B898824D881C7E6ED25B9186BFA2CEB8311133F3A561F8CF2053159C142673BFFB3122835FB4688BF9E71215E1D00FE8F8B8D71C95FE14F741491BD6F45D0203010001", "3082010A0282010100A2F3015AA21CB61F435E979B7E5412B9FF0EBCA529A2F3EB0B5EE8231F0A7E7FEEC14ECC5E728F81201E26FBE5491E7306432C62A2A5ED460481ADAF3528FAB5D18C1921F972A4B15FBAA718BB746FE613AF32B1C53F02945023378F3CBDD9554C5DFE5A4979B5092D3D779F170C9A0458B39FCB0367C44C350172850ABB5D2511A561FE679BE4AAD8EFE9224B81DEC84B8BE8F50E595F6E1B0D27503CF78CBDD330DF9B899AE8B50F1A3A8580987559E514DCDFB5CD045B2C4E84D1DD5EE3738231CC41F45D8BC3ECB0C5380934A8C5C14BDCC72DE803CBAB19B13F61BA108A0F1DD95F4DCB2E026F96587DBE6BE910A9CA6EA821FC58C9E0E54F3DC5D428930203010001" }),
+                    new KeyValuePair<string, string[]>("*.googleusercontent.com", new string [] { "3082010A0282010100BFD0A9D3BD4C7F491A17E831F1A506CFCF45D44F397D614112C9D922739D927435586CCE731BDE2D41C29CD0933EBF4A151F818AAD2689B1A868233FA75164C9F58EC620E3D77B4E591D14607A987580634220862083EAF9FCBA5A7A5C8A65D13CF7D5B926B17BE82540D7FADE62E5FBBDB8296AB02230A951178241D6CC82D3716A6675E7BC5E4B448549AC0A16238A171A8B3455FDCB7DDB83DF2A4B1852FD31DBC864C7B63B273C43FF85C796D631E8AD142CBDAE0DB893AB345950F5CA6F5C5371E6411CD4CF51E6380E9AA712861CE30D27FEEB0C63DD4C6802E469D03E07F9E9B4B312AF658A75C831A807A4CAD59DB2B42900424CC7E79807279D09F30203010001", "040832C5DD28F7CB7E5AC3E6ED87F359474DC80C86FA3816EA6E4418B0254A0FCF6439D668FA99D8A2165924765582F553B2C43B99B5617F0A3D1BEAB5308CD621", "048064BE97D4F87254BFD7A2F480E94F15B2A480408CCB3FDD13DC242923607A31D840B7689CE9579EA03F204718F4081804D330A041C718CE3B5951F26A05DB0A" }),
+                },
+                trace);
+#endif
         }
 
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)403; } }
@@ -2585,7 +2038,7 @@ namespace Backup
             accessTokenOverride = remoteAccessControl.GetAccessToken(trace);
             if (trace != null)
             {
-                trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", Logging.ScrubSecuritySensitiveValue(accessTokenOverride));
+                trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", LogWriter.ScrubSecuritySensitiveValue(accessTokenOverride));
             }
 
             streamUploadFrom.Position = 0;
@@ -3116,7 +2569,7 @@ namespace Backup
         }
     }
 
-    class RemoteArchiveFileManager : IArchiveFileManager
+    public class RemoteArchiveFileManager : IArchiveFileManager
     {
         // all members should be threadsafe or read-only
         private Core.Context context;
@@ -3252,10 +2705,10 @@ namespace Backup
 
         private delegate IWebMethods CreateWebMethodsMethod(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext);
         private static readonly KeyValuePair<string, CreateWebMethodsMethod>[] SupportedServices = new KeyValuePair<string, CreateWebMethodsMethod>[]
-        {
-            new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new MicrosoftOneDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
-            new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new GoogleDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
-        };
+            {
+                new KeyValuePair<string, CreateWebMethodsMethod>("onedrive.live.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new MicrosoftOneDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
+                new KeyValuePair<string, CreateWebMethodsMethod>("drive.google.com", delegate(RemoteAccessControl remoteAccessControl, TextWriter trace, IFaultInstance faultInstanceContext) { return new GoogleDriveWebMethods(remoteAccessControl, trace, faultInstanceContext); }),
+            };
 
         private const string TraceFilePrefix = "remotestoragetrace";
 
@@ -3265,7 +2718,7 @@ namespace Backup
 
             if (context.traceEnabled)
             {
-                masterTrace = Logging.CreateLogFile(TraceFilePrefix);
+                masterTrace = LogWriter.CreateLogFile(TraceFilePrefix);
             }
 
             try

@@ -55,7 +55,7 @@ namespace Backup
 
             // concurrency tuning parameters for various scenarios
             internal const int ConcurrencyForDiskBound = 0;
-            internal const int ConcurrencyForComputeBound = 2;
+            internal static readonly int ConcurrencyForComputeBound = Math.Max(2, Int32.Parse(Environment.GetEnvironmentVariable("NUMBER_OF_PROCESSORS")));
             internal const int ConcurrencyForNetworkBound = 3;
         }
 
@@ -6739,7 +6739,7 @@ namespace Backup
                         randomArchiveSignature = BinaryReadUtils.ReadVariableLengthByteArray(stream);
                         if (trace != null)
                         {
-                            trace.WriteLine("Signature: {0}", Logging.ScrubSecuritySensitiveValue(randomArchiveSignature));
+                            trace.WriteLine("Signature: {0}", LogWriter.ScrubSecuritySensitiveValue(randomArchiveSignature));
                         }
 
                         segmentSerialNumber = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
@@ -7213,7 +7213,7 @@ namespace Backup
                         }
                     }
 
-                    Console.WriteLine("SERIAL: {0}; SIGNATURE: {1}", serialNumber, Logging.ScrubSecuritySensitiveValue(randomArchiveSignature));
+                    Console.WriteLine("SERIAL: {0}; SIGNATURE: {1}", serialNumber, LogWriter.ScrubSecuritySensitiveValue(randomArchiveSignature));
 
                     int index = 0;
                     string lastSegment = null;
@@ -8062,7 +8062,7 @@ namespace Backup
             }
 
 
-            TextWriter traceDynpack = context.traceEnabled ? Logging.CreateLogFile(DynPackTraceFilePrefix) : null;
+            TextWriter traceDynpack = context.traceEnabled ? LogWriter.CreateLogFile(DynPackTraceFilePrefix) : null;
 
 
             // build current file list
@@ -8078,7 +8078,9 @@ namespace Backup
                     traceDynpack.WriteLine("    {5,-8} {6} {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber);
                 }
                 traceDynpack.WriteLine();
+#if false
                 traceDynpack.Flush();
+#endif
             }
 
             string targetArchiveFileNameTemplate;
@@ -8337,7 +8339,9 @@ namespace Backup
                         traceDynpack.WriteLine("    {5,-8} {6} {7}({8})  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber, record.Segment.DiagnosticSerialNumber, record.Segment.Name);
                     }
                     traceDynpack.WriteLine();
+#if false
                     traceDynpack.Flush();
+#endif
                 }
 
                 // Sort and merge
@@ -8446,7 +8450,9 @@ namespace Backup
                                             traceDynpack.Write("{0},", currentFiles[i].DiagnosticSerialNumber);
                                         }
                                         traceDynpack.WriteLine("}");
+#if false
                                         traceDynpack.Flush();
+#endif
                                     }
 
                                     FileRecord[] currentSequenceReplacement = new FileRecord[iPrevious - iPreviousStart];
@@ -8465,7 +8471,9 @@ namespace Backup
                     if (traceDynpack != null)
                     {
                         traceDynpack.WriteLine();
+#if false
                         traceDynpack.Flush();
+#endif
                     }
 
                     if (ignoreUnchangedFiles)
@@ -8646,7 +8654,9 @@ namespace Backup
                         traceDynpack.WriteLine("    {5,-8} {6} {7}  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber, record.Segment != null ? record.Segment.DiagnosticSerialNumber : "null");
                     }
                     traceDynpack.WriteLine();
+#if false
                     traceDynpack.Flush();
+#endif
                 }
 
                 // Fixup pass for files inserted into the middle of segments (breaking segment
@@ -8702,7 +8712,9 @@ namespace Backup
                     if (traceDynpack != null)
                     {
                         traceDynpack.WriteLine();
+#if false
                         traceDynpack.Flush();
+#endif
                     }
                 }
 
@@ -8800,7 +8812,9 @@ namespace Backup
                         traceDynpack.WriteLine("    {0} {1}", segment.DiagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceDynpack.WriteLine();
+#if false
                     traceDynpack.Flush();
+#endif
                 }
 
                 // First scan (before splitting or merging) - ensure missing segments are dirty
@@ -9023,7 +9037,9 @@ namespace Backup
                         traceDynpack.WriteLine("    {0} {1}", segment.DiagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceDynpack.WriteLine();
+#if false
                     traceDynpack.Flush();
+#endif
                 }
 
                 // program logic test - verify segment naming validity
@@ -9041,7 +9057,9 @@ namespace Backup
                                 if (traceDynpack != null)
                                 {
                                     traceDynpack.WriteLine("Program defect: segment name sequence violation:  {0} > {2}  [{1},{3}]  ({4})", currentSegmentName, currentSegment.DiagnosticSerialNumber, mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber);
+#if false
                                     traceDynpack.Flush();
+#endif
                                 }
                                 fault1 = true;
                             }
@@ -9051,7 +9069,9 @@ namespace Backup
                                 if (traceDynpack != null)
                                 {
                                     traceDynpack.WriteLine("Program defect: name used more than once for separated regions:  {0} [{1}]  ({2})", mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber);
+#if false
                                     traceDynpack.Flush();
+#endif
                                 }
                                 fault2 = true;
                             }
@@ -9113,8 +9133,9 @@ namespace Backup
                         }
                     }
                     traceDynpack.WriteLine();
-
+#if false
                     traceDynpack.Flush();
+#endif
                 }
 
 
@@ -9170,13 +9191,13 @@ namespace Backup
                                         String.Format("delete-tempfile:{0}", segmentFileName),
                                         delegate(ConcurrentTasks.ITaskContext taskContext)
                                         {
-                                            using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
+                                            using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                             {
                                                 using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                 {
                                                     try
                                                     {
-                                                        using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                        using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                         {
                                                             messages.WriteLine("Deleting (old temporary file): {0}", segmentFileName);
                                                             fileManager.Delete(segmentFileName, threadTraceFileManager);
@@ -9240,9 +9261,9 @@ namespace Backup
                                         String.Format("validate-nondirty:{0}", segmentFileName),
                                         delegate(ConcurrentTasks.ITaskContext taskContext)
                                         {
-                                            using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
+                                            using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                             {
-                                                using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                 {
                                                     using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                     {
@@ -9251,7 +9272,9 @@ namespace Backup
                                                         if (threadTraceDynPack != null)
                                                         {
                                                             threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.DiagnosticSerialNumber, segment.Name);
+#if false
                                                             threadTraceDynPack.Flush();
+#endif
                                                         }
                                                         messages.WriteLine("Validating non-dirty segment: {0}", segment.Name);
 
@@ -9297,7 +9320,7 @@ namespace Backup
 
                                                                 if (traceDynpack != null)
                                                                 {
-                                                                    traceDynpack.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", Logging.ScrubSecuritySensitiveValue(randomArchiveSignature), Logging.ScrubSecuritySensitiveValue(segmentRandomArchiveSignature));
+                                                                    traceDynpack.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", LogWriter.ScrubSecuritySensitiveValue(randomArchiveSignature), LogWriter.ScrubSecuritySensitiveValue(segmentRandomArchiveSignature));
                                                                 }
                                                                 messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
                                                             }
@@ -9489,13 +9512,13 @@ namespace Backup
                                     String.Format("rename-old-segment:{0}", name),
                                     delegate(ConcurrentTasks.ITaskContext taskContext)
                                     {
-                                        using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
+                                        using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                         {
                                             using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                             {
                                                 try
                                                 {
-                                                    using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                    using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
                                                         if (fileManager.Exists(segmentFileName, threadTraceFileManager))
                                                         {
@@ -9831,10 +9854,12 @@ namespace Backup
                         };
                         ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
                         {
+#if false
                             if (traceDynpack != null)
                             {
                                 traceDynpack.Flush();
                             }
+#endif
 
                             messagesLog.Flush(prepareConsole);
 
@@ -9937,9 +9962,9 @@ namespace Backup
 
                                         try
                                         {
-                                            using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
+                                            using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                             {
-                                                using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                 {
                                                     using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                     {
@@ -10178,14 +10203,14 @@ namespace Backup
                                             String.Format("cleanup:{0}", segmentFileName),
                                             delegate(ConcurrentTasks.ITaskContext taskContext)
                                             {
-                                                using (TextWriter threadTraceDynPack = TaskWriter.Create(traceDynpack))
+                                                using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                                 {
                                                     using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                     {
                                                         messages.WriteLine("Deleting (backup file): {0}", segmentFileName);
                                                         try
                                                         {
-                                                            using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                            using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                             {
                                                                 fileManager.Delete(segmentFileName, threadTraceFileManager);
                                                             }
@@ -10697,7 +10722,7 @@ namespace Backup
                 }
             }
 
-            TextWriter traceDynunpack = context.traceEnabled ? Logging.CreateLogFile(DynUnpackTraceFilePrefix) : null;
+            TextWriter traceDynunpack = context.traceEnabled ? LogWriter.CreateLogFile(DynUnpackTraceFilePrefix) : null;
 
             string archiveFileNameTemplate;
             string manifestFileName = Path.GetFileName(manifestPath);
@@ -11088,14 +11113,14 @@ namespace Backup
                                     out completionObjectReceiver[completionIndex2],
                                     delegate(ConcurrentTasks.ITaskContext taskContext)
                                     {
-                                        using (TextWriter threadTraceDynunpack = TaskWriter.Create(traceDynunpack))
+                                        using (TextWriter threadTraceDynunpack = TaskLogWriter.Create(traceDynunpack))
                                         {
                                             if (threadTraceDynunpack != null)
                                             {
                                                 threadTraceDynunpack.WriteLine("unpack:{0}", segmentFileName);
                                             }
 
-                                            using (TextWriter threadTraceFileManager = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                            using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                             {
                                                 if (threadTraceFileManager != null)
                                                 {
@@ -11624,7 +11649,7 @@ namespace Backup
                                                 String.Empty,
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                    using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
                                                         using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
@@ -11699,7 +11724,7 @@ namespace Backup
                                                 "rename",
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                    using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
                                                         using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
@@ -11801,7 +11826,7 @@ namespace Backup
                                                 "upload",
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                    using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
                                                         using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
@@ -11907,7 +11932,7 @@ namespace Backup
                                                 "download",
                                                 delegate(ConcurrentTasks.ITaskContext taskContext)
                                                 {
-                                                    using (TextWriter threadTrace = TaskWriter.Create(fileManager.GetMasterTrace()))
+                                                    using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
                                                         using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog())
                                                         {
