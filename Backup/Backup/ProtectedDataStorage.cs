@@ -614,15 +614,58 @@ namespace ProtectedData
             CryptProtectMemoryFlags dwFlags);
 
 
+        // Some errors in GetLastError() were seen even though the methods returned true. The particular error was
+        // 1008 (ERROR_NO_TOKEN). Probably it is because the test machine is not a domain member so user accounts
+        // do not have security tokens. Encryption of memory still appeared to succeed. If there are any doubts,
+        // enabling this flag allows verification that the data buffer did change as a result of the operation.
+        private static readonly bool EnableCryptProtectMemorySanityCheck = true;
+
+        private static bool ArrayEqual(byte[] l, byte[] r)
+        {
+            if (l.Length == r.Length)
+            {
+                for (int i = 0; i < l.Length; i++)
+                {
+                    if (l[i] != r[i])
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
         public static void WrappedCryptProtectMemory(byte[] data, CryptProtectMemoryFlags flags)
         {
+            byte[] validation = null;
+            GCHandle validationPinner = new GCHandle();
+            if (EnableCryptProtectMemorySanityCheck)
+            {
+                validation = new byte[data.Length];
+                validationPinner = GCHandle.Alloc(validation, GCHandleType.Pinned);
+            }
+
             try
             {
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    Buffer.BlockCopy(data, 0, validation, 0, data.Length);
+                }
+
                 // Windows Vista and later
-                CryptProtectMemory(data, data.Length, flags);
-                if (Marshal.GetLastWin32Error() != 0)
+                bool result = CryptProtectMemory(data, data.Length, flags);
+                if (!result) //if (Marshal.GetLastWin32Error() != 0)
                 {
                     Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    if (ArrayEqual(validation, data))
+                    {
+                        throw new InvalidOperationException("CryptProtectMemory failed");
+                    }
                 }
             }
             catch (EntryPointNotFoundException)
@@ -635,18 +678,55 @@ namespace ProtectedData
                 {
                     Marshal.ThrowExceptionForHR(result);
                 }
+
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    if (ArrayEqual(validation, data))
+                    {
+                        throw new InvalidOperationException("CryptProtectMemory failed");
+                    }
+                }
+            }
+            finally
+            {
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    Array.Clear(validation, 0, validation.Length);
+                    validationPinner.Free();
+                }
             }
         }
 
         public static void WrappedCryptUnprotectMemory(byte[] data, CryptProtectMemoryFlags flags)
         {
+            byte[] validation = null;
+            GCHandle validationPinner = new GCHandle();
+            if (EnableCryptProtectMemorySanityCheck)
+            {
+                validation = new byte[data.Length];
+                validationPinner = GCHandle.Alloc(validation, GCHandleType.Pinned);
+            }
+
             try
             {
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    Buffer.BlockCopy(data, 0, validation, 0, data.Length);
+                }
+
                 // Windows Vista and later
-                CryptUnprotectMemory(data, data.Length, flags);
-                if (Marshal.GetLastWin32Error() != 0)
+                bool result = CryptUnprotectMemory(data, data.Length, flags);
+                if (!result) //if (Marshal.GetLastWin32Error() != 0)
                 {
                     Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
+                }
+
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    if (ArrayEqual(validation, data))
+                    {
+                        throw new InvalidOperationException("CryptUnprotectMemory failed");
+                    }
                 }
             }
             catch (EntryPointNotFoundException)
@@ -658,6 +738,22 @@ namespace ProtectedData
                 if (result != 0)
                 {
                     Marshal.ThrowExceptionForHR(result);
+                }
+
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    if (ArrayEqual(validation, data))
+                    {
+                        throw new InvalidOperationException("CryptUnprotectMemory failed");
+                    }
+                }
+            }
+            finally
+            {
+                if (EnableCryptProtectMemorySanityCheck)
+                {
+                    Array.Clear(validation, 0, validation.Length);
+                    validationPinner.Free();
                 }
             }
         }

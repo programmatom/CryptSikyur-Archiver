@@ -27,7 +27,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-using Backup;
+using HexUtil;
+using ProtectedData;
 
 namespace FileUtilityTester
 {
