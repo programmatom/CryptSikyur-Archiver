@@ -30,6 +30,7 @@ using System.IO;
 using System.Net;
 using System.Net.Security;
 using System.Runtime.InteropServices;
+using ComTypes = System.Runtime.InteropServices.ComTypes;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Permissions;
@@ -38,8 +39,10 @@ using System.Threading;
 using System.Web;
 using System.Windows.Forms;
 
-using Backup;
+using HexUtil;
+using Http;
 using JSON;
+using ProtectedData;
 
 namespace RemoteDriveAuth
 {
@@ -366,6 +369,282 @@ namespace RemoteDriveAuth
 
     // TODO: clean this up - most menu items and buttons aren't needed
 
+    // from http://blogs.msdn.com/b/jpsanders/archive/2011/04/26/how-to-set-the-proxy-for-the-webbrowser-control-in-net.aspx
+    #region WinInet Proxy Configuration
+    public static class WinInetInterop
+    {
+        public static string applicationName;
+
+        [DllImport("wininet.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr InternetOpen(string lpszAgent, int dwAccessType, string lpszProxyName, string lpszProxyBypass, int dwFlags);
+
+        [DllImport("wininet.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool InternetCloseHandle(IntPtr hInternet);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+        private struct INTERNET_PER_CONN_OPTION_LIST
+        {
+            public int Size;
+
+            // The connection to be set. NULL means LAN.
+            public IntPtr Connection;
+
+            public int OptionCount;
+            public int OptionError;
+
+            // List of INTERNET_PER_CONN_OPTIONs.
+            public IntPtr pOptions;
+        }
+
+        private enum INTERNET_OPTION
+        {
+            // Sets or retrieves an INTERNET_PER_CONN_OPTION_LIST structure that specifies
+            // a list of options for a particular connection.
+            INTERNET_OPTION_PER_CONNECTION_OPTION = 75,
+
+            // Notify the system that the registry settings have been changed so that
+            // it verifies the settings on the next call to InternetConnect.
+            INTERNET_OPTION_SETTINGS_CHANGED = 39,
+
+            // Causes the proxy data to be reread from the registry for a handle.
+            INTERNET_OPTION_REFRESH = 37,
+        }
+
+        private enum INTERNET_PER_CONN_OptionEnum
+        {
+            INTERNET_PER_CONN_FLAGS = 1,
+            INTERNET_PER_CONN_PROXY_SERVER = 2,
+            INTERNET_PER_CONN_PROXY_BYPASS = 3,
+            INTERNET_PER_CONN_AUTOCONFIG_URL = 4,
+            INTERNET_PER_CONN_AUTODISCOVERY_FLAGS = 5,
+            INTERNET_PER_CONN_AUTOCONFIG_SECONDARY_URL = 6,
+            INTERNET_PER_CONN_AUTOCONFIG_RELOAD_DELAY_MINS = 7,
+            INTERNET_PER_CONN_AUTOCONFIG_LAST_DETECT_TIME = 8,
+            INTERNET_PER_CONN_AUTOCONFIG_LAST_DETECT_URL = 9,
+            INTERNET_PER_CONN_FLAGS_UI = 10,
+        }
+
+        private const int INTERNET_OPEN_TYPE_DIRECT = 1;  // direct to net
+        private const int INTERNET_OPEN_TYPE_PRECONFIG = 0; // read registry
+
+        // Constants used in INTERNET_PER_CONN_OPTON struct.
+        private enum INTERNET_OPTION_PER_CONN_FLAGS
+        {
+            PROXY_TYPE_DIRECT = 0x00000001,   // direct to net
+            PROXY_TYPE_PROXY = 0x00000002,   // via named proxy
+            PROXY_TYPE_AUTO_PROXY_URL = 0x00000004,   // autoproxy URL
+            PROXY_TYPE_AUTO_DETECT = 0x00000008,   // use autoproxy detection
+        }
+
+        // Used in INTERNET_PER_CONN_OPTION.
+        // When create a instance of OptionUnion, only one filed will be used.
+        // The StructLayout and FieldOffset attributes could help to decrease the struct size.
+        [StructLayout(LayoutKind.Explicit)]
+        private struct INTERNET_PER_CONN_OPTION_OptionUnion
+        {
+            // A value in INTERNET_OPTION_PER_CONN_FLAGS.
+            [FieldOffset(0)]
+            public int dwValue;
+            [FieldOffset(0)]
+            public IntPtr pszValue;
+            [FieldOffset(0)]
+            public ComTypes.FILETIME ftValue;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INTERNET_PER_CONN_OPTION
+        {
+            // A value in INTERNET_PER_CONN_OptionEnum.
+            public int dwOption;
+            public INTERNET_PER_CONN_OPTION_OptionUnion Value;
+        }
+
+        // Sets an Internet option.
+        [DllImport("wininet.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        private static extern bool InternetSetOption(
+            IntPtr hInternet,
+            INTERNET_OPTION dwOption,
+            IntPtr lpBuffer,
+            int lpdwBufferLength);
+
+        // Queries an Internet option on the specified handle. The Handle will be always 0.
+        [DllImport("wininet.dll", CharSet = CharSet.Ansi, SetLastError = true, EntryPoint = "InternetQueryOption")]
+        private extern static bool InternetQueryOptionList(
+            IntPtr Handle,
+            INTERNET_OPTION OptionFlag,
+            ref INTERNET_PER_CONN_OPTION_LIST OptionList,
+            ref int size);
+
+        // Set the proxy server for LAN connection.
+        public static bool SetConnectionProxy(string proxySpecification)
+        {
+            IntPtr hInternet = InternetOpen(applicationName, INTERNET_OPEN_TYPE_DIRECT, null, null, 0);
+
+            //// Create 3 options.
+            //INTERNET_PER_CONN_OPTION[] Options = new INTERNET_PER_CONN_OPTION[3];
+
+            // Create 2 options.
+            INTERNET_PER_CONN_OPTION[] Options = new INTERNET_PER_CONN_OPTION[2];
+
+            // Set PROXY flags.
+            Options[0] = new INTERNET_PER_CONN_OPTION();
+            Options[0].dwOption = (int)INTERNET_PER_CONN_OptionEnum.INTERNET_PER_CONN_FLAGS;
+            Options[0].Value.dwValue = (int)INTERNET_OPTION_PER_CONN_FLAGS.PROXY_TYPE_PROXY;
+
+            // Set proxy name.
+            Options[1] = new INTERNET_PER_CONN_OPTION();
+            Options[1].dwOption = (int)INTERNET_PER_CONN_OptionEnum.INTERNET_PER_CONN_PROXY_SERVER;
+            Options[1].Value.pszValue = Marshal.StringToHGlobalAnsi(proxySpecification);
+
+            //// Set proxy bypass.
+            //Options[2] = new INTERNET_PER_CONN_OPTION();
+            //Options[2].dwOption = (int)INTERNET_PER_CONN_OptionEnum.INTERNET_PER_CONN_PROXY_BYPASS;
+            //Options[2].Value.pszValue = Marshal.StringToHGlobalAnsi("local");
+
+            //// Allocate a block of memory of the options.
+            //System.IntPtr buffer = Marshal.AllocCoTaskMem(Marshal.SizeOf(Options[0]) + Marshal.SizeOf(Options[1]) + Marshal.SizeOf(Options[2]));
+
+            // Allocate a block of memory of the options.
+            System.IntPtr buffer = Marshal.AllocCoTaskMem(Marshal.SizeOf(Options[0]) + Marshal.SizeOf(Options[1]));
+
+            System.IntPtr current = buffer;
+
+            // Marshal data from a managed object to an unmanaged block of memory.
+            for (int i = 0; i < Options.Length; i++)
+            {
+                Marshal.StructureToPtr(Options[i], current, false);
+                current = (System.IntPtr)((int)current + Marshal.SizeOf(Options[i]));
+            }
+
+            // Initialize a INTERNET_PER_CONN_OPTION_LIST instance.
+            INTERNET_PER_CONN_OPTION_LIST option_list = new INTERNET_PER_CONN_OPTION_LIST();
+
+            // Point to the allocated memory.
+            option_list.pOptions = buffer;
+
+            // Return the unmanaged size of an object in bytes.
+            option_list.Size = Marshal.SizeOf(option_list);
+
+            // IntPtr.Zero means LAN connection.
+            option_list.Connection = IntPtr.Zero;
+
+            option_list.OptionCount = Options.Length;
+            option_list.OptionError = 0;
+            int size = Marshal.SizeOf(option_list);
+
+            // Allocate memory for the INTERNET_PER_CONN_OPTION_LIST instance.
+            IntPtr intptrStruct = Marshal.AllocCoTaskMem(size);
+
+            // Marshal data from a managed object to an unmanaged block of memory.
+            Marshal.StructureToPtr(option_list, intptrStruct, true);
+
+            // Set internet settings.
+            bool bReturn = InternetSetOption(hInternet, INTERNET_OPTION.INTERNET_OPTION_PER_CONNECTION_OPTION, intptrStruct, size);
+
+            // Free the allocated memory.
+            Marshal.FreeCoTaskMem(buffer);
+            Marshal.FreeCoTaskMem(intptrStruct);
+            InternetCloseHandle(hInternet);
+
+            // Throw an exception if this operation failed.
+            if (!bReturn)
+            {
+                throw new ApplicationException(" Set Internet Option Failed!");
+            }
+
+            return bReturn;
+        }
+
+        // Backup the current options for LAN connection.
+        // Make sure free the memory after restoration.
+        private static INTERNET_PER_CONN_OPTION_LIST GetSystemProxy()
+        {
+            // Query following options.
+            INTERNET_PER_CONN_OPTION[] Options = new INTERNET_PER_CONN_OPTION[3];
+
+            Options[0] = new INTERNET_PER_CONN_OPTION();
+            Options[0].dwOption = (int)INTERNET_PER_CONN_OptionEnum.INTERNET_PER_CONN_FLAGS;
+            Options[1] = new INTERNET_PER_CONN_OPTION();
+            Options[1].dwOption = (int)INTERNET_PER_CONN_OptionEnum.INTERNET_PER_CONN_PROXY_SERVER;
+            Options[2] = new INTERNET_PER_CONN_OPTION();
+            Options[2].dwOption = (int)INTERNET_PER_CONN_OptionEnum.INTERNET_PER_CONN_PROXY_BYPASS;
+
+            // Allocate a block of memory of the options.
+            System.IntPtr buffer = Marshal.AllocCoTaskMem(Marshal.SizeOf(Options[0]) + Marshal.SizeOf(Options[1]) + Marshal.SizeOf(Options[2]));
+
+            System.IntPtr current = (System.IntPtr)buffer;
+
+            // Marshal data from a managed object to an unmanaged block of memory.
+            for (int i = 0; i < Options.Length; i++)
+            {
+                Marshal.StructureToPtr(Options[i], current, false);
+                current = (System.IntPtr)((int)current + Marshal.SizeOf(Options[i]));
+            }
+
+            // Initialize a INTERNET_PER_CONN_OPTION_LIST instance.
+            INTERNET_PER_CONN_OPTION_LIST Request = new INTERNET_PER_CONN_OPTION_LIST();
+
+            // Point to the allocated memory.
+            Request.pOptions = buffer;
+
+            Request.Size = Marshal.SizeOf(Request);
+
+            // IntPtr.Zero means LAN connection.
+            Request.Connection = IntPtr.Zero;
+
+            Request.OptionCount = Options.Length;
+            Request.OptionError = 0;
+            int size = Marshal.SizeOf(Request);
+
+            // Query internet options.
+            bool result = InternetQueryOptionList(IntPtr.Zero, INTERNET_OPTION.INTERNET_OPTION_PER_CONNECTION_OPTION, ref Request, ref size);
+            if (!result)
+            {
+                throw new ApplicationException(" Set Internet Option Failed! ");
+            }
+
+            return Request;
+        }
+
+        // Restore the options for LAN connection.
+        public static bool RestoreSystemProxy()
+        {
+            IntPtr hInternet = InternetOpen(applicationName, INTERNET_OPEN_TYPE_DIRECT, null, null, 0);
+
+            INTERNET_PER_CONN_OPTION_LIST request = GetSystemProxy();
+            int size = Marshal.SizeOf(request);
+
+            // Allocate memory.
+            IntPtr intptrStruct = Marshal.AllocCoTaskMem(size);
+
+            // Convert structure to IntPtr
+            Marshal.StructureToPtr(request, intptrStruct, true);
+
+            // Set internet options.
+            bool bReturn = InternetSetOption(hInternet, INTERNET_OPTION.INTERNET_OPTION_PER_CONNECTION_OPTION, intptrStruct, size);
+
+            // Free the allocated memory.
+            Marshal.FreeCoTaskMem(request.pOptions);
+            Marshal.FreeCoTaskMem(intptrStruct);
+
+            if (!bReturn)
+            {
+                throw new ApplicationException(" Set Internet Option Failed! ");
+            }
+
+            // Notify the system that the registry settings have been changed and cause
+            // the proxy data to be reread from the registry for a handle.
+            InternetSetOption(hInternet, INTERNET_OPTION.INTERNET_OPTION_SETTINGS_CHANGED, IntPtr.Zero, 0);
+            InternetSetOption(hInternet, INTERNET_OPTION.INTERNET_OPTION_REFRESH, IntPtr.Zero, 0);
+
+            InternetCloseHandle(hInternet);
+
+            return bReturn;
+        }
+    }
+    #endregion
+
     [PermissionSet(SecurityAction.Demand, Name = "FullTrust")]
     public class WebBrowserHostingForm : Form
     {
@@ -374,8 +653,13 @@ namespace RemoteDriveAuth
 
         private OAuth20RemoteService authService;
 
-        public WebBrowserHostingForm(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, bool enableRefreshToken)
+        public WebBrowserHostingForm(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, bool enableRefreshToken, IPAddress socks5Address, int socks5Port)
         {
+            if (socks5Address != null)
+            {
+                WinInetInterop.SetConnectionProxy(String.Format("socks={0}:{1}", socks5Address, socks5Port));
+            }
+
             this.authService = authService;
 
             // Create the form layout. If you are using Visual Studio,  
@@ -870,10 +1154,95 @@ namespace RemoteDriveAuth
             throw new InvalidDataException("Unable to obtain authorization code from login service redirect url");
         }
 
-        private static void GetTokensFromAuthCode(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, string authorizationCode, out string tokensJSON)
+        private class MyWebException : ApplicationException
+        {
+            public readonly WebExceptionStatus WebExceptionStatus;
+            public readonly HttpStatusCode HttpStatus;
+
+            public MyWebException(WebExceptionStatus webExceptionStatus, HttpStatusCode httpStatus)
+            {
+                this.WebExceptionStatus = webExceptionStatus;
+                this.HttpStatus = httpStatus;
+            }
+
+            public override string ToString()
+            {
+                return String.Format("Web Exception {0} ({1}) {2} ({3}) - {4}", WebExceptionStatus, (int)WebExceptionStatus, HttpStatus, (int)HttpStatus, base.ToString());
+            }
+        }
+
+        private static void DoWebRequest(Uri uri, string verb, byte[] requestStream, string requestStreamContentType, Stream responseBody, IPAddress socks5Address, int socks5Port)
+        {
+            IPAddress hostAddress = null;
+            if (socks5Address == null)
+            {
+                HttpMethods.DNSLookupName(uri.Host, out hostAddress, null, Diagnostics.FaultInstanceNode.Null);
+            }
+
+            List<KeyValuePair<string, string>> requestHeaders = new List<KeyValuePair<string, string>>();
+            if (requestStreamContentType != null)
+            {
+                requestHeaders.Add(new KeyValuePair<string, string>("Content-Type", requestStreamContentType));
+            }
+            KeyValuePair<string, string>[] responseHeaders;
+            const int TimeoutSeconds = 30;
+            HttpSettings settings = new HttpSettings(false, null, null/*certificatePinning*/, null, TimeoutSeconds * 1000, TimeoutSeconds * 1000, socks5Address, socks5Port);
+            HttpStatusCode httpStatus;
+            string finalUrl;
+            WebExceptionStatus result = HttpMethods.SocketHttpRequest(
+                uri,
+                hostAddress,
+                verb,
+                requestHeaders.ToArray(),
+                new MemoryStream(requestStream),
+                out httpStatus,
+                out responseHeaders,
+                responseBody,
+                out finalUrl,
+                null,
+                null,
+                null,
+                Diagnostics.FaultInstanceNode.Null,
+                settings);
+            if ((result != WebExceptionStatus.Success) || (httpStatus != HttpStatusCode.OK))
+            {
+                throw new MyWebException(result, httpStatus);
+            }
+        }
+
+        private static void GetTokensFromAuthCode(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, string authorizationCode, out string tokensJSON, IPAddress socks5Address, int socks5Port)
         {
             tokensJSON = null;
 
+            byte[] requestBody;
+            using (MemoryStream requestBodyStream = new MemoryStream())
+            {
+                using (TextWriter requestWriter = new StreamWriter(requestBodyStream, Encoding.ASCII))
+                {
+                    string message = String.Format("client_id={0}&client_secret={1}&code={2}&grant_type=authorization_code&redirect_uri={3}", clientIdentity.ClientId, clientIdentity.ClientSecret, authorizationCode, authService.AuthorizedRedirectUrl);
+                    requestWriter.Write(message);
+                }
+                requestBody = requestBodyStream.ToArray();
+            }
+
+            using (MemoryStream responseBodyStream = new MemoryStream())
+            {
+                DoWebRequest(
+                    new Uri(authService.TokenExchangeProviderUrl),
+                    "POST",
+                    requestBody,
+                    "application/x-www-form-urlencoded",
+                    responseBodyStream,
+                    socks5Address,
+                    socks5Port);
+
+                responseBodyStream.Position = 0;
+                using (TextReader reader = new StreamReader(responseBodyStream, Encoding.UTF8))
+                {
+                    tokensJSON = reader.ReadToEnd();
+                }
+            }
+#if false
             HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(authService.TokenExchangeProviderUrl);
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
@@ -898,12 +1267,42 @@ namespace RemoteDriveAuth
                     }
                 }
             }
+#endif
         }
 
-        private static void GetTokensByRefresh(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, string refreshToken, out string tokensJSON)
+        private static void GetTokensByRefresh(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, string refreshToken, out string tokensJSON, IPAddress socks5Address, int socks5Port)
         {
             tokensJSON = null;
 
+            byte[] requestBody;
+            using (MemoryStream requestBodyStream = new MemoryStream())
+            {
+                using (TextWriter requestWriter = new StreamWriter(requestBodyStream, Encoding.ASCII))
+                {
+                    string message = String.Format("client_id={0}&client_secret={1}&grant_type=refresh_token&refresh_token={2}", clientIdentity.ClientId, clientIdentity.ClientSecret, refreshToken);
+                    requestWriter.Write(message);
+                }
+                requestBody = requestBodyStream.ToArray();
+            }
+
+            using (MemoryStream responseBodyStream = new MemoryStream())
+            {
+                DoWebRequest(
+                    new Uri(authService.TokenExchangeProviderUrl),
+                    "POST",
+                    requestBody,
+                    "application/x-www-form-urlencoded",
+                    responseBodyStream,
+                    socks5Address,
+                    socks5Port);
+
+                responseBodyStream.Position = 0;
+                using (TextReader reader = new StreamReader(responseBodyStream, Encoding.UTF8))
+                {
+                    tokensJSON = reader.ReadToEnd();
+                }
+            }
+#if false
             HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(authService.TokenExchangeProviderUrl);
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
@@ -928,8 +1327,10 @@ namespace RemoteDriveAuth
                     }
                 }
             }
+#endif
         }
 
+#if false
         // Certificate pinning pre-registers the public key of well-known services and requires
         // an actual TLS connection to present a validated certificate using the same public key,
         // as proof that the service has the correct private key. This defeats certain MITM
@@ -981,6 +1382,7 @@ namespace RemoteDriveAuth
                 ServicePointManager.ServerCertificateValidationCallback = PinPublicKey;
             }
         }
+#endif
 
         const string LocalApplicationDirectoryName = "Backup-RemoteDriveAuth";
         static string GetLocalAppDataPath(bool create, bool roaming)
@@ -1003,11 +1405,13 @@ namespace RemoteDriveAuth
         {
             Environment.ExitCode = 1;
 
+#if false
             const bool EnableCertificatePinning = false;
             if (EnableCertificatePinning)
             {
                 CertificatePinning.Setup();
             }
+#endif
 
             if ((args.Length > 0) && args[0].Equals("-waitdebugger"))
             {
@@ -1027,6 +1431,27 @@ namespace RemoteDriveAuth
                 Array.Resize(ref args, args.Length - 1);
 
                 Debugger.Break();
+            }
+
+            IPAddress socks5Address = null;
+            int socks5Port = 0;
+            if ((args.Length >= 2) && args[0].Equals("-socks5"))
+            {
+                string proxy = args[1];
+                int colon = proxy.IndexOf(':');
+                if (colon < 0)
+                {
+                    socks5Address = new IPAddress(new byte[] { 127, 0, 0, 1 });
+                }
+                else
+                {
+                    socks5Address = IPAddress.Parse(proxy.Substring(0, colon));
+                    proxy = proxy.Substring(colon + 1);
+                }
+                socks5Port = Int32.Parse(proxy);
+
+                Array.Copy(args, 2, args, 0, args.Length - 2);
+                Array.Resize(ref args, args.Length - 2);
             }
 
             string localAppDataPath = GetLocalAppDataPath(false/*create*/, true/*roaming*/);
@@ -1222,7 +1647,7 @@ namespace RemoteDriveAuth
                         {
                             refreshToken.Protect();
                         }
-                        GetTokensByRefresh(authService, clientIdentity, refreshTokenExposed, out tokensJSON);
+                        GetTokensByRefresh(authService, clientIdentity, refreshTokenExposed, out tokensJSON, socks5Address, socks5Port);
                         if (String.IsNullOrEmpty(tokensJSON))
                         {
                             throw new ApplicationException("Unable to convert refresh token to access token");
@@ -1233,7 +1658,7 @@ namespace RemoteDriveAuth
                     {
                         // Create window asking user to log in.
                         string authorizationCode;
-                        using (WebBrowserHostingForm form = new WebBrowserHostingForm(authService, clientIdentity, enableRefreshToken))
+                        using (WebBrowserHostingForm form = new WebBrowserHostingForm(authService, clientIdentity, enableRefreshToken, socks5Address, socks5Port))
                         {
                             Application.EnableVisualStyles();
                             Application.Run(form);
@@ -1245,7 +1670,7 @@ namespace RemoteDriveAuth
                             }
                         }
 
-                        GetTokensFromAuthCode(authService, clientIdentity, authorizationCode, out tokensJSON);
+                        GetTokensFromAuthCode(authService, clientIdentity, authorizationCode, out tokensJSON, socks5Address, socks5Port);
                         if (String.IsNullOrEmpty(tokensJSON))
                         {
                             throw new ApplicationException("Unable to convert authorization code to access token");
@@ -1312,6 +1737,23 @@ namespace RemoteDriveAuth
                 Console.Error.WriteLine(exception.Message);
                 Environment.ExitCode = exception.ExitCode;
             }
+            catch (MyWebException exception)
+            {
+                Console.Error.WriteLine(exception);
+                if (exception.WebExceptionStatus != WebExceptionStatus.ProtocolError)
+                {
+                    Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
+                }
+                else if (exception.WebExceptionStatus == WebExceptionStatus.ProtocolError)
+                {
+                    if ((exception.HttpStatus >= (HttpStatusCode)500)
+                        && (exception.HttpStatus < (HttpStatusCode)599))
+                    {
+                        Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
+                    }
+                }
+            }
+#if false
             catch (WebException exception)
             {
                 Console.Error.WriteLine(exception);
@@ -1336,6 +1778,7 @@ namespace RemoteDriveAuth
                     }
                 }
             }
+#endif
             catch (Exception exception)
             {
                 Console.Error.WriteLine(exception);

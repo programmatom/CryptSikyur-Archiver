@@ -41,6 +41,8 @@
     <Compile Include="..\Backup\ProtectedDataStorage.cs" />
     <Compile Include="..\Backup\ParseJSON.cs" />
     <Compile Include="..\Backup\HexUtility.cs" />
+    <Compile Include="..\Backup\Http.cs" />
+    <Compile Include="..\Backup\Diagnostics.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

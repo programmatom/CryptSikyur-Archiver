@@ -27,7 +27,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace Backup
+namespace HexUtil
 {
     public static class HexUtility
     {

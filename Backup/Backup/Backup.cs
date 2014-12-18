@@ -33,7 +33,11 @@ using System.Threading;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using Concurrent;
+using Diagnostics;
+using HexUtil;
 using Keccak;
+using ProtectedData;
 
 namespace Backup
 {

@@ -31,6 +31,8 @@ using System.Security.Cryptography;
 using Serpent;
 using SkeinFish;
 using Keccak;
+using HexUtil;
+using ProtectedData;
 
 namespace Backup
 {

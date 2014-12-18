@@ -27,6 +27,7 @@ using System.IO;
 using System.Security.Cryptography;
 
 using Backup;
+using HexUtil;
 using Org.BouncyCastle.Crypto.Digests;
 
 namespace Keccak
@@ -187,7 +188,7 @@ namespace Keccak
                             {
                                 throw new InvalidDataException(testFile.filename);
                             }
-                            data = Backup.HexUtility.HexDecode(line.Substring(Msg.Length));
+                            data = HexUtility.HexDecode(line.Substring(Msg.Length));
 
                             line = reader.ReadLine();
 

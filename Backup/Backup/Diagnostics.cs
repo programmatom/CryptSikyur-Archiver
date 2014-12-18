@@ -31,7 +31,9 @@ using System.Threading;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Backup
+using HexUtil;
+
+namespace Diagnostics
 {
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -756,7 +758,7 @@ namespace Backup
                                 {
                                     File.WriteAllText(predicates[i].Value.ProofPath, ComputePath(predicates[i].Value));
                                 }
-                                Environment.ExitCode = (int)Core.ExitCodes.ProgramFailure;
+                                Environment.ExitCode = 1; // (int)Core.ExitCodes.ProgramFailure;
                                 Process.GetCurrentProcess().Kill(); // no finalizers!
                                 break;
                         }
@@ -916,7 +918,7 @@ namespace Backup
                                     {
                                         File.WriteAllText(predicates[i].Value.ProofPath, ComputePath(predicates[i].Value));
                                     }
-                                    Environment.ExitCode = (int)Core.ExitCodes.ProgramFailure;
+                                    Environment.ExitCode = 1; // (int)Core.ExitCodes.ProgramFailure;
                                     Process.GetCurrentProcess().Kill(); // no finalizers!
                                     break;
                             }

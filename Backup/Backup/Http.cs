@@ -34,7 +34,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
-using Backup;
+using Diagnostics;
 
 namespace Http
 {
@@ -43,6 +43,15 @@ namespace Http
     // Http Implementation
     //
     ////////////////////////////////////////////////////////////////////////////
+
+    public static class Constants
+    {
+        private const int MaxSmallObjectHeapObjectSize = 85000; // http://msdn.microsoft.com/en-us/magazine/cc534993.aspx, http://blogs.msdn.com/b/dotnet/archive/2011/10/04/large-object-heap-improvements-in-net-4-5.aspx
+        private const int PageSize = 4096;
+        private const int MaxSmallObjectPageDivisibleSize = MaxSmallObjectHeapObjectSize & ~(PageSize - 1);
+
+        public const int BufferSize = MaxSmallObjectPageDivisibleSize;
+    }
 
     public class InsecureConnectionException : ApplicationException
     {
@@ -63,6 +72,11 @@ namespace Http
     public interface INetworkThrottle
     {
         void WaitBytes(int count);
+    }
+
+    public interface IProgressTracker
+    {
+        long Current { set; }
     }
 
     public class HttpSettings
@@ -210,9 +224,9 @@ namespace Http
             return sb.ToString();
         }
 
-        private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
+        private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
         {
-            byte[] buffer = new byte[Core.Constants.BufferSize];
+            byte[] buffer = new byte[Constants.BufferSize];
 
             bool useTLS = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
 
@@ -467,10 +481,10 @@ namespace Http
 
                             chunked = false;
                             const string TransferEncodingHeaderPrefix = "Transfer-Encoding:";
-                            int transferEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(TransferEncodingHeaderPrefix); });
+                            int transferEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(TransferEncodingHeaderPrefix, StringComparison.OrdinalIgnoreCase); });
                             if (transferEncodingHeaderIndex >= 0)
                             {
-                                chunked = responseHeaders[transferEncodingHeaderIndex].Substring(TransferEncodingHeaderPrefix.Length).Trim().Equals("chunked");
+                                chunked = responseHeaders[transferEncodingHeaderIndex].Substring(TransferEncodingHeaderPrefix.Length).Trim().Equals("chunked", StringComparison.OrdinalIgnoreCase);
                             }
 
                             if (httpStatus == (HttpStatusCode)204)
@@ -479,7 +493,7 @@ namespace Http
                             }
                             else
                             {
-                                contentLengthIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(ContentLengthHeaderPrefix); });
+                                contentLengthIndex = Array.FindIndex(responseHeaders, delegate(string candidate) { return candidate.StartsWith(ContentLengthHeaderPrefix, StringComparison.OrdinalIgnoreCase); });
                                 if (contentLengthIndex >= 0)
                                 {
                                     contentLength = Int64.Parse(responseHeaders[contentLengthIndex].Substring(ContentLengthHeaderPrefix.Length));
@@ -653,10 +667,10 @@ namespace Http
 
         public static bool IsHeaderForbidden(string header)
         {
-            return Array.IndexOf(HttpMethods.ForbiddenHeaders, header) >= 0;
+            return Array.FindIndex(ForbiddenHeaders, delegate(string candidate) { return String.Equals(candidate, header, StringComparison.OrdinalIgnoreCase); }) >= 0;
         }
 
-        public static WebExceptionStatus SocketHttpRequest(Uri uriInitial, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
+        public static WebExceptionStatus SocketHttpRequest(Uri uriInitial, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
         {
             Uri uri = uriInitial;
 
@@ -667,7 +681,7 @@ namespace Http
 
             foreach (string forbiddenHeader in ForbiddenHeaders)
             {
-                if (Array.FindIndex(requestHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, forbiddenHeader); }) >= 0)
+                if (Array.FindIndex(requestHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, forbiddenHeader, StringComparison.OrdinalIgnoreCase); }) >= 0)
                 {
                     throw new ArgumentException();
                 }
@@ -680,7 +694,7 @@ namespace Http
             // Use "Expect: 100-continue" method if larger than this - gives remote server a chance
             // to reject request if Content-Length is exceeds service's max file size.
             const int MaxOneStagePutBodyLength = 5 * 1024 * 1024;
-            bool twoStageRequest = (verb == "PUT") && (requestBodySource != null) && (requestBodySource.Length > MaxOneStagePutBodyLength);
+            bool twoStageRequest = String.Equals(verb, "PUT") && (requestBodySource != null) && (requestBodySource.Length > MaxOneStagePutBodyLength);
 
         Restart:
             if (!uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
@@ -786,7 +800,7 @@ namespace Http
                 }
             }
 
-            int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length"); });
+            int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length", StringComparison.OrdinalIgnoreCase); });
             if (contentLengthHeaderIndex >= 0)
             {
                 long contentLengthExpected;
@@ -810,12 +824,12 @@ namespace Http
 
             if ((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307))
             {
-                int locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); });
+                int locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location", StringComparison.OrdinalIgnoreCase); });
                 if (locationHeaderIndex >= 0)
                 {
                     if (trace != null)
                     {
-                        if (Array.FindAll(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location"); }).Length > 1)
+                        if (Array.FindAll(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location", StringComparison.OrdinalIgnoreCase); }).Length > 1)
                         {
                             trace.WriteLine(" NOTICE: multiple Location response headers present - using first one (http status was {0} {1})", (int)httpStatus, httpStatus);
                         }
@@ -859,7 +873,7 @@ namespace Http
 
         private static void DecompressStreamInPlace(Stream responseBodyDestination, ref long responseBodyDestinationStart, ref long responseBodyDestinationEnd, ref long responseBodyBytesReceived, KeyValuePair<string, string>[] responseHeaders, bool updateHeaders)
         {
-            int contentEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Encoding"); });
+            int contentEncodingHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Encoding", StringComparison.OrdinalIgnoreCase); });
             if (contentEncodingHeaderIndex >= 0)
             {
                 bool gzip = responseHeaders[contentEncodingHeaderIndex].Value.Equals("gzip", StringComparison.OrdinalIgnoreCase);
@@ -869,7 +883,7 @@ namespace Http
                     throw new NotSupportedException(String.Format("Content-Encoding: {0}", responseHeaders[contentEncodingHeaderIndex].Value));
                 }
 
-                byte[] buffer = new byte[Core.Constants.BufferSize];
+                byte[] buffer = new byte[Constants.BufferSize];
 
                 string tempPath = Path.GetTempFileName();
                 using (Stream tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
@@ -903,7 +917,7 @@ namespace Http
 
                     if (updateHeaders)
                     {
-                        int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length"); });
+                        int contentLengthHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length", StringComparison.OrdinalIgnoreCase); });
                         if (contentLengthHeaderIndex >= 0)
                         {
                             responseHeaders[contentLengthHeaderIndex] = new KeyValuePair<string, string>("Content-Length", responseBodyBytesReceived.ToString());

@@ -26,6 +26,8 @@ using System;
 using System.IO;
 using System.Threading;
 
+using Http;
+
 namespace Backup
 {
     public interface IArchiveFileManager : IDisposable
@@ -63,7 +65,7 @@ namespace Backup
     }
 
     // Threadsafe
-    public class ProgressTracker
+    public class ProgressTracker : IProgressTracker
     {
         private long current;
         private long total = -1; // during download, HttpWebRequest has to update this once Content-Length header is received
