@@ -94,7 +94,9 @@ namespace Http
         public IPAddress Socks5Address;
         public int Socks5Port;
 
-        public HttpSettings(bool enableResumableUploads, int? maxBytesPerWebRequest, ICertificatePinning certificatePinning, INetworkThrottle networkThrottle, int? sendTimeout, int? receiveTimeout, IPAddress socks5Address, int socks5Port)
+        public bool AutoRedirect = true;
+
+        public HttpSettings(bool enableResumableUploads, int? maxBytesPerWebRequest, ICertificatePinning certificatePinning, INetworkThrottle networkThrottle, int? sendTimeout, int? receiveTimeout, bool autoRedirect, IPAddress socks5Address, int socks5Port)
         {
             this.EnableResumableUploads = enableResumableUploads;
             this.MaxBytesPerWebRequest = maxBytesPerWebRequest;
@@ -102,6 +104,7 @@ namespace Http
             this.NetworkThrottle = networkThrottle;
             this.SendTimeout = sendTimeout;
             this.ReceiveTimeout = receiveTimeout;
+            this.AutoRedirect = autoRedirect;
             this.Socks5Address = socks5Address;
             this.Socks5Port = socks5Port;
         }
@@ -247,7 +250,21 @@ namespace Http
 
                 using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
                 {
-                    socket.Connect(connectionAddress, connectionPort);
+                    if (!useSocks5)
+                    {
+                        socket.Connect(connectionAddress, connectionPort);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            socket.Connect(connectionAddress, connectionPort);
+                        }
+                        catch (SocketException exception)
+                        {
+                            return WebExceptionStatus.ProxyNameResolutionFailure;
+                        }
+                    }
                     if (trace != null)
                     {
                         trace.WriteLine("Connected to {0}", socket.RemoteEndPoint);
@@ -440,7 +457,7 @@ namespace Http
 
                         const string ContentLengthHeaderPrefix = "Content-Length:";
                         Stream responseBodyDestination;
-                        long contentLength;
+                        long? contentLength;
                         int contentLengthIndex = -1;
                         bool chunked = false;
                         {
@@ -500,7 +517,7 @@ namespace Http
                                 }
                                 else
                                 {
-                                    contentLength = responseBodyDestination != null ? Int64.MaxValue : 0;
+                                    contentLength = responseBodyDestination != null ? null : (int?)0;
                                 }
                             }
                         }
@@ -523,9 +540,17 @@ namespace Http
                         long responseBodyTotalRead = 0;
                         int chunkRemaining = 0;
                         bool chunkedTransferTerminatedNormally = false;
-                        while (responseBodyTotalRead < contentLength)
+                        Stopwatch lastReceive = new Stopwatch();
+                        lastReceive.Start();
+                        const int MaxWaitMilliseconds = 5000; // used only for non-chunked transfers that also omitted Content-Length header
+                        while (!contentLength.HasValue || (responseBodyTotalRead < contentLength))
                         {
-                            long needed = contentLength - responseBodyTotalRead;
+                            if (!contentLength.HasValue && !chunked && (lastReceive.ElapsedMilliseconds > MaxWaitMilliseconds))
+                            {
+                                break;
+                            }
+
+                            long needed = (contentLength.HasValue ? contentLength.Value : Int64.MaxValue) - responseBodyTotalRead;
                             if (chunked)
                             {
                                 if (chunkRemaining == 0)
@@ -568,6 +593,11 @@ namespace Http
                             needed = Math.Min(buffer.Length, needed);
                             Debug.Assert(needed >= 0);
                             int read = socketStream.Read(buffer, 0, (int)needed);
+                            if (read != 0)
+                            {
+                                lastReceive.Reset();
+                                lastReceive.Start();
+                            }
                             if (settings.NetworkThrottle != null)
                             {
                                 settings.NetworkThrottle.WaitBytes(read);
@@ -808,8 +838,9 @@ namespace Http
                 {
                     return WebExceptionStatus.ServerProtocolViolation;
                 }
-                if (contentLengthExpected != responseBodyBytesReceived)
+                if ((contentLengthExpected != responseBodyBytesReceived) && ((httpStatus >= (HttpStatusCode)200) && (httpStatus <= (HttpStatusCode)299)))
                 {
+                    // for various types of non-success responses, permit declared body to be missing because some servers don't send it
                     if (result == WebExceptionStatus.Success)
                     {
                         result = WebExceptionStatus.ReceiveFailure;
@@ -822,7 +853,7 @@ namespace Http
                 DecompressStreamInPlace(responseBodyDestination, ref responseBodyDestinationStart, ref responseBodyDestinationEnd, ref responseBodyBytesReceived, responseHeaders, true/*updateHeaders*/);
             }
 
-            if ((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307))
+            if (settings.AutoRedirect && ((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307)))
             {
                 int locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location", StringComparison.OrdinalIgnoreCase); });
                 if (locationHeaderIndex >= 0)

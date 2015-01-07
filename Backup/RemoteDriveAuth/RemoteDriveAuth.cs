@@ -655,6 +655,9 @@ namespace RemoteDriveAuth
 
         public WebBrowserHostingForm(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, bool enableRefreshToken, IPAddress socks5Address, int socks5Port)
         {
+            // Configure socks5 proxying for WebBrowser control.
+            // WARNING: It is believed that the WebBrowser control leaks DNS requests, so if proxying is intended
+            // for anonymity (e.g. Tor), that usage may be dangerous here.
             if (socks5Address != null)
             {
                 WinInetInterop.SetConnectionProxy(String.Format("socks={0}:{1}", socks5Address, socks5Port));
@@ -1186,7 +1189,7 @@ namespace RemoteDriveAuth
             }
             KeyValuePair<string, string>[] responseHeaders;
             const int TimeoutSeconds = 30;
-            HttpSettings settings = new HttpSettings(false, null, null/*certificatePinning*/, null, TimeoutSeconds * 1000, TimeoutSeconds * 1000, socks5Address, socks5Port);
+            HttpSettings settings = new HttpSettings(false, null, null/*certificatePinning*/, null, TimeoutSeconds * 1000, TimeoutSeconds * 1000, true/*autoRedirect*/, socks5Address, socks5Port);
             HttpStatusCode httpStatus;
             string finalUrl;
             WebExceptionStatus result = HttpMethods.SocketHttpRequest(

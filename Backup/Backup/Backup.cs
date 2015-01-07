@@ -58,7 +58,7 @@ namespace Backup
             public const int BufferSize = MaxSmallObjectPageDivisibleSize;
 
             // concurrency tuning parameters for various scenarios
-            internal const int ConcurrencyForDiskBound = 0;
+            internal static readonly int ConcurrencyForDiskBound = Math.Max(1, Int32.Parse(Environment.GetEnvironmentVariable("NUMBER_OF_PROCESSORS")));
             internal static readonly int ConcurrencyForComputeBound = Math.Max(2, Int32.Parse(Environment.GetEnvironmentVariable("NUMBER_OF_PROCESSORS")));
             internal const int ConcurrencyForNetworkBound = 3;
         }
@@ -5542,7 +5542,7 @@ namespace Backup
                 // used for large files split across multiple segments - optional
                 Range = 8,
 
-                Digest = 9, // field id 9 will always be a SHA3-256, base-64 encoded
+                Digest = 9, // field id 9 will always be a Merkel tree hash SHA2-512 blocksize=65536, base-64 encoded
             }
 
             internal const int SupportedVersionNumber = 1;
@@ -6038,10 +6038,13 @@ namespace Backup
                     throw new InvalidOperationException();
                 }
 
-                // ensure SHA3-256 hash array is correct length
-                if ((digest != null) && (digest.Length != 256 / 8))
+                // ensure SHA2-512 hash array is correct length
+                if ((digest != null) && (digest.Length != 512 / 8))
                 {
+#if false // enable later - after old legacy archives are gone
                     throw new InvalidOperationException();
+#endif
+                    digest = null;
                 }
             }
 
@@ -6157,36 +6160,44 @@ namespace Backup
                 }
                 set
                 {
-                    if ((value != null) && (value.Length != 256 / 8))
+                    if ((value != null) && (value.Length != 512 / 8))
                     {
+#if false // enable later - after old legacy archives are gone
                         throw new ArgumentException();
+#endif
+                        value = null;
                     }
                     digest = value;
                 }
             }
 
-            internal void SetDigest(Stream stream, long bytesToRead)
+            private class HashBlock : IDisposable
             {
-                using (CheckedReadStream checkedStream = new CheckedReadStream(stream, new CryptoPrimitiveHashCheckValueGeneratorSHA3_256()))
-                {
-                    byte[] buffer = new byte[Constants.BufferSize];
-                    while (bytesToRead > 0)
-                    {
-                        int read = checkedStream.Read(buffer, 0, (int)Math.Min(bytesToRead, buffer.Length));
-                        if (read == 0)
-                        {
-                            break;
-                        }
-                        bytesToRead -= read;
-                    }
+                public readonly long sequenceNumber;
+                public int height;
+                public ConcurrentTasks.CompletionObject completionObject;
+                public byte[] hash;
 
-                    checkedStream.Close();
-                    digest = checkedStream.CheckValue;
+                public HashBlock(int height, long sequenceNumber)
+                {
+                    this.height = height;
+                    this.sequenceNumber = sequenceNumber;
+                }
+
+                public void Dispose()
+                {
+                    if (completionObject != null)
+                    {
+                        completionObject.Dispose();
+                        completionObject = null;
+                    }
                 }
             }
 
-            internal void SetDigest(string root, long bytesToRead)
+            internal void SetDigest(ConcurrentTasks concurrent, string root)
             {
+                digest = null;
+
                 string partialPath = subpath.ToString();
                 const string Prefix = @".\";
                 if (!partialPath.StartsWith(Prefix))
@@ -6194,9 +6205,141 @@ namespace Backup
                     throw new InvalidOperationException();
                 }
                 partialPath = partialPath.Substring(Prefix.Length);
-                using (Stream stream = new FileStream(Path.Combine(root, partialPath), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                string fullPath = Path.Combine(root, partialPath);
+                using (Stream controlStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    SetDigest(stream, bytesToRead);
+                    // Merkle hash tree
+
+                    byte[] leafPrefix = new byte[1] { 0x00 };
+                    byte[] interiorPrefix = new byte[1] { 0x01 };
+
+                    const int BlockLength = 65536;
+                    long blocks = Math.Max((controlStream.Length + BlockLength - 1) / BlockLength, 1);
+
+                    long leafSequenceNumbering = 1;
+                    long interiorSequenceNumbering = 1;
+                    Stack<HashBlock> partial = new Stack<HashBlock>();
+                    try
+                    {
+                        for (long iEnum = 0; iEnum <= blocks; iEnum++)
+                        {
+                            // due to C# 2.0 bug - must declare as local variable (NOT foreach enumeration
+                            // variable) in order to capture each value in the anonymous method.
+                            // See: http://www.c-sharpcorner.com/UploadFile/vendettamit/foreach-behavior-with-anonymous-methods-and-captured-value/
+                            long i = iEnum;
+
+                            if (i < blocks)
+                            {
+                                HashBlock leaf = new HashBlock(0, leafSequenceNumbering++);
+                                partial.Push(leaf);
+                                concurrent.Do(
+                                    String.Format("merkel-leaf-hash seq={0}", leaf.sequenceNumber),
+                                    true/*desireCompletionObject*/,
+                                    out leaf.completionObject,
+                                    delegate(ConcurrentTasks.ITaskContext taskContext)
+                                    {
+                                        using (CryptoPrimitiveHashCheckValueGenerator check = new CryptoPrimitiveHashCheckValueGeneratorSHA2_512())
+                                        {
+                                            check.ProcessBlock(leafPrefix, 0, leafPrefix.Length);
+                                            using (Stream taskStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                            {
+                                                taskStream.Position = i * BlockLength;
+                                                byte[] buffer = new byte[Math.Min(BlockLength, Constants.BufferSize)];
+                                                int count = BlockLength;
+                                                while (count > 0)
+                                                {
+                                                    int read = taskStream.Read(buffer, 0, Math.Min(count, buffer.Length));
+                                                    if (read == 0)
+                                                    {
+                                                        break;
+                                                    }
+                                                    check.ProcessBlock(buffer, 0, read);
+                                                    count -= read;
+                                                }
+                                            }
+                                            leaf.hash = check.GetCheckValueAndClose();
+                                        }
+                                    },
+                                    null,
+                                    -1);
+                            }
+
+                            long cascade = i < blocks ? i : Int64.MaxValue;
+                            while ((partial.Count > 1) && ((cascade & 1) != 0))
+                            {
+                                HashBlock right = partial.Pop();
+                                HashBlock left = partial.Pop();
+                                if (left.height == right.height)
+                                {
+                                    HashBlock parent = new HashBlock(right.height + 1, interiorSequenceNumbering++);
+                                    partial.Push(parent);
+                                    concurrent.Do(
+                                        String.Format("merkel-parent-hash height={1} seq={0}", parent.sequenceNumber, parent.height),
+                                        true/*desireCompletionObject*/,
+                                        out parent.completionObject,
+                                        delegate(ConcurrentTasks.ITaskContext taskContext)
+                                        {
+                                            using (CryptoPrimitiveHashCheckValueGenerator check = new CryptoPrimitiveHashCheckValueGeneratorSHA2_512())
+                                            {
+                                                check.ProcessBlock(interiorPrefix, 0, interiorPrefix.Length);
+
+                                                left.completionObject.Wait();
+                                                check.ProcessBlock(left.hash, 0, left.hash.Length);
+                                                left.Dispose();
+
+                                                right.completionObject.Wait();
+                                                check.ProcessBlock(right.hash, 0, right.hash.Length);
+                                                right.Dispose();
+
+                                                parent.hash = check.GetCheckValueAndClose();
+                                            }
+                                        },
+                                        null,
+                                        -1);
+                                }
+                                else if (left.height > right.height)
+                                {
+                                    Debug.Assert(i == blocks);
+                                    if (!(i == blocks))
+                                    {
+                                        left.Dispose();
+                                        right.Dispose();
+                                        throw new ApplicationException("program defect");
+                                    }
+                                    partial.Push(left);
+                                    right.height++;
+                                    partial.Push(right);
+                                }
+                                else
+                                {
+                                    Debug.Assert(false);
+                                    left.Dispose();
+                                    right.Dispose();
+                                    throw new ApplicationException("program defect");
+                                }
+
+                                cascade >>= 1;
+                            }
+                        }
+
+                        Debug.Assert(partial.Count == 1);
+                        if (!(partial.Count == 1))
+                        {
+                            throw new ApplicationException("program defect");
+                        }
+                        HashBlock top = partial.Pop();
+                        top.completionObject.Wait();
+                        digest = top.hash;
+                        top.Dispose();
+                    }
+                    finally
+                    {
+                        // only occurs for program defect or failure
+                        while (partial.Count > 0)
+                        {
+                            partial.Pop().Dispose();
+                        }
+                    }
                 }
             }
         }
@@ -7656,14 +7799,9 @@ namespace Backup
                 }
             }
 
-            internal void SetDigest(Stream stream, long bytesToRead)
+            internal void SetDigest(ConcurrentTasks concurrent, string root)
             {
-                header.SetDigest(stream, bytesToRead);
-            }
-
-            internal void SetDigest(string root, long bytesToRead)
-            {
-                header.SetDigest(root, bytesToRead);
+                header.SetDigest(concurrent, root);
             }
 
             internal void WriteHeader(Stream stream)
@@ -8085,9 +8223,6 @@ namespace Backup
                     traceDynpack.WriteLine("    {5,-8} {6} {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber);
                 }
                 traceDynpack.WriteLine();
-#if false
-                traceDynpack.Flush();
-#endif
             }
 
             string targetArchiveFileNameTemplate;
@@ -8346,9 +8481,6 @@ namespace Backup
                         traceDynpack.WriteLine("    {5,-8} {6} {7}({8})  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber, record.Segment.DiagnosticSerialNumber, record.Segment.Name);
                     }
                     traceDynpack.WriteLine();
-#if false
-                    traceDynpack.Flush();
-#endif
                 }
 
                 // Sort and merge
@@ -8457,9 +8589,6 @@ namespace Backup
                                             traceDynpack.Write("{0},", currentFiles[i].DiagnosticSerialNumber);
                                         }
                                         traceDynpack.WriteLine("}");
-#if false
-                                        traceDynpack.Flush();
-#endif
                                     }
 
                                     FileRecord[] currentSequenceReplacement = new FileRecord[iPrevious - iPreviousStart];
@@ -8478,9 +8607,6 @@ namespace Backup
                     if (traceDynpack != null)
                     {
                         traceDynpack.WriteLine();
-#if false
-                        traceDynpack.Flush();
-#endif
                     }
 
                     if (ignoreUnchangedFiles)
@@ -8489,162 +8615,167 @@ namespace Backup
                     }
 
                     // main merge occurs here
-                    iCurrent = 0;
-                    iPrevious = 0;
-                    while ((iCurrent < currentFiles.Count) || (iPrevious < previousFiles.Count))
+                    using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, TextWriter.Synchronized(traceDynpack)))
                     {
-                        if (!(iCurrent < currentFiles.Count))
+                        iCurrent = 0;
+                        iPrevious = 0;
+                        while ((iCurrent < currentFiles.Count) || (iPrevious < previousFiles.Count))
                         {
-                            if (traceDynpack != null)
-                            {
-                                traceDynpack.WriteLine("Deleted(1): {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
-                            }
-
-                            previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
-                            iPrevious++;
-                        }
-                        else if (!(iPrevious < previousFiles.Count))
-                        {
-                            if (traceDynpack != null)
-                            {
-                                traceDynpack.WriteLine("Added(1): {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
-                            }
-
-                            // Addition MAY or MAY NOT cause segment to be dirty:
-                            // - If files are added between segments, the code tries to avoid modifying those
-                            // segments, so they do not need to be marked dirty (unless the segments are small
-                            // enough to be merged during the join phase, which marks them dirty).
-                            // - If new files are inserted into the middle of an existing segment, the segment
-                            // must be split in two and the second half renamed, during a fixup pass that
-                            // occurs after merging.
-                            // Therefore, marking dirty is not done here in any case.
-
-                            if (ignoreUnchangedFiles
-                                && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0)
-                                && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
-                            {
-                                faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
-                            }
-
-                            mergedFiles.Add(currentFiles[iCurrent]);
-                            iCurrent++;
-                        }
-                        else
-                        {
-                            int c = DynPackPathCompareWithRange(currentFiles[iCurrent], previousFiles[iPrevious]);
-                            if (c < 0)
+                            if (!(iCurrent < currentFiles.Count))
                             {
                                 if (traceDynpack != null)
                                 {
-                                    traceDynpack.WriteLine("Added(2): {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
+                                    traceDynpack.WriteLine("Deleted(1): {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
                                 }
 
-                                // IMPORTANT: see comment in "Added(1)" clause about marking dirty
+                                previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
+                                iPrevious++;
+                            }
+                            else if (!(iPrevious < previousFiles.Count))
+                            {
+                                if (traceDynpack != null)
+                                {
+                                    traceDynpack.WriteLine("Added(1): {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
+                                }
+
+                                // Addition MAY or MAY NOT cause segment to be dirty:
+                                // - If files are added between segments, the code tries to avoid modifying those
+                                // segments, so they do not need to be marked dirty (unless the segments are small
+                                // enough to be merged during the join phase, which marks them dirty).
+                                // - If new files are inserted into the middle of an existing segment, the segment
+                                // must be split in two and the second half renamed, during a fixup pass that
+                                // occurs after merging.
+                                // Therefore, marking dirty is not done here in any case.
 
                                 if (ignoreUnchangedFiles
                                     && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0)
                                     && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                                 {
                                     faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                    currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
+                                    currentFiles[iCurrent].SetDigest(concurrent, source);
                                 }
 
                                 mergedFiles.Add(currentFiles[iCurrent]);
                                 iCurrent++;
                             }
-                            else if (c > 0)
-                            {
-                                if (traceDynpack != null)
-                                {
-                                    traceDynpack.WriteLine("Deleted(2): {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
-                                }
-
-                                previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
-                                iPrevious++;
-                            }
                             else
                             {
-                                FileRecord record = currentFiles[iCurrent];
-                                record.Segment = previousFiles[iPrevious].Segment;
-                                mergedFiles.Add(record);
-
-                                bool creationChanged = !previousFiles[iPrevious].CreationTimeUtc.Equals(currentFiles[iCurrent].CreationTimeUtc);
-                                bool lastWriteChanged = !previousFiles[iPrevious].LastWriteTimeUtc.Equals(currentFiles[iCurrent].LastWriteTimeUtc);
-                                bool rangeChanged = !PackedFileHeaderRecord.RangeRecord.Equals(previousFiles[iPrevious].Range, currentFiles[iCurrent].Range);
-                                if (ignoreUnchangedFiles && !rangeChanged && (creationChanged || lastWriteChanged)
-                                    && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0))
+                                int c = DynPackPathCompareWithRange(currentFiles[iCurrent], previousFiles[iPrevious]);
+                                if (c < 0)
                                 {
-                                    byte[] currentDigest, previousDigest;
-                                    if ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0))
+                                    if (traceDynpack != null)
+                                    {
+                                        traceDynpack.WriteLine("Added(2): {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
+                                    }
+
+                                    // IMPORTANT: see comment in "Added(1)" clause about marking dirty
+
+                                    if (ignoreUnchangedFiles
+                                        && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0)
+                                        && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                                     {
                                         faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                        currentFiles[iCurrent].SetDigest(source, Int64.MaxValue);
-                                        currentDigest = currentFiles[iCurrent].Digest;
+                                        currentFiles[iCurrent].SetDigest(concurrent, source);
                                     }
-                                    else
+
+                                    mergedFiles.Add(currentFiles[iCurrent]);
+                                    iCurrent++;
+                                }
+                                else if (c > 0)
+                                {
+                                    if (traceDynpack != null)
                                     {
-                                        int i = iCurrent;
-                                        while ((i > 0) && (currentFiles[i].Range.Start != 0))
+                                        traceDynpack.WriteLine("Deleted(2): {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
+                                    }
+
+                                    previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified by deletion
+                                    iPrevious++;
+                                }
+                                else
+                                {
+                                    FileRecord record = currentFiles[iCurrent];
+                                    record.Segment = previousFiles[iPrevious].Segment;
+                                    mergedFiles.Add(record);
+
+                                    bool creationChanged = !previousFiles[iPrevious].CreationTimeUtc.Equals(currentFiles[iCurrent].CreationTimeUtc);
+                                    bool lastWriteChanged = !previousFiles[iPrevious].LastWriteTimeUtc.Equals(currentFiles[iCurrent].LastWriteTimeUtc);
+                                    bool rangeChanged = !PackedFileHeaderRecord.RangeRecord.Equals(previousFiles[iPrevious].Range, currentFiles[iCurrent].Range);
+                                    if (ignoreUnchangedFiles && !rangeChanged && (creationChanged || lastWriteChanged)
+                                        && ((currentFiles[iCurrent].Attributes & PackedFileHeaderRecord.HeaderAttributes.Directory) == 0))
+                                    {
+                                        byte[] currentDigest, previousDigest;
+                                        if ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0))
                                         {
-                                            i--;
+                                            faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
+                                            currentFiles[iCurrent].SetDigest(concurrent, source);
+                                            currentDigest = currentFiles[iCurrent].Digest;
                                         }
-                                        currentDigest = currentFiles[i].Digest;
-                                    }
-                                    if ((previousFiles[iPrevious].Range == null) || (previousFiles[iPrevious].Range.Start == 0))
-                                    {
-                                        previousDigest = previousFiles[iPrevious].Digest;
-                                    }
-                                    else
-                                    {
-                                        int i = iPrevious;
-                                        while ((i > 0) && (previousFiles[i].Range.Start != 0))
+                                        else
                                         {
-                                            i--;
+                                            int i = iCurrent;
+                                            while ((i > 0) && (currentFiles[i].Range.Start != 0))
+                                            {
+                                                i--;
+                                            }
+                                            currentDigest = currentFiles[i].Digest;
                                         }
-                                        previousDigest = previousFiles[i].Digest;
+                                        if ((previousFiles[iPrevious].Range == null) || (previousFiles[iPrevious].Range.Start == 0))
+                                        {
+                                            previousDigest = previousFiles[iPrevious].Digest;
+                                        }
+                                        else
+                                        {
+                                            int i = iPrevious;
+                                            while ((i > 0) && (previousFiles[i].Range.Start != 0))
+                                            {
+                                                i--;
+                                            }
+                                            previousDigest = previousFiles[i].Digest;
+                                        }
+                                        if ((previousDigest != null) && ArrayEqual(previousDigest, currentDigest)) // missing previous hash will cause arrays to be not equal, preventing suppression
+                                        {
+                                            if (traceDynpack != null)
+                                            {
+                                                traceDynpack.WriteLine("Changed: {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
+                                                traceDynpack.WriteLine("       : {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
+                                                traceDynpack.WriteLine("       (reason: creation-changed={0} lastwrite-changed={1} range-changed={2})", creationChanged, lastWriteChanged, rangeChanged);
+                                                traceDynpack.WriteLine("       SUPPRESSED because -ignoreunchanged specified and file hash values indicate content unchanged");
+                                                traceDynpack.Write("       ");
+                                            }
+                                            creationChanged = false;
+                                            lastWriteChanged = false;
+                                        }
                                     }
-                                    if ((previousDigest != null) && ArrayEqual(previousDigest, currentDigest)) // missing previous hash will cause arrays to be not equal, preventing suppression
+                                    if (creationChanged || lastWriteChanged || rangeChanged)
                                     {
                                         if (traceDynpack != null)
                                         {
                                             traceDynpack.WriteLine("Changed: {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
                                             traceDynpack.WriteLine("       : {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
                                             traceDynpack.WriteLine("       (reason: creation-changed={0} lastwrite-changed={1} range-changed={2})", creationChanged, lastWriteChanged, rangeChanged);
-                                            traceDynpack.WriteLine("       SUPPRESSED because -ignoreunchanged specified and file hash values indicate content unchanged");
-                                            traceDynpack.Write("       ");
                                         }
-                                        creationChanged = false;
-                                        lastWriteChanged = false;
+
+                                        previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified because file changed
                                     }
-                                }
-                                if (creationChanged || lastWriteChanged || rangeChanged)
-                                {
-                                    if (traceDynpack != null)
+                                    else
                                     {
-                                        traceDynpack.WriteLine("Changed: {5} {0}{4} {1} {2} {3}", previousFiles[iPrevious].EmbeddedStreamLength, previousFiles[iPrevious].CreationTimeUtc, previousFiles[iPrevious].LastWriteTimeUtc, previousFiles[iPrevious].PartialPath, previousFiles[iPrevious].Range != null ? String.Format("[{0}]", previousFiles[iPrevious].Range) : String.Empty, previousFiles[iPrevious].DiagnosticSerialNumber);
-                                        traceDynpack.WriteLine("       : {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
-                                        traceDynpack.WriteLine("       (reason: creation-changed={0} lastwrite-changed={1} range-changed={2})", creationChanged, lastWriteChanged, rangeChanged);
+                                        if (traceDynpack != null)
+                                        {
+                                            traceDynpack.WriteLine("Unchanged: {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
+                                        }
+
+                                        if ((previousFiles[iPrevious].Digest != null) && (mergedFiles[mergedFiles.Count - 1].Digest == null))
+                                        {
+                                            mergedFiles[mergedFiles.Count - 1].Digest = previousFiles[iPrevious].Digest;
+                                        }
                                     }
 
-                                    previousFiles[iPrevious].Segment.Dirty.Set(); // segment modified because file changed
+                                    iPrevious++;
+                                    iCurrent++;
                                 }
-                                else
-                                {
-                                    if (traceDynpack != null)
-                                    {
-                                        traceDynpack.WriteLine("Unchanged: {5} {0}{4} {1} {2} {3}", currentFiles[iCurrent].EmbeddedStreamLength, currentFiles[iCurrent].CreationTimeUtc, currentFiles[iCurrent].LastWriteTimeUtc, currentFiles[iCurrent].PartialPath, currentFiles[iCurrent].Range != null ? String.Format("[{0}]", currentFiles[iCurrent].Range) : String.Empty, currentFiles[iCurrent].DiagnosticSerialNumber);
-                                    }
-
-                                    if ((previousFiles[iPrevious].Digest != null) && (mergedFiles[mergedFiles.Count - 1].Digest == null))
-                                    {
-                                        mergedFiles[mergedFiles.Count - 1].Digest = previousFiles[iPrevious].Digest;
-                                    }
-                                }
-
-                                iPrevious++;
-                                iCurrent++;
                             }
+
+                            // ConcurrentTasks.Dispose() will wait until all SetDigest() operations have completed
                         }
                     }
 
@@ -8661,9 +8792,6 @@ namespace Backup
                         traceDynpack.WriteLine("    {5,-8} {6} {7}  {0}{4} {1} {2} {3}", record.EmbeddedStreamLength, record.CreationTimeUtc, record.LastWriteTimeUtc, record.PartialPath, record.Range != null ? String.Format("[{0}]", record.Range) : String.Empty, i, record.DiagnosticSerialNumber, record.Segment != null ? record.Segment.DiagnosticSerialNumber : "null");
                     }
                     traceDynpack.WriteLine();
-#if false
-                    traceDynpack.Flush();
-#endif
                 }
 
                 // Fixup pass for files inserted into the middle of segments (breaking segment
@@ -8719,9 +8847,6 @@ namespace Backup
                     if (traceDynpack != null)
                     {
                         traceDynpack.WriteLine();
-#if false
-                        traceDynpack.Flush();
-#endif
                     }
                 }
 
@@ -8819,9 +8944,6 @@ namespace Backup
                         traceDynpack.WriteLine("    {0} {1}", segment.DiagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceDynpack.WriteLine();
-#if false
-                    traceDynpack.Flush();
-#endif
                 }
 
                 // First scan (before splitting or merging) - ensure missing segments are dirty
@@ -9044,9 +9166,6 @@ namespace Backup
                         traceDynpack.WriteLine("    {0} {1}", segment.DiagnosticSerialNumber, segment.Name != null ? segment.Name : "<>");
                     }
                     traceDynpack.WriteLine();
-#if false
-                    traceDynpack.Flush();
-#endif
                 }
 
                 // program logic test - verify segment naming validity
@@ -9064,9 +9183,6 @@ namespace Backup
                                 if (traceDynpack != null)
                                 {
                                     traceDynpack.WriteLine("Program defect: segment name sequence violation:  {0} > {2}  [{1},{3}]  ({4})", currentSegmentName, currentSegment.DiagnosticSerialNumber, mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber);
-#if false
-                                    traceDynpack.Flush();
-#endif
                                 }
                                 fault1 = true;
                             }
@@ -9076,9 +9192,6 @@ namespace Backup
                                 if (traceDynpack != null)
                                 {
                                     traceDynpack.WriteLine("Program defect: name used more than once for separated regions:  {0} [{1}]  ({2})", mergedFiles[i].Segment.Name, mergedFiles[i].Segment.DiagnosticSerialNumber, mergedFiles[i].DiagnosticSerialNumber);
-#if false
-                                    traceDynpack.Flush();
-#endif
                                 }
                                 fault2 = true;
                             }
@@ -9140,9 +9253,6 @@ namespace Backup
                         }
                     }
                     traceDynpack.WriteLine();
-#if false
-                    traceDynpack.Flush();
-#endif
                 }
 
 
@@ -9279,9 +9389,6 @@ namespace Backup
                                                         if (threadTraceDynPack != null)
                                                         {
                                                             threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.DiagnosticSerialNumber, segment.Name);
-#if false
-                                                            threadTraceDynPack.Flush();
-#endif
                                                         }
                                                         messages.WriteLine("Validating non-dirty segment: {0}", segment.Name);
 
@@ -9861,13 +9968,6 @@ namespace Backup
                         };
                         ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
                         {
-#if false
-                            if (traceDynpack != null)
-                            {
-                                traceDynpack.Flush();
-                            }
-#endif
-
                             messagesLog.Flush(prepareConsole);
 
                             if (Interactive())

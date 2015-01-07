@@ -6,6 +6,87 @@ date-format yyyy-MM-dd
 fail-pause on
 
 
+module verify hash function
+
+test initial file
+date 2015-01-01
+mkdir source
+create source\a -size 10000000 -value ""
+call backup dynpack source archive 20000000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2015-01-01          2015-01-01 -A---- archive.0.dynpack [1]
+.          2015-01-01          2015-01-01 -A---- archive.a.dynpack [2]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [3]
+endlist
+call backup dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 2\; SIGNATURE\: .*$
+. [a: 1]
+.        1 9.54MB 2015-01-01T00:00:00 2015-01-01T00:00:00 -- .\a
+.   e4ea28678a03f5d3528a9a83f73fdea0046e5bb0f711ff61aed796edca71bbc778ef529c0c51a7fb84e6d05af2d8e6673e3a1c2214aabd7ca692d023e4c7ccc8
+endoutput
+# change value 1
+date + 1
+invert-range source\a 0 1
+call backup dynpack source archive 20000000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2015-01-01          2015-01-02 -A---- archive.0.dynpack [4]
+.          2015-01-01          2015-01-02 -A---- archive.a.dynpack [5]
+.                                         -----D source\
+.          2015-01-01          2015-01-02 -A---- source\a [6]
+endlist
+call backup dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 4\; SIGNATURE\: .*$
+. [a: 3]
+.        1 9.54MB 2015-01-01T00:00:00 2015-01-02T00:00:00 -- .\a
+.   c46119321034ac28701826e9bbcc94b07ac0b13c6637dfb23763783c1936e3a5baff9f70b5de6525a1cd05734ba1b2a15e518c2ba437fcd5d861b967d0ce183d
+endoutput
+# change value 2
+date + 1
+invert-range source\a 9999999 1
+call backup dynpack source archive 20000000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2015-01-01          2015-01-03 -A---- archive.0.dynpack [7]
+.          2015-01-01          2015-01-03 -A---- archive.a.dynpack [8]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\a [9]
+endlist
+call backup dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 6\; SIGNATURE\: .*$
+. [a: 5]
+.        1 9.54MB 2015-01-01T00:00:00 2015-01-03T00:00:00 -- .\a
+.   9670d4fcb23261dc3e414789587e0b02e257cf5e283f76ac59651eb7357ea477d2f811f5fcb705b55091afb306e908f7d13f6b701c55155a70f054f94be9efd1
+endoutput
+# zero-length
+date + 1
+edit source\a -size 0
+call backup dynpack source archive 20000000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.          2015-01-01          2015-01-04 -A---- archive.0.dynpack [10]
+.          2015-01-01          2015-01-04 -A---- archive.a.dynpack [11]
+.                                         -----D source\
+.          2015-01-01          2015-01-04 -A--Z- source\a [0]
+endlist
+call backup dumppack archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL\: 8\; SIGNATURE\: .*$
+. [a: 7]
+.        1 0B     2015-01-01T00:00:00 2015-01-04T00:00:00 -- .\a
+.   b8244d028981d693af7b456af8efa4cad63d282e19ff14942c246e50d9351d22704a802a71c3580b6370de4ceb293c324a8423342557d4e5c38438f0e36910ee
+endoutput
+
+
 module verify non-enabled behavior
 
 test create test scenario

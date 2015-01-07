@@ -533,6 +533,7 @@ namespace Backup
                 networkThrottle,
                 SendTimeout,
                 ReceiveTimeout,
+                true/*autoRedirect*/,
                 socks5Address,
                 socks5Port);
         }

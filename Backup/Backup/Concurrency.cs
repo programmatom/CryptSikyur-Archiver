@@ -412,7 +412,7 @@ namespace Concurrent
         private readonly TextWriter trace; // null ok
         private bool writeStatsToMessagesLog;
 
-        private readonly List<EventWaitHandle> availableCompletionHandles = new List<EventWaitHandle>();
+        private readonly Queue<EventWaitHandle> availableCompletionHandles = new Queue<EventWaitHandle>();
 
         private readonly SequenceNumberDispenser taskSequenceNumbering = new SequenceNumberDispenser();
 
@@ -684,7 +684,7 @@ namespace Concurrent
                 {
                     // can only hand back if async task no longer will signal it eventually
                     // (otherwise some other subsequent client might get spurriously signalled)
-                    owner.HandBackCompletionHandle(waitCompleted);
+                    owner.HandBackCompletionHandle(ref waitCompleted);
                 }
                 else
                 {
@@ -704,24 +704,30 @@ namespace Concurrent
 
         private EventWaitHandle GetCompletionHandle()
         {
-            EventWaitHandle completionHandle;
-            if (availableCompletionHandles.Count > 0)
+            EventWaitHandle completionHandle = null;
+            lock (availableCompletionHandles)
             {
-                completionHandle = availableCompletionHandles[availableCompletionHandles.Count - 1];
-                availableCompletionHandles.RemoveAt(availableCompletionHandles.Count - 1);
-                completionHandle.Reset(); // ensure initially unsignalled
+                if (availableCompletionHandles.Count > 0)
+                {
+                    completionHandle = availableCompletionHandles.Dequeue();
+                    completionHandle.Reset(); // ensure initially unsignalled
+                }
             }
-            else
+            if (completionHandle == null)
             {
                 completionHandle = new EventWaitHandle(false/*intially signalled*/, EventResetMode.ManualReset);
             }
             return completionHandle;
         }
 
-        private void HandBackCompletionHandle(EventWaitHandle completionHandle)
+        private void HandBackCompletionHandle(ref EventWaitHandle completionHandle)
         {
-            Debug.Assert(availableCompletionHandles.IndexOf(completionHandle) < 0);
-            availableCompletionHandles.Add(completionHandle);
+            lock (availableCompletionHandles)
+            {
+                Debug.Assert(Array.IndexOf(availableCompletionHandles.ToArray(), completionHandle) < 0);
+                availableCompletionHandles.Enqueue(completionHandle);
+                completionHandle = null;
+            }
         }
 
         public interface ITaskContext
