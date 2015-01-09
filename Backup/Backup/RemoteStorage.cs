@@ -496,7 +496,7 @@ namespace Backup
         void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext);
     }
 
-    public abstract class WebMethodsBase : ICertificatePinning
+    public abstract class WebMethodsBase
     {
         private const int MaxBytesPerWebRequest = 50 * 1024 * 1024; // force upload fail & resumable after this many bytes (to exercise the resume code)
         private const string UserAgent = "Backup (CryptSikyur-Archiver) v0 [github.com/programmatom/CryptSikyur-Archiver]";
@@ -509,10 +509,7 @@ namespace Backup
 
         protected readonly Random random = new Random(); // for exponential backoff retry delays
 
-        private bool certificatePinningEnabled;
-#if false
-        private KeyValuePair<string, string[]>[] certificatePinningPublicKeys;
-#endif
+        protected readonly ICertificatePinning certificatePinning;
 
         private static RateLimitHelper rateLimitHelper = new RateLimitHelper();
         private static INetworkThrottle networkThrottle = new NetworkThrottle(); // not changeable after creation
@@ -522,14 +519,15 @@ namespace Backup
             throw new NotSupportedException();
         }
 
-        protected WebMethodsBase(RemoteAccessControl remoteAccessControl, bool enableResumableUploads, IPAddress socks5Address, int socks5Port)
+        protected WebMethodsBase(RemoteAccessControl remoteAccessControl, bool enableResumableUploads, IPAddress socks5Address, int socks5Port, ICertificatePinning certificatePinning)
         {
             this.remoteAccessControl = remoteAccessControl;
+            this.certificatePinning = certificatePinning;
 
             settings = new HttpSettings(
                 enableResumableUploads,
                 MaxBytesPerWebRequest,
-                this/*certificatePinning*/,
+                certificatePinning,
                 networkThrottle,
                 SendTimeout,
                 ReceiveTimeout,
@@ -588,102 +586,6 @@ namespace Backup
         {
             SetThrottle(0);
         }
-
-
-        // Certificate pinning
-
-        // Certificate pinning pre-registers the public key of well-known services and requires
-        // an actual TLS connection to present a validated certificate using the same public key,
-        // as proof that the service has the correct private key. This defeats certain MITM
-        // attacks mounted by, e.g. corrupt/inept CAs.
-        // https://www.owasp.org/index.php/Certificate_and_Public_Key_Pinning
-        // also,
-        // TODO: monitor RFC for acceptance and adopt for servers that begin supporting it
-        // (so far: http://tools.ietf.org/html/draft-ietf-websec-key-pinning-21)
-
-        public bool CertificatePinningEnabled
-        {
-            get
-            {
-#if false
-                return certificatePinningEnabled;
-#else
-                return false;
-#endif
-            }
-        }
-
-        public bool ValidatePinnedCertificate(string host, IPAddress hostAddress, X509Certificate certificate, TextWriter trace)
-        {
-#if false
-            // TODO: this code is not flexible enough. Use X509Chain to allow ancestor certs to be pinned
-            // see:
-            // https://wiki.mozilla.org/SecurityEngineering/Public_Key_Pinning
-            // https://wiki.mozilla.org/SecurityEngineering/Public_Key_Pinning/Implementation_Details
-            // also
-            // https://src.chromium.org/viewvc/chrome/trunk/src/net/http/transport_security_state_static.json
-
-            string publicKey = ExtractPublicKey(certificate);
-
-            if (trace != null)
-            {
-                trace.WriteLine("*ValidatePinnedCertificate: validating host={0} addr={1} publicKey={2}", host, hostAddress, publicKey);
-            }
-
-            if (!certificatePinningEnabled)
-            {
-                return true;
-            }
-
-            foreach (KeyValuePair<string, string[]> candidate in certificatePinningPublicKeys)
-            {
-                if (candidate.Key.StartsWith("*.") ? host.EndsWith("." + candidate.Key.Substring(2)) : host.Equals(candidate.Key))
-                {
-                    foreach (string candidatePublicKey in candidate.Value)
-                    {
-                        if (String.Equals(publicKey, candidatePublicKey))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-#endif
-
-            return false;
-        }
-
-#if false
-        protected static string ExtractPublicKey(X509Certificate certificate)
-        {
-            return certificate.GetPublicKeyString();
-        }
-
-        protected void RegisterPinnedCertificates(bool enable, KeyValuePair<string, string[]>[] hostsPublicKeys, TextWriter trace)
-        {
-            if (!enable && (hostsPublicKeys != null) && (hostsPublicKeys.Length != 0))
-            {
-                throw new ArgumentException();
-            }
-
-            if (trace != null)
-            {
-                trace.WriteLine("*RegisterPinnedCertificates: enable={0}", enable);
-                foreach (KeyValuePair<string, string[]> item in hostsPublicKeys)
-                {
-                    string publicKeys = null;
-                    foreach (string key in item.Value)
-                    {
-                        publicKeys = String.Concat(publicKeys != null ? ", " : null, key);
-                    }
-                    trace.WriteLine("  {{host={0}, publicKeys[]={{{1}}}}}", item.Key, publicKeys);
-                }
-            }
-
-            certificatePinningEnabled = enable;
-            certificatePinningPublicKeys = hostsPublicKeys;
-        }
-#endif
 
 
         // Configurable methods
@@ -1270,23 +1172,12 @@ namespace Backup
         // REST API - Folders: http://msdn.microsoft.com/en-us/library/dn631836.aspx
 
         public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext)
-            : base(remoteAccessControl, false/*enableResumableUploads*/, socks5Address, socks5Port)
+            : base(remoteAccessControl, false/*enableResumableUploads*/, socks5Address, socks5Port, null/*certificatePinning*/)
         {
             if (trace != null)
             {
                 trace.WriteLine("*MicrosoftOneDriveWebMethods constructor");
             }
-
-#if false
-            RegisterPinnedCertificates(
-                true/*enable*/,
-                new KeyValuePair<string, string[]>[]
-                {
-                    new KeyValuePair<string, string[]>("storage.live.com", new string [] { "3082010A0282010100B28A747C7A57775A4E67CDCDA0380167AEE06E34261DDF2FBE8BB954C9CB506E380ECE9A2FEA8F00442AA2B539835AC8F30C92E29D9CF26110109D775E39C07C8322F6CE4D10DA5DA08BA48311BE0F4E49113E9DE4D75CE1E4FEE39AD58351B8AE7F8EB750653DF5F8E439B9D040ABC570EFBD4454FA96B87D74149E5768D3375EDFFE531476038A28A73E5660B7205C1257397A74440E688D1BE0BA5AC8841ABBB2EE6B2164A62C7329E148DDD1389C7C20DD6CFF2D1ECEF07D2369062DD80C1AB7F06638703C36730BC1FFEEB434A09C535BDEC2EB95ECB8676672326327B3CB15F326814CD3803DA0AC2F0835D4BC04FA6183FE4B2D680F20EDDFDFF4F76F0203010001" }),
-                    new KeyValuePair<string, string[]>("apis.live.net", new string [] { "3082010A0282010100B28A747C7A57775A4E67CDCDA0380167AEE06E34261DDF2FBE8BB954C9CB506E380ECE9A2FEA8F00442AA2B539835AC8F30C92E29D9CF26110109D775E39C07C8322F6CE4D10DA5DA08BA48311BE0F4E49113E9DE4D75CE1E4FEE39AD58351B8AE7F8EB750653DF5F8E439B9D040ABC570EFBD4454FA96B87D74149E5768D3375EDFFE531476038A28A73E5660B7205C1257397A74440E688D1BE0BA5AC8841ABBB2EE6B2164A62C7329E148DDD1389C7C20DD6CFF2D1ECEF07D2369062DD80C1AB7F06638703C36730BC1FFEEB434A09C535BDEC2EB95ECB8676672326327B3CB15F326814CD3803DA0AC2F0835D4BC04FA6183FE4B2D680F20EDDFDFF4F76F0203010001" }),
-                },
-                trace);
-#endif
         }
 
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)420; } }
@@ -1737,23 +1628,12 @@ namespace Backup
         // https://developers.google.com/drive/v2/reference/
 
         public GoogleDriveWebMethods(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext)
-            : base(remoteAccessControl, true/*enableResumableUploads*/, socks5Address, socks5Port)
+            : base(remoteAccessControl, true/*enableResumableUploads*/, socks5Address, socks5Port, new CertificatePinning(X509CertificateKeyPinning.Google.RootPublicKeyHashes))
         {
             if (trace != null)
             {
                 trace.WriteLine("*GoogleDriveWebMethods constructor");
             }
-
-#if false
-            RegisterPinnedCertificates(
-                true/*enable*/,
-                new KeyValuePair<string, string[]>[]
-                {
-                    new KeyValuePair<string, string[]>("*.googleapis.com", new string [] { "3082010A0282010100871681B4AD11115CA845C7B1E2E71AAC60E567384D74BD8D5F2B021BEBBD71DCAA43C0F60E27F54C74882E0196467CCE256A6DA51012FA4545EA1B0E79D418FD98B763B8997FE7B0361235E31D52BDCC56808D6BA50AF3DA093EE6B96C866D0A9017AF77DE92D9C2FBB68AC5A27129ECE8258CA19AADD78BD1FAC89FE98998AAB1580B13B6A06864CFA02FEADBF88F6F329D4FFDE7017377CBA12CB6DFB2B9DFD28008CC77A1C82F5EAD25DAA126BFF8F5F2E1C20B57E4D12A2285A4CF4D195E2624B898824D881C7E6ED25B9186BFA2CEB8311133F3A561F8CF2053159C142673BFFB3122835FB4688BF9E71215E1D00FE8F8B8D71C95FE14F741491BD6F45D0203010001", "3082010A0282010100A2F3015AA21CB61F435E979B7E5412B9FF0EBCA529A2F3EB0B5EE8231F0A7E7FEEC14ECC5E728F81201E26FBE5491E7306432C62A2A5ED460481ADAF3528FAB5D18C1921F972A4B15FBAA718BB746FE613AF32B1C53F02945023378F3CBDD9554C5DFE5A4979B5092D3D779F170C9A0458B39FCB0367C44C350172850ABB5D2511A561FE679BE4AAD8EFE9224B81DEC84B8BE8F50E595F6E1B0D27503CF78CBDD330DF9B899AE8B50F1A3A8580987559E514DCDFB5CD045B2C4E84D1DD5EE3738231CC41F45D8BC3ECB0C5380934A8C5C14BDCC72DE803CBAB19B13F61BA108A0F1DD95F4DCB2E026F96587DBE6BE910A9CA6EA821FC58C9E0E54F3DC5D428930203010001" }),
-                    new KeyValuePair<string, string[]>("*.googleusercontent.com", new string [] { "3082010A0282010100BFD0A9D3BD4C7F491A17E831F1A506CFCF45D44F397D614112C9D922739D927435586CCE731BDE2D41C29CD0933EBF4A151F818AAD2689B1A868233FA75164C9F58EC620E3D77B4E591D14607A987580634220862083EAF9FCBA5A7A5C8A65D13CF7D5B926B17BE82540D7FADE62E5FBBDB8296AB02230A951178241D6CC82D3716A6675E7BC5E4B448549AC0A16238A171A8B3455FDCB7DDB83DF2A4B1852FD31DBC864C7B63B273C43FF85C796D631E8AD142CBDAE0DB893AB345950F5CA6F5C5371E6411CD4CF51E6380E9AA712861CE30D27FEEB0C63DD4C6802E469D03E07F9E9B4B312AF658A75C831A807A4CAD59DB2B42900424CC7E79807279D09F30203010001", "040832C5DD28F7CB7E5AC3E6ED87F359474DC80C86FA3816EA6E4418B0254A0FCF6439D668FA99D8A2165924765582F553B2C43B99B5617F0A3D1BEAB5308CD621", "048064BE97D4F87254BFD7A2F480E94F15B2A480408CCB3FDD13DC242923607A31D840B7689CE9579EA03F204718F4081804D330A041C718CE3B5951F26A05DB0A" }),
-                },
-                trace);
-#endif
         }
 
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)403; } }

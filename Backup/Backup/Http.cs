@@ -65,8 +65,7 @@ namespace Http
 
     public interface ICertificatePinning
     {
-        bool CertificatePinningEnabled { get; }
-        bool ValidatePinnedCertificate(string host, IPAddress hostAddress, X509Certificate certificate, TextWriter trace);
+        bool RemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors, TextWriter trace);
     }
 
     public interface INetworkThrottle
@@ -112,6 +111,23 @@ namespace Http
 
     public static class HttpMethods
     {
+        public class CertificatePinningDelegate
+        {
+            private readonly ICertificatePinning clientPinning;
+            private readonly TextWriter trace;
+
+            public CertificatePinningDelegate(ICertificatePinning clientPinning, TextWriter trace)
+            {
+                this.clientPinning = clientPinning;
+                this.trace = trace;
+            }
+
+            public bool RemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+            {
+                return clientPinning.RemoteCertificateValidationCallback(sender, certificate, chain, sslPolicyErrors, trace);
+            }
+        }
+
         private static WebExceptionStatus Socks5Handshake(Socket socket, string hostName, int hostPort)
         {
             // socks5 greeting
@@ -289,7 +305,12 @@ namespace Http
                     }
 
                     List<string> headers = new List<string>();
-                    using (Stream socketStream = !useTLS ? (Stream)new NetworkStream(socket, false/*ownsSocket*/) : (Stream)new SslStream(new NetworkStream(socket, false/*ownsSocket*/)))
+                    using (Stream socketStream = !useTLS
+                        ? (Stream)new NetworkStream(socket, false/*ownsSocket*/)
+                        : (Stream)new SslStream(
+                            new NetworkStream(socket, false/*ownsSocket*/),
+                            false/*leaveInnerStreamOpen*/,
+                            settings.CertificatePinning != null ? new CertificatePinningDelegate(settings.CertificatePinning, trace).RemoteCertificateValidationCallback : (RemoteCertificateValidationCallback)null))
                     {
                         if (useTLS)
                         {
@@ -330,23 +351,20 @@ namespace Http
                                 throw new InsecureConnectionException();
                             }
 
-                            // If pinning is not enabled, the host name still needs to be verified vs. the certificate's
-                            // signed host names. This is a bit of a fussy operation. Since the host name is passed into
-                            // SslSteam.AuthenticateAsClient, it is assumed that the host name is validated vs. the
-                            // certificate (verified via http://referencesource.microsoft.com). If a different TLS
-                            // implementation is used, it should be checked to make sure the host name is verified.
-
-                            if ((settings.CertificatePinning != null)
-                                && settings.CertificatePinning.CertificatePinningEnabled
-                                && !settings.CertificatePinning.ValidatePinnedCertificate(uriInitial.Host, hostAddress, ssl.RemoteCertificate, trace))
+                            if (settings.CertificatePinning == null)
                             {
                                 if (trace != null)
                                 {
-                                    trace.WriteLine("Remote certificate rejected because public key does not match expected value for pinned certificate (actual=\"{0}\").", ssl.RemoteCertificate.GetPublicKeyString());
+                                    trace.WriteLine("certificate pinning is not available for this connection");
                                 }
-
-                                throw new InsecureConnectionException();
                             }
+
+                            // If pinning is not enabled, the host name still needs to be verified vs. the certificate's
+                            // signed host names. This is a bit of a fussy operation. Since the host name is passed into
+                            // SslSteam.AuthenticateAsClient, it is assumed that the host name is validated vs. the
+                            // certificate (verified via http://referencesource.microsoft.com).
+                            // FUTURE TODO: If a different TLS implementation is used, it should be checked to make sure
+                            // the host name is verified.
                         }
 
 

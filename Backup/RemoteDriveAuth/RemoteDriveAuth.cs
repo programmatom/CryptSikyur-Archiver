@@ -86,7 +86,7 @@ namespace RemoteDriveAuth
 
         public abstract string TokenExchangeProviderUrl { get; }
 
-        public abstract KeyValuePair<string, string[]>[] GetPinnedPublicKeys { get; }
+        public abstract ICertificatePinning CertificatePinning { get; }
     }
 
     class MicrosoftOneDriveRemoteService : OAuth20RemoteService
@@ -114,16 +114,7 @@ namespace RemoteDriveAuth
 
         public override string TokenExchangeProviderUrl { get { return "https://login.live.com/oauth20_token.srf"; } }
 
-        public override KeyValuePair<string, string[]>[] GetPinnedPublicKeys
-        {
-            get
-            {
-                return new KeyValuePair<string, string[]>[]
-                {
-                    new KeyValuePair<string, string[]>("login.live.com", new string[] { "3082010A0282010100BEBA55B96F3A5C7B8B4015E687294B3285985915FB2E92EF17E4FB915BAEBB6ADE44704F19275F585533DBCAC9B318708FB7DEBA263926274621B5B68239F07A8612545F784B68DBA03B9528D005B852B445E29D495395C29370C4F2CF2CA6D043779D43CDE2BAA3DC0E6FF3AE9DB01C2D35F5D682A386C6B59B02FB00F1315113EEFEE61474EF1C9173718B765FA0A8B79D7C82D602B480E860D6661F74A8FE165D5D570390F411F5334B64E81B0D3EDFE71579BE533499C80A8421D82BFA5F23992C2ABF6BB706155D56BC2BAC4D9D813494C3B05C0DE1BA2A0515B140059E18B400797BB33B75B237F1EC4F32E55AE0B4A6451B2573E063C287065D2A09E50203010001" }),
-                };
-            }
-        }
+        public override ICertificatePinning CertificatePinning { get { return null; } }
     }
 
     class GoogleDriveRemoteService : OAuth20RemoteService
@@ -153,20 +144,7 @@ namespace RemoteDriveAuth
 
         public override string TokenExchangeProviderUrl { get { return "https://accounts.google.com/o/oauth2/token"; } }
 
-        public override KeyValuePair<string, string[]>[] GetPinnedPublicKeys
-        {
-            get
-            {
-                return new KeyValuePair<string, string[]>[]
-                {
-                    new KeyValuePair<string, string[]>("accounts.google.com", new string[] {
-                        "3082010A0282010100AE13FDB51B376FE28C6F2C9BA79D070F237CDF5F0BAFAF4843B64612E2A18CCAD7345CDA8776CA124294778D3C8609CA1CAE668EC81812190EA5BBE6FB842DA3B84239C64343254488782582BC12C1256A82135FDA7DD8100335A979748A1154D2050859B17B7FDB8BB74E4A46DE3FAA65803C11D3580F52203215F43E8DE1CADF623C88D4E2F4F677C67F6B940149389CA200583AFE39229957CCAD00C7D09A825C5A90D8F4AE1B574BFE63415F6BBB261362E111F8B3DDA49C8FD59EE151C4C5587B237A9AB2E6B6FB8D88450AE50AACCA7D27A55DB942A26405DAFD49C3B4F538E0002AFFEDDF7483C7455BE6E522D1AE20A5F159D7E128C7E45A17FDE00D0203010001",
-                        "3082010A02820101009F0EB77E731FBEEEB122D0979F25A7FA7B0FCE442DF2EE8DBD3858E1C09DBD21F34D0A216295F390D1B0673627DAC75D25B3059DB06D6C372F93037E1C6A7B32EF3DD5C7DDAE1CA051229FDEAAAD74B97A895751806A441A23A744CEB28EF29836E65D42A84DE0A8403C28B487450F0EBEBE3FEC81F0602725627F88ACD16A417000E1205C7B6872ACA776DF46F0E52E71E609C2851C4A827B09F606ADA6331AAF8C41854E8E4BF7839AC9AD193FB4A964988F1847327C06CC48DA3F78306A69CB3F9DEB51B3AD65ED36318DB2FB3171E7EF4E3018AD3BF3CE41FE084761EE51E8B1EFB7109E46D72985384378DB10264AFA8DF2FFC370FD4C806F16D45D9D9F0203010001",
-                        "3082010A0282010100D4E3F82DE9A1B0AC466BD296E8FE44C0D244A14960DB461C5D36BE16526B492440540D13F8DBE2E70CC1E4148E9533E7520CE28B1AB1D95DD4D25227F3D32546C285F7E0DBFAFD79B34B5A2CD0148A66E28357803817D9587E0CD36A4CBA9CCD0E79666DCADF5CE510FB8323470138A7772BEA3F9A8E7A871CFD643D9404C7FAF2A3438E534087D1580F029F7FBEC332ACE9BC537863A5316919E7DB5946CB1BD5EA6B61E439DDD96C303BC9BFC54EFBFAB4F25D42C36EE9CF7ABD7FBB8BEE32DB8DEA45981628440CC8582AA4AA34E4FD9F0E2E4C83BF7B6CF365262784B8D03470CE38C279D720AF125E44CC19505165CE54CA71F2DDFC18AE4BB3C6F79BB90203010001"
-                    }),
-                };
-            }
-        }
+        public override ICertificatePinning CertificatePinning { get { return new Backup.CertificatePinning(X509CertificateKeyPinning.Google.RootPublicKeyHashes); } }
     }
 
     class Services
@@ -1174,7 +1152,7 @@ namespace RemoteDriveAuth
             }
         }
 
-        private static void DoWebRequest(Uri uri, string verb, byte[] requestStream, string requestStreamContentType, Stream responseBody, IPAddress socks5Address, int socks5Port)
+        private static void DoWebRequest(Uri uri, string verb, byte[] requestStream, string requestStreamContentType, Stream responseBody, IPAddress socks5Address, int socks5Port, ICertificatePinning certificatePinning)
         {
             IPAddress hostAddress = null;
             if (socks5Address == null)
@@ -1189,7 +1167,7 @@ namespace RemoteDriveAuth
             }
             KeyValuePair<string, string>[] responseHeaders;
             const int TimeoutSeconds = 30;
-            HttpSettings settings = new HttpSettings(false, null, null/*certificatePinning*/, null, TimeoutSeconds * 1000, TimeoutSeconds * 1000, true/*autoRedirect*/, socks5Address, socks5Port);
+            HttpSettings settings = new HttpSettings(false, null, certificatePinning, null, TimeoutSeconds * 1000, TimeoutSeconds * 1000, true/*autoRedirect*/, socks5Address, socks5Port);
             HttpStatusCode httpStatus;
             string finalUrl;
             WebExceptionStatus result = HttpMethods.SocketHttpRequest(
@@ -1237,7 +1215,8 @@ namespace RemoteDriveAuth
                     "application/x-www-form-urlencoded",
                     responseBodyStream,
                     socks5Address,
-                    socks5Port);
+                    socks5Port,
+                    authService.CertificatePinning);
 
                 responseBodyStream.Position = 0;
                 using (TextReader reader = new StreamReader(responseBodyStream, Encoding.UTF8))
@@ -1245,32 +1224,6 @@ namespace RemoteDriveAuth
                     tokensJSON = reader.ReadToEnd();
                 }
             }
-#if false
-            HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(authService.TokenExchangeProviderUrl);
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            using (Stream requestStream = request.GetRequestStream())
-            {
-                using (TextWriter requestWriter = new StreamWriter(requestStream, Encoding.ASCII))
-                {
-                    string message = String.Format("client_id={0}&client_secret={1}&code={2}&grant_type=authorization_code&redirect_uri={3}", clientIdentity.ClientId, clientIdentity.ClientSecret, authorizationCode, authService.AuthorizedRedirectUrl);
-                    requestWriter.Write(message);
-                }
-            }
-            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-            {
-                HttpStatusCode responseCode = response.StatusCode;
-                Uri responseUri = response.ResponseUri;
-
-                using (Stream stream = response.GetResponseStream())
-                {
-                    using (TextReader reader = new StreamReader(stream))
-                    {
-                        tokensJSON = reader.ReadToEnd();
-                    }
-                }
-            }
-#endif
         }
 
         private static void GetTokensByRefresh(OAuth20RemoteService authService, ClientIdentities.ClientIdentity clientIdentity, string refreshToken, out string tokensJSON, IPAddress socks5Address, int socks5Port)
@@ -1297,7 +1250,8 @@ namespace RemoteDriveAuth
                     "application/x-www-form-urlencoded",
                     responseBodyStream,
                     socks5Address,
-                    socks5Port);
+                    socks5Port,
+                    authService.CertificatePinning);
 
                 responseBodyStream.Position = 0;
                 using (TextReader reader = new StreamReader(responseBodyStream, Encoding.UTF8))
@@ -1305,87 +1259,7 @@ namespace RemoteDriveAuth
                     tokensJSON = reader.ReadToEnd();
                 }
             }
-#if false
-            HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(authService.TokenExchangeProviderUrl);
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            using (Stream requestStream = request.GetRequestStream())
-            {
-                using (TextWriter requestWriter = new StreamWriter(requestStream, Encoding.ASCII))
-                {
-                    string message = String.Format("client_id={0}&client_secret={1}&grant_type=refresh_token&refresh_token={2}", clientIdentity.ClientId, clientIdentity.ClientSecret, refreshToken);
-                    requestWriter.Write(message);
-                }
-            }
-            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-            {
-                HttpStatusCode responseCode = response.StatusCode;
-                Uri responseUri = response.ResponseUri;
-
-                using (Stream stream = response.GetResponseStream())
-                {
-                    using (TextReader reader = new StreamReader(stream))
-                    {
-                        tokensJSON = reader.ReadToEnd();
-                    }
-                }
-            }
-#endif
         }
-
-#if false
-        // Certificate pinning pre-registers the public key of well-known services and requires
-        // an actual TLS connection to present a validated certificate using the same public key,
-        // as proof that the service has the correct private key. This defeats certain MITM
-        // attacks mounted by, e.g. corrupt/inept CAs.
-        // https://www.owasp.org/index.php/Certificate_and_Public_Key_Pinning
-        // also,
-        // TODO: monitor RFC for acceptance and adopt for servers that begin supporting it
-        // (so far: http://tools.ietf.org/html/draft-ietf-websec-key-pinning-21)
-        static class CertificatePinning
-        {
-            // TODO:
-            // WARNING: this class only provides certificate pinning checks for HttpWebRequests.
-            // The hosted WebBrowser control does not expose hooks for checking the certificate,
-            // so it may be vulnerable to attack.
-
-            private static bool PinPublicKey(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
-            {
-                HttpWebRequest httpWebRequest = (HttpWebRequest)sender;
-                string host = httpWebRequest.RequestUri.Host;
-
-                if (certificate == null)
-                {
-                    return false;
-                }
-
-                string publicKey = certificate.GetPublicKeyString();
-                foreach (OAuth20RemoteService service in new Services())
-                {
-                    foreach (KeyValuePair<string, string[]> candidate in service.GetPinnedPublicKeys)
-                    {
-                        if (candidate.Key.StartsWith("*.") ? host.EndsWith("." + candidate.Key.Substring(2)) : host.Equals(candidate.Key))
-                        {
-                            foreach (string candidateKey in candidate.Value)
-                            {
-                                if (String.Equals(publicKey, candidateKey))
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return false;
-            }
-
-            public static void Setup()
-            {
-                ServicePointManager.ServerCertificateValidationCallback = PinPublicKey;
-            }
-        }
-#endif
 
         const string LocalApplicationDirectoryName = "Backup-RemoteDriveAuth";
         static string GetLocalAppDataPath(bool create, bool roaming)
@@ -1407,14 +1281,6 @@ namespace RemoteDriveAuth
         static void Main(string[] args)
         {
             Environment.ExitCode = 1;
-
-#if false
-            const bool EnableCertificatePinning = false;
-            if (EnableCertificatePinning)
-            {
-                CertificatePinning.Setup();
-            }
-#endif
 
             if ((args.Length > 0) && args[0].Equals("-waitdebugger"))
             {
@@ -1622,6 +1488,13 @@ namespace RemoteDriveAuth
                     }
 
 
+                    // register certificate pinning validation for service point, in case HttpWebRequest is used.
+                    if (authService.CertificatePinning != null)
+                    {
+                        ServicePointManager.ServerCertificateValidationCallback = new HttpMethods.CertificatePinningDelegate(authService.CertificatePinning, null/*trace*/).RemoteCertificateValidationCallback;
+                    }
+
+
                     ClientIdentities.ClientIdentity clientIdentity = clientIdentities.GetClientIdentity(remoteService);
                     if (clientIdentity == null)
                     {
@@ -1756,32 +1629,6 @@ namespace RemoteDriveAuth
                     }
                 }
             }
-#if false
-            catch (WebException exception)
-            {
-                Console.Error.WriteLine(exception);
-                if (exception.Status != WebExceptionStatus.ProtocolError)
-                {
-                    Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
-                }
-                else if (exception.Status == WebExceptionStatus.ProtocolError)
-                {
-                    WebResponse response = exception.Response;
-                    if (response != null)
-                    {
-                        HttpWebResponse httpWebResponse;
-                        if ((httpWebResponse = response as HttpWebResponse) != null)
-                        {
-                            if ((httpWebResponse.StatusCode >= (HttpStatusCode)500)
-                                && (httpWebResponse.StatusCode < (HttpStatusCode)599))
-                            {
-                                Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
-                            }
-                        }
-                    }
-                }
-            }
-#endif
             catch (Exception exception)
             {
                 Console.Error.WriteLine(exception);

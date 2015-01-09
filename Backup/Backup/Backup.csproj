@@ -49,6 +49,8 @@
     <Compile Include="Keccak\IMemoable.cs" />
     <Compile Include="Keccak\Keccak.cs" />
     <Compile Include="Keccak\SHA3Digest.cs" />
+    <Compile Include="CertificatePinning-Google.cs" />
+    <Compile Include="CertificatePinning.cs" />
     <Compile Include="ParseJSON.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ProtectedDataStorage.cs" />

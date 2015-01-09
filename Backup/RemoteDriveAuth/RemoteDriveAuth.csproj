@@ -43,6 +43,8 @@
     <Compile Include="..\Backup\HexUtility.cs" />
     <Compile Include="..\Backup\Http.cs" />
     <Compile Include="..\Backup\Diagnostics.cs" />
+    <Compile Include="..\Backup\CertificatePinning-Google.cs" />
+    <Compile Include="..\Backup\CertificatePinning.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

@@ -6041,10 +6041,7 @@ namespace Backup
                 // ensure SHA2-512 hash array is correct length
                 if ((digest != null) && (digest.Length != 512 / 8))
                 {
-#if false // enable later - after old legacy archives are gone
                     throw new InvalidOperationException();
-#endif
-                    digest = null;
                 }
             }
 
@@ -6162,10 +6159,7 @@ namespace Backup
                 {
                     if ((value != null) && (value.Length != 512 / 8))
                     {
-#if false // enable later - after old legacy archives are gone
                         throw new ArgumentException();
-#endif
-                        value = null;
                     }
                     digest = value;
                 }
