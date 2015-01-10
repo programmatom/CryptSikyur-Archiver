@@ -8609,7 +8609,7 @@ namespace Backup
                     }
 
                     // main merge occurs here
-                    using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, TextWriter.Synchronized(traceDynpack)))
+                    using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, traceDynpack != null ? TextWriter.Synchronized(traceDynpack) : null))
                     {
                         iCurrent = 0;
                         iPrevious = 0;
