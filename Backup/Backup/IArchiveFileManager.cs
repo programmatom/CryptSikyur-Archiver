@@ -220,7 +220,7 @@ namespace Backup
             {
                 throw new InvalidOperationException();
             }
-            return new FileStream(localFilePath, FileMode.Open, FileAccess.Write, FileShare.Read);
+            return new FileStream(localFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
         }
 
         public Stream ReadWrite()
