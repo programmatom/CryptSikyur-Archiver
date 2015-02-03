@@ -33,6 +33,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 
 using Diagnostics;
 
@@ -615,6 +616,14 @@ namespace Http
                             {
                                 lastReceive.Reset();
                                 lastReceive.Start();
+                            }
+                            else
+                            {
+                                if (lastReceive.ElapsedMilliseconds > socketStream.ReadTimeout)
+                                {
+                                    return WebExceptionStatus.Timeout;
+                                }
+                                Thread.Sleep(100);
                             }
                             if (settings.NetworkThrottle != null)
                             {
