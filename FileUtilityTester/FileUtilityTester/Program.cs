@@ -78,13 +78,14 @@ namespace FileUtilityTester
             int lastExitCode = 0;
             string lastOutput = null;
             string skipToModule = null;
-            string defaultDateFormat = "s";
+            const string InitialDefaultDateFormat = "s"; // sortable datetime format: yyyy-MM-ddTHH:mm:ss
+            string defaultDateFormat = InitialDefaultDateFormat;
             bool failPause = false;
             int? commandTimeoutSeconds = null;
             Dictionary<string, Stream> openFiles = new Dictionary<string, Stream>();
 
             now = resetNow;
-            variables["DATE"] = now.ToString("s");
+            variables["DATE"] = now.ToString(InitialDefaultDateFormat);
 
             int lineNumber = 0;
             //try
@@ -150,7 +151,7 @@ namespace FileUtilityTester
                             PrepareWorkspace(); // delete temp files
 
                             now = resetNow;
-                            variables["DATE"] = now.ToString("s");
+                            variables["DATE"] = now.ToString(InitialDefaultDateFormat);
                             break;
 
                         case "module":
@@ -418,7 +419,7 @@ namespace FileUtilityTester
                                     throw new ApplicationException();
                                 }
                                 now = now.Add(TimeSpan.Parse(args[1]));
-                                variables["DATE"] = now.ToString("s");
+                                variables["DATE"] = now.ToString(InitialDefaultDateFormat);
                             }
                             else if (args[0] == "-")
                             {
@@ -427,7 +428,7 @@ namespace FileUtilityTester
                                     throw new ApplicationException();
                                 }
                                 now = now.Subtract(TimeSpan.Parse(args[1]));
-                                variables["DATE"] = now.ToString("s");
+                                variables["DATE"] = now.ToString(InitialDefaultDateFormat);
                             }
                             else
                             {
@@ -436,7 +437,7 @@ namespace FileUtilityTester
                                     throw new ApplicationException();
                                 }
                                 now = DateTime.Parse(args[0]);
-                                variables["DATE"] = now.ToString("s");
+                                variables["DATE"] = now.ToString(InitialDefaultDateFormat);
                             }
                             break;
 
@@ -1525,7 +1526,7 @@ namespace FileUtilityTester
             output = null;
 
             StringBuilder output2 = new StringBuilder();
-            using (StringWriter outputWriter = new StringWriter(output2))
+            using (TextWriter outputWriter = TextWriter.Synchronized(new StringWriter(output2)))
             {
                 using (Process cmd = new Process())
                 {
