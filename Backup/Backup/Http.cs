@@ -72,6 +72,7 @@ namespace Http
     public interface INetworkThrottle
     {
         void WaitBytes(int count);
+        bool SmallBuffers { get; }
     }
 
     public interface IProgressTracker
@@ -86,8 +87,6 @@ namespace Http
 
         public ICertificatePinning CertificatePinning;
 
-        public INetworkThrottle NetworkThrottle;
-
         public int? SendTimeout; // milliseconds; 0 or -1 is infinite
         public int? ReceiveTimeout; // milliseconds; 0 or -1 is infinite
 
@@ -96,17 +95,85 @@ namespace Http
 
         public bool AutoRedirect = true;
 
-        public HttpSettings(bool enableResumableUploads, int? maxBytesPerWebRequest, ICertificatePinning certificatePinning, INetworkThrottle networkThrottle, int? sendTimeout, int? receiveTimeout, bool autoRedirect, IPAddress socks5Address, int socks5Port)
+        public HttpSettings(bool enableResumableUploads, int? maxBytesPerWebRequest, ICertificatePinning certificatePinning, int? sendTimeout, int? receiveTimeout, bool autoRedirect, IPAddress socks5Address, int socks5Port)
         {
             this.EnableResumableUploads = enableResumableUploads;
             this.MaxBytesPerWebRequest = maxBytesPerWebRequest;
             this.CertificatePinning = certificatePinning;
-            this.NetworkThrottle = networkThrottle;
             this.SendTimeout = sendTimeout;
             this.ReceiveTimeout = receiveTimeout;
             this.AutoRedirect = autoRedirect;
             this.Socks5Address = socks5Address;
             this.Socks5Port = socks5Port;
+        }
+    }
+
+    public static class HttpGlobalControl
+    {
+        public static INetworkThrottle NetworkThrottle = new NullNetworkThrottle();
+
+        public class NullNetworkThrottle : INetworkThrottle
+        {
+            public void WaitBytes(int count)
+            {
+            }
+
+            public bool SmallBuffers
+            {
+                get
+                {
+                    return false;
+                }
+            }
+        }
+
+        public class ActiveNetworkThrottle : INetworkThrottle
+        {
+            public const int MinApproximateBytesPerSecond = 100;
+            private int approximateBytesPerSecond;
+
+            public ActiveNetworkThrottle(int approximateBytesPerSecond)
+            {
+                if (approximateBytesPerSecond < MinApproximateBytesPerSecond)
+                {
+                    throw new ArgumentException();
+                }
+                this.approximateBytesPerSecond = approximateBytesPerSecond;
+            }
+
+            public void WaitBytes(int count)
+            {
+                lock (this)
+                {
+                    long milliseconds = (1000L * count) / approximateBytesPerSecond;
+                    Thread.Sleep((int)milliseconds);
+                }
+            }
+
+            public bool SmallBuffers
+            {
+                get
+                {
+                    return approximateBytesPerSecond < 2 * Constants.BufferSize;
+                }
+            }
+        }
+
+        public static void SetThrottle(int approximateBytesPerSecond)
+        {
+            if (approximateBytesPerSecond == 0)
+            {
+                NetworkThrottle = new NullNetworkThrottle();
+            }
+            else
+            {
+                NetworkThrottle = new ActiveNetworkThrottle(approximateBytesPerSecond);
+            }
+        }
+
+        public static void ThrottleOff()
+        {
+            SetThrottle(0);
         }
     }
 
@@ -244,9 +311,9 @@ namespace Http
             return sb.ToString();
         }
 
-        private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
+        private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, long requestContentLength, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
         {
-            byte[] buffer = new byte[Constants.BufferSize];
+            byte[] buffer = new byte[!HttpGlobalControl.NetworkThrottle.SmallBuffers ? Constants.BufferSize : 4096];
 
             bool useTLS = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
 
@@ -372,9 +439,9 @@ namespace Http
                         // write request header
 
                         socketStream.Write(requestHeaderBytes, 0, requestHeaderBytes.Length);
-                        if (settings.NetworkThrottle != null)
+                        if (HttpGlobalControl.NetworkThrottle != null)
                         {
-                            settings.NetworkThrottle.WaitBytes(requestHeaderBytes.Length);
+                            HttpGlobalControl.NetworkThrottle.WaitBytes(requestHeaderBytes.Length);
                         }
 
                         // wait for 100-continue if two-stage request in use
@@ -432,17 +499,19 @@ namespace Http
 
                         if (requestBodySource != null)
                         {
+                            long requestBytesRemaining = requestContentLength;
                             long requestBytesSent = 0;
                             int read;
-                            while ((read = requestBodySource.Read(buffer, 0, buffer.Length)) != 0)
+                            while ((read = requestBodySource.Read(buffer, 0, (int)Math.Min(buffer.Length, requestBytesRemaining))) != 0)
                             {
-                                if (settings.NetworkThrottle != null)
+                                if (HttpGlobalControl.NetworkThrottle != null)
                                 {
-                                    settings.NetworkThrottle.WaitBytes(read);
+                                    HttpGlobalControl.NetworkThrottle.WaitBytes(read);
                                 }
 
                                 socketStream.Write(buffer, 0, read);
                                 requestBytesSent += read;
+                                requestBytesRemaining -= read;
 
                                 if (progressTrackerUpload != null)
                                 {
@@ -548,9 +617,9 @@ namespace Http
                             {
                                 approximateResponseHeadersBytes += header.Length + Environment.NewLine.Length;
                             }
-                            if (settings.NetworkThrottle != null)
+                            if (HttpGlobalControl.NetworkThrottle != null)
                             {
-                                settings.NetworkThrottle.WaitBytes(approximateResponseHeadersBytes);
+                                HttpGlobalControl.NetworkThrottle.WaitBytes(approximateResponseHeadersBytes);
                             }
                         }
 
@@ -625,9 +694,9 @@ namespace Http
                                 }
                                 Thread.Sleep(100);
                             }
-                            if (settings.NetworkThrottle != null)
+                            if (HttpGlobalControl.NetworkThrottle != null)
                             {
-                                settings.NetworkThrottle.WaitBytes(read);
+                                HttpGlobalControl.NetworkThrottle.WaitBytes(read);
                             }
                             responseBodyDestination.Write(buffer, 0, read);
                             chunkRemaining -= read;
@@ -720,7 +789,7 @@ namespace Http
             }
         }
 
-        private static readonly string[] ForbiddenHeaders = new string[] { "Accept-Encoding", "Content-Length", "Expect", "Connection" };
+        private static readonly string[] ForbiddenHeaders = new string[] { "Accept-Encoding", /*"Content-Length",*/ "Expect", "Connection" };
 
         public static bool IsHeaderForbidden(string header)
         {
@@ -748,10 +817,23 @@ namespace Http
             const int MaxRedirects = 15;
             finalUrl = null;
 
+            long requestContentLength;
+            {
+                int contentLengthRequestHeaderIndex = Array.FindIndex(requestHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length", StringComparison.OrdinalIgnoreCase); });
+                if (contentLengthRequestHeaderIndex >= 0)
+                {
+                    requestContentLength = Int64.Parse(requestHeaders[contentLengthRequestHeaderIndex].Value);
+                }
+                else
+                {
+                    requestContentLength = requestBodySource != null ? requestBodySource.Length - requestBodySource.Position : 0;
+                }
+            }
+
             // Use "Expect: 100-continue" method if larger than this - gives remote server a chance
             // to reject request if Content-Length is exceeds service's max file size.
-            const int MaxOneStagePutBodyLength = 5 * 1024 * 1024;
-            bool twoStageRequest = String.Equals(verb, "PUT") && (requestBodySource != null) && (requestBodySource.Length > MaxOneStagePutBodyLength);
+            const int MaxOneStagePutBodyLength = 20 * 1024 * 1024; // ensure larger than Microsoft OneDrive upload chunk size - Microsoft doesn't work well with this option
+            bool twoStageRequest = String.Equals(verb, "PUT") && (requestContentLength > MaxOneStagePutBodyLength);
 
         Restart:
             if (!uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
@@ -782,8 +864,12 @@ namespace Http
                         WriteHeader(header.Key, header.Value, writer, trace);
                     }
                     WriteHeader("Accept-Encoding", "gzip, deflate", writer, trace);
-                    // Is there any harm in always writing Content-Length header?
-                    WriteHeader("Content-Length", ((requestBodySource != null) && (requestBodySource.Length > requestBodySource.Position) ? requestBodySource.Length - requestBodySource.Position : 0).ToString(), writer, trace);
+                    // If caller hasn't provided Content-Length, generate it here using basic assumptions
+                    if (Array.FindIndex(requestHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Length", StringComparison.OrdinalIgnoreCase); }) < 0)
+                    {
+                        // Is there any harm in always writing Content-Length header?
+                        WriteHeader("Content-Length", ((requestBodySource != null) && (requestBodySource.Length > requestBodySource.Position) ? requestBodySource.Length - requestBodySource.Position : 0).ToString(), writer, trace);
+                    }
                     if (twoStageRequest)
                     {
                         WriteHeader("Expect", "100-continue", writer, trace);
@@ -810,6 +896,7 @@ namespace Http
                     twoStageRequest,
                     requestHeaderBytes,
                     requestBodySource,
+                    requestContentLength,
                     out httpStatus,
                     out responseHeadersLines,
                     responseBodyDestination,

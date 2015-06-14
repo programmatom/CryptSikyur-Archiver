@@ -9966,6 +9966,23 @@ namespace Backup
 
                             if (Interactive())
                             {
+#if true
+                                while (Console.KeyAvailable)
+                                {
+                                    ConsoleKeyInfo key = Console.ReadKey(true/*intercept*/);
+                                    if (key.Key == ConsoleKey.T)
+                                    {
+                                        Console.Write("Network throttle (bytes per second): ");
+                                        string s = Console.ReadLine();
+                                        int i;
+                                        if (Int32.TryParse(s, out i) && ((i == 0) || (i >= Http.HttpGlobalControl.ActiveNetworkThrottle.MinApproximateBytesPerSecond)))
+                                        {
+                                            Http.HttpGlobalControl.SetThrottle(i);
+                                        }
+                                    }
+                                }
+#endif
+
                                 if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
                                 {
                                     lock (progressTrackers)
@@ -12615,7 +12632,7 @@ namespace Backup
                             throw new UsageException();
                         }
                         int approximateBytesPerSecond = Int32.Parse(args[i]);
-                        WebMethodsBase.SetThrottle(approximateBytesPerSecond);
+                        Http.HttpGlobalControl.SetThrottle(approximateBytesPerSecond);
                     }
                     else if (args[i] == "-maxretries")
                     {

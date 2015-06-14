@@ -158,12 +158,21 @@ namespace JSON
                 }
                 else if (result.Value is object[])
                 {
-                    JSONDictionary[] array = new JSONDictionary[((object[])result.Value).Length];
-                    for (int i = 0; i < array.Length; i++)
+                    // HACKHACK/TODO: should be better way to disambiguate simple array value vs sub-object
+                    try
                     {
-                        array[i] = new JSONDictionary((KeyValuePair<string, object>[])((object[])result.Value)[i]);
+                        JSONDictionary[] array = new JSONDictionary[((object[])result.Value).Length];
+                        for (int i = 0; i < array.Length; i++)
+                        {
+                            array[i] = new JSONDictionary((KeyValuePair<string, object>[])((object[])result.Value)[i]);
+                        }
+                        result = new KeyValuePair<string, object>(result.Key, array);
                     }
-                    result = new KeyValuePair<string, object>(result.Key, array);
+                    catch (InvalidCastException)
+                    {
+                        object[] array = (object[])result.Value;
+                        result = new KeyValuePair<string, object>(result.Key, array);
+                    }
                 }
                 return result;
             }

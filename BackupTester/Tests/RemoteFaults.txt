@@ -534,3 +534,6 @@ call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del re
 test cleanup remote file
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
 exitcode-verify 0
+
+
+# TODO: Microsoft resumable upload

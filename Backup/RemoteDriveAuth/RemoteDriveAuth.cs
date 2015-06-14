@@ -1167,7 +1167,7 @@ namespace RemoteDriveAuth
             }
             KeyValuePair<string, string>[] responseHeaders;
             const int TimeoutSeconds = 30;
-            HttpSettings settings = new HttpSettings(false, null, certificatePinning, null, TimeoutSeconds * 1000, TimeoutSeconds * 1000, true/*autoRedirect*/, socks5Address, socks5Port);
+            HttpSettings settings = new HttpSettings(false, null, certificatePinning, TimeoutSeconds * 1000, TimeoutSeconds * 1000, true/*autoRedirect*/, socks5Address, socks5Port);
             HttpStatusCode httpStatus;
             string finalUrl;
             WebExceptionStatus result = HttpMethods.SocketHttpRequest(

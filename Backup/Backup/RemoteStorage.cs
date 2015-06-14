@@ -512,7 +512,6 @@ namespace Backup
         protected readonly ICertificatePinning certificatePinning;
 
         private static RateLimitHelper rateLimitHelper = new RateLimitHelper();
-        private static INetworkThrottle networkThrottle = new NetworkThrottle(); // not changeable after creation
 
         private WebMethodsBase()
         {
@@ -528,63 +527,11 @@ namespace Backup
                 enableResumableUploads,
                 MaxBytesPerWebRequest,
                 certificatePinning,
-                networkThrottle,
                 SendTimeout,
                 ReceiveTimeout,
                 true/*autoRedirect*/,
                 socks5Address,
                 socks5Port);
-        }
-
-
-        // Global controls
-
-        private class NetworkThrottle : INetworkThrottle
-        {
-            public void WaitBytes(int count)
-            {
-            }
-        }
-
-        private class ActiveNetworkThrottle : INetworkThrottle
-        {
-            private const int MinApproximateBytesPerSecond = 100;
-            private int approximateBytesPerSecond;
-
-            public ActiveNetworkThrottle(int approximateBytesPerSecond)
-            {
-                if (approximateBytesPerSecond < MinApproximateBytesPerSecond)
-                {
-                    throw new ArgumentException();
-                }
-                this.approximateBytesPerSecond = approximateBytesPerSecond;
-            }
-
-            public void WaitBytes(int count)
-            {
-                lock (this)
-                {
-                    long milliseconds = (1000L * count) / approximateBytesPerSecond;
-                    Thread.Sleep((int)milliseconds);
-                }
-            }
-        }
-
-        public static void SetThrottle(int approximateBytesPerSecond)
-        {
-            if (approximateBytesPerSecond == 0)
-            {
-                networkThrottle = new NetworkThrottle();
-            }
-            else
-            {
-                networkThrottle = new ActiveNetworkThrottle(approximateBytesPerSecond);
-            }
-        }
-
-        public static void ThrottleOff()
-        {
-            SetThrottle(0);
         }
 
 
@@ -599,7 +546,7 @@ namespace Backup
         // Throws exceptions for program defects and unrecoverable errors
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
         private static readonly string[] SupportedVerbs = new string[] { "GET", "PUT", "POST", "DELETE", "PATCH" };
-        private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", "Content-Length", "Accept-Encoding", "Expect", "Authorization" };
+        private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", /*"Content-Length",*/ "Accept-Encoding", "Expect", "Authorization" };
         protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (requestHeaders == null)
@@ -648,10 +595,12 @@ namespace Backup
                 long startPosition = Int64.Parse(parts[0]);
                 long endPositionInclusive = Int64.Parse(parts[1]);
                 long length = Int64.Parse(parts[2]);
+#if false // Not true for MSFT chunked uploads
                 if (length != endPositionInclusive + 1)
                 {
                     throw new InvalidOperationException();
                 }
+#endif
                 if ((startPosition != requestBodySource.Position)
                     || (length != requestBodySource.Length))
                 {
@@ -695,7 +644,7 @@ namespace Backup
             {
                 throw new ArgumentException();
             }
-            if (wantsResponseBody && ((verb != "GET") && (verb != "PUT") && (verb != "PATCH") && (verb != "DELETE")))
+            if (wantsResponseBody && ((verb != "GET") && (verb != "PUT") && (verb != "POST") && (verb != "PATCH") && (verb != "DELETE")))
             {
                 throw new ArgumentException(verb);
             }
@@ -966,13 +915,13 @@ namespace Backup
 
         protected bool DoWebActionPostJSONOnce(string url, string jsonRequestBody, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersExtraOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
         {
-            List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(requestHeaders);
+            List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(requestHeaders != null ? requestHeaders : new KeyValuePair<string, string>[0]);
             if (jsonRequestBody != null)
             {
                 requestHeadersExtra.Add(new KeyValuePair<string, string>("Content-Type", "application/json; charset=UTF-8"));
             }
 
-            using (Stream requestStream = new MemoryStream(Encoding.UTF8.GetBytes(jsonRequestBody)))
+            using (Stream requestStream = new MemoryStream(jsonRequestBody != null ? Encoding.UTF8.GetBytes(jsonRequestBody) : new byte[0]))
             {
                 return DoWebActionOnce(
                     url,
@@ -1022,7 +971,7 @@ namespace Backup
                         faultInstanceContext);
 
                     jsonResponseBody = null;
-                    if (responseHeadersExtra[0].Value == "application/json; charset=UTF-8")
+                    if (String.Equals(responseHeadersExtra[0].Value, "application/json; charset=UTF-8", StringComparison.OrdinalIgnoreCase)) // Google: UTF-8  Microsoft: utf-8
                     {
                         jsonResponseBody = Encoding.UTF8.GetString(responseStream.ToArray());
                     }
@@ -1235,6 +1184,11 @@ namespace Backup
             return new RemoteFileSystemEntry(id, name, type == "folder", DateTime.Parse(created_time), DateTime.Parse(updated_time), size);
         }
 
+#if true // HACKHACK
+        private string navigatedPath;
+#endif
+
+
         public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
@@ -1298,6 +1252,10 @@ namespace Backup
                 trace.WriteLine("+NavigateRemotePath(remotePath={0}, includeLast={1})", remotePath, includeLast);
             }
 
+#if true // HACKHACK
+            navigatedPath = remotePath;
+#endif
+
             if (!(String.IsNullOrEmpty(remotePath) || remotePath.StartsWith("/")))
             {
                 throw new ArgumentException();
@@ -1350,14 +1308,11 @@ namespace Backup
             }
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
+        private RemoteFileSystemEntry UploadFile_Simple(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
-            // TODO: figure out if there is support yet for resumable uploads on OneDrive Live
-            // API (doesn't appear so as of 2014-09-01).
-
             if (trace != null)
             {
-                trace.WriteLine("+UploadFile(folderId={0}, name={1})", folderId, remoteName);
+                trace.WriteLine("+UploadFile_Simple(folderId={0}, name={1})", folderId, remoteName);
             }
 
             if (progressTracker != null)
@@ -1395,7 +1350,7 @@ namespace Backup
                 {
                     if (trace != null)
                     {
-                        trace.WriteLine("-UploadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine("-UploadFile_Simple result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
 
                     if (httpStatusCode == (HttpStatusCode)413)
@@ -1430,10 +1385,424 @@ namespace Backup
 
             if (trace != null)
             {
-                trace.WriteLine("-UploadFile returns {0}", entry);
+                trace.WriteLine("-UploadFile_Simple returns {0}", entry);
                 trace.WriteLine();
             }
             return entry;
+        }
+
+#if true
+        // ensure smaller than MaxOneStagePutBodyLength in Http.cs - Microsoft doesn't work will with 100-continue method
+        private static readonly long ResumableUploadFragmentSize = 1024 * 1024 * 10; // recommended default of 10 megabytes (max of 60), per https://dev.onedrive.com/items/upload_large_files.htm
+#else
+        private static readonly long ResumableUploadFragmentSize = 0; // for debugging
+#endif
+        private RemoteFileSystemEntry UploadFile_Resumable(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
+        {
+            if (trace != null)
+            {
+                trace.WriteLine("+UploadFile_Resumable(folderId={0}, name={1})", folderId, remoteName);
+            }
+
+            if (progressTracker != null)
+            {
+                progressTracker.UpdateTotal(streamUploadFrom.Length);
+            }
+
+#if false
+            string accessTokenOverride = null;
+#endif
+            WebExceptionStatus webStatusCode = (WebExceptionStatus)0;
+            HttpStatusCode httpStatusCode = (HttpStatusCode)0;
+            bool result = false;
+
+            int startOver = -1;
+        StartOver:
+            // per documentation - 404 during resumable upload should be handled by starting over
+            startOver++;
+            if (trace != null)
+            {
+                trace.WriteLine(" entering StartOver region (startOver={0})", startOver);
+            }
+            if (startOver > RetryHelper.MaxRetries)
+            {
+                const string SurrenderMessage = "Upload failed to finish after max start-overs; giving up.";
+                if (trace != null)
+                {
+                    trace.WriteLine("-UploadFile_Resumable throws: {0}", SurrenderMessage);
+                }
+                throw new ApplicationException(SurrenderMessage);
+            }
+            else
+            {
+                RetryHelper.WaitExponentialBackoff(startOver, trace);
+            }
+
+#if false
+            if (httpStatusCode == (HttpStatusCode)401)
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine("Last http response was 401; asking to invalidating access token");
+                }
+                remoteAccessControl.InvalidateAccessToken(accessTokenOverride, trace);
+            }
+            if (trace != null)
+            {
+                trace.WriteLine("Acquiring access token (RemoteAccessControl.AccessToken)");
+            }
+            accessTokenOverride = remoteAccessControl.GetAccessToken(trace);
+            if (trace != null)
+            {
+                trace.WriteLine("Acquired access token (RemoteAccessControl.AccessToken): {0}", LogWriter.ScrubSecuritySensitiveValue(accessTokenOverride));
+            }
+#endif
+
+            streamUploadFrom.Position = 0;
+
+
+            // Create an upload session
+
+            string response;
+
+            string uploadUrl;
+
+            // https://dev.onedrive.com/items/upload_large_files.htm - resumable upload
+            // https://dev.onedrive.com/items/create.htm - Create item - see for @name.conflictBehavior
+            // https://dev.onedrive.com/misc/addressing.htm - Addressing resources - see for how paths and IDs work
+            // https://dev.onedrive.com/odata/optional-query-parameters.htm - Optional query parameters for selecting properties
+            // https://dev.onedrive.com/misc/path-encoding.htm - encoding paths
+            // POST /drive/root:/{path_to_item}:/upload.createSession
+            // POST /drive/items/{parent_item_id}:/{filename}:/upload.createSession
+            // without body
+            // NOTE: MSFT has changed the way items are referenced in the new "api.onedrive.com/v1.0" - old folderId doesn't work anymore
+            // items may have IDs but they appear to have completely changed. Otherwise, items may be referred to using
+            // conventional paths (be sure to url-encode weird characters).
+            {
+                string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}/{1}:/upload.createSession", navigatedPath/*TODO: encode*/, remoteName);
+                string message = String.Format("{{\"@name.conflictBehavior\":\"{0}\"}}", "replace");
+                new JSONDictionary(message); // sanity check message format
+                using (MemoryStream responseStream = new MemoryStream())
+                {
+                    result = DoWebActionPostJSONOnce(
+                        url,
+                        message/*requestBody*/,
+                        responseStream/*responseBodyDestination*/,
+                        null/*requestHeaders*/,
+                        null/*responseHeaders*/,
+                        out webStatusCode,
+                        out httpStatusCode,
+                        null/*accessTokenOverride*/,
+                        trace,
+                        faultInstanceContext.Select("UploadFile_Resumable", "1"));
+
+                    response = Encoding.UTF8.GetString(responseStream.ToArray());
+
+                    if (!result)
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" DoWebActionPostJSONOnce failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, response);
+                        }
+                        goto StartOver;
+                    }
+
+                    JSONDictionary json = new JSONDictionary(response);
+                    if (!json.TryGetValueAs("uploadUrl", out uploadUrl))
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" DoWebActionPostJSONOnce failed - response is missing uploadUrl: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                            trace.WriteLine(response);
+                        }
+                        goto StartOver;
+                    }
+
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" DoWebActionPostJSONOnce: uploadUrl={0}", uploadUrl);
+                    }
+                }
+            }
+
+            const int FragmentSizeMultiple = 340 * 1024; // must be multiple of 340 kilobytes, per https://dev.onedrive.com/items/upload_large_files.htm
+            bool resuming = false;
+            long previousLengthSoFar = 0;
+            int retry = -1;
+        Retry:
+            retry++;
+            if (trace != null)
+            {
+                trace.WriteLine(" entering Retry region (retry={0})", retry);
+            }
+            if (retry > RetryHelper.MaxRetries)
+            {
+                const string SurrenderMessage = "Upload failed to make progress after max retries; giving up.";
+                if (trace != null)
+                {
+                    trace.WriteLine("-UploadFile_Resumable throws: {0}", SurrenderMessage);
+                }
+                throw new ApplicationException(SurrenderMessage);
+            }
+            else
+            {
+                RetryHelper.WaitExponentialBackoff(retry, trace);
+            }
+
+            // TODO: implement detection of failure to make forward progress
+
+        NextFragment:
+            long fragmentSize = ResumableUploadFragmentSize;
+            if (resuming)
+            {
+                // Request upload status to find last successful byte
+                string url = uploadUrl;
+                result = DoWebActionJSON2JSONWithRetry(
+                    url,
+                    "GET",
+                    null/*requestBody*/,
+                    out response/*responseBodyDestination*/,
+                    out webStatusCode,
+                    out httpStatusCode,
+                    trace,
+                    faultInstanceContext.Select("UploadFile_Resumable", "2"));
+
+                if (!result)
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" DoWebActionJSON2JSONWithRetry GET failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, response);
+                    }
+                    if (webStatusCode == (WebExceptionStatus)404)
+                    {
+                        goto StartOver;
+                    }
+                    throw new ApplicationException("Upload failed"); // since DoWebActionJSON2JSONWithRetry retried, abort with error to caller
+                }
+
+                JSONDictionary json = new JSONDictionary(response);
+                object[] nextExpectedRanges;
+                if (!json.TryGetValueAs("nextExpectedRanges", out nextExpectedRanges))
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" DoWebActionJSON2JSONWithRetry failed - response is missing nextExpectedRanges: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine(response);
+                    }
+                    goto StartOver;
+                }
+                if ((nextExpectedRanges.Length != 1) || !(nextExpectedRanges[0] is string))
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" DoWebActionJSON2JSONWithRetry number of ranges from server should be 1");
+                    }
+                    throw new InvalidOperationException();
+                }
+                string[] parts = ((string)nextExpectedRanges[0]).Split('-');
+                if (parts.Length != 2)
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" DoWebActionJSON2JSONWithRetry invalid range format returned from server");
+                    }
+                    throw new InvalidOperationException();
+                }
+                previousLengthSoFar = Int64.Parse(parts[0]);
+
+                if (trace != null)
+                {
+                    trace.WriteLine(" DoWebActionJSON2JSONWithRetry: next expected position at {0}", previousLengthSoFar);
+                }
+
+                resuming = false;
+            }
+            streamUploadFrom.Seek(previousLengthSoFar, SeekOrigin.Begin);
+            fragmentSize = (fragmentSize / FragmentSizeMultiple) * FragmentSizeMultiple;
+            fragmentSize = Math.Max(fragmentSize, FragmentSizeMultiple);
+            fragmentSize = Math.Min(fragmentSize, streamUploadFrom.Length - streamUploadFrom.Position);
+
+            if (fragmentSize > 0)
+            {
+                using (MemoryStream responseStream = new MemoryStream())
+                {
+                    string url = uploadUrl;
+                    KeyValuePair<string, string>[] requestHeaders = new KeyValuePair<string, string>[]
+                    {
+                        new KeyValuePair<string, string>("Content-Range", String.Format("bytes {0}-{1}/{2}", streamUploadFrom.Position, streamUploadFrom.Position+fragmentSize - 1, streamUploadFrom.Length)),
+                        new KeyValuePair<string, string>("Content-Length", String.Format("{0}", fragmentSize)),
+                    };
+                    result = DoWebActionOnce(
+                        url,
+                        "PUT",
+                        streamUploadFrom,
+                        responseStream,
+                        requestHeaders,
+                        null/*responseHeaders*/,
+                        out webStatusCode,
+                        out httpStatusCode,
+                        progressTracker/*progressTrackerUpload*/,
+                        null/*progressTrackerDownload*/,
+                        null/*accessTokenOverride*/,
+                        trace,
+                        faultInstanceContext.Select("UploadFile_Resumable", "3"));
+
+                    response = Encoding.UTF8.GetString(responseStream.ToArray());
+
+                    if (!result)
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" DoWebActionOnce PUT failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, response);
+                        }
+                    }
+
+                    if ((httpStatusCode == (HttpStatusCode)0) || ((httpStatusCode >= (HttpStatusCode)500) && (httpStatusCode <= (HttpStatusCode)599)))
+                    {
+                        resuming = true;
+                        goto Retry;
+                    }
+                    if ((httpStatusCode >= (HttpStatusCode)400) && (httpStatusCode <= (HttpStatusCode)499))
+                    {
+                        goto StartOver;
+                    }
+
+                    if ((httpStatusCode == (HttpStatusCode)200) || (httpStatusCode == (HttpStatusCode)201) || (httpStatusCode == (HttpStatusCode)202))
+                    {
+                        previousLengthSoFar += fragmentSize;
+                    }
+
+                    retry = -1; // progress was made
+                }
+
+                if (previousLengthSoFar < streamUploadFrom.Length)
+                {
+                    goto NextFragment;
+                }
+            }
+            else
+            {
+                // Final upload succeeded but response to client failed - re-commit to re-obtain metadata
+
+                // BUGBUG: this only works if there was an expected server error (e.g. name conflict or quota
+                // exceeded). If the upload succeeded but the response didn't reach the client, the session is
+                // removed by the server and the whole process must be done over.
+
+                using (MemoryStream responseStream = new MemoryStream())
+                {
+                    string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}/{1}:/upload.createSession", navigatedPath/*TODO: encode*/, remoteName);
+                    string message = String.Format("{{\"name\":\"{0}\",\"description\":\"\",\"@name.conflictBehavior\":\"replace\",\"@content.sourceUrl\":\"{1}\"}}", remoteName, uploadUrl);
+                    new JSONDictionary(message); // sanity check message format
+                    result = DoWebActionJSON2JSONWithRetry(
+                        url,
+                        "PUT",
+                        message/*requestBody*/,
+                        out response/*responseBody*/,
+                        out webStatusCode,
+                        out httpStatusCode,
+                        trace,
+                        faultInstanceContext.Select("UploadFile_Resumable", "4"));
+
+                    response = Encoding.UTF8.GetString(responseStream.ToArray());
+
+                    if (!result)
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" DoWebActionJSON2JSONWithRetry GET failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, response);
+                        }
+                        if (webStatusCode == (WebExceptionStatus)404)
+                        {
+                            goto StartOver;
+                        }
+                        throw new ApplicationException("Upload failed"); // since DoWebActionJSON2JSONWithRetry retried, abort with error to caller
+                    }
+                }
+            }
+
+            if (trace != null)
+            {
+                trace.WriteLine(" entering post-processing region");
+            }
+
+            JSONDictionary metadata = new JSONDictionary(response);
+            RemoteFileSystemEntry entry;
+#if false
+            entry = FileSystemEntryFromJSON(metadata); // old live API format - doesn't work here
+#else
+            {
+                string id, name, createdDateTime, lastModifiedDateTime;
+                long size;
+                if (!metadata.TryGetValueAs("id", out id)
+                    || !metadata.TryGetValueAs("name", out name)
+                    || !metadata.TryGetValueAs("createdDateTime", out createdDateTime)
+                    || !metadata.TryGetValueAs("lastModifiedDateTime", out lastModifiedDateTime)
+                    || !metadata.TryGetValueAs("size", out size))
+                {
+                    throw new InvalidDataException();
+                }
+                id = String.Concat("file.", id.Substring(0, id.IndexOf('!')), ".", id); // reconstruct old id format
+                entry = new RemoteFileSystemEntry(id, name, false/*folder*/, DateTime.Parse(createdDateTime), DateTime.Parse(lastModifiedDateTime), size);
+            }
+#endif
+            Debug.Assert(entry.Name == remoteName); // if fails then TODO handle remote auto name adjustment
+
+            {
+                JSONDictionary fileJSON;
+                JSONDictionary hashesJSON;
+                string sha1Hash;
+                if (metadata.TryGetValueAs("file", out fileJSON)
+                    && fileJSON.TryGetValueAs("hashes", out hashesJSON)
+                    && hashesJSON.TryGetValueAs("sha1Hash", out sha1Hash))
+                {
+                    streamUploadFrom.Position = 0;
+                    HashAlgorithm sha1 = SHA1.Create();
+                    byte[] sha1ChecksumLocal = sha1.ComputeHash(streamUploadFrom);
+                    if (Core.ArrayEqual(sha1ChecksumLocal, HexUtility.HexDecode(sha1Hash)))
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" Uploaded sha1 hash ok");
+                        }
+                    }
+                    else
+                    {
+                        string error = String.Format("UploadFile_Resumable sha1 checksum does not match (name={0}, remote={1}, local={1})", remoteName, sha1Hash, HexUtility.HexEncode(sha1ChecksumLocal));
+                        if (trace != null)
+                        {
+                            trace.WriteLine("-UploadFile_Resumable throw {0}", error);
+                            trace.WriteLine();
+                        }
+                        throw new InvalidDataException(error);
+                    }
+                }
+                else
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" Server did not provide uploaded sha1 hash!!! Skipping verification!!!");
+                    }
+                }
+            }
+
+            if (trace != null)
+            {
+                trace.WriteLine("-UploadFile_Resumable returns {0}", entry);
+                trace.WriteLine();
+            }
+            return entry;
+        }
+
+        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
+        {
+            if (streamUploadFrom.Length <= ResumableUploadFragmentSize)
+            {
+                return UploadFile_Simple(folderId, remoteName, streamUploadFrom, progressTracker, trace, faultInstanceContext);
+            }
+            else
+            {
+                return UploadFile_Resumable(folderId, remoteName, streamUploadFrom, progressTracker, trace, faultInstanceContext);
+            }
         }
 
         private RemoteFileSystemEntry GetFileMetadata(string fileId, TextWriter trace, IFaultInstance faultInstanceContext)
@@ -2289,22 +2658,38 @@ namespace Backup
             RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
             Debug.Assert(entry.Name == remoteName); // if fails then TODO handle remote auto name adjustment
 
-            string md5Checksum;
-            metadata.TryGetValueAs("md5Checksum", out md5Checksum);
-            if (md5Checksum != null)
             {
-                streamUploadFrom.Position = 0;
-                HashAlgorithm md5 = MD5.Create();
-                byte[] md5ChecksumLocal = md5.ComputeHash(streamUploadFrom);
-                if (!Core.ArrayEqual(md5ChecksumLocal, HexUtility.HexDecode(md5Checksum)))
+                string md5Checksum;
+                metadata.TryGetValueAs("md5Checksum", out md5Checksum);
+                if (md5Checksum != null)
                 {
-                    string error = String.Format("UploadFile md5 checksum does not match (name={0}, remote={1}, local={1})", remoteName, md5Checksum, HexUtility.HexEncode(md5ChecksumLocal));
+                    streamUploadFrom.Position = 0;
+                    HashAlgorithm md5 = MD5.Create();
+                    byte[] md5ChecksumLocal = md5.ComputeHash(streamUploadFrom);
+                    if (Core.ArrayEqual(md5ChecksumLocal, HexUtility.HexDecode(md5Checksum)))
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" Uploaded md5 hash ok");
+                        }
+                    }
+                    else
+                    {
+                        string error = String.Format("UploadFile md5 checksum does not match (name={0}, remote={1}, local={1})", remoteName, md5Checksum, HexUtility.HexEncode(md5ChecksumLocal));
+                        if (trace != null)
+                        {
+                            trace.WriteLine("-UploadFile throw {0}", error);
+                            trace.WriteLine();
+                        }
+                        throw new InvalidDataException(error);
+                    }
+                }
+                else
+                {
                     if (trace != null)
                     {
-                        trace.WriteLine("-UploadFile throw {0}", error);
-                        trace.WriteLine();
+                        trace.WriteLine(" Server did not provide uploaded md5 hash!!! Skipping verification!!!");
                     }
-                    throw new InvalidDataException(error);
                 }
             }
 
