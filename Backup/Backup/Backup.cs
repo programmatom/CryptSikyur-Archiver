@@ -7622,6 +7622,7 @@ namespace Backup
             internal int? start;
             private readonly int diagnosticSerialNumber = Interlocked.Increment(ref dynpackDiagnosticSerialNumberGenerator);
             private ulong serialNumber;
+            internal long estimatedDataLengthInformationalOnly; // for status display - not to be relied upon for correctness
 
             internal SegmentRecord()
             {
@@ -9223,6 +9224,18 @@ namespace Backup
                     }
                 }
 
+                // Compute segment size estimates
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    int start = segments[i].start.Value;
+                    int end = (i + 1 < segments.Count) ? segments[i + 1].start.Value : mergedFiles.Count;
+                    segments[i].estimatedDataLengthInformationalOnly = 0;
+                    for (int j = start; j < end; j++)
+                    {
+                        segments[i].estimatedDataLengthInformationalOnly += mergedFiles[j].EmbeddedStreamLength;
+                    }
+                }
+
                 // debug logging - callouts
                 if (traceDynpack != null)
                 {
@@ -9931,6 +9944,15 @@ namespace Backup
                             }
                         }
 
+                        long bytesRemaining = 0;
+                        foreach (SegmentRecord segment in segments)
+                        {
+                            if (segment.Dirty.Value)
+                            {
+                                Interlocked.Add(ref bytesRemaining, segment.estimatedDataLengthInformationalOnly);
+                            }
+                        }
+
 
                         List<ProgressTracker> progressTrackers = new List<ProgressTracker>(); // Use lock() on this!
                         int maxStatusLines = 0;
@@ -9970,7 +9992,7 @@ namespace Backup
                                 while (Console.KeyAvailable)
                                 {
                                     ConsoleKeyInfo key = Console.ReadKey(true/*intercept*/);
-                                    if (key.Key == ConsoleKey.T)
+                                    if (key.KeyChar == 't')
                                     {
                                         Console.Write("Network throttle (bytes per second): ");
                                         string s = Console.ReadLine();
@@ -10009,6 +10031,12 @@ namespace Backup
                                                 progress = "creating";
                                             }
                                             lines.Add(String.Format("  [{0}: {1}]", progressTracker.Tag, progress));
+                                        }
+
+                                        long m = Interlocked.Read(ref bytesRemaining);
+                                        if (m != 0)
+                                        {
+                                            lines.Add(String.Format("  {0} queued", FileSizeString(m)));
                                         }
 
                                         while (lines.Count < maxStatusLines)
@@ -10222,6 +10250,8 @@ namespace Backup
                                                                 }
                                                                 finally
                                                                 {
+                                                                    Interlocked.Add(ref bytesRemaining, -segment.estimatedDataLengthInformationalOnly);
+
                                                                     faultDynamicPackFileOperation.Select("Wrote", segmentTempFileName);
                                                                     if (!succeeded)
                                                                     {

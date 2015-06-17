@@ -1117,6 +1117,13 @@ namespace RemoteDriveAuth
     {
         internal static string ExtractAuthorizationCode(string query, string authCodeArg)
         {
+            // HACKHACK 2015-06-16 Google adding "Success " to content of title element
+            int space;
+            while ((space = query.IndexOf(' ')) >= 0)
+            {
+                query = query.Substring(space + 1);
+            }
+
             string[] args = query.Split(new char[] { '&' });
             foreach (string arg in args)
             {
