@@ -1552,7 +1552,9 @@ namespace Backup
             // TODO: implement detection of failure to make forward progress
 
         NextFragment:
-            long fragmentSize = ResumableUploadFragmentSize;
+            // create dispersion in fragmentSize to reduce parallel request synchronizing on fast
+            // networks with slow to respond remote servers
+            long fragmentSize = ResumableUploadFragmentSize + RetryHelper.ThreadsafeRandomNext((int)ResumableUploadFragmentSize / FragmentSizeMultiple) * FragmentSizeMultiple;
             if (resuming)
             {
                 // Request upload status to find last successful byte
