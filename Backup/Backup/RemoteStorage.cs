@@ -1468,7 +1468,7 @@ namespace Backup
             string uploadUrl;
 
             // https://dev.onedrive.com/items/upload_large_files.htm - resumable upload
-            // https://dev.onedrive.com/items/create.htm - Create item - see for @name.conflictBehavior
+            // https://dev.onedrive.com/items/create.htm - Create item - see for @name.conflictBehavior possible values
             // https://dev.onedrive.com/misc/addressing.htm - Addressing resources - see for how paths and IDs work
             // https://dev.onedrive.com/odata/optional-query-parameters.htm - Optional query parameters for selecting properties
             // https://dev.onedrive.com/misc/path-encoding.htm - encoding paths
@@ -1480,7 +1480,7 @@ namespace Backup
             // conventional paths (be sure to url-encode weird characters).
             {
                 string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}/{1}:/upload.createSession", navigatedPath/*TODO: encode*/, remoteName);
-                string message = String.Format("{{\"@name.conflictBehavior\":\"{0}\"}}", "replace");
+                string message = String.Format("{{\"item\":{{\"@name.conflictBehavior\":\"{0}\"}}}}", "replace");
                 new JSONDictionary(message); // sanity check message format
                 using (MemoryStream responseStream = new MemoryStream())
                 {
