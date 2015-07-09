@@ -110,7 +110,8 @@ namespace Http
 
     public static class HttpGlobalControl
     {
-        public static INetworkThrottle NetworkThrottle = new NullNetworkThrottle();
+        public static INetworkThrottle NetworkThrottleIn = new NullNetworkThrottle();
+        public static INetworkThrottle NetworkThrottleOut = new NullNetworkThrottle();
 
         public class NullNetworkThrottle : INetworkThrottle
         {
@@ -129,20 +130,21 @@ namespace Http
 
         public class ActiveNetworkThrottle : INetworkThrottle
         {
-            public const int MinApproximateBytesPerSecond = 100;
+            private const int MinApproximateBytesPerSecond = 4096;
             private int approximateBytesPerSecond;
 
             public ActiveNetworkThrottle(int approximateBytesPerSecond)
             {
-                if (approximateBytesPerSecond < MinApproximateBytesPerSecond)
+                if (approximateBytesPerSecond == 0)
                 {
                     throw new ArgumentException();
                 }
-                this.approximateBytesPerSecond = approximateBytesPerSecond;
+                this.approximateBytesPerSecond = Math.Max(approximateBytesPerSecond, MinApproximateBytesPerSecond);
             }
 
             public void WaitBytes(int count)
             {
+                // crude, but works surprisingly well
                 lock (this)
                 {
                     long milliseconds = (1000L * count) / approximateBytesPerSecond;
@@ -161,19 +163,48 @@ namespace Http
 
         public static void SetThrottle(int approximateBytesPerSecond)
         {
-            if (approximateBytesPerSecond == 0)
-            {
-                NetworkThrottle = new NullNetworkThrottle();
-            }
-            else
-            {
-                NetworkThrottle = new ActiveNetworkThrottle(approximateBytesPerSecond);
-            }
+            NetworkThrottleIn = NetworkThrottleOut = approximateBytesPerSecond == 0
+                ? (INetworkThrottle)new NullNetworkThrottle()
+                : (INetworkThrottle)new ActiveNetworkThrottle(approximateBytesPerSecond);
+        }
+
+        public static void SetThrottleIn(int approximateBytesPerSecond)
+        {
+            NetworkThrottleIn = approximateBytesPerSecond == 0
+                ? (INetworkThrottle)new NullNetworkThrottle()
+                : (INetworkThrottle)new ActiveNetworkThrottle(approximateBytesPerSecond);
+        }
+
+        public static void SetThrottleOut(int approximateBytesPerSecond)
+        {
+            NetworkThrottleOut = approximateBytesPerSecond == 0
+                ? (INetworkThrottle)new NullNetworkThrottle()
+                : (INetworkThrottle)new ActiveNetworkThrottle(approximateBytesPerSecond);
         }
 
         public static void ThrottleOff()
         {
             SetThrottle(0);
+        }
+
+        // formatted as either "<overall:int>" or "<in:int>,<out:int>"
+        public static void SetThrottleFromString(string s)
+        {
+            int i, j;
+            string[] p;
+            if (Int32.TryParse(s, out i) && (i >= 0))
+            {
+                Http.HttpGlobalControl.SetThrottle(i);
+            }
+            else if (((p = s.Split(',')).Length == 2) && Int32.TryParse(p[0], out i) && Int32.TryParse(p[1], out j) && (i >= 0) && (j >= 0))
+            {
+                Http.HttpGlobalControl.SetThrottleIn(i);
+                Http.HttpGlobalControl.SetThrottleOut(j);
+            }
+            else
+            {
+                throw new ArgumentException();
+            }
         }
     }
 
@@ -313,7 +344,7 @@ namespace Http
 
         private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, long requestContentLength, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
         {
-            byte[] buffer = new byte[!HttpGlobalControl.NetworkThrottle.SmallBuffers ? Constants.BufferSize : 4096];
+            byte[] buffer = new byte[HttpGlobalControl.NetworkThrottleIn.SmallBuffers || HttpGlobalControl.NetworkThrottleOut.SmallBuffers ? 4096 : Constants.BufferSize];
 
             bool useTLS = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
 
@@ -439,9 +470,9 @@ namespace Http
                         // write request header
 
                         socketStream.Write(requestHeaderBytes, 0, requestHeaderBytes.Length);
-                        if (HttpGlobalControl.NetworkThrottle != null)
+                        if (HttpGlobalControl.NetworkThrottleOut != null)
                         {
-                            HttpGlobalControl.NetworkThrottle.WaitBytes(requestHeaderBytes.Length);
+                            HttpGlobalControl.NetworkThrottleOut.WaitBytes(requestHeaderBytes.Length);
                         }
 
                         // wait for 100-continue if two-stage request in use
@@ -504,9 +535,9 @@ namespace Http
                             int read;
                             while ((read = requestBodySource.Read(buffer, 0, (int)Math.Min(buffer.Length, requestBytesRemaining))) != 0)
                             {
-                                if (HttpGlobalControl.NetworkThrottle != null)
+                                if (HttpGlobalControl.NetworkThrottleOut != null)
                                 {
-                                    HttpGlobalControl.NetworkThrottle.WaitBytes(read);
+                                    HttpGlobalControl.NetworkThrottleOut.WaitBytes(read);
                                 }
 
                                 socketStream.Write(buffer, 0, read);
@@ -617,9 +648,9 @@ namespace Http
                             {
                                 approximateResponseHeadersBytes += header.Length + Environment.NewLine.Length;
                             }
-                            if (HttpGlobalControl.NetworkThrottle != null)
+                            if (HttpGlobalControl.NetworkThrottleIn != null)
                             {
-                                HttpGlobalControl.NetworkThrottle.WaitBytes(approximateResponseHeadersBytes);
+                                HttpGlobalControl.NetworkThrottleIn.WaitBytes(approximateResponseHeadersBytes);
                             }
                         }
 
@@ -694,9 +725,9 @@ namespace Http
                                 }
                                 Thread.Sleep(100);
                             }
-                            if (HttpGlobalControl.NetworkThrottle != null)
+                            if (HttpGlobalControl.NetworkThrottleIn != null)
                             {
-                                HttpGlobalControl.NetworkThrottle.WaitBytes(read);
+                                HttpGlobalControl.NetworkThrottleIn.WaitBytes(read);
                             }
                             responseBodyDestination.Write(buffer, 0, read);
                             chunkRemaining -= read;
