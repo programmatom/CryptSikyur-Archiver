@@ -72,7 +72,7 @@ namespace Http
     public interface INetworkThrottle
     {
         void WaitBytes(int count);
-        bool SmallBuffers { get; }
+        int BufferSize { get; }
     }
 
     public interface IProgressTracker
@@ -119,11 +119,11 @@ namespace Http
             {
             }
 
-            public bool SmallBuffers
+            public int BufferSize
             {
                 get
                 {
-                    return false;
+                    return Constants.BufferSize;
                 }
             }
         }
@@ -144,7 +144,7 @@ namespace Http
 
             public void WaitBytes(int count)
             {
-                // crude, but works surprisingly well
+                // crude, but surprisingly effective
                 lock (this)
                 {
                     long milliseconds = (1000L * count) / approximateBytesPerSecond;
@@ -152,11 +152,16 @@ namespace Http
                 }
             }
 
-            public bool SmallBuffers
+            public int BufferSize
             {
                 get
                 {
-                    return approximateBytesPerSecond < 2 * Constants.BufferSize;
+                    const int CyclesPerSecond = 30; // the intent is to avoid interfering with low-latency activity such as VOIP
+                    int targetBytesPerCycle = approximateBytesPerSecond / CyclesPerSecond;
+                    targetBytesPerCycle /= 4096;
+                    targetBytesPerCycle *= 4096;
+                    targetBytesPerCycle = Math.Max(4096, Math.Min(Constants.BufferSize, targetBytesPerCycle));
+                    return targetBytesPerCycle;
                 }
             }
         }
@@ -344,7 +349,7 @@ namespace Http
 
         private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, long requestContentLength, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
         {
-            byte[] buffer = new byte[HttpGlobalControl.NetworkThrottleIn.SmallBuffers || HttpGlobalControl.NetworkThrottleOut.SmallBuffers ? 4096 : Constants.BufferSize];
+            byte[] buffer = new byte[Math.Min(HttpGlobalControl.NetworkThrottleIn.BufferSize, HttpGlobalControl.NetworkThrottleOut.BufferSize)];
 
             bool useTLS = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
 
@@ -568,6 +573,15 @@ namespace Http
                                         return WebExceptionStatus.ReceiveFailure;
                                     }
                                 }
+
+                                if (HttpGlobalControl.NetworkThrottleOut != null)
+                                {
+                                    int currentRecommendedBufferSize = HttpGlobalControl.NetworkThrottleOut.BufferSize;
+                                    if (buffer.Length != currentRecommendedBufferSize)
+                                    {
+                                        Array.Resize(ref buffer, currentRecommendedBufferSize);
+                                    }
+                                }
                             }
                         }
 
@@ -709,6 +723,14 @@ namespace Http
                                 needed = Math.Min(needed, chunkRemaining);
                             }
 
+                            if (HttpGlobalControl.NetworkThrottleIn != null)
+                            {
+                                int currentRecommendedBufferSize = HttpGlobalControl.NetworkThrottleIn.BufferSize;
+                                if (buffer.Length != currentRecommendedBufferSize)
+                                {
+                                    Array.Resize(ref buffer, currentRecommendedBufferSize);
+                                }
+                            }
                             needed = Math.Min(buffer.Length, needed);
                             Debug.Assert(needed >= 0);
                             int read = socketStream.Read(buffer, 0, (int)needed);
