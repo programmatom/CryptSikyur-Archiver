@@ -3886,7 +3886,7 @@ namespace Backup
             }
         }
 
-#if false // EXPERIMENTAL: iterative implementation of Backup()
+#if false // EXPERIMENTAL: iterative implementation of Backup() [unmaintained]
         private class EnumerateHierarchyN
         {
             private IEnumerateHierarchy[] ehs;
@@ -10001,8 +10001,12 @@ namespace Backup
                                         }
                                         catch (ArgumentException)
                                         {
-                                            // ignore malformatted inputs
+                                            // ignore invalid inputs
                                         }
+                                    }
+                                    else if (key.KeyChar == 'q')
+                                    {
+                                        Interlocked.Exchange(ref fatal, 1);
                                     }
                                 }
 
