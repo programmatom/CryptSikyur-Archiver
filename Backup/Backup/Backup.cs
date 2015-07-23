@@ -8253,8 +8253,12 @@ namespace Backup
                         Console.WriteLine("Reading: {0}", manifestFileName);
                         if (!manifestFileNameExists)
                         {
+#if false // automatic recovery is dangerous to integrity
                             manifestFileNameActual = manifestFileNameOld;
                             Console.WriteLine("Manifest file {0} does not exist, reading backup copy {1}", manifestFileName, manifestFileNameOld);
+#else
+                            throw new ApplicationException(String.Format("Manifest file \"{0}\" does not exist (backup copy \"{1}\" does exist)! Manual intervention required - may be device connectivity failure. If manifest is indeed missing, archive integrity must be verified.", manifestFileName, manifestFileNameOld));
+#endif
                         }
 
                         Dictionary<string, SegmentRecord> segmentMap = new Dictionary<string, SegmentRecord>();
@@ -9651,8 +9655,12 @@ namespace Backup
                                                             // run finally completes. (Which means delete the "newer" to keep the backup.)
                                                             if ((!manifest && !safe) || fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
                                                             {
-                                                                messages.WriteLine("Deleting (segment {1}): {0}", segmentFileName, unreferenced ? "unreferenced" : "dirty");
-                                                                fileManager.Delete(segmentFileName, threadTraceFileManager);
+                                                                if (!manifest)
+                                                                {
+                                                                    messages.WriteLine("Deleting (segment {1}): {0}", segmentFileName, unreferenced ? "unreferenced" : "dirty");
+                                                                    fileManager.Delete(segmentFileName, threadTraceFileManager);
+                                                                }
+                                                                // else - for safety, don't delete manifest (but also don't rename), overwrite later
                                                             }
                                                             else
                                                             {
