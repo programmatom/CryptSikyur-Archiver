@@ -940,6 +940,14 @@ namespace Backup
             }
         }
 
+        protected class InvalidContentTypeException : ApplicationException
+        {
+            public InvalidContentTypeException(string message)
+                : base(message)
+            {
+            }
+        }
+
         protected bool DoWebActionJSON2JSONWithRetry(string url, string verb, string jsonRequestBody, out string jsonResponseBody, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<KeyValuePair<string, string>> requestHeadersExtra = new List<KeyValuePair<string, string>>(1);
@@ -977,7 +985,11 @@ namespace Backup
                     }
                     else
                     {
-                        throw new InvalidDataException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeadersExtra[0].Value, "application/json; charset=UTF-8"));
+                        if (trace != null)
+                        {
+                            trace.WriteLine("DoWebActionJSON2JSONWithRetry: Unhandled response Content-Type: {0} (expected {1})", responseHeadersExtra[0].Value, "application/json; charset=UTF-8");
+                        }
+                        throw new InvalidContentTypeException(String.Format("Unhandled response Content-Type: {0} (expected {1})", responseHeadersExtra[0].Value, "application/json; charset=UTF-8"));
                     }
 
                     return result;
@@ -1559,15 +1571,22 @@ namespace Backup
             {
                 // Request upload status to find last successful byte
                 string url = uploadUrl;
-                result = DoWebActionJSON2JSONWithRetry(
-                    url,
-                    "GET",
-                    null/*requestBody*/,
-                    out response/*responseBodyDestination*/,
-                    out webStatusCode,
-                    out httpStatusCode,
-                    trace,
-                    faultInstanceContext.Select("UploadFile_Resumable", "2"));
+                try
+                {
+                    result = DoWebActionJSON2JSONWithRetry(
+                        url,
+                        "GET",
+                        null/*requestBody*/,
+                        out response/*responseBodyDestination*/,
+                        out webStatusCode,
+                        out httpStatusCode,
+                        trace,
+                        faultInstanceContext.Select("UploadFile_Resumable", "2"));
+                }
+                catch (InvalidContentTypeException)
+                {
+                    result = false;
+                }
 
                 if (!result)
                 {
