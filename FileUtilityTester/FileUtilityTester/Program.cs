@@ -22,10 +22,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Microsoft.Win32.SafeHandles;
 
 using HexUtil;
 using ProtectedData;
@@ -44,6 +46,110 @@ namespace FileUtilityTester
 
         private static readonly RandomNumberGenerator random = RNGCryptoServiceProvider.Create();
         private static readonly SHA256 sha256 = SHA256.Create();
+
+        private static class FileCompressionHelper
+        {
+            [Flags]
+            private enum EFileAttributes : uint
+            {
+                Readonly = 0x00000001,
+                Hidden = 0x00000002,
+                System = 0x00000004,
+                Directory = 0x00000010,
+                Archive = 0x00000020,
+                Device = 0x00000040,
+                Normal = 0x00000080,
+                Temporary = 0x00000100,
+                SparseFile = 0x00000200,
+                ReparsePoint = 0x00000400,
+                Compressed = 0x00000800,
+                Offline = 0x00001000,
+                NotContentIndexed = 0x00002000,
+                Encrypted = 0x00004000,
+                Write_Through = 0x80000000,
+                Overlapped = 0x40000000,
+                NoBuffering = 0x20000000,
+                RandomAccess = 0x10000000,
+                SequentialScan = 0x08000000,
+                DeleteOnClose = 0x04000000,
+                BackupSemantics = 0x02000000,
+                PosixSemantics = 0x01000000,
+                OpenReparsePoint = 0x00200000,
+                OpenNoRecall = 0x00100000,
+                FirstPipeInstance = 0x00080000
+            }
+            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            private static extern IntPtr CreateFile(
+                 [MarshalAs(UnmanagedType.LPTStr)] string filename,
+                 [MarshalAs(UnmanagedType.U4)] FileAccess access,
+                 [MarshalAs(UnmanagedType.U4)] FileShare share,
+                 IntPtr securityAttributes, // optional SECURITY_ATTRIBUTES struct or IntPtr.Zero
+                 [MarshalAs(UnmanagedType.U4)] FileMode creationDisposition,
+                 [MarshalAs(UnmanagedType.U4)] FileAttributes flagsAndAttributes,
+                 IntPtr templateFile);
+
+            [DllImport("Kernel32.dll", SetLastError = true)]
+            public static extern bool DeviceIoControl(
+                SafeFileHandle hDevice,
+                [MarshalAs(UnmanagedType.U4)] int IoControlCode,
+                byte[] InBuffer,
+                [MarshalAs(UnmanagedType.U4)] int nInBufferSize,
+                byte[] OutBuffer,
+                [MarshalAs(UnmanagedType.U4)] int nOutBufferSize,
+                [MarshalAs(UnmanagedType.U4)] out int pBytesReturned,
+                IntPtr Overlapped);
+            private const int FSCTL_SET_COMPRESSION = 0x0009C040;
+            private const short COMPRESSION_FORMAT_DEFAULT = 1;
+            private const short COMPRESSION_FORMAT_NONE = 0;
+
+            public static bool IsCompressed(string path)
+            {
+                if (File.Exists(path))
+                {
+                    return (File.GetAttributes(path) & FileAttributes.Compressed) != 0;
+                }
+                else if (Directory.Exists(path))
+                {
+                    return (File.GetAttributes(path) & FileAttributes.Compressed) != 0;
+                }
+                else
+                {
+                    throw new FileNotFoundException("File not found", path);
+                }
+            }
+
+            public static void SetCompressed(string path, bool compress)
+            {
+                bool directory;
+                if (File.Exists(path))
+                {
+                    directory = false;
+                }
+                else if (Directory.Exists(path))
+                {
+                    directory = true;
+                }
+                else
+                {
+                    throw new FileNotFoundException("File or directory not found", path);
+                }
+
+                using (SafeFileHandle file = new SafeFileHandle(CreateFile(path, FileAccess.ReadWrite, FileShare.ReadWrite, IntPtr.Zero, FileMode.Open, directory ? (FileAttributes)EFileAttributes.BackupSemantics : (FileAttributes)0, IntPtr.Zero), true/*ownsHandle*/))
+                {
+                    if (file.IsInvalid)
+                    {
+                        Marshal.ThrowExceptionForHR(Marshal.GetLastWin32Error());
+                    }
+                    int lpBytesReturned = 0;
+                    byte[] lpInBuffer = new byte[2];
+                    lpInBuffer[0] = (byte)(compress ? COMPRESSION_FORMAT_DEFAULT : COMPRESSION_FORMAT_NONE);
+                    if (!DeviceIoControl(file, FSCTL_SET_COMPRESSION, lpInBuffer, sizeof(short), null, 0, out lpBytesReturned, IntPtr.Zero))
+                    {
+                        Marshal.ThrowExceptionForHR(Marshal.GetLastWin32Error());
+                    }
+                }
+            }
+        }
 
         private static object EvalExpression(string expression, Dictionary<string, object> variables)
         {
@@ -814,17 +920,41 @@ namespace FileUtilityTester
                                         case 's':
                                             mask = FileAttributes.System;
                                             break;
+                                        case 'c':
+                                            mask = FileAttributes.Compressed;
+                                            break;
                                     }
-                                    switch (args[i][0])
+                                    if (((mask & FileAttributes.Compressed) != 0) && ((mask & ~FileAttributes.Compressed) != 0))
                                     {
-                                        default:
-                                            throw new ApplicationException();
-                                        case '-':
-                                            File.SetAttributes(path, File.GetAttributes(path) & ~mask);
-                                            break;
-                                        case '+':
-                                            File.SetAttributes(path, File.GetAttributes(path) | mask);
-                                            break;
+                                        throw new ApplicationException("compressed attribute must be set/cleared by itself");
+                                    }
+                                    if ((mask & FileAttributes.Compressed) == 0)
+                                    {
+                                        switch (args[i][0])
+                                        {
+                                            default:
+                                                throw new ApplicationException();
+                                            case '-':
+                                                File.SetAttributes(path, File.GetAttributes(path) & ~mask);
+                                                break;
+                                            case '+':
+                                                File.SetAttributes(path, File.GetAttributes(path) | mask);
+                                                break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        switch (args[i][0])
+                                        {
+                                            default:
+                                                throw new ApplicationException();
+                                            case '-':
+                                                FileCompressionHelper.SetCompressed(path, false);
+                                                break;
+                                            case '+':
+                                                FileCompressionHelper.SetCompressed(path, true);
+                                                break;
+                                        }
                                     }
                                 }
                             }
@@ -911,6 +1041,7 @@ namespace FileUtilityTester
                                 string dateFormat = defaultDateFormat;
                                 string linePrefix = ".";
                                 bool showSizes = false;
+                                bool showCompressed = false;
                                 for (int i = 1; i < args.Length; i++)
                                 {
                                     if (args[i].Equals("-lineprefix"))
@@ -927,13 +1058,17 @@ namespace FileUtilityTester
                                     {
                                         showSizes = true;
                                     }
+                                    else if (args[i].Equals("-compressed"))
+                                    {
+                                        showCompressed = true;
+                                    }
                                     else
                                     {
                                         throw new ApplicationException();
                                     }
                                 }
 
-                                string output = List(path, hashes, dateFormat, showSizes);
+                                string output = List(path, hashes, dateFormat, showSizes, showCompressed);
                                 if (command != "qlist")
                                 {
                                     WriteWithLinePrefix(Console.Out, output, linePrefix);
@@ -956,6 +1091,13 @@ namespace FileUtilityTester
                                     Array.Copy(args, 2, args, 1, args.Length - 2);
                                     Array.Resize(ref args, args.Length - 1);
                                 }
+                                bool showCompressed = false;
+                                if ((args.Length > 1) && args[1].Equals("-compressed"))
+                                {
+                                    showCompressed = true;
+                                    Array.Copy(args, 2, args, 1, args.Length - 2);
+                                    Array.Resize(ref args, args.Length - 1);
+                                }
                                 StreamVerify(
                                     command,
                                     scriptReader,
@@ -964,7 +1106,7 @@ namespace FileUtilityTester
                                     "endlist",
                                     ref lineNumber,
                                     defaultDateFormat,
-                                    delegate(string dateFormat) { return List(path, hashes, dateFormat, showSizes); },
+                                    delegate(string dateFormat) { return List(path, hashes, dateFormat, showSizes, showCompressed); },
                                     testFailed,
                                     ref currentFailed,
                                     resultMatrix,
@@ -989,6 +1131,7 @@ namespace FileUtilityTester
                                 string dateFormat = defaultDateFormat;
                                 string linePrefix = ".";
                                 bool showSizes = false;
+                                bool showCompressed = false;
                                 for (int i = 2; i < args.Length; i++)
                                 {
                                     if (args[i].StartsWith("-lineprefix"))
@@ -1005,13 +1148,17 @@ namespace FileUtilityTester
                                     {
                                         showSizes = true;
                                     }
+                                    else if (args[i].Equals("-compressed"))
+                                    {
+                                        showCompressed = true;
+                                    }
                                     else
                                     {
                                         throw new ApplicationException();
                                     }
                                 }
-                                string leftList = List(left, hashes, dateFormat, showSizes);
-                                string rightList = List(right, hashes, dateFormat, showSizes);
+                                string leftList = List(left, hashes, dateFormat, showSizes, showCompressed);
+                                string rightList = List(right, hashes, dateFormat, showSizes, showCompressed);
                                 if (!String.Equals(leftList, rightList))
                                 {
                                     currentFailed = true;
@@ -1453,17 +1600,17 @@ namespace FileUtilityTester
             }
         }
 
-        private static string List(string root, HashDispenser hashes, string dateFormat, bool showSizes)
+        private static string List(string root, HashDispenser hashes, string dateFormat, bool showSizes, bool showCompressed)
         {
             StringBuilder sb = new StringBuilder();
             using (TextWriter writer = new StringWriter(sb))
             {
-                ListRecursive(root, writer, hashes, dateFormat, showSizes, root.Length + 1);
+                ListRecursive(root, writer, hashes, dateFormat, showSizes, showCompressed, root.Length + 1);
             }
             return sb.ToString();
         }
 
-        private static void ListRecursive(string root, TextWriter writer, HashDispenser hashes, string dateFormat, bool showSizes, int substring)
+        private static void ListRecursive(string root, TextWriter writer, HashDispenser hashes, string dateFormat, bool showSizes, bool showCompressed, int substring)
         {
             foreach (string entry in Directory.GetFileSystemEntries(root))
             {
@@ -1476,16 +1623,21 @@ namespace FileUtilityTester
                 }
                 string created = !isDirectory ? File.GetCreationTime(entry).ToString(dateFormat) : String.Empty;
                 string lastModified = !isDirectory ? File.GetLastWriteTime(entry).ToString(dateFormat) : String.Empty;
+                FileAttributes entryAttrs = File.GetAttributes(entry);
                 string attrs = new String(
                     new char[]
                     {
-                        ((File.GetAttributes(entry) & FileAttributes.ReadOnly) != 0) ? 'R' : '-',
-                        ((File.GetAttributes(entry) & FileAttributes.Archive) != 0) ? 'A' : '-',
-                        ((File.GetAttributes(entry) & FileAttributes.Hidden) != 0) ? 'H' : '-',
-                        ((File.GetAttributes(entry) & FileAttributes.System) != 0) ? 'S' : '-',
+                        ((entryAttrs & FileAttributes.ReadOnly) != 0) ? 'R' : '-',
+                        ((entryAttrs & FileAttributes.Archive) != 0) ? 'A' : '-',
+                        ((entryAttrs & FileAttributes.Hidden) != 0) ? 'H' : '-',
+                        ((entryAttrs & FileAttributes.System) != 0) ? 'S' : '-',
                         !isDirectory && (GetFileLength(entry) == 0) ? 'Z' : '-',
-                        ((File.GetAttributes(entry) & FileAttributes.Directory) != 0) ? 'D' : '-',
+                        ((entryAttrs & FileAttributes.Directory) != 0) ? 'D' : '-',
                     });
+                if (showCompressed)
+                {
+                    attrs = String.Concat(attrs, new String(FileCompressionHelper.IsCompressed(entry) ? 'C' : '-', 1));
+                }
                 writer.WriteLine(" {0,19} {1,19} {2,5}{5} {3}{4}",
                     created,
                     lastModified,
@@ -1495,7 +1647,7 @@ namespace FileUtilityTester
                     showSizes ? String.Format("{0,12}", !isDirectory ? GetFileLength(entry).ToString() : String.Empty) : String.Empty);
                 if (isDirectory)
                 {
-                    ListRecursive(entry, writer, hashes, dateFormat, showSizes, substring);
+                    ListRecursive(entry, writer, hashes, dateFormat, showSizes, showCompressed, substring);
                 }
             }
         }

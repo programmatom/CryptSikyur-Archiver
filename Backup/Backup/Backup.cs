@@ -32,6 +32,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Win32.SafeHandles;
 
 using Concurrent;
 using Diagnostics;
@@ -4268,6 +4269,112 @@ namespace Backup
             return c;
         }
 
+#if true // EXPERIMENTAL
+        private static class FileCompressionHelper
+        {
+            [Flags]
+            private enum EFileAttributes : uint
+            {
+                Readonly = 0x00000001,
+                Hidden = 0x00000002,
+                System = 0x00000004,
+                Directory = 0x00000010,
+                Archive = 0x00000020,
+                Device = 0x00000040,
+                Normal = 0x00000080,
+                Temporary = 0x00000100,
+                SparseFile = 0x00000200,
+                ReparsePoint = 0x00000400,
+                Compressed = 0x00000800,
+                Offline = 0x00001000,
+                NotContentIndexed = 0x00002000,
+                Encrypted = 0x00004000,
+                Write_Through = 0x80000000,
+                Overlapped = 0x40000000,
+                NoBuffering = 0x20000000,
+                RandomAccess = 0x10000000,
+                SequentialScan = 0x08000000,
+                DeleteOnClose = 0x04000000,
+                BackupSemantics = 0x02000000,
+                PosixSemantics = 0x01000000,
+                OpenReparsePoint = 0x00200000,
+                OpenNoRecall = 0x00100000,
+                FirstPipeInstance = 0x00080000
+            }
+            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            private static extern IntPtr CreateFile(
+                 [MarshalAs(UnmanagedType.LPTStr)] string filename,
+                 [MarshalAs(UnmanagedType.U4)] FileAccess access,
+                 [MarshalAs(UnmanagedType.U4)] FileShare share,
+                 IntPtr securityAttributes, // optional SECURITY_ATTRIBUTES struct or IntPtr.Zero
+                 [MarshalAs(UnmanagedType.U4)] FileMode creationDisposition,
+                 [MarshalAs(UnmanagedType.U4)] FileAttributes flagsAndAttributes,
+                 IntPtr templateFile);
+
+            [DllImport("Kernel32.dll", SetLastError = true)]
+            public static extern bool DeviceIoControl(
+                SafeFileHandle hDevice,
+                [MarshalAs(UnmanagedType.U4)] int IoControlCode,
+                byte[] InBuffer,
+                [MarshalAs(UnmanagedType.U4)] int nInBufferSize,
+                byte[] OutBuffer,
+                [MarshalAs(UnmanagedType.U4)] int nOutBufferSize,
+                [MarshalAs(UnmanagedType.U4)] out int pBytesReturned,
+                IntPtr Overlapped);
+            private const int FSCTL_SET_COMPRESSION = 0x0009C040;
+            private const short COMPRESSION_FORMAT_DEFAULT = 1;
+            private const short COMPRESSION_FORMAT_NONE = 0;
+
+            public static bool IsCompressed(string path)
+            {
+                if (File.Exists(path))
+                {
+                    return (File.GetAttributes(path) & FileAttributes.Compressed) != 0;
+                }
+                else if (Directory.Exists(path))
+                {
+                    return (File.GetAttributes(path) & FileAttributes.Compressed) != 0;
+                }
+                else
+                {
+                    throw new FileNotFoundException("File not found", path);
+                }
+            }
+
+            public static void SetCompressed(string path, bool compress)
+            {
+                bool directory;
+                if (File.Exists(path))
+                {
+                    directory = false;
+                }
+                else if (Directory.Exists(path))
+                {
+                    directory = true;
+                }
+                else
+                {
+                    throw new FileNotFoundException("File or directory not found", path);
+                }
+
+                using (SafeFileHandle file = new SafeFileHandle(CreateFile(path, FileAccess.ReadWrite, FileShare.ReadWrite, IntPtr.Zero, FileMode.Open, directory ? (FileAttributes)EFileAttributes.BackupSemantics : (FileAttributes)0, IntPtr.Zero), true/*ownsHandle*/))
+                {
+                    if (file.IsInvalid)
+                    {
+                        Marshal.ThrowExceptionForHR(Marshal.GetLastWin32Error());
+                    }
+                    int lpBytesReturned = 0;
+                    byte[] lpInBuffer = new byte[2];
+                    lpInBuffer[0] = (byte)(compress ? COMPRESSION_FORMAT_DEFAULT : COMPRESSION_FORMAT_NONE);
+                    if (!DeviceIoControl(file, FSCTL_SET_COMPRESSION, lpInBuffer, sizeof(short), null, 0, out lpBytesReturned, IntPtr.Zero))
+                    {
+                        Marshal.ThrowExceptionForHR(Marshal.GetLastWin32Error());
+                    }
+                }
+            }
+        }
+#endif
+
         internal static void BackupRecursive(string source, string previous, string current, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, TextWriter log, bool deepRollback)
         {
             Debug.Assert(Directory.Exists(source) == !deepRollback);
@@ -4442,6 +4549,22 @@ namespace Backup
                                 try
                                 {
                                     Directory.CreateDirectory(currentPath);
+#if true // EXPERIMENTAL
+                                    if ((context.cryptoOption == EncryptionOption.None)
+                                        && (context.compressionOption == CompressionOption.None)
+                                        && ((File.GetAttributes(sourcePath) & FileAttributes.Compressed) != 0))
+                                    {
+                                        // if source directory is compressed, assume it's for a good reason
+                                        try
+                                        {
+                                            FileCompressionHelper.SetCompressed(currentPath, true/*compress*/);
+                                        }
+                                        catch
+                                        {
+                                            // ignore any errors and proceed uncompressed
+                                        }
+                                    }
+#endif
                                     return true;
                                 }
                                 catch (PathTooLongException exception)

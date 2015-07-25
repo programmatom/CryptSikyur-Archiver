@@ -53,3 +53,112 @@ list-verify .
 .          2014-01-04          2014-01-04 -AH--- source\c [3]
 .          2014-01-05          2014-01-05 -A---- source\d [4]
 endlist
+
+
+module directory compression attribute
+
+mkdir source
+mkdir archive
+
+test setup
+date 2015-01-01
+mkdir source\a
+create source\a\one.txt -size 100000
+date + 1
+call backup backup source archive
+exitcode-verify 0
+list-verify . -compressed
+.                                         -----D- archive\
+.                                         -----D- archive\2015-01-02T00+00+00\
+.                                         -----D- archive\2015-01-02T00+00+00\a\
+.          2015-01-01          2015-01-01 -A----- archive\2015-01-02T00+00+00\a\one.txt [1]
+.                                         -----D- source\
+.                                         -----D- source\a\
+.          2015-01-01          2015-01-01 -A----- source\a\one.txt [1]
+endlist
+
+test compressed file - becomes uncompressed in archive
+date + 1
+create source\a\two.txt -size 100000
+attrib source\a\two.txt +c
+date + 1
+call backup backup source archive
+exitcode-verify 0
+list-verify . -compressed
+.                                         -----D- archive\
+.                                         -----D- archive\2015-01-02T00+00+00\
+.                                         -----D- archive\2015-01-02T00+00+00\a\
+.          2015-01-01          2015-01-01 -A--Z-- archive\2015-01-02T00+00+00\a\one.txt [0]
+.                                         -----D- archive\2015-01-04T00+00+00\
+.                                         -----D- archive\2015-01-04T00+00+00\a\
+.          2015-01-01          2015-01-01 -A----- archive\2015-01-04T00+00+00\a\one.txt [1]
+.          2015-01-03          2015-01-03 -A----- archive\2015-01-04T00+00+00\a\two.txt [2]
+.                                         -----D- source\
+.                                         -----D- source\a\
+.          2015-01-01          2015-01-01 -A----- source\a\one.txt [1]
+.          2015-01-03          2015-01-03 -A----C source\a\two.txt [2]
+endlist
+
+test set compress on directory - becomes compressed in archive; old files don't get compressed
+date + 1
+attrib source\a +c
+create source\a\three.txt -size 100000
+date + 1
+call backup backup source archive
+exitcode-verify 0
+list-verify . -compressed
+.                                         -----D- archive\
+.                                         -----D- archive\2015-01-02T00+00+00\
+.                                         -----D- archive\2015-01-02T00+00+00\a\
+.          2015-01-01          2015-01-01 -A--Z-- archive\2015-01-02T00+00+00\a\one.txt [0]
+.                                         -----D- archive\2015-01-04T00+00+00\
+.                                         -----D- archive\2015-01-04T00+00+00\a\
+.          2015-01-01          2015-01-01 -A--Z-- archive\2015-01-04T00+00+00\a\one.txt [0]
+.          2015-01-03          2015-01-03 -A--Z-- archive\2015-01-04T00+00+00\a\two.txt [0]
+.                                         -----D- archive\2015-01-06T00+00+00\
+.                                         -----DC archive\2015-01-06T00+00+00\a\
+.          2015-01-01          2015-01-01 -A----- archive\2015-01-06T00+00+00\a\one.txt [1]
+.          2015-01-05          2015-01-05 -A----C archive\2015-01-06T00+00+00\a\three.txt [3]
+.          2015-01-03          2015-01-03 -A----- archive\2015-01-06T00+00+00\a\two.txt [2]
+.                                         -----D- source\
+.                                         -----DC source\a\
+.          2015-01-01          2015-01-01 -A----- source\a\one.txt [1]
+.          2015-01-05          2015-01-05 -A----C source\a\three.txt [3]
+.          2015-01-03          2015-01-03 -A----C source\a\two.txt [2]
+endlist
+
+test remove compress on directory - becomes compressed in archive; old files don't get compressed
+date + 1
+attrib source\a -c
+create source\a\four.txt -size 100000
+date + 1
+call backup backup source archive
+exitcode-verify 0
+list-verify . -compressed
+.                                         -----D- archive\
+.                                         -----D- archive\2015-01-02T00+00+00\
+.                                         -----D- archive\2015-01-02T00+00+00\a\
+.          2015-01-01          2015-01-01 -A--Z-- archive\2015-01-02T00+00+00\a\one.txt [0]
+.                                         -----D- archive\2015-01-04T00+00+00\
+.                                         -----D- archive\2015-01-04T00+00+00\a\
+.          2015-01-01          2015-01-01 -A--Z-- archive\2015-01-04T00+00+00\a\one.txt [0]
+.          2015-01-03          2015-01-03 -A--Z-- archive\2015-01-04T00+00+00\a\two.txt [0]
+.                                         -----D- archive\2015-01-06T00+00+00\
+.                                         -----DC archive\2015-01-06T00+00+00\a\
+# newly created zero-length placeholders will be marked as compressed
+.          2015-01-01          2015-01-01 -A--Z-C archive\2015-01-06T00+00+00\a\one.txt [0]
+.          2015-01-05          2015-01-05 -A--Z-C archive\2015-01-06T00+00+00\a\three.txt [0]
+.          2015-01-03          2015-01-03 -A--Z-C archive\2015-01-06T00+00+00\a\two.txt [0]
+.                                         -----D- archive\2015-01-08T00+00+00\
+.                                         -----D- archive\2015-01-08T00+00+00\a\
+.          2015-01-07          2015-01-07 -A----- archive\2015-01-08T00+00+00\a\four.txt [4]
+.          2015-01-01          2015-01-01 -A----- archive\2015-01-08T00+00+00\a\one.txt [1]
+.          2015-01-05          2015-01-05 -A----C archive\2015-01-08T00+00+00\a\three.txt [3]
+.          2015-01-03          2015-01-03 -A----- archive\2015-01-08T00+00+00\a\two.txt [2]
+.                                         -----D- source\
+.                                         -----D- source\a\
+.          2015-01-07          2015-01-07 -A----- source\a\four.txt [4]
+.          2015-01-01          2015-01-01 -A----- source\a\one.txt [1]
+.          2015-01-05          2015-01-05 -A----C source\a\three.txt [3]
+.          2015-01-03          2015-01-03 -A----C source\a\two.txt [2]
+endlist
