@@ -933,5 +933,155 @@ list-verify archive
 endlist
 
 
+module ensure idempotency when backup segments are removed
+# Bug: A complex interaction between changing segment size, changing file hirarchy structure,
+# removing segment backups, and losing current manifest results in data loss.
+# When manifest is lost and old manifest is used, a segment of a given name that was updated
+# exists but has different content than the manifest thinks it has.
+
+# current workaround: require manual intervention when manifest is missing but backup manifest exists
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 90000
+create source\b1 -size 45000
+create source\b3 -size 45000
+create source\d -size 90000
+qlist .
+mkdir archive
+call backup -concurrency 0 dynpack source archive\x 100000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-01          2015-01-01 -A---- archive\x.0.dynpack [5]
+.          2015-01-01          2015-01-01 -A---- archive\x.a.dynpack [6]
+.          2015-01-01          2015-01-01 -A---- archive\x.m.dynpack [7]
+.          2015-01-01          2015-01-01 -A---- archive\x.s.dynpack [8]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b1 [2]
+.          2015-01-01          2015-01-01 -A---- source\b3 [3]
+.          2015-01-01          2015-01-01 -A---- source\d [4]
+endlist
+
+test update archive causing segment to split, and fail before removing backup manifest
+date + 1
+create source\b2 -size 45000
+date + 1
+qlist .
+call backup -concurrency 0 -injectfault proof:proof-killed1 throw /DynamicPack/Stage[stringequal:'8-write-segment-files-completed'] dynpack source archive\x 100000
+exitcode-verify not 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-03          2015-01-03 -A---- archive\x.-0.dynpack [5]
+.          2015-01-03          2015-01-03 -A---- archive\x.-m.dynpack [7]
+.          2015-01-01          2015-01-03 -A---- archive\x.0.dynpack [10]
+.          2015-01-01          2015-01-01 -A---- archive\x.a.dynpack [6]
+.          2015-01-01          2015-01-03 -A---- archive\x.m.dynpack [11]
+.          2015-01-03          2015-01-03 -A---- archive\x.p.dynpack [12]
+.          2015-01-01          2015-01-01 -A---- archive\x.s.dynpack [8]
+*          [0-9-]+          [0-9-]+ -A---- proof-killed1 \[13\]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b1 [2]
+.          2015-01-02          2015-01-02 -A---- source\b2 [9]
+.          2015-01-01          2015-01-01 -A---- source\b3 [3]
+.          2015-01-01          2015-01-01 -A---- source\d [4]
+endlist
+delete proof-killed1
+
+test simulate system failure that destroys most recent manifest combined with file system change
+date + 1
+# simulate user cleaning up backup files
+delete archive\x.-m.dynpack
+# simulate system failure destroying current manifest
+delete archive\x.0.dynpack
+# roll back directory hierarchy change
+delete source\b2
+date + 1
+qlist .
+# OLD BEHAVIOR (automatic use of backup manifest when current manifest is missing)
+# call backup -concurrency 0 dynpack source archive\x 100000
+# exitcode-verify 0
+# CURRENT BEHAVIOR (require manual intervention)
+call backup -concurrency 0 dynpack source archive\x 100000
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: x.0.dynpack
+.
+.Error:
+.Manifest file "x.0.dynpack" does not exist (backup copy "x.-0.dynpack" does exist)! Manual intervention required - may be device connectivity failure. If manifest is indeed missing, archive integrity must be verified.
+*   at Backup\.Core\.DynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+# manual intervention
+move archive\x.-0.dynpack archive\x.0.dynpack
+touch archive\x.0.dynpack -created
+call backup -concurrency 0 dynpack source archive\x 100000
+exitcode-verify 0
+# END OLD/CURRENT BEHAVIOR
+list-verify .
+.                                         -----D archive\
+.          2015-01-05          2015-01-05 -A---- archive\x.0.dynpack [14]
+.          2015-01-01          2015-01-01 -A---- archive\x.a.dynpack [6]
+.          2015-01-01          2015-01-03 -A---- archive\x.m.dynpack [11]
+.          2015-01-01          2015-01-01 -A---- archive\x.s.dynpack [8]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b1 [2]
+.          2015-01-01          2015-01-01 -A---- source\b3 [3]
+.          2015-01-01          2015-01-01 -A---- source\d [4]
+endlist
+
+test check for valid archive structure
+date + 1
+mkdir output
+date + 1
+qlist .
+# OLD BEHAVIOR
+# if bug occurs, this may fail because segment "m" has the wrong serial number
+#call backup -concurrency 0 dynunpack archive\x output
+#exitcode-verify 0
+# CURRENT BEHAVIOR
+call backup -concurrency 0 dynunpack archive\x output
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading x.0.dynpack
+.Unpacking x.a.dynpack
+.Segment m: serial number 5 is invalid
+.Unpacking x.m.dynpack
+endoutput
+# END OLD/CURRENT BEHAVIOR
+list-verify .
+.                                         -----D archive\
+.          2015-01-05          2015-01-05 -A---- archive\x.0.dynpack [14]
+.          2015-01-01          2015-01-01 -A---- archive\x.a.dynpack [6]
+.          2015-01-01          2015-01-03 -A---- archive\x.m.dynpack [11]
+.          2015-01-01          2015-01-01 -A---- archive\x.s.dynpack [8]
+.                                         -----D output\
+.          2015-01-01          2015-01-01 -A---- output\a [1]
+# OLD BEHAVIOR
+#.          2015-01-01          2015-01-01 -A---- output\b1 [2]
+## if bug occurs, this file (b3) may be missing
+#.          2015-01-01          2015-01-01 -A---- output\b3 [3]
+#.          2015-01-01          2015-01-01 -A---- output\d [4]
+# CURRENT BEHAVIOR (extract aborts when "m" is opened)
+# END OLD/CURRENT BEHAVIOR
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b1 [2]
+.          2015-01-01          2015-01-01 -A---- source\b3 [3]
+.          2015-01-01          2015-01-01 -A---- source\d [4]
+endlist
+# OLD BEHAVIOR
+# if bug occurs, output will not match source
+#dirs-equal-verify source output
+# CURRENT BEHAVIOR (extract aborts when "m" is opened)
+# will not match so comparison is skipped (see preceding command for expected output)
+# END OLD/CURRENT BEHAVIOR
+
+
 # TODO - unresolved:
 # - Should "-verify" rename bad segments to -x form [proposed behavior] or always delete outright [current behavior]?
