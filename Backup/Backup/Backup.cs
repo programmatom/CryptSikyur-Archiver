@@ -6868,7 +6868,7 @@ namespace Backup
             ShowProgress = 1 << 3,
         }
 
-        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, IFaultInstance faultContainer, out ApplicationException[] deferredExceptions)
+        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, IFaultInstance faultContainer, out ApplicationException[] deferredExceptions, string localSignaturePath)
         {
             List<ApplicationException> deferredExceptionsList = new List<ApplicationException>();
 
@@ -6887,6 +6887,7 @@ namespace Backup
 
                 ulong segmentSerialNumber = 0;
                 byte[] randomArchiveSignature = new byte[0];
+                CheckedReadStream localSignature = null;
 
                 List<UnpackedFileRecord> unpackedFileRecords = new List<UnpackedFileRecord>();
 
@@ -6934,6 +6935,14 @@ namespace Backup
                     fileStream,
                     new StreamStack.StreamWrapMethod[]
                     {
+                        delegate(Stream stream)
+                        {
+                            if (localSignaturePath != null)
+                            {
+                                localSignature = new CheckedReadStream(stream, context.decrypt.algorithm.CreateLocalSignatureMACGenerator(keys.LocalSignatureKey));
+                            }
+                            return localSignature;
+                        },
                         delegate(Stream stream)
                         {
                             // see note and references about
@@ -7399,6 +7408,25 @@ namespace Backup
                     EraseStatusLine();
                 }
 
+                if (localSignaturePath != null)
+                {
+                    if (!File.Exists(localSignaturePath))
+                    {
+                        ConsoleWriteLineColor(ConsoleColor.Yellow, "Local signature \"{0}\" does not exist - proceeding anyway!", localSignaturePath);
+                        Thread.Sleep(5000);
+                    }
+                    else
+                    {
+                        byte[] savedLocalSignatureBytes = File.ReadAllBytes(localSignaturePath);
+                        if (!ArrayEqual(localSignature.CheckValue, savedLocalSignatureBytes))
+                        {
+                            string message = String.Format("Local signature \"{0}\" does not match computed signature from manifest! Aborting!", localSignaturePath);
+                            ConsoleWriteLineColor(ConsoleColor.Yellow, message);
+                            throw new ApplicationException(message);
+                        }
+                    }
+                }
+
                 segmentSerialNumberOut = segmentSerialNumber;
                 randomArchiveSignatureOut = randomArchiveSignature;
                 return unpackedFileRecords.ToArray();
@@ -7424,7 +7452,7 @@ namespace Backup
             ApplicationException[] deferredExceptions;
             using (Stream fileStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                UnpackInternal(fileStream, targetDirectory, context, UnpackMode.Unpack | UnpackMode.ShowProgress, out segmentSerialNumber, out randomArchiveSignature, null/*trace*/, context.faultInjectionRoot.Select("UnpackInternal"), out deferredExceptions);
+                UnpackInternal(fileStream, targetDirectory, context, UnpackMode.Unpack | UnpackMode.ShowProgress, out segmentSerialNumber, out randomArchiveSignature, null/*trace*/, context.faultInjectionRoot.Select("UnpackInternal"), out deferredExceptions, null/*localSignaturePath*/);
             }
             if (deferredExceptions != null)
             {
@@ -7472,7 +7500,7 @@ namespace Backup
                         using (Stream stream = fileRef.Read())
                         {
                             ApplicationException[] deferredExceptions;
-                            files = UnpackInternal(stream, ".", context, UnpackMode.Parse, out serialNumber, out randomArchiveSignature, null/*trace*/, faultDumppack, out deferredExceptions);
+                            files = UnpackInternal(stream, ".", context, UnpackMode.Parse, out serialNumber, out randomArchiveSignature, null/*trace*/, faultDumppack, out deferredExceptions, null/*localSignaturePath*/);
                             if (deferredExceptions != null)
                             {
                                 throw new DeferredMultiException(deferredExceptions);
@@ -8268,7 +8296,7 @@ namespace Backup
             string diagnosticPath = null;
             bool windiff = false;
             bool ignoreUnchangedFiles = false;
-
+            string localSignaturePath = null;
             {
                 bool parsed = true;
                 while (parsed && (args.Length > 0))
@@ -8305,6 +8333,9 @@ namespace Backup
                             break;
                         case "-ignoreunchanged":
                             GetAdHocArgument(ref args, "-ignoreunchanged", false/*default*/, true/*explicit*/, out ignoreUnchangedFiles);
+                            break;
+                        case "-localsig":
+                            GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate(string s) { return s; }, out localSignaturePath);
                             break;
                     }
                 }
@@ -8386,6 +8417,8 @@ namespace Backup
 
                         Dictionary<string, SegmentRecord> segmentMap = new Dictionary<string, SegmentRecord>();
 
+                        CheckedReadStream localSignature = null;
+
                         using (ILocalFileCopy fileRef = fileManager.Read(manifestFileNameActual, null/*progressTracker*/, fileManager.GetMasterTrace()))
                         {
                             using (Stream fileStream = fileRef.Read())
@@ -8428,6 +8461,14 @@ namespace Backup
                                     fileStream,
                                     new StreamStack.StreamWrapMethod[]
                                     {
+                                        delegate(Stream stream)
+                                        {
+                                            if (localSignaturePath != null)
+                                            {
+                                                localSignature = new CheckedReadStream(stream, context.encrypt.algorithm.CreateLocalSignatureMACGenerator(keysManifest.LocalSignatureKey));
+                                            }
+                                            return localSignature;
+                                        },
                                         delegate(Stream stream)
                                         {
                                             // see note and references about
@@ -8590,6 +8631,26 @@ namespace Backup
 
                                         BinaryReadUtils.RequireAtEOF(stream);
                                     });
+
+                            }
+                        }
+
+                        if (localSignaturePath != null)
+                        {
+                            if (!File.Exists(localSignaturePath))
+                            {
+                                ConsoleWriteLineColor(ConsoleColor.Yellow, "Local signature \"{0}\" does not exist - proceeding anyway!", localSignaturePath);
+                                Thread.Sleep(5000);
+                            }
+                            else
+                            {
+                                byte[] savedLocalSignatureBytes = File.ReadAllBytes(localSignaturePath);
+                                if (!ArrayEqual(localSignature.CheckValue, savedLocalSignatureBytes))
+                                {
+                                    string message = String.Format("Local signature \"{0}\" does not match computed signature from manifest! Aborting!", localSignaturePath);
+                                    ConsoleWriteLineColor(ConsoleColor.Yellow, message);
+                                    throw new ApplicationException(message);
+                                }
                             }
                         }
                     }
@@ -9547,7 +9608,7 @@ namespace Backup
                                                                 using (Stream segmentStream = fileRef.Read())
                                                                 {
                                                                     ApplicationException[] deferredExceptions;
-                                                                    archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, faultDynamicPack.Select("VerifySegment", segmentFileName), out deferredExceptions);
+                                                                    archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, faultDynamicPack.Select("VerifySegment", segmentFileName), out deferredExceptions, null/*localSignaturePath*/);
                                                                     Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                                                                 }
                                                             }
@@ -9980,6 +10041,7 @@ namespace Backup
                             }
                             Console.WriteLine("Writing: {0}", manifestFileName);
                             string manifestTempFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestName, DynPackTempFileExtension);
+                            CheckedWriteStream localSignature = null;
                             using (ILocalFileCopy fileRef = fileManager.WriteTemp(manifestTempFileName, fileManager.GetMasterTrace()))
                             {
                                 using (Stream fileStream = fileRef.Write())
@@ -9998,6 +10060,14 @@ namespace Backup
                                         fileStream,
                                         new StreamStack.StreamWrapMethod[]
                                         {
+                                            delegate(Stream stream)
+                                            {
+                                                if (localSignaturePath != null)
+                                                {
+                                                    localSignature = new CheckedWriteStream(stream, context.encrypt.algorithm.CreateLocalSignatureMACGenerator(keys.LocalSignatureKey));
+                                                }
+                                                return localSignature;
+                                            },
                                             delegate(Stream stream)
                                             {
                                                 // see note and references about
@@ -10073,6 +10143,15 @@ namespace Backup
                                 fileManager.Commit(fileRef, manifestTempFileName, manifestFileName, true/*overwrite*/, null/*progressTracker*/, fileManager.GetMasterTrace());
                                 faultDynamicPackStage.Select("Committed", manifestFileName);
                             }
+                            if (localSignaturePath != null)
+                            {
+                                string directory = Path.GetDirectoryName(localSignaturePath);
+                                if (!String.IsNullOrEmpty(directory))
+                                {
+                                    Directory.CreateDirectory(directory);
+                                }
+                                File.WriteAllBytes(localSignaturePath, localSignature.CheckValue);
+                            }
                         }
 
                         long bytesRemaining = 0;
@@ -10119,6 +10198,7 @@ namespace Backup
 
                             if (Interactive())
                             {
+#if true // fails interactive test cases
                                 while (Console.KeyAvailable)
                                 {
                                     ConsoleKeyInfo key = Console.ReadKey(true/*intercept*/);
@@ -10140,6 +10220,7 @@ namespace Backup
                                         Interlocked.Exchange(ref fatal, 1);
                                     }
                                 }
+#endif
 
                                 if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
                                 {
@@ -10948,7 +11029,7 @@ namespace Backup
             }
         }
 
-        internal static void ValidateOrUnpackDynamicInternal(string archivePathTemplate, string targetDirectory, Context context, UnpackMode mode, string journalPath)
+        internal static void ValidateOrUnpackDynamicInternal(string archivePathTemplate, string targetDirectory, Context context, UnpackMode mode, string journalPath, string localSignaturePath)
         {
             IFaultInstance faultValidateOrUnpackDynamicInternal = context.faultInjectionRoot.Select("ValidateOrUnpackDynamicInternal");
 
@@ -11036,7 +11117,7 @@ namespace Backup
                     using (Stream manifestStream = fileRef.Read())
                     {
                         ApplicationException[] deferredExceptions;
-                        manifestFileList = UnpackInternal(manifestStream, targetDirectory, context, UnpackMode.Parse, out manifestSerialNumber, out randomArchiveSignature, traceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", manifestFileName), out deferredExceptions);
+                        manifestFileList = UnpackInternal(manifestStream, targetDirectory, context, UnpackMode.Parse, out manifestSerialNumber, out randomArchiveSignature, traceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", manifestFileName), out deferredExceptions, localSignaturePath);
                         Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                     }
                 }
@@ -11500,7 +11581,7 @@ namespace Backup
                                                                     {
                                                                         firstPassMode = mode;
                                                                     }
-                                                                    segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, firstPassMode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", segmentFileName), out deferredExceptions);
+                                                                    segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, firstPassMode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", segmentFileName), out deferredExceptions, null/*localSignaturePath*/);
                                                                     if (deferredExceptions != null)
                                                                     {
                                                                         throw new DeferredMultiException(deferredExceptions);
@@ -11566,7 +11647,7 @@ namespace Backup
                                                                     if (((mode & UnpackMode.Unpack) == UnpackMode.Unpack) && ((firstPassMode & UnpackMode.Unpack) != UnpackMode.Unpack))
                                                                     {
                                                                         segmentStream.Position = 0; // rewind
-                                                                        segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, mode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", segmentFileName), out deferredExceptions);
+                                                                        segmentFileList = UnpackInternal(segmentStream, targetDirectory, context, mode, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", segmentFileName), out deferredExceptions, null/*localSignaturePath*/);
                                                                         if (deferredExceptions != null)
                                                                         {
                                                                             throw new DeferredMultiException(deferredExceptions);
@@ -11706,6 +11787,7 @@ namespace Backup
             // options
             bool resume = false;
             string journalPath = null;
+            string localSignaturePath = null;
 
             while (args.Length > 0)
             {
@@ -11723,24 +11805,42 @@ namespace Backup
                     case "-journal":
                         GetAdHocArgument(ref args, "-journal", null/*defaultValue*/, delegate(string s) { return s; }, out journalPath);
                         break;
+                    case "-localsig":
+                        GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate(string s) { return s; }, out localSignaturePath);
+                        break;
                 }
             }
 
 #if false // In remote case, causes download of all data twice. Per-segment prevalidation still occurs.
             if ((context.cryptoOption != EncryptionOption.None) && !context.doNotPreValidateMAC)
             {
-                ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.ParseOnly,args);
+                ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.ParseOnly, args);
                 // throws ExitCodeException()
             }
 #endif
 
-            ValidateOrUnpackDynamicInternal(manifestPrefix, targetDirectory, context, mode, journalPath);
+            ValidateOrUnpackDynamicInternal(manifestPrefix, targetDirectory, context, mode, journalPath, localSignaturePath);
             // throws ExitCodeException()
         }
 
-        internal static void ValidateDynamicPack(string manifestPrefix, Context context)
+        internal static void ValidateDynamicPack(string manifestPrefix, Context context, string[] args)
         {
-            ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.Parse, null/*journalPath*/);
+            // options
+            string localSignaturePath = null;
+
+            while (args.Length > 0)
+            {
+                switch (args[0])
+                {
+                    default:
+                        throw new UsageException();
+                    case "-localsig":
+                        GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate(string s) { return s; }, out localSignaturePath);
+                        break;
+                }
+            }
+
+            ValidateOrUnpackDynamicInternal(manifestPrefix, ".", context, UnpackMode.Parse, null/*journalPath*/, localSignaturePath);
             // throws ExitCodeException()
         }
 
@@ -13080,9 +13180,12 @@ namespace Backup
                         }
                         else
                         {
+                            string[] argsExtra = new string[args.Length - (i + 1)];
+                            Array.Copy(args, i + 1, argsExtra, 0, argsExtra.Length);
                             ValidateDynamicPack(
                                 EnsureRootedRemotablePath(args[i]),
-                                context);
+                                context,
+                                argsExtra);
                         }
                         break;
 

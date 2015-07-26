@@ -1,0 +1,633 @@
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module test non-qualified signature path (i.e. in working directory)
+
+test one
+date 2015-01-01
+mkdir source
+create source\file1 -size 90000
+mkdir archives
+date + 1
+qlist .
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 100000 -verify -localsig signature
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-02 -A---- archives\archive.0.dynpack [2]
+.          2015-01-02          2015-01-02 -A---- archives\archive.a.dynpack [3]
+*          [0-9-]+          [0-9-]+ -A---- signature \[4\]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\file1 [1]
+endlist
+
+
+module dynpack with local signature option
+
+test setup
+date 2015-01-01
+mkdir source
+create source\file1 -size 90000
+create source\file2 -size 90000
+create source\file3 -size 90000
+create source\file4 -size 90000
+mkdir archives
+mkdir signatures
+date + 1
+qlist .
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-02 -A---- archives\archive.0.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archives\archive.a.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archives\archive.m.dynpack [7]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[8\]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\file1 [1]
+.          2015-01-01          2015-01-01 -A---- source\file2 [2]
+.          2015-01-01          2015-01-01 -A---- source\file3 [3]
+.          2015-01-01          2015-01-01 -A---- source\file4 [4]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+endoutput
+mkdir unpack-1
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-1 -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Unpacking archive.m.dynpack
+endoutput
+list-verify unpack-1
+.          2015-01-01          2015-01-01 -A---- file1 [1]
+.          2015-01-01          2015-01-01 -A---- file2 [2]
+.          2015-01-01          2015-01-01 -A---- file3 [3]
+.          2015-01-01          2015-01-01 -A---- file4 [4]
+endlist
+rmdir unpack-1
+
+test simple verification
+date + 1
+edit source\file1 -size 90000
+edit source\file2 -size 90000
+edit source\file3 -size 90000
+edit source\file4 -size 90000
+copy signatures\localsig signatures\localsig-1
+date + 1
+qlist .
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Renaming (segment dirty): archive.a.dynpack to archive.-a.dynpack
+.Renaming (segment dirty): archive.m.dynpack to archive.-m.dynpack
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.Deleting (backup file): archive.-a.dynpack
+.Deleting (backup file): archive.-m.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-04 -A---- archives\archive.0.dynpack [13]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[16\]
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig-1 \[8\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+endoutput
+mkdir unpack-2
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-2 -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Unpacking archive.m.dynpack
+endoutput
+list-verify unpack-2
+.          2015-01-01          2015-01-03 -A---- file1 [9]
+.          2015-01-01          2015-01-03 -A---- file2 [10]
+.          2015-01-01          2015-01-03 -A---- file3 [11]
+.          2015-01-01          2015-01-03 -A---- file4 [12]
+endlist
+rmdir unpack-2
+
+test roll back signature
+date + 1
+copy signatures\\localsig signatures\\localsig-2
+delete signatures\\localsig
+copy signatures\\localsig-1 signatures\\localsig
+date + 1
+qlist .
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.DynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-04 -A---- archives\archive.0.dynpack [13]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[8\]
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig-1 \[8\]
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig-2 \[16\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.ValidateDynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+mkdir unpack-3
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-3 -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.DynamicUnpack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify unpack-3
+endlist
+rmdir unpack-3
+
+test test with missing signature (warning)
+date + 1
+delete signatures\localsig
+delete signatures\localsig-1
+delete signatures\localsig-2
+# save old manifest for next test
+copy archives\archive.0.dynpack old_archive.0.dynpack
+date + 1
+list-verify signatures
+endlist
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Local signature "signatures\localsig" does not exist - proceeding anyway!
+.Validating non-dirty segment: a
+.Validating non-dirty segment: m
+.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Writing: archive.0.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-08 -A---- archives\archive.0.dynpack [17]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.          2015-01-02          2015-01-04 -A---- old_archive.0.dynpack [13]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[18\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+endoutput
+mkdir unpack-4
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-4 -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Unpacking archive.m.dynpack
+endoutput
+list-verify unpack-4
+.          2015-01-01          2015-01-03 -A---- file1 [9]
+.          2015-01-01          2015-01-03 -A---- file2 [10]
+.          2015-01-01          2015-01-03 -A---- file3 [11]
+.          2015-01-01          2015-01-03 -A---- file4 [12]
+endlist
+rmdir unpack-4
+
+test roll back manifest
+date + 1
+copy archives\archive.0.dynpack mostrecent_archive.0.dynpack
+delete archives\archive.0.dynpack
+copy old_archive.0.dynpack archives\archive.0.dynpack
+date + 1
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.DynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-04 -A---- archives\archive.0.dynpack [13]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.          2015-01-02          2015-01-08 -A---- mostrecent_archive.0.dynpack [17]
+.          2015-01-02          2015-01-04 -A---- old_archive.0.dynpack [13]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[18\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.ValidateDynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+mkdir unpack-5
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-5 -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.DynamicUnpack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify unpack-5
+endlist
+rmdir unpack-5
+
+test restore
+date + 1
+delete archives\archive.0.dynpack
+move mostrecent_archive.0.dynpack archives\archive.0.dynpack
+delete old_archive.0.dynpack
+date + 1
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Validating non-dirty segment: a
+.Validating non-dirty segment: m
+.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Writing: archive.0.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-12 -A---- archives\archive.0.dynpack [19]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[20\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+endoutput
+mkdir unpack-6
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-6 -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Unpacking archive.m.dynpack
+endoutput
+list-verify unpack-6
+.          2015-01-01          2015-01-03 -A---- file1 [9]
+.          2015-01-01          2015-01-03 -A---- file2 [10]
+.          2015-01-01          2015-01-03 -A---- file3 [11]
+.          2015-01-01          2015-01-03 -A---- file4 [12]
+endlist
+rmdir unpack-6
+
+test tamper with manifest
+date + 1
+copy archives\archive.0.dynpack current_archive.0.dynpack
+delete archives\archive.0.dynpack
+# recrypt changes salt which changes singing key for the HMAC
+call backup -recrypt aes256 pA55w01D aes256 pA55w01D copy current_archive.0.dynpack archives\archive.0.dynpack
+exitcode-verify 0
+list-verify archives
+.          2015-01-02          2015-01-12 -A---- archive.0.dynpack [21]
+.          2015-01-02          2015-01-04 -A---- archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archive.m.dynpack [15]
+endlist
+date + 1
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.DynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-12 -A---- archives\archive.0.dynpack [21]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.          2015-01-02          2015-01-12 -A---- current_archive.0.dynpack [19]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[20\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.ValidateDynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+mkdir unpack-7
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-7 -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.DynamicUnpack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify unpack-7
+endlist
+rmdir unpack-7
+
+test restore
+date + 1
+delete archives\archive.0.dynpack
+move current_archive.0.dynpack archives\archive.0.dynpack
+date + 1
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Validating non-dirty segment: a
+.Validating non-dirty segment: m
+.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Writing: archive.0.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-16 -A---- archives\archive.0.dynpack [22]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[23\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+endoutput
+mkdir unpack-8
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-8 -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Unpacking archive.m.dynpack
+endoutput
+list-verify unpack-8
+.          2015-01-01          2015-01-03 -A---- file1 [9]
+.          2015-01-01          2015-01-03 -A---- file2 [10]
+.          2015-01-01          2015-01-03 -A---- file3 [11]
+.          2015-01-01          2015-01-03 -A---- file4 [12]
+endlist
+rmdir unpack-8
+
+test tamper with signature
+date + 1
+copy signatures\localsig signatures\localsig-1
+invert-range signatures\localsig 16 1
+date + 1
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.DynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-16 -A---- archives\archive.0.dynpack [22]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[24\]
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig-1 \[23\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.ValidateDynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+mkdir unpack-9
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-9 -localsig signatures\localsig
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+.
+.Error:
+.Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.UnpackInternal.*$
+*   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
+*   at Backup\.Core\.DynamicUnpack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+list-verify unpack-9
+endlist
+rmdir unpack-9
+
+test restore
+date + 1
+delete signatures\localsig
+move signatures\localsig-1 signatures\localsig
+date + 1
+call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\archive 200000 -verify -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Validating non-dirty segment: a
+.Validating non-dirty segment: m
+.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Writing: archive.0.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archives\
+.          2015-01-02          2015-01-20 -A---- archives\archive.0.dynpack [25]
+.          2015-01-02          2015-01-04 -A---- archives\archive.a.dynpack [14]
+.          2015-01-02          2015-01-04 -A---- archives\archive.m.dynpack [15]
+.                                         -----D signatures\
+*          [0-9-]+          [0-9-]+ -A---- signatures\\localsig \[26\]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\file1 [9]
+.          2015-01-01          2015-01-03 -A---- source\file2 [10]
+.          2015-01-01          2015-01-03 -A---- source\file3 [11]
+.          2015-01-01          2015-01-03 -A---- source\file4 [12]
+endlist
+# validation and unpacking
+call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+endoutput
+mkdir unpack-10
+call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-10 -localsig signatures\localsig
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Unpacking archive.m.dynpack
+endoutput
+list-verify unpack-10
+.          2015-01-01          2015-01-03 -A---- file1 [9]
+.          2015-01-01          2015-01-03 -A---- file2 [10]
+.          2015-01-01          2015-01-03 -A---- file3 [11]
+.          2015-01-01          2015-01-03 -A---- file4 [12]
+endlist
+rmdir unpack-10

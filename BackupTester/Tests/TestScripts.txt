@@ -43,6 +43,7 @@ DynpackTransactionality.txt
 ValidateBasic.txt
 ValidateEncryption.txt
 ValDynpack.txt
+DynpackLocalSignature.txt
 
 RestoreBasic.txt
 # TODO: replacing file with directory and vice versa and ensuring various restores work across that

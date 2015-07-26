@@ -54,6 +54,7 @@
     <Content Include="DynpackExclusions.txt" />
     <Content Include="DynpackIgnoreUnchanged.txt" />
     <Content Include="DynpackLargeFileSplitting.txt" />
+    <Content Include="DynpackLocalSignature.txt" />
     <Content Include="DynpackLogging.txt" />
     <Content Include="DynpackRangeFaults.txt" />
     <Content Include="DynpackTransactionality.txt" />

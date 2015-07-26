@@ -78,6 +78,8 @@ namespace Backup
 
         int MACLengthBytes { get; }
         ICheckValueGenerator CreateMACGenerator(byte[] signingKey);
+        int LocalSignagureMACLengthBytes { get; }
+        ICheckValueGenerator CreateLocalSignatureMACGenerator(byte[] signingKey);
 
         Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
         Stream CreateDecryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
@@ -92,12 +94,14 @@ namespace Backup
         public readonly int CipherKeyLengthBytes;
         public readonly int SigningKeyLengthBytes;
         public readonly int InitialCounterLengthBytes;
+        public readonly int LocalSignatureKeyLengthBytes;
 
-        public CryptoKeygroupLengths(int cipherKeyLengthBytes, int signingKeyLengthBytes, int initialCounterLengthBytes)
+        public CryptoKeygroupLengths(int cipherKeyLengthBytes, int signingKeyLengthBytes, int initialCounterLengthBytes, int localSignatureKeyLengthBytes)
         {
             this.CipherKeyLengthBytes = cipherKeyLengthBytes;
             this.SigningKeyLengthBytes = signingKeyLengthBytes;
             this.InitialCounterLengthBytes = initialCounterLengthBytes;
+            this.LocalSignatureKeyLengthBytes = localSignatureKeyLengthBytes;
         }
     }
 
@@ -106,12 +110,14 @@ namespace Backup
         public readonly byte[] CipherKey;
         public readonly byte[] SigningKey;
         public readonly byte[] InitialCounter;
+        public readonly byte[] LocalSignatureKey;
 
-        public CryptoKeygroup(byte[] cipherKey, byte[] signingKey, byte[] initialCounter)
+        public CryptoKeygroup(byte[] cipherKey, byte[] signingKey, byte[] initialCounter, byte[] localSignatureKey)
         {
             this.CipherKey = cipherKey;
             this.SigningKey = signingKey;
             this.InitialCounter = initialCounter;
+            this.LocalSignatureKey = localSignatureKey;
         }
 
         public void Dispose()
@@ -174,6 +180,7 @@ namespace Backup
         private ICryptoSystemBlockCipher cipher;
         private ICryptoSystemAuthentication auth;
         private ICryptoSystemKeyGeneration keygen;
+        private ICryptoSystemAuthentication localAuth;
 
         public CryptoSystemComposable(
             ICryptoSystemRandomNumberGeneration rng,
@@ -185,6 +192,10 @@ namespace Backup
             this.cipher = cipher;
             this.auth = auth;
             this.keygen = keygen;
+
+            // this is fixed to SHA2-512-256 for all systems - otherwise length of signature file could potentially be
+            // used to discriminate between cryptosystem options, thus identifying which subset of archives might be connected to.
+            this.localAuth = new CryptoSystemAuthenticationHMACSHA2_512_256();
         }
 
         public abstract string Name { get; }
@@ -200,6 +211,7 @@ namespace Backup
         public int SigningKeyLengthBytes { get { return auth.SigningKeyLengthBytes; } }
         public int FileSaltLengthBytes { get { return keygen.FileSaltLengthBytes; } }
         public int InitialVectorLengthBytes { get { return cipher.InitialVectorLengthBytes; } }
+        public int LocalSignatureKeyLengthBytes { get { return localAuth.SigningKeyLengthBytes; } }
 
         public int DefaultRfc2898Rounds { get { return keygen.DefaultRfc2898Rounds; } }
 
@@ -210,12 +222,12 @@ namespace Backup
 
         public void DeriveSessionKeys(ProtectedArray<byte> masterKey, byte[] salt, out CryptoKeygroup sessionKeys)
         {
-            keygen.DeriveSessionKeys(masterKey, salt, new CryptoKeygroupLengths(CipherKeyLengthBytes, SigningKeyLengthBytes, InitialVectorLengthBytes), out sessionKeys);
+            keygen.DeriveSessionKeys(masterKey, salt, new CryptoKeygroupLengths(CipherKeyLengthBytes, SigningKeyLengthBytes, InitialVectorLengthBytes, LocalSignatureKeyLengthBytes), out sessionKeys);
         }
 
         public void DeriveNewSessionKeys(ProtectedArray<byte> masterKey, out byte[] salt, out CryptoKeygroup sessionKeys)
         {
-            keygen.DeriveNewSessionKeys(rng, masterKey, out salt, new CryptoKeygroupLengths(CipherKeyLengthBytes, SigningKeyLengthBytes, InitialVectorLengthBytes), out sessionKeys);
+            keygen.DeriveNewSessionKeys(rng, masterKey, out salt, new CryptoKeygroupLengths(CipherKeyLengthBytes, SigningKeyLengthBytes, InitialVectorLengthBytes, LocalSignatureKeyLengthBytes), out sessionKeys);
         }
 
         public byte[] CreateRandomBytes(int count)
@@ -228,6 +240,13 @@ namespace Backup
         public ICheckValueGenerator CreateMACGenerator(byte[] signingKey)
         {
             return auth.CreateMACGenerator(signingKey);
+        }
+
+        public int LocalSignagureMACLengthBytes { get { return localAuth.MACLengthBytes; } }
+
+        public ICheckValueGenerator CreateLocalSignatureMACGenerator(byte[] signingKey)
+        {
+            return localAuth.CreateMACGenerator(signingKey);
         }
 
         public Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter)
@@ -1129,11 +1148,22 @@ namespace Backup
 
         public void DeriveSessionKeys(ProtectedArray<byte> masterKey, byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys)
         {
-            byte[] cipherKey = new byte[sessionKeyLengths.CipherKeyLengthBytes];
-            byte[] signingKey = new byte[sessionKeyLengths.SigningKeyLengthBytes];
-            byte[] initialCounter = new byte[sessionKeyLengths.InitialCounterLengthBytes];
-            DeriveKeys(masterKey, salt, new byte[][] { cipherKey, signingKey, initialCounter }, Rfc5869DeriveBytes);
-            sessionKeys = new CryptoKeygroup(cipherKey, signingKey, initialCounter);
+            byte[] cipherKey;
+            byte[] signingKey;
+            byte[] initialCounter;
+            byte[] localSignatureKey;
+
+            byte[][] keys = new byte[][]
+            {
+                cipherKey = new byte[sessionKeyLengths.CipherKeyLengthBytes],
+                signingKey = new byte[sessionKeyLengths.SigningKeyLengthBytes],
+                initialCounter = new byte[sessionKeyLengths.InitialCounterLengthBytes],
+                localSignatureKey = new byte[sessionKeyLengths.LocalSignatureKeyLengthBytes],
+            };
+
+            DeriveKeys(masterKey, salt, keys, Rfc5869DeriveBytes);
+
+            sessionKeys = new CryptoKeygroup(cipherKey, signingKey, initialCounter, localSignatureKey);
         }
 
         public void DeriveNewSessionKeys(ICryptoSystemRandomNumberGeneration rng, ProtectedArray<byte> masterKey, out byte[] salt, CryptoKeygroupLengths sessionKeyLengths, out CryptoKeygroup sessionKeys)
