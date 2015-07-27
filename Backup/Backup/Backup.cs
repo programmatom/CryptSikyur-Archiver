@@ -7410,21 +7410,7 @@ namespace Backup
 
                 if (localSignaturePath != null)
                 {
-                    if (!File.Exists(localSignaturePath))
-                    {
-                        ConsoleWriteLineColor(ConsoleColor.Yellow, "Local signature \"{0}\" does not exist - proceeding anyway!", localSignaturePath);
-                        Thread.Sleep(5000);
-                    }
-                    else
-                    {
-                        byte[] savedLocalSignatureBytes = File.ReadAllBytes(localSignaturePath);
-                        if (!ArrayEqual(localSignature.CheckValue, savedLocalSignatureBytes))
-                        {
-                            string message = String.Format("Local signature \"{0}\" does not match computed signature from manifest! Aborting!", localSignaturePath);
-                            ConsoleWriteLineColor(ConsoleColor.Yellow, message);
-                            throw new ApplicationException(message);
-                        }
-                    }
+                    CheckLocalSignature(localSignaturePath, localSignature);
                 }
 
                 segmentSerialNumberOut = segmentSerialNumber;
@@ -8637,21 +8623,7 @@ namespace Backup
 
                         if (localSignaturePath != null)
                         {
-                            if (!File.Exists(localSignaturePath))
-                            {
-                                ConsoleWriteLineColor(ConsoleColor.Yellow, "Local signature \"{0}\" does not exist - proceeding anyway!", localSignaturePath);
-                                Thread.Sleep(5000);
-                            }
-                            else
-                            {
-                                byte[] savedLocalSignatureBytes = File.ReadAllBytes(localSignaturePath);
-                                if (!ArrayEqual(localSignature.CheckValue, savedLocalSignatureBytes))
-                                {
-                                    string message = String.Format("Local signature \"{0}\" does not match computed signature from manifest! Aborting!", localSignaturePath);
-                                    ConsoleWriteLineColor(ConsoleColor.Yellow, message);
-                                    throw new ApplicationException(message);
-                                }
-                            }
+                            CheckLocalSignature(localSignaturePath, localSignature);
                         }
                     }
                 }
@@ -9477,7 +9449,7 @@ namespace Backup
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
                             foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
-                                concurrent.WaitQueueEmpty();
+                                concurrent.WaitQueueNotFull();
                                 if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
@@ -9546,7 +9518,7 @@ namespace Backup
                         {
                             for (int iEnum = 0; iEnum < segments.Count; iEnum++)
                             {
-                                concurrent.WaitQueueEmpty();
+                                concurrent.WaitQueueNotFull();
                                 if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
@@ -9795,7 +9767,7 @@ namespace Backup
                             }
                             foreach (KeyValuePair<string, bool> nameEnum in namesToBackupOrRemove)
                             {
-                                concurrent.WaitQueueEmpty();
+                                concurrent.WaitQueueNotFull();
                                 if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
@@ -10170,23 +10142,7 @@ namespace Backup
                         DateTime lastProgressUpdate = default(DateTime);
                         ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
                         {
-                            if (Interactive())
-                            {
-                                lock (progressTrackers)
-                                {
-                                    if (progressVisible)
-                                    {
-                                        for (int i = 0; i < maxStatusLines; i++)
-                                        {
-                                            Console.WriteLine(new String(' ', Math.Max(0, Console.BufferWidth - 1)));
-                                        }
-                                        Console.CursorTop -= maxStatusLines;
-
-                                        progressVisible = false;
-                                        lastProgressUpdate = default(DateTime);
-                                    }
-                                }
-                            }
+                            EraseProgress(ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible);
                         };
                         ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
                         {
@@ -10194,83 +10150,7 @@ namespace Backup
                         };
                         ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
                         {
-                            messagesLog.Flush(prepareConsole);
-
-                            if (Interactive())
-                            {
-                                while (Console.KeyAvailable)
-                                {
-                                    ConsoleKeyInfo key = Console.ReadKey(true/*intercept*/);
-                                    if (key.KeyChar == 't')
-                                    {
-                                        Console.Write("Network throttle (bytes per second): ");
-                                        string s = Console.ReadLine();
-                                        try
-                                        {
-                                            Http.HttpGlobalControl.SetThrottleFromString(s);
-                                        }
-                                        catch (ArgumentException)
-                                        {
-                                            // ignore invalid inputs
-                                        }
-                                    }
-                                    else if (key.KeyChar == 'q')
-                                    {
-                                        Interlocked.Exchange(ref fatal, 1);
-                                    }
-                                }
-
-                                if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
-                                {
-                                    lock (progressTrackers)
-                                    {
-                                        List<string> lines = new List<string>();
-
-                                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
-                                        {
-                                            lines.Add("  [fatal error pending]");
-                                        }
-
-                                        ProgressTracker[] progressTrackers2 = progressTrackers.ToArray();
-                                        Array.Sort(progressTrackers2, delegate(ProgressTracker l, ProgressTracker r) { return l.Tag.CompareTo(r.Tag); });
-                                        for (int i = 0; i < progressTrackers.Count; i++)
-                                        {
-                                            ProgressTracker progressTracker = progressTrackers2[i];
-                                            string progress;
-                                            if (progressTracker.Total >= 0)
-                                            {
-                                                progress = String.Format("{0}% of {1}", progressTracker.Current * 100 / progressTracker.Total, FileSizeString(progressTracker.Total));
-                                            }
-                                            else
-                                            {
-                                                progress = "creating";
-                                            }
-                                            lines.Add(String.Format("  [{0}: {1}]", progressTracker.Tag, progress));
-                                        }
-
-                                        long m = Interlocked.Read(ref bytesRemaining);
-                                        if (m != 0)
-                                        {
-                                            lines.Add(String.Format("  {0} queued", FileSizeString(m)));
-                                        }
-
-                                        while (lines.Count < maxStatusLines)
-                                        {
-                                            lines.Add(String.Empty);
-                                        }
-                                        maxStatusLines = lines.Count;
-
-                                        foreach (string line in lines)
-                                        {
-                                            Console.WriteLine(line + new String(' ', Math.Max(0, Console.BufferWidth - 1 - line.Length)));
-                                        }
-                                        Console.CursorTop -= lines.Count;
-                                        progressVisible = true;
-                                    }
-
-                                    lastProgressUpdate = DateTime.Now;
-                                }
-                            }
+                            ShowProgress(ShowProgressType.Upload, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
                         };
 
 
@@ -10284,7 +10164,7 @@ namespace Backup
                         fatal = 0;
                         for (int iEnum = 0; iEnum < segments.Count; iEnum++)
                         {
-                            concurrent.WaitQueueEmpty(showProgress, WaitInterval);
+                            concurrent.WaitQueueNotFull(showProgress, WaitInterval);
                             if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                             {
                                 if (abort || !FatalPromptContinue(concurrent, messagesLog, showProgress, WaitInterval, prepareConsole))
@@ -10536,7 +10416,7 @@ namespace Backup
                             string targetFileNamePrefix = targetArchiveFileNameTemplate + ".";
                             foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
-                                concurrent.WaitQueueEmpty(showProgress, WaitInterval);
+                                concurrent.WaitQueueNotFull(showProgress, WaitInterval);
                                 if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
@@ -10624,6 +10504,169 @@ namespace Backup
             }
 
             Console.WriteLine();
+        }
+
+        private enum ShowProgressType
+        {
+            Upload,
+            Download,
+        }
+        private static void ShowProgress(ShowProgressType type, ConcurrentMessageLog messagesLog, ConcurrentMessageLog.PrepareConsoleMethod prepareConsole, int WaitInterval, ref DateTime lastProgressUpdate, List<ProgressTracker> progressTrackers, ref int maxStatusLines, ref bool progressVisible, ref int fatal, ref long bytesRemaining)
+        {
+            messagesLog.Flush(prepareConsole);
+
+            if (Interactive())
+            {
+                while (Console.KeyAvailable)
+                {
+                    ConsoleKeyInfo key = Console.ReadKey(true/*intercept*/);
+                    if (key.KeyChar == 't')
+                    {
+                        Console.Write("Network throttle (bytes per second): ");
+                        string s = Console.ReadLine();
+                        try
+                        {
+                            Http.HttpGlobalControl.SetThrottleFromString(s);
+                        }
+                        catch (ArgumentException)
+                        {
+                            // ignore invalid inputs
+                        }
+                    }
+                    else if (key.KeyChar == 'q')
+                    {
+                        Interlocked.Exchange(ref fatal, 1);
+                    }
+                }
+
+                if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
+                {
+                    lock (progressTrackers)
+                    {
+                        List<KeyValuePair<string, ConsoleColor?>> lines = new List<KeyValuePair<string, ConsoleColor?>>();
+
+                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                        {
+                            lines.Add(new KeyValuePair<string, ConsoleColor?>("  [fatal error pending]", ConsoleColor.Yellow));
+                        }
+
+                        ProgressTracker[] progressTrackers2 = progressTrackers.ToArray();
+                        Array.Sort(progressTrackers2, delegate(ProgressTracker l, ProgressTracker r) { return l.Tag.CompareTo(r.Tag); });
+                        for (int i = 0; i < progressTrackers.Count; i++)
+                        {
+                            ProgressTracker progressTracker = progressTrackers2[i];
+                            string progress;
+
+                            switch (type)
+                            {
+                                default:
+                                    throw new NotSupportedException();
+
+                                case ShowProgressType.Upload:
+                                    if (progressTracker.Total >= 0)
+                                    {
+                                        progress = String.Format("{0}% of {1}", progressTracker.Current * 100 / progressTracker.Total, FileSizeString(progressTracker.Total));
+                                    }
+                                    else
+                                    {
+                                        progress = "creating";
+                                    }
+                                    break;
+
+                                case ShowProgressType.Download:
+                                    if ((progressTracker.Current == 0) || (progressTracker.Total >= 0))
+                                    {
+                                        progress = String.Format("{0}%{1}", progressTracker.Current * 100 / Math.Max(progressTracker.Total, 1), progressTracker.Total > 0 ? String.Format(" of {0}", FileSizeString(Math.Max(progressTracker.Total, 0))) : String.Empty);
+                                    }
+                                    else
+                                    {
+                                        progress = "processing";
+                                    }
+                                    break;
+                            }
+
+                            lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Format("  [{0}: {1}]", progressTracker.Tag, progress), null));
+                        }
+
+                        if (type == ShowProgressType.Upload)
+                        {
+                            long m = Interlocked.Read(ref bytesRemaining);
+                            if (m != 0)
+                            {
+                                lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Format("  {0} queued", FileSizeString(m)), null));
+                            }
+                        }
+
+                        while (lines.Count < maxStatusLines)
+                        {
+                            lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Empty, null));
+                        }
+                        maxStatusLines = lines.Count;
+
+                        foreach (KeyValuePair<string, ConsoleColor?> line in lines)
+                        {
+                            ConsoleColor? oldConsoleColor = null;
+                            if (line.Value.HasValue && Interactive())
+                            {
+                                oldConsoleColor = Console.ForegroundColor;
+                                Console.ForegroundColor = line.Value.Value;
+                            }
+                            Console.WriteLine(line.Key + new String(' ', Math.Max(0, Console.BufferWidth - 1 - line.Key.Length)));
+                            if (oldConsoleColor.HasValue)
+                            {
+                                Console.ForegroundColor = oldConsoleColor.Value;
+                            }
+                        }
+                        Console.CursorTop -= lines.Count;
+                        progressVisible = true;
+                    }
+
+                    lastProgressUpdate = DateTime.Now;
+                }
+            }
+        }
+
+        private static void EraseProgress(ref DateTime lastProgressUpdate, List<ProgressTracker> progressTrackers, ref int maxStatusLines, ref bool progressVisible)
+        {
+            if (Interactive())
+            {
+                lock (progressTrackers)
+                {
+                    if (progressVisible)
+                    {
+                        for (int i = 0; i < maxStatusLines; i++)
+                        {
+                            Console.WriteLine(new String(' ', Math.Max(0, Console.BufferWidth - 1)));
+                        }
+                        Console.CursorTop -= maxStatusLines;
+
+                        progressVisible = false;
+                        lastProgressUpdate = default(DateTime);
+                    }
+                }
+            }
+        }
+
+        private static void CheckLocalSignature(string localSignaturePath, CheckedReadStream localSignature)
+        {
+            if (localSignaturePath != null)
+            {
+                if (!File.Exists(localSignaturePath))
+                {
+                    ConsoleWriteLineColor(ConsoleColor.Yellow, "Local signature \"{0}\" does not exist - proceeding anyway!", localSignaturePath);
+                    Thread.Sleep(5000);
+                }
+                else
+                {
+                    byte[] savedLocalSignatureBytes = File.ReadAllBytes(localSignaturePath);
+                    if (!ArrayEqual(localSignature.CheckValue, savedLocalSignatureBytes))
+                    {
+                        string message = String.Format("Local signature \"{0}\" does not match computed signature from manifest! Aborting!", localSignaturePath);
+                        ConsoleWriteLineColor(ConsoleColor.Yellow, message);
+                        throw new ApplicationException(message);
+                    }
+                }
+            }
         }
 
         private static int GetConcurrency(IArchiveFileManager fileManager, Context context)
@@ -11300,25 +11343,10 @@ namespace Backup
                             int maxStatusLines = 0;
                             bool progressVisible = false;
                             DateTime lastProgressUpdate = default(DateTime);
+                            long bytesRemaining = Int64.MinValue; // not used
                             ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
                             {
-                                if (Interactive())
-                                {
-                                    lock (progressTrackers)
-                                    {
-                                        if (progressVisible)
-                                        {
-                                            for (int i = 0; i < maxStatusLines; i++)
-                                            {
-                                                Console.WriteLine(new String(' ', Math.Max(0, Console.BufferWidth - 1)));
-                                            }
-                                            Console.CursorTop -= maxStatusLines;
-
-                                            progressVisible = false;
-                                            lastProgressUpdate = default(DateTime);
-                                        }
-                                    }
-                                }
+                                EraseProgress(ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible);
                             };
                             ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
                             {
@@ -11326,55 +11354,7 @@ namespace Backup
                             };
                             ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
                             {
-                                messagesLog.Flush(prepareConsole);
-
-                                if (Interactive())
-                                {
-                                    if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
-                                    {
-                                        lock (progressTrackers)
-                                        {
-                                            List<string> lines = new List<string>();
-
-                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
-                                            {
-                                                lines.Add("  [fatal error pending]");
-                                            }
-
-                                            ProgressTracker[] progressTrackers2 = progressTrackers.ToArray();
-                                            Array.Sort(progressTrackers2, delegate(ProgressTracker l, ProgressTracker r) { return l.Tag.CompareTo(r.Tag); });
-                                            for (int i = 0; i < progressTrackers.Count; i++)
-                                            {
-                                                ProgressTracker progressTracker = progressTrackers2[i];
-                                                string progress;
-                                                if ((progressTracker.Current == 0) || (progressTracker.Total >= 0))
-                                                {
-                                                    progress = String.Format("{0}%{1}", progressTracker.Current * 100 / Math.Max(progressTracker.Total, 1), progressTracker.Total > 0 ? String.Format(" of {0}", FileSizeString(Math.Max(progressTracker.Total, 0))) : String.Empty);
-                                                }
-                                                else
-                                                {
-                                                    progress = "processing";
-                                                }
-                                                lines.Add(String.Format("  [{0}: {1}]", progressTracker.Tag, progress));
-                                            }
-
-                                            while (lines.Count < maxStatusLines)
-                                            {
-                                                lines.Add(String.Empty);
-                                            }
-                                            maxStatusLines = lines.Count;
-
-                                            foreach (string line in lines)
-                                            {
-                                                Console.WriteLine(line + new String(' ', Math.Max(0, Console.BufferWidth - 1 - line.Length)));
-                                            }
-                                            Console.CursorTop -= lines.Count;
-                                            progressVisible = true;
-                                        }
-
-                                        lastProgressUpdate = DateTime.Now;
-                                    }
-                                }
+                                ShowProgress(ShowProgressType.Download, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
                             };
 
 
@@ -11386,7 +11366,7 @@ namespace Backup
                             }
                             foreach (String segmentNameEnum in segmentNameList)
                             {
-                                concurrent.WaitQueueEmpty(showProgress, WaitInterval);
+                                concurrent.WaitQueueNotFull(showProgress, WaitInterval);
                                 if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                                 {
                                     break;

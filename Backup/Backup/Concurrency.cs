@@ -461,7 +461,7 @@ namespace Concurrent
         // delegate has finished). threadCount==1 creates a single task thread, so tasks will be
         // executed in order, non-overlapped, but the main thread is permitted to continue it's own
         // work simultaneously.
-        // messagesLog and trace are both optional (can be null);
+        // messagesLog and trace are both optional (can be null).
         public ConcurrentTasks(int threadCount, int? maxQueuedTasksCount, ConcurrentMessageLog messagesLog, TextWriter trace)
         {
             if (threadCount < 0)
@@ -801,6 +801,11 @@ namespace Concurrent
 
                 lock (this)
                 {
+                    // Note that task is added to queue, and then we wait for dispatch. This is done for performance,
+                    // so that the task is immediately available for the next available thread. It does mean that
+                    // (depending on how the program is structured) if a fatal error occurs that will abort the main
+                    // processing loop, the task enqueued will still be dispatched after the error is flagged.
+
                     tasks.Enqueue(
                         delegate(ThreadState threadState)
                         {
@@ -918,6 +923,10 @@ namespace Concurrent
             Debug.Assert(completionObject == null);
         }
 
+#if false // these appear to not be of much use - anyone using these?
+        // These methods only wait for the task queue to be empty - all threads may yet be busy with long-running
+        // tasks. This is probably not what is desired.
+
         public void WaitQueueEmpty(WaitIntervalMethod waitIntervalMethod, int waitInterval)
         {
             Debug.Assert(Thread.CurrentThread.ManagedThreadId == primaryThreadId);
@@ -936,6 +945,23 @@ namespace Concurrent
         public void WaitQueueEmpty()
         {
             WaitQueueEmpty(null/*waitIntervalMethod*/, -1/*inifinite wait*/);
+        }
+#endif
+
+        // These two methods are hacky: because Do() enqueues a task and then waits for dispatch, if a fatal
+        // error occurs in the main processing loop (that calls Do()), it will still dispatch one more task.
+        // These methods enqueue an empty task to ensure that the task queue is drained AND that there is a
+        // thread imminently available (as soon as the empty task completes).
+        // This implementation is inefficient and is not recommended unless tasks are long-running.
+
+        public void WaitQueueNotFull(WaitIntervalMethod waitIntervalMethod, int waitInterval)
+        {
+            Do("(WaitQueueNotFull)", delegate(ITaskContext taskContext) { }, waitIntervalMethod, waitInterval);
+        }
+
+        public void WaitQueueNotFull()
+        {
+            WaitQueueNotFull(null/*waitIntervalMethod*/, -1/*inifinite wait*/);
         }
 
 
