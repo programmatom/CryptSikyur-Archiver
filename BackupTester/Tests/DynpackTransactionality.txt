@@ -57,8 +57,29 @@ copy archive archive-backup
 
 test rerun with completion, ensure success (backup x.-0.dynpack will be used)
 date + 1
+# automatic recovery from backup manifest (*.-0.dynpack) in case of missing manifest (*.0.dynpack) was deemed risky, so manual intervention is now required in this case
+# OLD BEHAVIOR
+#call backup -concurrency 0 dynpack source archive\x 30000
+#exitcode-verify 0
+# CURRENT BEHAVIOR
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: x.0.dynpack
+.
+.Error:
+.Manifest file "x.0.dynpack" does not exist (backup copy "x.-0.dynpack" does exist)! Manual intervention required - may be device connectivity failure. If manifest is indeed missing, archive integrity must be verified.
+*   at Backup\.Core\.DynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+# manual intervention
+copy archive\x.-0.dynpack archive\x.0.dynpack
+touch archive\x.0.dynpack -created 
+# rerun
 call backup -concurrency 0 dynpack source archive\x 30000
 exitcode-verify 0
+# END OLD/CURRENT BEHAVIOR
 list-verify archive
 .          2014-01-03          2014-01-03 -A---- x.0.dynpack [14]
 .          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
@@ -896,6 +917,24 @@ list-verify archive
 .          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
 endlist
 date + 1
+# OLD BEHAVIOR
+# missing x.0.dynpack was recovered from x.-0.dynpack automatically
+# CURRENT BEHAVIOR
+# manual intervention is required
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6-write-manifest-file']/Committed dynpack source archive\x 30000
+exitcode-verify not 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: x.0.dynpack
+.
+.Error:
+.Manifest file "x.0.dynpack" does not exist (backup copy "x.-0.dynpack" does exist)! Manual intervention required - may be device connectivity failure. If manifest is indeed missing, archive integrity must be verified.
+*   at Backup\.Core\.DynamicPack.*$
+*   at Backup\.Core\.Main.*$
+endoutput
+copy archive\x.-0.dynpack archive\x.0.dynpack
+touch archive\x.0.dynpack -created
+# END OLD/CURRENT BEHAVIOR
 call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6-write-manifest-file']/Committed dynpack source archive\x 30000
 exitcode-verify not 0
 list-verify archive

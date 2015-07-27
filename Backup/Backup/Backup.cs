@@ -10198,7 +10198,6 @@ namespace Backup
 
                             if (Interactive())
                             {
-#if true // fails interactive test cases
                                 while (Console.KeyAvailable)
                                 {
                                     ConsoleKeyInfo key = Console.ReadKey(true/*intercept*/);
@@ -10220,7 +10219,6 @@ namespace Backup
                                         Interlocked.Exchange(ref fatal, 1);
                                     }
                                 }
-#endif
 
                                 if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
                                 {
