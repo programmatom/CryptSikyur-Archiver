@@ -25,6 +25,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -10150,7 +10151,7 @@ namespace Backup
                         };
                         ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
                         {
-                            ShowProgress(ShowProgressType.Upload, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
+                            ShowProgress(ShowProgressType.Upload, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, Http.HttpGlobalControl.NetworkMeterCombined, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
                         };
 
 
@@ -10511,7 +10512,7 @@ namespace Backup
             Upload,
             Download,
         }
-        private static void ShowProgress(ShowProgressType type, ConcurrentMessageLog messagesLog, ConcurrentMessageLog.PrepareConsoleMethod prepareConsole, int WaitInterval, ref DateTime lastProgressUpdate, List<ProgressTracker> progressTrackers, ref int maxStatusLines, ref bool progressVisible, ref int fatal, ref long bytesRemaining)
+        private static void ShowProgress(ShowProgressType type, ConcurrentMessageLog messagesLog, ConcurrentMessageLog.PrepareConsoleMethod prepareConsole, int WaitInterval, ref DateTime lastProgressUpdate, List<ProgressTracker> progressTrackers, Http.IThroughputMeter throughputMeter, ref int maxStatusLines, ref bool progressVisible, ref int fatal, ref long bytesRemaining)
         {
             messagesLog.Flush(prepareConsole);
 
@@ -10590,10 +10591,27 @@ namespace Backup
 
                         if (type == ShowProgressType.Upload)
                         {
+                            string first = null;
+                            string second = null;
+
                             long m = Interlocked.Read(ref bytesRemaining);
                             if (m != 0)
                             {
-                                lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Format("  {0} queued", FileSizeString(m)), null));
+                                first = String.Format("  {0} queued", FileSizeString(m));
+                            }
+
+                            if (throughputMeter != null)
+                            {
+                                long throughput = throughputMeter.AverageBytesPerSecond;
+                                if (throughput > 0)
+                                {
+                                    second = String.Format("  {0}/sec", FileSizeString(throughput));
+                                }
+                            }
+
+                            if ((first != null) || (second != null))
+                            {
+                                lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Concat(first, second), null));
                             }
                         }
 
@@ -11354,7 +11372,7 @@ namespace Backup
                             };
                             ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
                             {
-                                ShowProgress(ShowProgressType.Download, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
+                                ShowProgress(ShowProgressType.Download, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, Http.HttpGlobalControl.NetworkMeterCombined, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
                             };
 
 
@@ -13241,7 +13259,7 @@ namespace Backup
                             DynamicPack(
                                 EnsureRootedLocalPath(args[i]),
                                 EnsureRootedRemotablePath(args[i + 1]),
-                                Int64.Parse(args[i + 2]),
+                                Int64.Parse(args[i + 2], NumberStyles.Integer | NumberStyles.AllowThousands),
                                 context,
                                 argsExtra);
                         }

@@ -1403,12 +1403,13 @@ namespace Backup
             return entry;
         }
 
-#if true
-        // ensure smaller than MaxOneStagePutBodyLength in Http.cs - Microsoft doesn't work will with 100-continue method
-        private static readonly long ResumableUploadFragmentSize = 1024 * 1024 * 10; // recommended default of 10 megabytes (max of 60), per https://dev.onedrive.com/items/upload_large_files.htm
-#else
-        private static readonly long ResumableUploadFragmentSize = 0; // for debugging
-#endif
+        // Fragment sizes must be a multiple of 340 kilobytes, per https://dev.onedrive.com/items/upload_large_files.htm
+        private const int FragmentSizeMultiple = 340 * 1024;
+        // Recommended default between 5 and 10 megabytes (max of 60), per https://dev.onedrive.com/items/upload_large_files.htm
+        // This is also the cut-over for using resumable upload. ** Ensure this is smaller than MaxOneStagePutBodyLength in Http.cs - Microsoft doesn't work with 100-continue method
+        private static readonly long ResumableUploadDefaultFragmentSize = ((5L * 1024 * 1024 + FragmentSizeMultiple - 1) / FragmentSizeMultiple) * FragmentSizeMultiple;
+        // Maximum of 60MB, per https://dev.onedrive.com/items/upload_large_files.htm
+        private const long MaximumUploadFragmentSize = (60L * 1024 * 1024 / FragmentSizeMultiple) * FragmentSizeMultiple;
         private RemoteFileSystemEntry UploadFile_Resumable(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
@@ -1537,7 +1538,6 @@ namespace Backup
                 }
             }
 
-            const int FragmentSizeMultiple = 340 * 1024; // must be multiple of 340 kilobytes, per https://dev.onedrive.com/items/upload_large_files.htm
             bool resuming = false;
             long previousLengthSoFar = 0;
             int retry = -1;
@@ -1564,9 +1564,6 @@ namespace Backup
             // TODO: implement detection of failure to make forward progress
 
         NextFragment:
-            // create dispersion in fragmentSize to reduce parallel request synchronizing on fast
-            // networks with slow to respond remote servers
-            long fragmentSize = ResumableUploadFragmentSize + RetryHelper.ThreadsafeRandomNext((int)ResumableUploadFragmentSize / FragmentSizeMultiple) * FragmentSizeMultiple;
             if (resuming)
             {
                 // Request upload status to find last successful byte
@@ -1618,7 +1615,9 @@ namespace Backup
                     {
                         trace.WriteLine(" DoWebActionJSON2JSONWithRetry number of ranges from server should be 1");
                     }
-                    throw new InvalidOperationException();
+                    // have observed 500 internal error followed by this situation
+                    goto StartOver;
+                    //throw new InvalidOperationException();
                 }
                 string[] parts = ((string)nextExpectedRanges[0]).Split('-');
                 if (parts.Length != 2)
@@ -1639,9 +1638,48 @@ namespace Backup
                 resuming = false;
             }
             streamUploadFrom.Seek(previousLengthSoFar, SeekOrigin.Begin);
-            fragmentSize = (fragmentSize / FragmentSizeMultiple) * FragmentSizeMultiple;
-            fragmentSize = Math.Max(fragmentSize, FragmentSizeMultiple);
-            fragmentSize = Math.Min(fragmentSize, streamUploadFrom.Length - streamUploadFrom.Position);
+
+            // compute fragment size
+            long fragmentSize = ResumableUploadDefaultFragmentSize;
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine(" Fragment size: base: {0}", Core.FileSizeString(fragmentSize));
+                }
+                // create dispersion in fragmentSize to reduce parallel request synchronizing on fast networks with slow
+                // to respond remote servers: range [1..1.5)
+                float fragmentSizeRandomDispersion = 1 + (float)RetryHelper.ThreadsafeRandomNext(128) / 256;
+                if (trace != null)
+                {
+                    trace.WriteLine(" Fragment size: random factor for dispersion: {0}", fragmentSizeRandomDispersion);
+                }
+                // generate adjustment factor for fast networks - target 15 seconds for a one segment monopolizing channel width
+                float fragmentSizeNetworkSpeedFactor = 1;
+                if (HttpGlobalControl.NetworkMeterSent != null)
+                {
+                    const int TargetDurationSeconds = 15;
+                    long currentAverageBytesPerSecond = HttpGlobalControl.NetworkMeterSent.AverageBytesPerSecond;
+                    float fragmentSizeNetworkSpeedFactor2 = ((float)currentAverageBytesPerSecond * (float)TargetDurationSeconds) / ResumableUploadDefaultFragmentSize;
+                    fragmentSizeNetworkSpeedFactor = Math.Max(1, fragmentSizeNetworkSpeedFactor2);
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" Fragment size: adjustment for network speed: current average bytes/sec {0}, raw factor {1}, adjusted factor {2}", Core.FileSizeString(currentAverageBytesPerSecond), fragmentSizeNetworkSpeedFactor2, fragmentSizeNetworkSpeedFactor);
+                    }
+                }
+                // ensure fragment size meets min/max/factor restrictions
+                fragmentSize = (long)(fragmentSize * fragmentSizeRandomDispersion * fragmentSizeNetworkSpeedFactor / FragmentSizeMultiple) * FragmentSizeMultiple;
+                if (trace != null)
+                {
+                    trace.WriteLine(" Fragment size: proposed: {0}", Core.FileSizeString(fragmentSize));
+                }
+                fragmentSize = Math.Max(fragmentSize, FragmentSizeMultiple);
+                fragmentSize = Math.Min(fragmentSize, streamUploadFrom.Length - streamUploadFrom.Position);
+                fragmentSize = Math.Min(fragmentSize, MaximumUploadFragmentSize);
+                if (trace != null)
+                {
+                    trace.WriteLine(" Fragment size: final: {0}", Core.FileSizeString(fragmentSize));
+                }
+            }
 
             if (fragmentSize > 0)
             {
@@ -1816,7 +1854,7 @@ namespace Backup
 
         public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
-            if (streamUploadFrom.Length <= ResumableUploadFragmentSize)
+            if (streamUploadFrom.Length <= ResumableUploadDefaultFragmentSize)
             {
                 return UploadFile_Simple(folderId, remoteName, streamUploadFrom, progressTracker, trace, faultInstanceContext);
             }

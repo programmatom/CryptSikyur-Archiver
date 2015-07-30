@@ -75,6 +75,12 @@ namespace Http
         int BufferSize { get; }
     }
 
+    public interface IThroughputMeter
+    {
+        void BytesTransferred(int count);
+        long AverageBytesPerSecond { get; }
+    }
+
     public interface IProgressTracker
     {
         long Current { set; }
@@ -112,6 +118,10 @@ namespace Http
     {
         public static INetworkThrottle NetworkThrottleIn = new NullNetworkThrottle();
         public static INetworkThrottle NetworkThrottleOut = new NullNetworkThrottle();
+
+        public static readonly IThroughputMeter NetworkMeterSent = new BasicThroughputMeter();
+        public static readonly IThroughputMeter NetworkMeterReceived = new BasicThroughputMeter();
+        public static readonly IThroughputMeter NetworkMeterCombined = new CompositeNetworkMeter(NetworkMeterSent, NetworkMeterReceived);
 
         public class NullNetworkThrottle : INetworkThrottle
         {
@@ -209,6 +219,98 @@ namespace Http
             else
             {
                 throw new ArgumentException();
+            }
+        }
+
+        // The meter is used mostly for determining the segment size to use in a multi-stage resumable upload
+        // (along with informational display for user). The average should be fairly responsive to overall network
+        // conditions, but stability is favored over instantaneous accuracy for periods of a small number of seconds.
+        public class BasicThroughputMeter : IThroughputMeter
+        {
+            public void BytesTransferred(int count)
+            {
+                lock (this)
+                {
+                    EnsureCurrent();
+                    windows[index] = windows[index] + count;
+                }
+            }
+
+            public long AverageBytesPerSecond
+            {
+                get
+                {
+                    lock (this)
+                    {
+                        EnsureCurrent();
+                        // sum excludes current window (by design); but use current window if it's the only data existing
+                        return (width > 1 ? sum / (width - 1) : windows[index]) / SecondsPerWindow;
+                    }
+                }
+            }
+
+            private const int MaxWindows = 5;
+            private const int TicksPerSecond = 10000000; // there are 10 million DateTime.Ticks in a second: https://msdn.microsoft.com/en-us/library/system.datetime.ticks%28v=vs.110%29.aspx
+            private const int SecondsPerWindow = 3;
+
+            private long[] windows = new long[MaxWindows];
+            private int index;
+            private int width = 1;
+            private long lastEpoch;
+            private long sum; // excludes current window
+
+            private void EnsureCurrent() // caller must lock(this)
+            {
+                long currentEpoch = DateTime.Now.Ticks / (SecondsPerWindow * TicksPerSecond);
+                if (currentEpoch - lastEpoch > MaxWindows)
+                {
+                    lastEpoch = currentEpoch;
+                    index = 0;
+                    width = 1;
+                    sum = 0;
+                    Array.Clear(windows, 0, MaxWindows);
+                }
+                else if (currentEpoch != lastEpoch)
+                {
+                    for (int i = (int)(currentEpoch - lastEpoch); i > 0; i--)
+                    {
+                        sum = sum + windows[index]; // enter finished window into running sum
+                        width = width + 1 < MaxWindows ? width + 1 : MaxWindows;
+                        index = index + 1 < MaxWindows ? index + 1 : 0;
+                        sum = sum - windows[index]; // remove just-deleted window from running sum
+                        windows[index] = 0;
+                    }
+                    lastEpoch = currentEpoch;
+
+                    if (sum == 0)
+                    {
+                        width = 1; // during interruption, shrink history length to improve responsiveness to resumption
+                    }
+                }
+            }
+        }
+
+        public class CompositeNetworkMeter : IThroughputMeter
+        {
+            private IThroughputMeter one, two;
+
+            public CompositeNetworkMeter(IThroughputMeter one, IThroughputMeter two)
+            {
+                this.one = one;
+                this.two = two;
+            }
+
+            public void BytesTransferred(int count)
+            {
+                throw new NotSupportedException();
+            }
+
+            public long AverageBytesPerSecond
+            {
+                get
+                {
+                    return Math.Max(one.AverageBytesPerSecond, two.AverageBytesPerSecond);
+                }
             }
         }
     }
@@ -479,6 +581,10 @@ namespace Http
                         {
                             HttpGlobalControl.NetworkThrottleOut.WaitBytes(requestHeaderBytes.Length);
                         }
+                        if (HttpGlobalControl.NetworkMeterSent != null)
+                        {
+                            HttpGlobalControl.NetworkMeterSent.BytesTransferred(requestHeaderBytes.Length);
+                        }
 
                         // wait for 100-continue if two-stage request in use
 
@@ -543,6 +649,10 @@ namespace Http
                                 if (HttpGlobalControl.NetworkThrottleOut != null)
                                 {
                                     HttpGlobalControl.NetworkThrottleOut.WaitBytes(read);
+                                }
+                                if (HttpGlobalControl.NetworkMeterSent != null)
+                                {
+                                    HttpGlobalControl.NetworkMeterSent.BytesTransferred(read);
                                 }
 
                                 socketStream.Write(buffer, 0, read);
@@ -666,6 +776,10 @@ namespace Http
                             {
                                 HttpGlobalControl.NetworkThrottleIn.WaitBytes(approximateResponseHeadersBytes);
                             }
+                            if (HttpGlobalControl.NetworkMeterReceived != null)
+                            {
+                                HttpGlobalControl.NetworkMeterReceived.BytesTransferred(approximateResponseHeadersBytes);
+                            }
                         }
 
                         IFaultPredicate faultPredicateReadResponse = faultInstanceMethod.SelectPredicate("ResponseBodyBytes");
@@ -750,6 +864,10 @@ namespace Http
                             if (HttpGlobalControl.NetworkThrottleIn != null)
                             {
                                 HttpGlobalControl.NetworkThrottleIn.WaitBytes(read);
+                            }
+                            if (HttpGlobalControl.NetworkMeterReceived != null)
+                            {
+                                HttpGlobalControl.NetworkMeterReceived.BytesTransferred(read);
                             }
                             responseBodyDestination.Write(buffer, 0, read);
                             chunkRemaining -= read;

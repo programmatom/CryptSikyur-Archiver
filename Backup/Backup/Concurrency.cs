@@ -923,31 +923,6 @@ namespace Concurrent
             Debug.Assert(completionObject == null);
         }
 
-#if false // these appear to not be of much use - anyone using these?
-        // These methods only wait for the task queue to be empty - all threads may yet be busy with long-running
-        // tasks. This is probably not what is desired.
-
-        public void WaitQueueEmpty(WaitIntervalMethod waitIntervalMethod, int waitInterval)
-        {
-            Debug.Assert(Thread.CurrentThread.ManagedThreadId == primaryThreadId);
-
-            if (threadCount > 0)
-            {
-                mainThreadBlocked.EnterWaitRegion();
-                while (!waitQueueEmpty.WaitOne(waitInterval))
-                {
-                    waitIntervalMethod();
-                }
-                mainThreadBlocked.ExitWaitRegion();
-            }
-        }
-
-        public void WaitQueueEmpty()
-        {
-            WaitQueueEmpty(null/*waitIntervalMethod*/, -1/*inifinite wait*/);
-        }
-#endif
-
         // These two methods are hacky: because Do() enqueues a task and then waits for dispatch, if a fatal
         // error occurs in the main processing loop (that calls Do()), it will still dispatch one more task.
         // These methods enqueue an empty task to ensure that the task queue is drained AND that there is a
