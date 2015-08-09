@@ -6699,6 +6699,17 @@ namespace Backup
 
                         BinaryWriteUtils.WriteVariableLengthQuantity(stream, 1); // single pack files have fixed sequence number
 
+                        KeyValuePair<int, string>[] parameters = new KeyValuePair<int, string>[0];
+                        foreach (KeyValuePair<int, string> parameter in parameters)
+                        {
+                            if (!(parameter.Key > 0))
+                            {
+                                throw new InvalidOperationException("assertion failed: parameter.Key > 0");
+                            }
+                            BinaryWriteUtils.WriteVariableLengthQuantity(stream, parameter.Key);
+                        }
+                        BinaryWriteUtils.WriteVariableLengthQuantity(stream, 0);
+
                         BinaryWriteUtils.WriteVariableLengthQuantity(stream, PackArchiveStructureTypeFiles);
 
                         long addedCount = 0;
@@ -7031,7 +7042,39 @@ namespace Backup
                             return;
                         }
 
-                        int structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+#if true // TODO: remove TRANSITIONAL HACK
+                        int structureType;
+#endif
+                        List<KeyValuePair<int, string>> parameters = new List<KeyValuePair<int, string>>();
+                        while (true)
+                        {
+                            int parameterType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+                            if (parameterType == 0)
+                            {
+                                break;
+                            }
+#if true // TODO: remove TRANSITIONAL HACK
+                            else if ((parameterType == PackArchiveStructureTypeManifest) || (parameterType == PackArchiveStructureTypeFiles))
+                            {
+                                structureType = parameterType;
+                                if (trace != null)
+                                {
+                                    trace.WriteLine("*** OLD FORMAT *** INVOKING HACK");
+                                }
+                                goto TransitionalHack;
+                            }
+#endif
+                            else
+                            {
+                                string value = BinaryReadUtils.ReadStringUtf8(stream);
+                                parameters.Add(new KeyValuePair<int, string>(parameterType, value));
+                            }
+                        }
+
+                        /*int */structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+#if true // TODO: remove TRANSITIONAL HACK
+                    TransitionalHack:
+#endif
                         if (trace != null)
                         {
                             trace.WriteLine("StructureType: {0}", structureType);
@@ -8260,7 +8303,7 @@ namespace Backup
 
         internal static void DynamicPack(string source, string targetArchivePathTemplate, long segmentSizeTarget, Context context, string[] args)
         {
-            const int SegmentOverheadFixed = 1/*FixedHeaderNumber*/ + (1 + PackRandomSignatureLengthBytes) + 10/*SerialNumber(var-max)*/ + 1/*StructureType*/ + PackedFileHeaderRecord.HeaderTokenLength + 4/*segment CRC32*/;
+            const int SegmentOverheadFixed = 1/*FixedHeaderNumber*/ + (1 + PackRandomSignatureLengthBytes) + 10/*SerialNumber(var-max)*/ + 1/*empty parameters list*/ + 1/*StructureType*/ + PackedFileHeaderRecord.HeaderTokenLength + 4/*segment CRC32*/;
             int SegmentOverheadEncrypted = EncryptedFileContainerHeader.GetHeaderLength(context.encrypt) + (context.encrypt != null ? context.encrypt.algorithm.MACLengthBytes : 0);
             int SegmentOverheadTotal = SegmentOverheadFixed + SegmentOverheadEncrypted;
 
@@ -8536,7 +8579,39 @@ namespace Backup
 
                                         segmentSerialNumbering = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
 
-                                        int structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+#if true // TODO: remove TRANSITIONAL HACK
+                                        int structureType;
+#endif
+                                        List<KeyValuePair<int, string>> parameters = new List<KeyValuePair<int, string>>();
+                                        while (true)
+                                        {
+                                            int parameterType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+                                            if (parameterType == 0)
+                                            {
+                                                break;
+                                            }
+#if true // TODO: remove TRANSITIONAL HACK
+                                            else if ((parameterType == PackArchiveStructureTypeManifest) || (parameterType == PackArchiveStructureTypeFiles))
+                                            {
+                                                structureType = parameterType;
+                                                if (traceDynpack != null)
+                                                {
+                                                    traceDynpack.WriteLine("*** OLD FORMAT *** INVOKING HACK");
+                                                }
+                                                goto TransitionalHack;
+                                            }
+#endif
+                                            else
+                                            {
+                                                string value = BinaryReadUtils.ReadStringUtf8(stream);
+                                                parameters.Add(new KeyValuePair<int, string>(parameterType, value));
+                                            }
+                                        }
+
+                                        /*int */structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
+#if true // TODO: remove TRANSITIONAL HACK
+                                    TransitionalHack:
+#endif
                                         if (structureType != PackArchiveStructureTypeManifest)
                                         {
                                             throw new InvalidDataException(); // must be manifest structure
@@ -10150,6 +10225,17 @@ namespace Backup
 
                                             BinaryWriteUtils.WriteVariableLengthQuantity(stream, segmentSerialNumbering++);
 
+                                            KeyValuePair<int, string>[] parameters = new KeyValuePair<int, string>[0];
+                                            foreach (KeyValuePair<int, string> parameter in parameters)
+                                            {
+                                                if (!(parameter.Key > 0))
+                                                {
+                                                    throw new InvalidOperationException("assertion failed: parameter.Key > 0");
+                                                }
+                                                BinaryWriteUtils.WriteVariableLengthQuantity(stream, parameter.Key);
+                                            }
+                                            BinaryWriteUtils.WriteVariableLengthQuantity(stream, 0);
+
                                             BinaryWriteUtils.WriteVariableLengthQuantity(stream, PackArchiveStructureTypeManifest);
 
                                             string currentSegmentName = null;
@@ -10371,6 +10457,17 @@ namespace Backup
                                                                                 BinaryWriteUtils.WriteVariableLengthByteArray(stream, randomArchiveSignature);
 
                                                                                 BinaryWriteUtils.WriteVariableLengthQuantity(stream, segment.SerialNumber);
+
+                                                                                KeyValuePair<int, string>[] parameters = new KeyValuePair<int, string>[0];
+                                                                                foreach (KeyValuePair<int, string> parameter in parameters)
+                                                                                {
+                                                                                    if (!(parameter.Key > 0))
+                                                                                    {
+                                                                                        throw new InvalidOperationException("assertion failed: parameter.Key > 0");
+                                                                                    }
+                                                                                    BinaryWriteUtils.WriteVariableLengthQuantity(stream, parameter.Key);
+                                                                                }
+                                                                                BinaryWriteUtils.WriteVariableLengthQuantity(stream, 0);
 
                                                                                 BinaryWriteUtils.WriteVariableLengthQuantity(stream, PackArchiveStructureTypeFiles);
 

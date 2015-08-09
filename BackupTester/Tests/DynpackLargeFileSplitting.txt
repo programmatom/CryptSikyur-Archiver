@@ -20,16 +20,16 @@ endlist
 call backup dynpack source archive 100000 -nosplitlargefiles -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         151 archive.0.dynpack [2]
-.          2014-01-02          2014-01-02 -A----      450139 archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A----         152 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----      450140 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
 call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         151 archive.0.dynpack [2]
-.          2014-01-02          2014-01-02 -A----      450139 archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A----         152 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----      450140 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 .                                         -----D             target1\
@@ -42,16 +42,16 @@ date + 1
 call backup dynpack source archive 100000 -nosplitlargefiles -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         151 archive.0.dynpack [4]
-.          2014-01-02          2014-01-02 -A----      450139 archive.a.dynpack [3]
+.          2014-01-02          2014-01-03 -A----         152 archive.0.dynpack [4]
+.          2014-01-02          2014-01-02 -A----      450140 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
 call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         151 archive.0.dynpack [4]
-.          2014-01-02          2014-01-02 -A----      450139 archive.a.dynpack [3]
+.          2014-01-02          2014-01-03 -A----         152 archive.0.dynpack [4]
+.          2014-01-02          2014-01-02 -A----      450140 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 .                                         -----D             target2\
@@ -67,16 +67,16 @@ date + 1
 call backup dynpack source archive 100000 -nosplitlargefiles -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-05 -A----         151 archive.0.dynpack [6]
-.          2014-01-02          2014-01-05 -A----      450139 archive.a.dynpack [7]
+.          2014-01-02          2014-01-05 -A----         152 archive.0.dynpack [6]
+.          2014-01-02          2014-01-05 -A----      450140 archive.a.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-04 -A----      450000 source\large.txt [5]
 endlist
 call backup dynunpack archive target3
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-05 -A----         151 archive.0.dynpack [6]
-.          2014-01-02          2014-01-05 -A----      450139 archive.a.dynpack [7]
+.          2014-01-02          2014-01-05 -A----         152 archive.0.dynpack [6]
+.          2014-01-02          2014-01-05 -A----      450140 archive.a.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-04 -A----      450000 source\large.txt [5]
 .                                         -----D             target3\
@@ -99,24 +99,24 @@ endlist
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         658 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----         659 archive.0.dynpack [2]
 .          2014-01-02          2014-01-02 -A----       99995 archive.a.dynpack [3]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [6]
-.          2014-01-02          2014-01-02 -A----       50801 archive.v.dynpack [7]
+.          2014-01-02          2014-01-02 -A----       50806 archive.v.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
 call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         658 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----         659 archive.0.dynpack [2]
 .          2014-01-02          2014-01-02 -A----       99995 archive.a.dynpack [3]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [6]
-.          2014-01-02          2014-01-02 -A----       50801 archive.v.dynpack [7]
+.          2014-01-02          2014-01-02 -A----       50806 archive.v.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 .                                         -----D             target1\
@@ -130,24 +130,24 @@ delete archive.a.dynpack
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         658 archive.0.dynpack [8]
+.          2014-01-02          2014-01-03 -A----         659 archive.0.dynpack [8]
 .          2014-01-03          2014-01-03 -A----       99995 archive.a.dynpack [9]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [6]
-.          2014-01-02          2014-01-02 -A----       50801 archive.v.dynpack [7]
+.          2014-01-02          2014-01-02 -A----       50806 archive.v.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 endlist
 call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         658 archive.0.dynpack [8]
+.          2014-01-02          2014-01-03 -A----         659 archive.0.dynpack [8]
 .          2014-01-03          2014-01-03 -A----       99995 archive.a.dynpack [9]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [6]
-.          2014-01-02          2014-01-02 -A----       50801 archive.v.dynpack [7]
+.          2014-01-02          2014-01-02 -A----       50806 archive.v.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-02 -A----      450000 source\large.txt [1]
 .                                         -----D             target2\
@@ -163,22 +163,22 @@ date + 1
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-05 -A----         538 archive.0.dynpack [11]
+.          2014-01-02          2014-01-05 -A----         539 archive.0.dynpack [11]
 .          2014-01-03          2014-01-05 -A----       99995 archive.a.dynpack [12]
 .          2014-01-02          2014-01-05 -A----      100000 archive.g.dynpack [13]
 .          2014-01-02          2014-01-05 -A----      100001 archive.m.dynpack [14]
-.          2014-01-02          2014-01-05 -A----       50641 archive.s.dynpack [15]
+.          2014-01-02          2014-01-05 -A----       50645 archive.s.dynpack [15]
 .                                         -----D             source\
 .          2014-01-02          2014-01-04 -A----      350000 source\large.txt [10]
 endlist
 call backup dynunpack archive target3
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-05 -A----         538 archive.0.dynpack [11]
+.          2014-01-02          2014-01-05 -A----         539 archive.0.dynpack [11]
 .          2014-01-03          2014-01-05 -A----       99995 archive.a.dynpack [12]
 .          2014-01-02          2014-01-05 -A----      100000 archive.g.dynpack [13]
 .          2014-01-02          2014-01-05 -A----      100001 archive.m.dynpack [14]
-.          2014-01-02          2014-01-05 -A----       50641 archive.s.dynpack [15]
+.          2014-01-02          2014-01-05 -A----       50645 archive.s.dynpack [15]
 .                                         -----D             source\
 .          2014-01-02          2014-01-04 -A----      350000 source\large.txt [10]
 .                                         -----D             target3\
@@ -194,16 +194,16 @@ date + 1
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-07 -A----         152 archive.0.dynpack [17]
-.          2014-01-03          2014-01-07 -A----       50139 archive.a.dynpack [18]
+.          2014-01-02          2014-01-07 -A----         153 archive.0.dynpack [17]
+.          2014-01-03          2014-01-07 -A----       50140 archive.a.dynpack [18]
 .                                         -----D             source\
 .          2014-01-02          2014-01-06 -A----       50000 source\large.txt [16]
 endlist
 call backup dynunpack archive target4
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-07 -A----         152 archive.0.dynpack [17]
-.          2014-01-03          2014-01-07 -A----       50139 archive.a.dynpack [18]
+.          2014-01-02          2014-01-07 -A----         153 archive.0.dynpack [17]
+.          2014-01-03          2014-01-07 -A----       50140 archive.a.dynpack [18]
 .                                         -----D             source\
 .          2014-01-02          2014-01-06 -A----       50000 source\large.txt [16]
 .                                         -----D             target4\
@@ -219,18 +219,18 @@ date + 1
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-09 -A----         291 archive.0.dynpack [20]
+.          2014-01-02          2014-01-09 -A----         292 archive.0.dynpack [20]
 .          2014-01-03          2014-01-09 -A----       99995 archive.a.dynpack [21]
-.          2014-01-09          2014-01-09 -A----       50320 archive.m.dynpack [22]
+.          2014-01-09          2014-01-09 -A----       50322 archive.m.dynpack [22]
 .                                         -----D             source\
 .          2014-01-02          2014-01-08 -A----      150000 source\large.txt [19]
 endlist
 call backup dynunpack archive target5
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-09 -A----         291 archive.0.dynpack [20]
+.          2014-01-02          2014-01-09 -A----         292 archive.0.dynpack [20]
 .          2014-01-03          2014-01-09 -A----       99995 archive.a.dynpack [21]
-.          2014-01-09          2014-01-09 -A----       50320 archive.m.dynpack [22]
+.          2014-01-09          2014-01-09 -A----       50322 archive.m.dynpack [22]
 .                                         -----D             source\
 .          2014-01-02          2014-01-08 -A----      150000 source\large.txt [19]
 .                                         -----D             target5\
@@ -250,16 +250,16 @@ date + 1
 call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         154 archive.0.dynpack [2]
-.          2014-01-02          2014-01-02 -A----      500142 archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A----         155 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----      500143 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\not-so-large [1]
 endlist
 call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         154 archive.0.dynpack [2]
-.          2014-01-02          2014-01-02 -A----      500142 archive.a.dynpack [3]
+.          2014-01-02          2014-01-02 -A----         155 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----      500143 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\not-so-large [1]
 .                                         -----D             target1\
@@ -271,16 +271,16 @@ date + 1
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         154 archive.0.dynpack [4]
-.          2014-01-02          2014-01-02 -A----      500142 archive.a.dynpack [3]
+.          2014-01-02          2014-01-03 -A----         155 archive.0.dynpack [4]
+.          2014-01-02          2014-01-02 -A----      500143 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\not-so-large [1]
 endlist
 call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         154 archive.0.dynpack [4]
-.          2014-01-02          2014-01-02 -A----      500142 archive.a.dynpack [3]
+.          2014-01-02          2014-01-03 -A----         155 archive.0.dynpack [4]
+.          2014-01-02          2014-01-02 -A----      500143 archive.a.dynpack [3]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\not-so-large [1]
 .                                         -----D             target2\
@@ -298,26 +298,26 @@ date + 1
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         756 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----         757 archive.0.dynpack [2]
 .          2014-01-02          2014-01-02 -A----       99995 archive.a.dynpack [3]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.j.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [6]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [7]
-.          2014-01-02          2014-01-02 -A----         936 archive.v.dynpack [8]
+.          2014-01-02          2014-01-02 -A----         942 archive.v.dynpack [8]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\large [1]
 endlist
 call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-02 -A----         756 archive.0.dynpack [2]
+.          2014-01-02          2014-01-02 -A----         757 archive.0.dynpack [2]
 .          2014-01-02          2014-01-02 -A----       99995 archive.a.dynpack [3]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.j.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [6]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [7]
-.          2014-01-02          2014-01-02 -A----         936 archive.v.dynpack [8]
+.          2014-01-02          2014-01-02 -A----         942 archive.v.dynpack [8]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\large [1]
 .                                         -----D             target1\
@@ -329,26 +329,26 @@ date + 1
 call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         756 archive.0.dynpack [9]
+.          2014-01-02          2014-01-03 -A----         757 archive.0.dynpack [9]
 .          2014-01-02          2014-01-02 -A----       99995 archive.a.dynpack [3]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.j.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [6]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [7]
-.          2014-01-02          2014-01-02 -A----         936 archive.v.dynpack [8]
+.          2014-01-02          2014-01-02 -A----         942 archive.v.dynpack [8]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\large [1]
 endlist
 call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-02          2014-01-03 -A----         756 archive.0.dynpack [9]
+.          2014-01-02          2014-01-03 -A----         757 archive.0.dynpack [9]
 .          2014-01-02          2014-01-02 -A----       99995 archive.a.dynpack [3]
 .          2014-01-02          2014-01-02 -A----      100000 archive.g.dynpack [4]
 .          2014-01-02          2014-01-02 -A----      100001 archive.j.dynpack [5]
 .          2014-01-02          2014-01-02 -A----      100001 archive.m.dynpack [6]
 .          2014-01-02          2014-01-02 -A----      100001 archive.s.dynpack [7]
-.          2014-01-02          2014-01-02 -A----         936 archive.v.dynpack [8]
+.          2014-01-02          2014-01-02 -A----         942 archive.v.dynpack [8]
 .                                         -----D             source\
 .          2014-01-01          2014-01-01 -A----      500000 source\large [1]
 .                                         -----D             target2\
@@ -379,10 +379,10 @@ qlist .
 call backup dynpack source archive 510000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-08 -A----         340 archive.0.dynpack [4]
-.          2014-01-08          2014-01-08 -A----       90131 archive.a.dynpack [5]
-.          2014-01-08          2014-01-08 -A----      500142 archive.m.dynpack [6]
-.          2014-01-08          2014-01-08 -A----       90131 archive.s.dynpack [7]
+.          2014-01-08          2014-01-08 -A----         341 archive.0.dynpack [4]
+.          2014-01-08          2014-01-08 -A----       90132 archive.a.dynpack [5]
+.          2014-01-08          2014-01-08 -A----      500143 archive.m.dynpack [6]
+.          2014-01-08          2014-01-08 -A----       90132 archive.s.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----       90000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\not-so-large [2]
@@ -392,10 +392,10 @@ date + 1
 call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-08 -A----         340 archive.0.dynpack [4]
-.          2014-01-08          2014-01-08 -A----       90131 archive.a.dynpack [5]
-.          2014-01-08          2014-01-08 -A----      500142 archive.m.dynpack [6]
-.          2014-01-08          2014-01-08 -A----       90131 archive.s.dynpack [7]
+.          2014-01-08          2014-01-08 -A----         341 archive.0.dynpack [4]
+.          2014-01-08          2014-01-08 -A----       90132 archive.a.dynpack [5]
+.          2014-01-08          2014-01-08 -A----      500143 archive.m.dynpack [6]
+.          2014-01-08          2014-01-08 -A----       90132 archive.s.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----       90000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\not-so-large [2]
@@ -411,10 +411,10 @@ date + 1
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-10 -A----         340 archive.0.dynpack [8]
-.          2014-01-08          2014-01-08 -A----       90131 archive.a.dynpack [5]
-.          2014-01-08          2014-01-08 -A----      500142 archive.m.dynpack [6]
-.          2014-01-08          2014-01-08 -A----       90131 archive.s.dynpack [7]
+.          2014-01-08          2014-01-10 -A----         341 archive.0.dynpack [8]
+.          2014-01-08          2014-01-08 -A----       90132 archive.a.dynpack [5]
+.          2014-01-08          2014-01-08 -A----      500143 archive.m.dynpack [6]
+.          2014-01-08          2014-01-08 -A----       90132 archive.s.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----       90000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\not-so-large [2]
@@ -424,10 +424,10 @@ date + 1
 call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-10 -A----         340 archive.0.dynpack [8]
-.          2014-01-08          2014-01-08 -A----       90131 archive.a.dynpack [5]
-.          2014-01-08          2014-01-08 -A----      500142 archive.m.dynpack [6]
-.          2014-01-08          2014-01-08 -A----       90131 archive.s.dynpack [7]
+.          2014-01-08          2014-01-10 -A----         341 archive.0.dynpack [8]
+.          2014-01-08          2014-01-08 -A----       90132 archive.a.dynpack [5]
+.          2014-01-08          2014-01-08 -A----      500143 archive.m.dynpack [6]
+.          2014-01-08          2014-01-08 -A----       90132 archive.s.dynpack [7]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----       90000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\not-so-large [2]
@@ -460,14 +460,14 @@ qlist .
 call backup dynpack source archive 100000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-08 -A----         924 archive.0.dynpack [4]
-.          2014-01-08          2014-01-08 -A----        1130 archive.a.dynpack [5]
+.          2014-01-08          2014-01-08 -A----         925 archive.0.dynpack [4]
+.          2014-01-08          2014-01-08 -A----        1131 archive.a.dynpack [5]
 .          2014-01-08          2014-01-08 -A----       99995 archive.g.dynpack [6]
 .          2014-01-08          2014-01-08 -A----      100000 archive.j.dynpack [7]
 .          2014-01-08          2014-01-08 -A----      100001 archive.m.dynpack [8]
 .          2014-01-08          2014-01-08 -A----      100001 archive.p.dynpack [9]
 .          2014-01-08          2014-01-08 -A----      100001 archive.s.dynpack [10]
-.          2014-01-08          2014-01-08 -A----        2016 archive.v.dynpack [11]
+.          2014-01-08          2014-01-08 -A----        2022 archive.v.dynpack [11]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----        1000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\large [2]
@@ -477,14 +477,14 @@ date + 1
 call backup dynunpack archive target1
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-08 -A----         924 archive.0.dynpack [4]
-.          2014-01-08          2014-01-08 -A----        1130 archive.a.dynpack [5]
+.          2014-01-08          2014-01-08 -A----         925 archive.0.dynpack [4]
+.          2014-01-08          2014-01-08 -A----        1131 archive.a.dynpack [5]
 .          2014-01-08          2014-01-08 -A----       99995 archive.g.dynpack [6]
 .          2014-01-08          2014-01-08 -A----      100000 archive.j.dynpack [7]
 .          2014-01-08          2014-01-08 -A----      100001 archive.m.dynpack [8]
 .          2014-01-08          2014-01-08 -A----      100001 archive.p.dynpack [9]
 .          2014-01-08          2014-01-08 -A----      100001 archive.s.dynpack [10]
-.          2014-01-08          2014-01-08 -A----        2016 archive.v.dynpack [11]
+.          2014-01-08          2014-01-08 -A----        2022 archive.v.dynpack [11]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----        1000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\large [2]
@@ -500,14 +500,14 @@ date + 1
 call backup dynpack source archive 1000000 -verify
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-10 -A----         924 archive.0.dynpack [12]
-.          2014-01-08          2014-01-08 -A----        1130 archive.a.dynpack [5]
+.          2014-01-08          2014-01-10 -A----         925 archive.0.dynpack [12]
+.          2014-01-08          2014-01-08 -A----        1131 archive.a.dynpack [5]
 .          2014-01-08          2014-01-08 -A----       99995 archive.g.dynpack [6]
 .          2014-01-08          2014-01-08 -A----      100000 archive.j.dynpack [7]
 .          2014-01-08          2014-01-08 -A----      100001 archive.m.dynpack [8]
 .          2014-01-08          2014-01-08 -A----      100001 archive.p.dynpack [9]
 .          2014-01-08          2014-01-08 -A----      100001 archive.s.dynpack [10]
-.          2014-01-08          2014-01-08 -A----        2016 archive.v.dynpack [11]
+.          2014-01-08          2014-01-08 -A----        2022 archive.v.dynpack [11]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----        1000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\large [2]
@@ -517,14 +517,14 @@ date + 1
 call backup dynunpack archive target2
 exitcode-verify 0
 list-verify . -sizes
-.          2014-01-08          2014-01-10 -A----         924 archive.0.dynpack [12]
-.          2014-01-08          2014-01-08 -A----        1130 archive.a.dynpack [5]
+.          2014-01-08          2014-01-10 -A----         925 archive.0.dynpack [12]
+.          2014-01-08          2014-01-08 -A----        1131 archive.a.dynpack [5]
 .          2014-01-08          2014-01-08 -A----       99995 archive.g.dynpack [6]
 .          2014-01-08          2014-01-08 -A----      100000 archive.j.dynpack [7]
 .          2014-01-08          2014-01-08 -A----      100001 archive.m.dynpack [8]
 .          2014-01-08          2014-01-08 -A----      100001 archive.p.dynpack [9]
 .          2014-01-08          2014-01-08 -A----      100001 archive.s.dynpack [10]
-.          2014-01-08          2014-01-08 -A----        2016 archive.v.dynpack [11]
+.          2014-01-08          2014-01-08 -A----        2022 archive.v.dynpack [11]
 .                                         -----D             source\
 .          2014-01-02          2014-01-03 -A----        1000 source\a [1]
 .          2014-01-04          2014-01-05 -A----      500000 source\large [2]
@@ -652,10 +652,10 @@ lastoutput-verify
 .        1 1.43MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\00-smallish
 . [m: 6]
 .        2 8.58MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-large
-.   0-4999836/9000000
+.   0-4999835/9000000
 . [p: 7]
 .        3 8.58MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\01-large
-.   4999837-8999999/9000000
+.   4999836-8999999/9000000
 . [s: 3]
 .        4 2.86MB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\02-medium
 .        5 0.98KB 2014-01-01T00:00:00 2014-01-01T00:00:00 -- .\03-small

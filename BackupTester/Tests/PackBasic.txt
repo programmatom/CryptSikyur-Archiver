@@ -443,7 +443,7 @@ list-verify .
 endlist
 date + 1
 # magic: corrupt header field data
-invert-range archive.pack 47 1
+invert-range archive.pack 48 1
 date + 1
 call backup unpack archive.pack copy
 exitcode-verify not 0
