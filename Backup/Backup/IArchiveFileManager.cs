@@ -51,6 +51,7 @@ namespace Backup
         bool Exists(string name, TextWriter trace);
         void Rename(string oldName, string newName, TextWriter trace);
         void RenameById(string id, string newName, TextWriter trace);
+        void Copy(string sourceName, string copyName, bool overwrite, TextWriter trace);
 
         // Enumeration methods
         string[] GetFileNames(string prefix, TextWriter trace);

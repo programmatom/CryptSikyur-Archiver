@@ -7541,7 +7541,8 @@ namespace Backup
         }
 
         private const string DynPackManifestName = "0";
-        private const string DynPackManifestNameOld = "-0";
+        private const string DynPackBackupPrefix = "-";
+        private const string DynPackManifestNameOld = DynPackBackupPrefix + "0";
 
         private const string DynPackFileExtension = ".dynpack";
         private const string DynPackTempFileExtension = ".tmp";
@@ -7830,7 +7831,7 @@ namespace Backup
         {
             private SegmentRecord segment;
             private readonly PackedFileHeaderRecord header;
-            private readonly int headerOverhead;
+            private int? headerOverhead;
 
             private readonly int diagnosticSerialNumber = Interlocked.Increment(ref dynpackDiagnosticSerialNumberGenerator);
 
@@ -7838,7 +7839,6 @@ namespace Backup
             {
                 this.segment = segment;
                 this.header = new PackedFileHeaderRecord(partialPath, creationTimeUtc, lastWriteTimeUtc, attributes, embeddedStreamLength, range, digest);
-                headerOverhead = header.GetHeaderLength();
             }
 
             internal FileRecord(FileRecord original)
@@ -7908,7 +7908,11 @@ namespace Backup
             {
                 get
                 {
-                    return headerOverhead;
+                    if (!headerOverhead.HasValue)
+                    {
+                        headerOverhead = header.GetHeaderLength();
+                    }
+                    return headerOverhead.Value;
                 }
             }
 
@@ -7935,6 +7939,8 @@ namespace Backup
             internal void SetDigest(ConcurrentTasks concurrent, string root)
             {
                 header.SetDigest(concurrent, root);
+
+                headerOverhead = null; // digests computed later, on demand; reset overhead as length may have changed
             }
 
             internal void WriteHeader(Stream stream)
@@ -8377,10 +8383,20 @@ namespace Backup
                 //  1. old segments incl. manifest are renamed, e.g. foo.0.dynpack --> foo.-0.dynpack
                 //  2. new files are generated
                 //  3. old files (foo.-*.dynpack) are deleted.
+                // A complication: if a segment has not been written in the old manifest, it's serial number
+                // will be bumped in the new manifest. Therefore, an empty backup segment is created for any
+                // non-existing dirty segment to prevent propagating backward of an item with an invalid
+                // serial number. The command "dynpack-rollback" looks for empty backup segments and deletes
+                // current segments (and empty backup placeholders) instead of restoring to current name.
+#if false
+                //
                 // Even if "!safe", the manifest will still be backed up to foo.-0.dynpack.
                 // This means if the code or system fails after backing up but before writing the new
                 // manifest, the next time the program is run, the old manifest (foo.-0.dynpack) can
                 // be loaded if the new file is missing.
+                // The "!safe" option may result in segments with invalid serial numbers being used in the
+                // case of the backup manifest being restored to currency.
+#endif
                 List<SegmentRecord> segments = new List<SegmentRecord>();
                 List<FileRecord> previousFiles = new List<FileRecord>();
                 string manifestFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestName, DynPackFileExtension);
@@ -9647,17 +9663,32 @@ namespace Backup
                                                                         }
                                                                         messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file added or removed): {1} : {2}", segment.Name, archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
                                                                     }
-                                                                    else if ((archiveFiles[j].EmbeddedStreamLength != mergedFiles[j + segmentStart].EmbeddedStreamLength) ||
-                                                                        (archiveFiles[j].CreationTimeUtc != mergedFiles[j + segmentStart].CreationTimeUtc) ||
+                                                                    else if ((archiveFiles[j].CreationTimeUtc != mergedFiles[j + segmentStart].CreationTimeUtc) ||
                                                                         (archiveFiles[j].LastWriteTimeUtc != mergedFiles[j + segmentStart].LastWriteTimeUtc))
+                                                                    {
+                                                                        // TODO: when using -ignoreunchanged, hashes should be checked.
+                                                                        // BUT: hashes are stored only in manifest, not segment - requires change to that
+                                                                        // Putting manifest hash in segment is misleading if file has changed since manifest creation,
+                                                                        // but it's inefficient to recompute hash for each file. No good solution at this time.
+
+                                                                        invalid = true;
+
+                                                                        if (traceDynpack != null)
+                                                                        {
+                                                                            traceDynpack.WriteLine("File timestamp(s) different: {0}", archiveFiles[j].ArchivePath);
+                                                                        }
+                                                                        messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file timestamp(s) different): {1}", segment.Name, archiveFiles[j].ArchivePath);
+                                                                        break;
+                                                                    }
+                                                                    else if (archiveFiles[j].EmbeddedStreamLength != mergedFiles[j + segmentStart].EmbeddedStreamLength)
                                                                     {
                                                                         invalid = true;
 
                                                                         if (traceDynpack != null)
                                                                         {
-                                                                            traceDynpack.WriteLine("File different: {0}", archiveFiles[j].ArchivePath);
+                                                                            traceDynpack.WriteLine("File length different: {0}", archiveFiles[j].ArchivePath);
                                                                         }
-                                                                        messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file different): {1}", segment.Name, archiveFiles[j].ArchivePath);
+                                                                        messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file length different): {1}", segment.Name, archiveFiles[j].ArchivePath);
                                                                         break;
                                                                     }
                                                                 }
@@ -9693,6 +9724,8 @@ namespace Backup
                                                                     }
                                                                     // running out of disk space saving the invalid segment was regarded as non-fatal
                                                                 }
+
+                                                                // TODO: rename segment to backup name or delete segment as appropriate
                                                             }
 
                                                             if (invalid)
@@ -9756,7 +9789,7 @@ namespace Backup
 
                                 string suffix = file.Substring(targetFileNamePrefix.Length);
 
-                                if (!suffix.StartsWith("-") && suffix.EndsWith(DynPackFileExtension))
+                                if (!suffix.StartsWith(DynPackBackupPrefix) && suffix.EndsWith(DynPackFileExtension))
                                 {
                                     suffix = suffix.Substring(0, suffix.Length - DynPackFileExtension.Length);
                                     if ((suffix != DynPackManifestName)
@@ -9766,6 +9799,7 @@ namespace Backup
                                     }
                                 }
                             }
+
                             foreach (KeyValuePair<string, bool> nameEnum in namesToBackupOrRemove)
                             {
                                 concurrent.WaitQueueNotFull();
@@ -9786,7 +9820,7 @@ namespace Backup
                                 bool unreferenced = nameEnum.Value;
 
                                 string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", name, DynPackFileExtension);
-                                string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".-", name, DynPackFileExtension);
+                                string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, name, DynPackFileExtension);
 
                                 IFaultInstance faultDynamicPackFileOperation = faultDynamicPackStage.Select("RenameOld", segmentFileName);
                                 long sequenceNumber = messagesLog.GetSequenceNumber();
@@ -9802,27 +9836,53 @@ namespace Backup
                                                 {
                                                     using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
+                                                        bool manifest = name.Equals(DynPackManifestName);
+
                                                         if (fileManager.Exists(segmentFileName, threadTraceFileManager))
                                                         {
-                                                            bool manifest = name.Equals(DynPackManifestName);
-
-                                                            // Always back up manifest. Back up segments if "safe"
+                                                            // Back up segments and manifest if "safe" mode set.
                                                             // But only back up if no backup exists. Otherwise, retain the older backup files
-                                                            // so that the backup is a consistent picture. They will be cleared when a
-                                                            // run finally completes. (Which means delete the "newer" to keep the backup.)
-                                                            if ((!manifest && !safe) || fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
+                                                            // so that the backup is a coherent picture. They will be cleared when a
+                                                            // run finally completes. (Which means delete the "newer" items to restore to backup.)
+                                                            if (!safe || fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
                                                             {
+                                                                // For safety, don't delete manifest even in "unsafe" mode, but also don't rename.
+                                                                // Manifest file is atomically overwritten later.
                                                                 if (!manifest)
                                                                 {
                                                                     messages.WriteLine("Deleting (segment {1}): {0}", segmentFileName, unreferenced ? "unreferenced" : "dirty");
                                                                     fileManager.Delete(segmentFileName, threadTraceFileManager);
                                                                 }
-                                                                // else - for safety, don't delete manifest (but also don't rename), overwrite later
                                                             }
                                                             else
                                                             {
-                                                                messages.WriteLine("Renaming (segment {2}): {0} to {1}", segmentFileName, segmentBackupFileName, unreferenced ? "unreferenced" : "dirty");
-                                                                fileManager.Rename(segmentFileName, segmentBackupFileName, threadTraceFileManager);
+                                                                if (!manifest)
+                                                                {
+                                                                    messages.WriteLine("Renaming (segment {2}): {0} to {1}", segmentFileName, segmentBackupFileName, unreferenced ? "unreferenced" : "dirty");
+                                                                    fileManager.Rename(segmentFileName, segmentBackupFileName, threadTraceFileManager);
+                                                                }
+                                                                else
+                                                                {
+                                                                    messages.WriteLine("Copying: {0} to {1}", segmentFileName, segmentBackupFileName);
+                                                                    fileManager.Copy(segmentFileName, segmentBackupFileName, false/*overwrite*/, threadTraceFileManager);
+                                                                }
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            if (!manifest && safe && !fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
+                                                            {
+                                                                // For non-existing segment, create empty backup file to ensure integrity
+                                                                // if partial archive is rolled back. Specifically: if a segment existed in the old
+                                                                // manifest but had not yet been created, in the new manifest the serial number will
+                                                                // be changed. Therefore, any such segments subsequently written must be removed
+                                                                // during roll-back or the archive will fail integrity checks.
+                                                                messages.WriteLine("Marking (uncreated segment barrier): {0}", segmentBackupFileName);
+                                                                string segmentBackupFileNameTemp = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, name, DynPackTempFileExtension);
+                                                                using (ILocalFileCopy fileRef = fileManager.WriteTemp(segmentBackupFileNameTemp, fileManager.GetMasterTrace()))
+                                                                {
+                                                                    fileManager.Commit(fileRef, segmentBackupFileNameTemp, segmentBackupFileName, true/*overwrite*/, null, threadTraceFileManager);
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -9958,7 +10018,7 @@ namespace Backup
                                 {
                                     if (verifyNonDirtyMetadata)
                                     {
-                                        writer.WriteLine("[Non-dirty segment verification enabled]");
+                                        writer.WriteLine("[Non-dirty segment metadata verification enabled]");
                                         if (badSegments.Count != 0)
                                         {
                                             writer.WriteLine("{0} BAD SEGMENTS DETECTED DURING VERIFICATION:", badSegments.Count);
@@ -9970,7 +10030,7 @@ namespace Backup
                                     }
                                     else
                                     {
-                                        writer.WriteLine("[Non-dirty segment verification skipped]");
+                                        writer.WriteLine("[Non-dirty segment metadata verification skipped]");
                                     }
                                     writer.WriteLine();
 
@@ -11004,6 +11064,25 @@ namespace Backup
                 throw new NotSupportedException();
             }
 
+            public void Copy(string sourceName, string copyName, bool overwrite, TextWriter trace)
+            {
+                CheckSimpleName(sourceName);
+                CheckSimpleName(copyName);
+                string sourcePath = Path.Combine(root, sourceName);
+                string copyPath = Path.Combine(root, copyName);
+                if (!File.Exists(sourcePath))
+                {
+                    throw new InvalidOperationException();
+                }
+                if (!overwrite && File.Exists(copyPath))
+                {
+                    throw new InvalidOperationException();
+                }
+                RememberTimestamps(sourceName);
+                File.Copy(sourcePath, copyPath, overwrite/*overwrite*/);
+                EnsureTimestamps(copyName);
+            }
+
             public string[] GetFileNames(string prefix, TextWriter trace)
             {
                 if (prefix == null)
@@ -11978,6 +12057,20 @@ namespace Backup
                                     used = 3;
                                     break;
 
+                                case "copy":
+                                    if (args.Length < 3)
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    {
+                                        string name = args[1];
+                                        string newName = args[2];
+                                        Console.WriteLine("copy {0} to {1}", name, newName);
+                                        fileManager.Copy(name, newName, true/*overwrite*/, fileManager.GetMasterTrace());
+                                    }
+                                    used = 3;
+                                    break;
+
                                 case "delete":
                                 case "del":
                                     if (args.Length < 2)
@@ -12389,7 +12482,7 @@ namespace Backup
                                         {
                                             Debug.Assert(file.StartsWith(targetArchiveFileNameTemplateDot, StringComparison.OrdinalIgnoreCase));
                                             string suffix = file.Substring(targetArchiveFileNameTemplateDot.Length);
-                                            if (suffix.StartsWith("-"))
+                                            if (suffix.StartsWith(DynPackBackupPrefix))
                                             {
                                                 string targetSuffix = suffix.Substring(1);
 
@@ -12399,8 +12492,25 @@ namespace Backup
                                                     Console.WriteLine("deleting {0}", targetFile);
                                                     fileManager.Delete(targetFile, fileManager.GetMasterTrace());
                                                 }
-                                                Console.WriteLine("renaming {0} to {1}", file, targetFile);
-                                                fileManager.Rename(file, targetFile, fileManager.GetMasterTrace());
+                                                bool backupIsEmpty;
+                                                {
+                                                    string id;
+                                                    bool directory;
+                                                    DateTime created, modified;
+                                                    long size;
+                                                    fileManager.GetFileInfo(file, out id, out directory, out created, out modified, out size, fileManager.GetMasterTrace());
+                                                    backupIsEmpty = size == 0;
+                                                }
+                                                if (!backupIsEmpty)
+                                                {
+                                                    Console.WriteLine("renaming {0} to {1}", file, targetFile);
+                                                    fileManager.Rename(file, targetFile, fileManager.GetMasterTrace());
+                                                }
+                                                else
+                                                {
+                                                    Console.WriteLine("clearing {0}", file);
+                                                    fileManager.Delete(file, fileManager.GetMasterTrace());
+                                                }
                                             }
                                         }
                                     }

@@ -627,13 +627,13 @@ namespace Backup
 
                 Debug.Assert(dataLength <= 0x00ffffff); // must fit in 3 bytes, as decomposed below
                 byte[] header = new byte[4]
-                    {
-                        // bit 0x80 is set if saved data was processed but cleared if saved data was unprocessed
-                        (byte)((!optOut ? 0x80 : 0x00) | (headerToken != null ? 0x40 : 0x00)),
-                        (byte)(dataLength >> 16),
-                        (byte)((dataLength >> 8) & 0xff),
-                        (byte)(dataLength & 0xff),
-                    };
+                {
+                    // bit 0x80 is set if saved data was processed but cleared if saved data was unprocessed
+                    (byte)((!optOut ? 0x80 : 0x00) | (headerToken != null ? 0x40 : 0x00)),
+                    (byte)(dataLength >> 16),
+                    (byte)((dataLength >> 8) & 0xff),
+                    (byte)(dataLength & 0xff),
+                };
                 if (headerToken != null)
                 {
                     inner.Write(headerToken, 0, headerToken.Length);
@@ -767,6 +767,10 @@ namespace Backup
 
                     bool optOut = (header[0] & 0x80) == 0;
                     bool hasHeaderToken = (header[0] & 0x40) != 0;
+                    if ((header[0] & ~(0x80 | 0x40)) != 0)
+                    {
+                        throw new Core.ExitCodeException((int)Core.ExitCodes.ConditionNotSatisfied, "Formatted stream block header is invalid");
+                    }
                     int length = ((int)header[1] << 16) | ((int)header[2] << 8) | header[3];
 
                     if (hasHeaderToken)
@@ -1198,7 +1202,7 @@ namespace Backup
     public class BlockedCompressStream : BlockFormattedWriteStream
     {
         public BlockedCompressStream(Stream inner, int blockSize)
-            : base(inner, blockSize, null)
+            : base(inner, blockSize, null/*headerToken*/)
         {
         }
 
@@ -1226,7 +1230,7 @@ namespace Backup
     public class BlockedDecompressStream : BlockFormattedReadStream
     {
         public BlockedDecompressStream(Stream inner)
-            : base(inner, null)
+            : base(inner, null/*headerToken*/)
         {
         }
 

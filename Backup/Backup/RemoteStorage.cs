@@ -493,6 +493,7 @@ namespace Backup
         RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext);
         void DeleteFile(string fileId, TextWriter trace, IFaultInstance faultInstanceContext);
         RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext);
+        RemoteFileSystemEntry CopyFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext); // overwrite behavior undefined
         void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext);
     }
 
@@ -2001,6 +2002,179 @@ namespace Backup
             return entry;
         }
 
+        public RemoteFileSystemEntry CopyFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext)
+        {
+            if (trace != null)
+            {
+                trace.WriteLine("+CopyFile(id={0}, newName={1})", fileId, newName);
+            }
+
+            if (newName.Contains("\""))
+            {
+                throw new ArgumentException();
+            }
+
+            // https://dev.onedrive.com/items/copy.htm
+            // NOTE: MSFT has changed the way items are referenced in the new "api.onedrive.com/v1.0" - old folderId doesn't work anymore
+            string fileIdNew = fileId.Substring(fileId.LastIndexOf('.') + 1);
+            string url = String.Format("https://api.onedrive.com/v1.0/drive/items/{0}/action.copy", fileIdNew);
+            string requestBody =
+                "{" +
+                String.Format("\"{0}\":\"{1}\"", "name", newName) +
+                "}";
+            new JSONDictionary(requestBody); // sanity check
+
+            string response;
+            WebExceptionStatus webStatusCode;
+            HttpStatusCode httpStatusCode;
+            int networkErrorRetries = 0;
+        Retry:
+            string asyncLocation;
+            using (MemoryStream responseStream = new MemoryStream())
+            {
+                KeyValuePair<string, string>[] requestHeaders = new KeyValuePair<string, string>[]
+                {
+                    new KeyValuePair<string, string>("Prefer", "respond-async"),
+                };
+                KeyValuePair<string, string>[] responseHeadersExtraOut = new KeyValuePair<string, string>[]
+                {
+                    new KeyValuePair<string, string>("Location", null),
+                };
+                bool result = DoWebActionPostJSONOnce(
+                    url,
+                    requestBody,
+                    responseStream,
+                    requestHeaders,
+                    responseHeadersExtraOut,
+                    out webStatusCode,
+                    out httpStatusCode,
+                    null/*accessOverrideToken*/,
+                    trace,
+                    faultInstanceContext);
+                if (!result)
+                {
+                    string responseString = Encoding.UTF8.GetString(responseStream.GetBuffer());
+                    if (trace != null)
+                    {
+                        trace.WriteLine("*CopyFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine("   response: {0}", responseString);
+                    }
+
+                    networkErrorRetries++;
+                    if (networkErrorRetries <= RetryHelper.MaxRetries)
+                    {
+                        RetryHelper.WaitExponentialBackoff(networkErrorRetries, trace);
+                        goto Retry;
+                    }
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-CopyFile failed - too many retries");
+                    }
+                    throw new ApplicationException("Failure occurred accessing remote service");
+                }
+
+                if (httpStatusCode != HttpStatusCode.Accepted/*202*/)
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-CopyFile unexpected response (should be 202): result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    }
+                    throw new ApplicationException("Failure occurred accessing remote service");
+                }
+                asyncLocation = responseHeadersExtraOut[0].Value;
+            }
+
+            // GET request for status (https://dev.onedrive.com/resources/asyncJobStatus.htm)
+            int asyncStatusCheckCount = 0;
+        Retry2:
+            string jsonMetadata = null;
+            using (MemoryStream responseStream = new MemoryStream())
+            {
+                KeyValuePair<string, string>[] responseHeadersExtraOut = new KeyValuePair<string, string>[]
+                {
+                    new KeyValuePair<string, string>("Location", null),
+                };
+                bool result = DoWebActionOnce(
+                    asyncLocation,
+                    "GET",
+                    null,
+                    responseStream,
+                    null/*requestHeaders*/,
+                    responseHeadersExtraOut,
+                    out webStatusCode,
+                    out httpStatusCode,
+                    null/*progressTrackerUpload*/,
+                    null/*progressTrackerDownload*/,
+                    null/*accessOverrideToken*/,
+                    trace,
+                    faultInstanceContext);
+
+                if (httpStatusCode == HttpStatusCode.OK/*200*/)
+                {
+                    // our HTTP code handles 303 redirect automatically
+                    jsonMetadata = Encoding.UTF8.GetString(responseStream.GetBuffer());
+                }
+                else if (httpStatusCode != HttpStatusCode.Accepted/*202*/)
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-CopyFile unexpected response (should be 202 or 303/200): result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                        trace.WriteLine("   response: {0}", Encoding.UTF8.GetString(responseStream.GetBuffer()));
+                    }
+                    throw new ApplicationException("Failure occurred accessing remote service");
+                }
+                else // async status returns HttpStatusCode.Accepted (202) if still in progress
+                {
+                    const int DelayGranularity = 10; // msec
+                    asyncStatusCheckCount++;
+                    int delay = (1 << asyncStatusCheckCount) * DelayGranularity;
+                    if (asyncStatusCheckCount <= 750 * (1 << RetryHelper.MaxRetries))
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine(" CopyFile remote async operation still in progress, waiting {0} msec", delay);
+                        }
+                        Thread.Sleep(delay); // RetryHelper.WaitExponentialBackoff(asyncStatusCheckCount, trace);
+                        goto Retry2;
+                    }
+                    if (trace != null)
+                    {
+                        trace.WriteLine("-CopyFile failed - waited too long for remote asynchronous operation to finish");
+                    }
+                    throw new ApplicationException("Failure occurred accessing remote service");
+                }
+            }
+
+            JSONDictionary metadata = new JSONDictionary(jsonMetadata);
+            RemoteFileSystemEntry entry;
+#if false
+            RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata); // old live API format - doesn't work here
+#else
+            {
+                string id, name, createdDateTime, lastModifiedDateTime;
+                long size;
+                if (!metadata.TryGetValueAs("id", out id)
+                    || !metadata.TryGetValueAs("name", out name)
+                    || !metadata.TryGetValueAs("createdDateTime", out createdDateTime)
+                    || !metadata.TryGetValueAs("lastModifiedDateTime", out lastModifiedDateTime)
+                    || !metadata.TryGetValueAs("size", out size))
+                {
+                    throw new InvalidDataException();
+                }
+                id = String.Concat("file.", id.Substring(0, id.IndexOf('!')), ".", id); // reconstruct old id format
+                entry = new RemoteFileSystemEntry(id, name, false/*folder*/, DateTime.Parse(createdDateTime), DateTime.Parse(lastModifiedDateTime), size);
+            }
+#endif
+            Debug.Assert(entry.Name == newName); // if fails then TODO handle remote auto name adjustment
+            if (trace != null)
+            {
+                trace.WriteLine("-CopyFile returns {0}", entry);
+                trace.WriteLine();
+            }
+
+            return entry;
+        }
+
         public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
@@ -2854,6 +3028,60 @@ namespace Backup
             return entry;
         }
 
+        public RemoteFileSystemEntry CopyFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext)
+        {
+            if (trace != null)
+            {
+                trace.WriteLine("+CopyFile(id={0}, newName={1})", fileId, newName);
+            }
+
+            if (newName.Contains("\""))
+            {
+                throw new ArgumentException();
+            }
+
+            // https://developers.google.com/drive/v2/reference/files/copy
+
+            string url = String.Format("https://www.googleapis.com/drive/v2/files/{0}/copy", fileId);
+            string requestBody =
+                "{" +
+                String.Format("\"title\":\"{0}\"", newName) +
+                "}";
+            new JSONDictionary(requestBody); // sanity check
+
+            string response;
+            WebExceptionStatus webStatusCode;
+            HttpStatusCode httpStatusCode;
+            bool result = DoWebActionJSON2JSONWithRetry(
+                url,
+                "POST",
+                requestBody,
+                out response,
+                out webStatusCode,
+                out httpStatusCode,
+                trace,
+                faultInstanceContext);
+            if (!result)
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine("-CopyFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                }
+                throw new ApplicationException("Failure occurred accessing remote service");
+            }
+
+            JSONDictionary metadata = new JSONDictionary(response);
+            RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
+
+            if (trace != null)
+            {
+                trace.WriteLine("-CopyFile returns {0}", entry);
+                trace.WriteLine();
+            }
+
+            return entry;
+        }
+
         public void GetQuota(out long quotaTotal, out long quotaUsed, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
@@ -3491,6 +3719,48 @@ namespace Backup
                 if (trace != null)
                 {
                     trace.WriteLine("RemoteArchiveFileManager.RenameById() caught exception - rethrowing: {0}", exception);
+                }
+                throw;
+            }
+        }
+
+        public void Copy(string sourceName, string copyName, bool overwrite, TextWriter trace)
+        {
+            try
+            {
+                IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("Copy", String.Format("{0}|{1}", sourceName, copyName));
+
+                RemoteFileSystemEntry entry;
+                if (!remoteDirectoryCache.TryGetName(sourceName, out entry))
+                {
+                    throw new FileNotFoundException(String.Format("remote:{0}", sourceName));
+                }
+
+                RemoteFileSystemEntry oldTargetEntry;
+                if (remoteDirectoryCache.TryGetName(copyName, out oldTargetEntry))
+                {
+                    if (overwrite)
+                    {
+                        remoteWebMethods.DeleteFile(oldTargetEntry.Id, trace, faultInstanceMethod);
+                        remoteDirectoryCache.Remove(oldTargetEntry.Name);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(String.Format("remote:{0}", copyName));
+                    }
+                }
+
+                RemoteFileSystemEntry copyEntry = remoteWebMethods.CopyFile(entry.Id, copyName, trace, faultInstanceMethod);
+                if (copyEntry != null)
+                {
+                    remoteDirectoryCache.Update(copyEntry);
+                }
+            }
+            catch (Exception exception)
+            {
+                if (trace != null)
+                {
+                    trace.WriteLine("RemoteArchiveFileManager.Copy() caught exception - rethrowing: {0}", exception);
                 }
                 throw;
             }

@@ -74,7 +74,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\c\v [9]
 endlist
 file-verify logs\archive.0.dynpack.log
-.[Non-dirty segment verification enabled]
+.[Non-dirty segment metadata verification enabled]
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
 .1 dirty
@@ -226,7 +226,7 @@ list-verify .
 .          2014-01-10          2014-01-10 -A---- source\c\v [9]
 endlist
 file-verify logs\archive.0.dynpack.log
-.[Non-dirty segment verification enabled]
+.[Non-dirty segment metadata verification enabled]
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
 .1 not-dirty
@@ -304,7 +304,7 @@ list-verify .
 .          2014-01-15          2014-01-15 -A---- source\d\y [19]
 endlist
 file-verify logs\archive.0.dynpack.log
-.[Non-dirty segment verification enabled]
+.[Non-dirty segment metadata verification enabled]
 .
 *SEGMENT a \d+ [0-9a-fA-F]{8}$
 .1 not-dirty

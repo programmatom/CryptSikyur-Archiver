@@ -19,8 +19,10 @@ call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\arch
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
+.Marking (uncreated segment barrier): archive.-a.dynpack
 .Writing: archive.0.dynpack
 .Writing: archive.a.dynpack
+.Deleting (backup file): archive.-a.dynpack
 .
 endoutput
 list-verify .
@@ -50,9 +52,13 @@ call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\arch
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
+.Marking (uncreated segment barrier): archive.-a.dynpack
+.Marking (uncreated segment barrier): archive.-m.dynpack
 .Writing: archive.0.dynpack
 .Writing: archive.a.dynpack
 .Writing: archive.m.dynpack
+.Deleting (backup file): archive.-a.dynpack
+.Deleting (backup file): archive.-m.dynpack
 .
 endoutput
 list-verify .
@@ -104,7 +110,7 @@ exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
 .Reading: archive.0.dynpack
-.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Copying: archive.0.dynpack to archive.-0.dynpack
 .Renaming (segment dirty): archive.a.dynpack to archive.-a.dynpack
 .Renaming (segment dirty): archive.m.dynpack to archive.-m.dynpack
 .Writing: archive.0.dynpack
@@ -167,6 +173,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.DynamicPack.*$
 *   at Backup\.Core\.Main.*$
 endoutput
@@ -194,6 +201,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.ValidateDynamicPack.*$
@@ -208,6 +216,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.DynamicUnpack.*$
@@ -235,7 +244,7 @@ lastoutput-verify -workspacepathhack
 .Local signature "signatures\localsig" does not exist - proceeding anyway!
 .Validating non-dirty segment: a
 .Validating non-dirty segment: m
-.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Copying: archive.0.dynpack to archive.-0.dynpack
 .Writing: archive.0.dynpack
 .Deleting (backup file): archive.-0.dynpack
 .
@@ -291,6 +300,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.DynamicPack.*$
 *   at Backup\.Core\.Main.*$
 endoutput
@@ -318,6 +328,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.ValidateDynamicPack.*$
@@ -332,6 +343,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.DynamicUnpack.*$
@@ -354,7 +366,7 @@ lastoutput-verify -workspacepathhack
 .Reading: archive.0.dynpack
 .Validating non-dirty segment: a
 .Validating non-dirty segment: m
-.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Copying: archive.0.dynpack to archive.-0.dynpack
 .Writing: archive.0.dynpack
 .Deleting (backup file): archive.-0.dynpack
 .
@@ -416,6 +428,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.DynamicPack.*$
 *   at Backup\.Core\.Main.*$
 endoutput
@@ -442,6 +455,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.ValidateDynamicPack.*$
@@ -456,6 +470,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.DynamicUnpack.*$
@@ -477,7 +492,7 @@ lastoutput-verify -workspacepathhack
 .Reading: archive.0.dynpack
 .Validating non-dirty segment: a
 .Validating non-dirty segment: m
-.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Copying: archive.0.dynpack to archive.-0.dynpack
 .Writing: archive.0.dynpack
 .Deleting (backup file): archive.-0.dynpack
 .
@@ -531,6 +546,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.DynamicPack.*$
 *   at Backup\.Core\.Main.*$
 endoutput
@@ -557,6 +573,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.ValidateDynamicPack.*$
@@ -571,6 +588,7 @@ lastoutput-verify -workspacepathhack
 .
 .Error:
 .Local signature "signatures\localsig" does not match computed signature from manifest! Aborting!
+*   at Backup\.Core\.CheckLocalSignature.*$
 *   at Backup\.Core\.UnpackInternal.*$
 *   at Backup\.Core\.ValidateOrUnpackDynamicInternal.*$
 *   at Backup\.Core\.DynamicUnpack.*$
@@ -592,7 +610,7 @@ lastoutput-verify -workspacepathhack
 .Reading: archive.0.dynpack
 .Validating non-dirty segment: a
 .Validating non-dirty segment: m
-.Renaming (segment dirty): archive.0.dynpack to archive.-0.dynpack
+.Copying: archive.0.dynpack to archive.-0.dynpack
 .Writing: archive.0.dynpack
 .Deleting (backup file): archive.-0.dynpack
 .

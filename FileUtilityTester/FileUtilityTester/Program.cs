@@ -300,7 +300,7 @@ namespace FileUtilityTester
                             {
                                 throw new ApplicationException();
                             }
-                            if (args[0].Equals("module"))
+                            if (args[0].Equals("module", StringComparison.OrdinalIgnoreCase))
                             {
                                 skipToModule = Combine(args, 1, args.Length - 1, " ", false/*quoteWhitespace*/);
                                 testFailed = true;
