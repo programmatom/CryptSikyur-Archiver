@@ -7042,9 +7042,7 @@ namespace Backup
                             return;
                         }
 
-#if true // TODO: remove TRANSITIONAL HACK
                         int structureType;
-#endif
                         List<KeyValuePair<int, string>> parameters = new List<KeyValuePair<int, string>>();
                         while (true)
                         {
@@ -7053,17 +7051,19 @@ namespace Backup
                             {
                                 break;
                             }
-#if true // TODO: remove TRANSITIONAL HACK
                             else if ((parameterType == PackArchiveStructureTypeManifest) || (parameterType == PackArchiveStructureTypeFiles))
                             {
+                                if (parameters.Count > 0)
+                                {
+                                    throw new InvalidDataException("Expandable parameter area does not conform to old or new archive format");
+                                }
                                 structureType = parameterType;
                                 if (trace != null)
                                 {
-                                    trace.WriteLine("*** OLD FORMAT *** INVOKING HACK");
+                                    trace.WriteLine("OLD PACK FORMAT -- INVOKING HACK");
                                 }
                                 goto TransitionalHack;
                             }
-#endif
                             else
                             {
                                 string value = BinaryReadUtils.ReadStringUtf8(stream);
@@ -7071,10 +7071,9 @@ namespace Backup
                             }
                         }
 
-                        /*int */structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
-#if true // TODO: remove TRANSITIONAL HACK
+                        /*int */
+                        structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
                     TransitionalHack:
-#endif
                         if (trace != null)
                         {
                             trace.WriteLine("StructureType: {0}", structureType);
@@ -8579,9 +8578,7 @@ namespace Backup
 
                                         segmentSerialNumbering = BinaryReadUtils.ReadVariableLengthQuantityAsUInt64(stream);
 
-#if true // TODO: remove TRANSITIONAL HACK
                                         int structureType;
-#endif
                                         List<KeyValuePair<int, string>> parameters = new List<KeyValuePair<int, string>>();
                                         while (true)
                                         {
@@ -8590,17 +8587,19 @@ namespace Backup
                                             {
                                                 break;
                                             }
-#if true // TODO: remove TRANSITIONAL HACK
                                             else if ((parameterType == PackArchiveStructureTypeManifest) || (parameterType == PackArchiveStructureTypeFiles))
                                             {
+                                                if (parameters.Count > 0)
+                                                {
+                                                    throw new InvalidDataException("Expandable parameter area does not conform to old or new archive format");
+                                                }
                                                 structureType = parameterType;
                                                 if (traceDynpack != null)
                                                 {
-                                                    traceDynpack.WriteLine("*** OLD FORMAT *** INVOKING HACK");
+                                                    traceDynpack.WriteLine("OLD PACK FORMAT -- INVOKING HACK");
                                                 }
                                                 goto TransitionalHack;
                                             }
-#endif
                                             else
                                             {
                                                 string value = BinaryReadUtils.ReadStringUtf8(stream);
@@ -8608,10 +8607,9 @@ namespace Backup
                                             }
                                         }
 
-                                        /*int */structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
-#if true // TODO: remove TRANSITIONAL HACK
+                                        /*int */
+                                        structureType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
                                     TransitionalHack:
-#endif
                                         if (structureType != PackArchiveStructureTypeManifest)
                                         {
                                             throw new InvalidDataException(); // must be manifest structure
