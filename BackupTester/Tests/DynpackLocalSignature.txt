@@ -19,9 +19,9 @@ call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\arch
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
-.Marking (uncreated segment barrier): archive.-a.dynpack
 .Writing: archive.0.dynpack
 .Writing: archive.a.dynpack
+.Marking (uncreated segment barrier): archive.-a.dynpack
 .Deleting (backup file): archive.-a.dynpack
 .
 endoutput
@@ -52,11 +52,11 @@ call backup -concurrency 0 -encrypt aes256 pA55w01D dynpack source archives\arch
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
-.Marking (uncreated segment barrier): archive.-a.dynpack
-.Marking (uncreated segment barrier): archive.-m.dynpack
 .Writing: archive.0.dynpack
 .Writing: archive.a.dynpack
+.Marking (uncreated segment barrier): archive.-a.dynpack
 .Writing: archive.m.dynpack
+.Marking (uncreated segment barrier): archive.-m.dynpack
 .Deleting (backup file): archive.-a.dynpack
 .Deleting (backup file): archive.-m.dynpack
 .

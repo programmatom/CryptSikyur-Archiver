@@ -9941,23 +9941,7 @@ namespace Backup
                                                                 }
                                                             }
                                                         }
-                                                        else
-                                                        {
-                                                            if (!manifest && safe && !fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
-                                                            {
-                                                                // For non-existing segment, create empty backup file to ensure integrity
-                                                                // if partial archive is rolled back. Specifically: if a segment existed in the old
-                                                                // manifest but had not yet been created, in the new manifest the serial number will
-                                                                // be changed. Therefore, any such segments subsequently written must be removed
-                                                                // during roll-back or the archive will fail integrity checks.
-                                                                messages.WriteLine("Marking (uncreated segment barrier): {0}", segmentBackupFileName);
-                                                                string segmentBackupFileNameTemp = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, name, DynPackTempFileExtension);
-                                                                using (ILocalFileCopy fileRef = fileManager.WriteTemp(segmentBackupFileNameTemp, fileManager.GetMasterTrace()))
-                                                                {
-                                                                    fileManager.Commit(fileRef, segmentBackupFileNameTemp, segmentBackupFileName, true/*overwrite*/, null, threadTraceFileManager);
-                                                                }
-                                                            }
-                                                        }
+                                                        // else - creation of new segment backup barrier is done in individual segment archiving task
                                                     }
                                                 }
                                                 catch (Exception exception)
@@ -10328,8 +10312,7 @@ namespace Backup
 
                             if (segment.Dirty.Value)
                             {
-                                string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
-                                string segmentTempFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackTempFileExtension;
+                                string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", segment.Name, DynPackFileExtension);
 
                                 IFaultInstance faultDynamicPackFileOperation = faultDynamicPackStage.Select("ArchiveSegment", segmentFileName);
 
@@ -10363,6 +10346,7 @@ namespace Backup
                                                         try
                                                         {
                                                             bool succeeded = false;
+                                                            string segmentTempFileName = String.Concat(targetArchiveFileNameTemplate, ".", segment.Name, DynPackTempFileExtension);
                                                             using (ILocalFileCopy fileRef = fileManager.WriteTemp(segmentTempFileName, threadTraceFileManager))
                                                             {
                                                                 try
@@ -10494,6 +10478,29 @@ namespace Backup
                                                                         if (fileStream.Position < fileStream.Length)
                                                                         {
                                                                             fileStream.SetLength(fileStream.Position);
+                                                                        }
+
+                                                                        // create backup barrier before committing segment
+                                                                        if (!fileManager.Exists(segmentFileName, threadTraceFileManager))
+                                                                        {
+                                                                            string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, segment.Name, DynPackFileExtension);
+                                                                            if (safe && !fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
+                                                                            {
+                                                                                // For non-existing segment, create empty backup file to ensure integrity
+                                                                                // if partial archive is rolled back. Specifically: if a segment existed in the old
+                                                                                // manifest but had not yet been created, in the new manifest the serial number will
+                                                                                // be changed. Therefore, any such segments subsequently written must be removed
+                                                                                // during roll-back or the archive will fail integrity checks.
+                                                                                using (ConcurrentMessageLog.ThreadMessageLog messages2 = messagesLog.GetNewMessageLog(sequenceNumber))
+                                                                                {
+                                                                                    messages2.WriteLine("Marking (uncreated segment barrier): {0}", segmentBackupFileName);
+                                                                                }
+                                                                                string segmentBackupFileNameTemp = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, segment.Name, DynPackTempFileExtension);
+                                                                                using (ILocalFileCopy fileRefBarrier = fileManager.WriteTemp(segmentBackupFileNameTemp, fileManager.GetMasterTrace()))
+                                                                                {
+                                                                                    fileManager.Commit(fileRefBarrier, segmentBackupFileNameTemp, segmentBackupFileName, true/*overwrite*/, null, threadTraceFileManager);
+                                                                                }
+                                                                            }
                                                                         }
 
                                                                         succeeded = true;

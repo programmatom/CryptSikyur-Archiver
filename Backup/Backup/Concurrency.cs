@@ -233,9 +233,14 @@ namespace Concurrent
                     index = records.BinarySearch(record, comparer);
                     if (index >= 0)
                     {
+                        // https://msdn.microsoft.com/en-us/library/w4e7fxsh%28v=vs.110%29.aspx
+                        // "If the List<T> contains more than one element with the same value, the method returns
+                        // only one of the occurrences, and it might return any one of the occurrences, not necessarily
+                        // the first one."
+
                         // scan to end of run of multiple records of same value in order to
                         // preserve actual order of insertion in non-sequenced use case
-                        while ((index + 1 < records.Count) && (comparer.Compare(record, records[index + 1]) == 0))
+                        while ((index < records.Count) && (comparer.Compare(record, records[index]) == 0))
                         {
                             index++;
                         }
