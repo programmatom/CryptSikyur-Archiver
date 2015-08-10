@@ -575,7 +575,8 @@ namespace FileUtilityTester
                             {
                                 bool create = command == "create";
                                 long? size = null;
-                                string valueUtf8 = null;
+                                string valueUtf8Literal = null;
+                                string binaryResourcePath = null;
                                 for (int i = 1; i < args.Length; i++)
                                 {
                                     if (args[i] == "-size")
@@ -586,7 +587,12 @@ namespace FileUtilityTester
                                     else if (args[i] == "-value")
                                     {
                                         i++;
-                                        valueUtf8 = args[i];
+                                        valueUtf8Literal = args[i];
+                                    }
+                                    else if (args[i] == "-resource")
+                                    {
+                                        i++;
+                                        binaryResourcePath = CheckPath(args[i], lineNumber);
                                     }
                                     else
                                     {
@@ -600,7 +606,28 @@ namespace FileUtilityTester
                                 }
                                 using (Stream stream = new FileStream(file, FileMode.Create))
                                 {
-                                    if (valueUtf8 == null)
+                                    if (valueUtf8Literal != null)
+                                    {
+                                        byte[] data = Encoding.UTF8.GetBytes(valueUtf8Literal);
+                                        stream.Write(data, 0, data.Length);
+                                        if (size.HasValue)
+                                        {
+                                            stream.SetLength(size.Value);
+                                        }
+                                    }
+                                    else if (binaryResourcePath != null)
+                                    {
+                                        using (FileStream resource = new FileStream(Path.Combine(Path.GetDirectoryName(scriptName), binaryResourcePath), FileMode.Open, FileAccess.Read, FileShare.Read))
+                                        {
+                                            byte[] buffer = new byte[4096];
+                                            int read;
+                                            while ((read = resource.Read(buffer, 0, buffer.Length)) != 0)
+                                            {
+                                                stream.Write(buffer, 0, read);
+                                            }
+                                        }
+                                    }
+                                    else
                                     {
                                         using (TextWriter writer = new StreamWriter(stream, Encoding.ASCII))
                                         {
@@ -635,15 +662,6 @@ namespace FileUtilityTester
                                                 writer.Write(one);
                                                 count += one.Length;
                                             }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        byte[] data = Encoding.UTF8.GetBytes(valueUtf8);
-                                        stream.Write(data, 0, data.Length);
-                                        if (size.HasValue)
-                                        {
-                                            stream.SetLength(size.Value);
                                         }
                                     }
                                 }

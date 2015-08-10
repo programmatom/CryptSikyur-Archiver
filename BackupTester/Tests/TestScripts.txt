@@ -27,7 +27,6 @@ SyncBasic.txt
 SyncLogging.txt
 SyncExclusions.txt
 SyncFaults.txt
-# TODO: sync case sensitivity disambiguation
 
 DynpackBasic.txt
 DynpackExclusions.txt

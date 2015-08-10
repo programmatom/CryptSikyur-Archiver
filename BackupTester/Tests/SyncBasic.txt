@@ -2255,3 +2255,723 @@ list-verify a
 .          2014-01-03          2014-01-03 -A---- y\m\b.txt [2]
 .          2014-01-05          2014-01-08 -A---- y\n.txt [5]
 endlist
+
+
+module file rename case change only
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\local
+mkdir scenario\remote
+mkdir control
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+
+test create initial file
+date + 1
+mkdir "scenario\local\Hey Gabby, what do you have in there"
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" -resource resources\cats\DSCF0005.JPG
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" -resource resources\cats\DSCF0007.JPG
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - first file, left side
+date + 1
+move "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" "scenario\local\Hey Gabby, what do you have in there\dscf0005.jpg"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - both files, left side
+date + 1
+move "scenario\local\Hey Gabby, what do you have in there\dscf0005.jpg" "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG"
+move "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" "scenario\local\Hey Gabby, what do you have in there\dscf0007.jpg"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+endlist
+
+test rename with case change only - second file, left side
+date + 1
+move "scenario\local\Hey Gabby, what do you have in there\dscf0007.jpg" "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - first file, right side
+date + 1
+move "scenario\remote\Hey Gabby, what do you have in there\DSCF0005.JPG" "scenario\remote\Hey Gabby, what do you have in there\dscf0005.jpg"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - both files, right side
+date + 1
+move "scenario\remote\Hey Gabby, what do you have in there\dscf0005.jpg" "scenario\remote\Hey Gabby, what do you have in there\DSCF0005.JPG"
+move "scenario\remote\Hey Gabby, what do you have in there\DSCF0007.JPG" "scenario\remote\Hey Gabby, what do you have in there\dscf0007.jpg"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0005.jpg [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+endlist
+
+test rename with case change only - second file, right side
+date + 1
+move "scenario\remote\Hey Gabby, what do you have in there\dscf0007.jpg" "scenario\remote\Hey Gabby, what do you have in there\DSCF0007.JPG"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\dscf0007.jpg [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test final no-op
+date + 1
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+
+module regression test: directory rename case change only - left side, up-casing
+# bug where renaming a directory with case change only in one causes it to be deleted in both
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\local
+mkdir scenario\remote
+mkdir control
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+
+test create initial file
+date + 1
+mkdir "scenario\local\Hey Gabby, what do you have in there"
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" -resource resources\cats\DSCF0005.JPG
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" -resource resources\cats\DSCF0007.JPG
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only
+date + 1
+move "scenario\local\Hey Gabby, what do you have in there" "scenario\local\Hey Gabby, What do you have in there"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+
+test final no-op
+date + 1
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+
+
+module regression test: directory rename case change only - left side, down-casing
+# bug where renaming a directory with case change only in one causes it to be deleted in both
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\local
+mkdir scenario\remote
+mkdir control
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+
+test create initial file
+date + 1
+mkdir "scenario\local\Hey Gabby, what do you have in there"
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" -resource resources\cats\DSCF0005.JPG
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" -resource resources\cats\DSCF0007.JPG
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only
+date + 1
+move "scenario\local\Hey Gabby, what do you have in there" "scenario\local\Hey gabby, what do you have in there"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test final no-op
+date + 1
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+
+module regression test: directory rename case change only - right side, up-casing
+# bug where renaming a directory with case change only in one causes it to be deleted in both
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\local
+mkdir scenario\remote
+mkdir control
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+
+test create initial file
+date + 1
+mkdir "scenario\local\Hey Gabby, what do you have in there"
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" -resource resources\cats\DSCF0005.JPG
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" -resource resources\cats\DSCF0007.JPG
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only
+date + 1
+move "scenario\remote\Hey Gabby, what do you have in there" "scenario\remote\Hey Gabby, What do you have in there"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+
+test final no-op
+date + 1
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+
+
+module regression test: directory rename case change only - right side, down-casing
+# bug where renaming a directory with case change only in one causes it to be deleted in both
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\local
+mkdir scenario\remote
+mkdir control
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+
+test create initial file
+date + 1
+mkdir "scenario\local\Hey Gabby, what do you have in there"
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" -resource resources\cats\DSCF0005.JPG
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" -resource resources\cats\DSCF0007.JPG
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only
+date + 1
+move "scenario\remote\Hey Gabby, what do you have in there" "scenario\remote\Hey gabby, what do you have in there"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test final no-op
+date + 1
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+
+module directory rename case change only, with content change
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\local
+mkdir scenario\remote
+mkdir control
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+
+test create initial file
+date + 1
+mkdir "scenario\local\Hey Gabby, what do you have in there"
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" -resource resources\cats\DSCF0005.JPG
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" -resource resources\cats\DSCF0007.JPG
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - left side, and change content same side
+date + 1
+move "scenario\local\Hey Gabby, what do you have in there" "scenario\local\Hey Gabby, What do you have in there"
+move "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" "scenario\local\Hey Gabby, what do you have in there\DSCF0006.JPG"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - left side, and change content opposite side
+date + 1
+move "scenario\local\Hey Gabby, What do you have in there" "scenario\local\Hey Gabby, what do you have in there"
+move "scenario\remote\Hey Gabby, what do you have in there\DSCF0006.JPG" "scenario\remote\Hey Gabby, what do you have in there\DSCF0005.JPG"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - right side, and change content same side
+date + 1
+move "scenario\remote\Hey Gabby, what do you have in there" "scenario\remote\Hey Gabby, What do you have in there"
+move "scenario\remote\Hey Gabby, what do you have in there\DSCF0005.JPG" "scenario\remote\Hey Gabby, what do you have in there\DSCF0006.JPG"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only - right side, and change content opposite side
+date + 1
+move "scenario\remote\Hey Gabby, What do you have in there" "scenario\remote\Hey Gabby, what do you have in there"
+move "scenario\local\Hey Gabby, what do you have in there\DSCF0006.JPG" "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0006.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test final no-op
+date + 1
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+
+module directory renamed, case change only, both sides
+# Currently this is ignored. Desired result is merge conflict UI to pick name. Change test if that is implemented.
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\local
+mkdir scenario\remote
+mkdir control
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+
+test create initial file
+date + 1
+mkdir "scenario\local\Hey Gabby, what do you have in there"
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0005.JPG" -resource resources\cats\DSCF0005.JPG
+create "scenario\local\Hey Gabby, what do you have in there\DSCF0007.JPG" -resource resources\cats\DSCF0007.JPG
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey Gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey Gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test rename with case change only, both sides, differently
+date + 1
+move "scenario\local\Hey Gabby, what do you have in there" "scenario\local\Hey Gabby, What do you have in there"
+move "scenario\remote\Hey Gabby, what do you have in there" "scenario\remote\Hey gabby, what do you have in there"
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+test final no-op
+date + 1
+call backup sync scenario\local scenario\remote control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D local\
+.                                         -----D local\Hey Gabby, What do you have in there\
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- local\Hey Gabby, What do you have in there\DSCF0007.JPG [2]
+.                                         -----D remote\
+.                                         -----D remote\Hey gabby, what do you have in there\
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0005.JPG [1]
+.          2015-01-02          2015-01-02 -A---- remote\Hey gabby, what do you have in there\DSCF0007.JPG [2]
+endlist
+
+
+# TODO: test above case change scenarios with failure and restart

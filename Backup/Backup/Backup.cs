@@ -2495,6 +2495,81 @@ namespace Backup
             }
         }
 
+        private static void SyncChangeDirectoryCaseChangeOnly(string sourceRoot, string targetRoot, string path, int codePath, TextWriter log, bool l2r, IVolumeFlushHelperCollection volumeFlushHelperCollection, IFaultInstance faultContext)
+        {
+            try
+            {
+                if (log != null)
+                {
+                    string sizeLPath = Path.Combine(l2r ? sourceRoot : targetRoot, path);
+                    string sizeRPath = Path.Combine(l2r ? targetRoot : sourceRoot, path);
+                    string sizePart = String.Empty;
+                    if (File.Exists(sizeLPath) && File.Exists(sizeRPath))
+                    {
+                        sizePart = String.Format("{0}, {1} ", FileSizeString(sizeLPath), FileSizeString(sizeRPath));
+                    }
+                    log.WriteLine("{1}{2}{3} \"{0}\" {5}[codePath={4}]", path, l2r ? sourceRoot : targetRoot, l2r ? "==>" : "<==", l2r ? targetRoot : sourceRoot, codePath, sizePart);
+                }
+
+                string sourcePath = Path.Combine(sourceRoot, path);
+                string targetPath = Path.Combine(targetRoot, path);
+
+                // Special case: if directory name and only case has changed, propagate as direct rename rather than rmdir-mkdir.
+                // The rmdir-mkdir method relies on subsequent file traversal to copy the content, but since the directory name is
+                // the same, the deletes are back-propagated, losing the directory content on both sides.
+                if (Directory.Exists(sourcePath) && Directory.Exists(targetPath))
+                {
+                    string actualSourceName = null;
+                    string actualTargetName = null;
+                    string[] items;
+                    items = Directory.GetDirectories(Path.GetDirectoryName(sourcePath), Path.GetFileName(sourcePath));
+                    if (items.Length == 1)
+                    {
+                        actualSourceName = Path.GetFileName(items[0]);
+                    }
+                    items = Directory.GetDirectories(Path.GetDirectoryName(targetPath), Path.GetFileName(targetPath));
+                    if (items.Length == 1)
+                    {
+                        actualTargetName = Path.GetFileName(items[0]);
+                    }
+                    if ((actualSourceName == null) && (actualTargetName == null))
+                    {
+                        throw new ApplicationException(String.Format("Directory inconsistency: \"{0}\" or \"{1}\"", sourcePath, targetPath));
+                    }
+                    if ((actualSourceName != null) && (actualTargetName != null)
+                        && String.Equals(actualSourceName, actualTargetName, StringComparison.OrdinalIgnoreCase)
+                        && !String.Equals(actualSourceName, actualTargetName, StringComparison.Ordinal))
+                    {
+                        if (log != null)
+                        {
+                            log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "rename", "was", actualTargetName);
+                        }
+                        int temp = 0;
+                        string tempPath;
+                        while (Directory.Exists(tempPath = Path.Combine(Path.GetDirectoryName(targetPath), temp.ToString())))
+                        {
+                            temp++;
+                        }
+                        Directory.Move(targetPath, tempPath); // source is case insensitive
+                        Directory.Move(tempPath, targetPath); // establishes desired case
+                        return;
+                    }
+                }
+
+                // should not be called in any other scenario than the special case
+                throw new NotSupportedException();
+            }
+            catch (Exception exception)
+            {
+                if (log != null)
+                {
+                    log.WriteLine("  {0} {2}", "EXCEPTION", String.Empty, exception.Message);
+                }
+                ConsoleWriteLineColor(ConsoleColor.Red, "EXCEPTION at \"{0}\": {1}", path, exception.Message);
+                throw;
+            }
+        }
+
         private const FileAttributes SyncPropagatedAttributes = FileAttributes.ReadOnly | FileAttributes.Directory;
 
         private static bool SyncSubdirChanged(string root, EnumerateHierarchy currentEntries, EnumerateFile previousEntries, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems)
@@ -3390,8 +3465,22 @@ namespace Backup
                         }
                         else
                         {
-                            bool changedL = !previousLExisted || !String.Equals(Path.GetFileName(previousEntriesL.Current), Path.GetFileName(currentEntriesL.Current)) || ((previousEntriesL.CurrentAttributes & SyncPropagatedAttributes) != (currentEntriesL.CurrentAttributes & SyncPropagatedAttributes)) || (!previousEntriesL.CurrentIsDirectory && (previousEntriesL.CurrentLastWrite != currentEntriesL.CurrentLastWrite));
-                            bool changedR = !previousRExisted || !String.Equals(Path.GetFileName(previousEntriesR.Current), Path.GetFileName(currentEntriesR.Current)) || ((previousEntriesR.CurrentAttributes & SyncPropagatedAttributes) != (currentEntriesR.CurrentAttributes & SyncPropagatedAttributes)) || (!previousEntriesR.CurrentIsDirectory && (previousEntriesR.CurrentLastWrite != currentEntriesR.CurrentLastWrite));
+                            bool changedL = !previousLExisted || (!currentEntriesL.CurrentIsDirectory && !String.Equals(Path.GetFileName(previousEntriesL.Current), Path.GetFileName(currentEntriesL.Current))) || ((previousEntriesL.CurrentAttributes & SyncPropagatedAttributes) != (currentEntriesL.CurrentAttributes & SyncPropagatedAttributes)) || (!previousEntriesL.CurrentIsDirectory && (previousEntriesL.CurrentLastWrite != currentEntriesL.CurrentLastWrite));
+                            bool changedR = !previousRExisted || (!currentEntriesR.CurrentIsDirectory && !String.Equals(Path.GetFileName(previousEntriesR.Current), Path.GetFileName(currentEntriesR.Current))) || ((previousEntriesR.CurrentAttributes & SyncPropagatedAttributes) != (currentEntriesR.CurrentAttributes & SyncPropagatedAttributes)) || (!previousEntriesR.CurrentIsDirectory && (previousEntriesR.CurrentLastWrite != currentEntriesR.CurrentLastWrite));
+                            // Note the file name tests are case-sensitive (unlike most in this function) to detect case-change-only renames
+
+                            bool changedLDirCaseChangeOnly = previousLExisted && currentEntriesL.CurrentIsDirectory && !String.Equals(Path.GetFileName(previousEntriesL.Current), Path.GetFileName(currentEntriesL.Current));
+                            if (changedLDirCaseChangeOnly && !String.Equals(Path.GetFileName(previousEntriesL.Current), Path.GetFileName(currentEntriesL.Current), StringComparison.OrdinalIgnoreCase))
+                            {
+                                Debug.Assert(false);
+                                throw new InvalidOperationException();
+                            }
+                            bool changedRDirCaseChangeOnly = previousRExisted && currentEntriesR.CurrentIsDirectory && !String.Equals(Path.GetFileName(previousEntriesR.Current), Path.GetFileName(currentEntriesR.Current));
+                            if (changedRDirCaseChangeOnly && !String.Equals(Path.GetFileName(previousEntriesR.Current), Path.GetFileName(currentEntriesR.Current), StringComparison.OrdinalIgnoreCase))
+                            {
+                                Debug.Assert(false);
+                                throw new InvalidOperationException();
+                            }
 
                             if (!changedL && previousRExisted && Directory.Exists(Path.Combine(rootL, selected)) && File.Exists(Path.Combine(rootR, selected)))
                             {
@@ -3540,8 +3629,38 @@ namespace Backup
                             else
                             {
                                 codePath = 303;
-                                EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
-                                EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
+
+                                string currentEntriesL_Current = currentEntriesL.Current;
+                                string currentEntriesR_Current = currentEntriesR.Current;
+
+#if false
+                                if (changedLDirCaseChangeOnly && changedRDirCaseChangeOnly)
+                                {
+                                    // do nothing - TODO: merge conflict prompt to select which name to use
+                                    throw new NotImplementedException();
+                                }
+                                else
+#endif
+                                if (changedLDirCaseChangeOnly && !changedRDirCaseChangeOnly)
+                                {
+                                    bool dirR = currentEntriesR.CurrentIsDirectory;
+                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                    {
+                                        currentEntriesR_Current = currentEntriesL_Current;
+                                    }
+
+                                }
+                                else if (changedRDirCaseChangeOnly && !changedLDirCaseChangeOnly)
+                                {
+                                    bool dirL = currentEntriesL.CurrentIsDirectory;
+                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                    {
+                                        currentEntriesL_Current = currentEntriesR_Current;
+                                    }
+                                }
+
+                                EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL_Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
+                                EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR_Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                 currentEntriesL.MoveNext();
                                 currentEntriesR.MoveNext();
                             }

@@ -65,6 +65,8 @@
     <Content Include="RemoteFaults.txt" />
     <Content Include="RemoteGoogleDrive.txt" />
     <Content Include="RemoteMicrosoftOneDrive.txt" />
+    <Content Include="resources\cats\DSCF0005.JPG" />
+    <Content Include="resources\cats\DSCF0007.JPG" />
     <Content Include="resources\GoogleDriveRefreshToken.txt" />
     <Content Include="resources\MicrosoftOneDriveRefreshToken.txt" />
     <Content Include="RestoreBasic.txt" />
