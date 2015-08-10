@@ -1264,7 +1264,11 @@ namespace FileUtilityTester
                     if (currentFailed && failPause)
                     {
                         Console.Write("<ENTER> to continue...");
-                        Console.ReadLine();
+                        string s = Console.ReadLine();
+                        if (s == "r")
+                        {
+                            testFailed = false;
+                        }
                     }
                 }
             }

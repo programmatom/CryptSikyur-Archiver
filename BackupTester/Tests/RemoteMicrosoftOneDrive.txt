@@ -131,3 +131,114 @@ exitcode-verify 0
 lastoutput-verify
 .delete remotefile
 endoutput
+
+
+module dynpack integration test
+
+test setup
+date 2015-01-01
+load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
+encrypt-memory refreshtoken
+
+test create scenario
+mkdir local
+create local\a -size 1000000
+create local\b -size 1000000
+# large enough to trigger resumable upload method (at least 5MB)
+create local\c -size 10000000
+list-verify .
+.                                         -----D local\
+.          2015-01-01          2015-01-01 -A---- local\a [1]
+.          2015-01-01          2015-01-01 -A---- local\b [2]
+.          2015-01-01          2015-01-01 -A---- local\c [3]
+endlist
+
+test clean server
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+endoutput
+
+test initial archiving
+date + 1
+call backup -refreshtoken %refreshtoken% -encrypt aes256 P1ssvARd dynpack local https://onedrive.live.com/archive 1500000 -nosplitlargefiles
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.0.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.a.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.m.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.s.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+endoutput
+
+test extract initial archive
+date + 1
+call backup -refreshtoken %refreshtoken% -decrypt aes256 P1ssvARd dynunpack https://onedrive.live.com/archive output1
+exitcode-verify 0
+list-verify .
+.                                         -----D local\
+.          2015-01-01          2015-01-01 -A---- local\a [1]
+.          2015-01-01          2015-01-01 -A---- local\b [2]
+.          2015-01-01          2015-01-01 -A---- local\c [3]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\b [2]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+endlist
+
+test modify archive
+date + 1
+delete local\b
+create local\d -size 1000000
+list-verify .
+.                                         -----D local\
+.          2015-01-01          2015-01-01 -A---- local\a [1]
+.          2015-01-01          2015-01-01 -A---- local\c [3]
+.          2015-01-04          2015-01-04 -A---- local\d [4]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\b [2]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+endlist
+call backup -refreshtoken %refreshtoken% -encrypt aes256 P1ssvARd dynpack local https://onedrive.live.com/archive 1500000 -nosplitlargefiles
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.0.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.a.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.s.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.v.dynpack$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+endoutput
+
+test extract modified archive
+date + 1
+call backup -refreshtoken %refreshtoken% -decrypt aes256 P1ssvARd dynunpack https://onedrive.live.com/archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D local\
+.          2015-01-01          2015-01-01 -A---- local\a [1]
+.          2015-01-01          2015-01-01 -A---- local\c [3]
+.          2015-01-04          2015-01-04 -A---- local\d [4]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\b [2]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D output2\
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.          2015-01-04          2015-01-04 -A---- output2\d [4]
+endlist
+
+test final clean server
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
+exitcode-verify 0

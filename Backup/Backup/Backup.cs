@@ -7049,6 +7049,10 @@ namespace Backup
                             int parameterType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
                             if (parameterType == 0)
                             {
+                                if (trace != null)
+                                {
+                                    trace.WriteLine("New pack format");
+                                }
                                 break;
                             }
                             else if ((parameterType == PackArchiveStructureTypeManifest) || (parameterType == PackArchiveStructureTypeFiles))
@@ -7060,7 +7064,7 @@ namespace Backup
                                 structureType = parameterType;
                                 if (trace != null)
                                 {
-                                    trace.WriteLine("OLD PACK FORMAT -- INVOKING HACK");
+                                    trace.WriteLine("Old pack format -- invoking hack");
                                 }
                                 goto TransitionalHack;
                             }
@@ -8430,15 +8434,7 @@ namespace Backup
                 // non-existing dirty segment to prevent propagating backward of an item with an invalid
                 // serial number. The command "dynpack-rollback" looks for empty backup segments and deletes
                 // current segments (and empty backup placeholders) instead of restoring to current name.
-#if false
                 //
-                // Even if "!safe", the manifest will still be backed up to foo.-0.dynpack.
-                // This means if the code or system fails after backing up but before writing the new
-                // manifest, the next time the program is run, the old manifest (foo.-0.dynpack) can
-                // be loaded if the new file is missing.
-                // The "!safe" option may result in segments with invalid serial numbers being used in the
-                // case of the backup manifest being restored to currency.
-#endif
                 List<SegmentRecord> segments = new List<SegmentRecord>();
                 List<FileRecord> previousFiles = new List<FileRecord>();
                 string manifestFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestName, DynPackFileExtension);
@@ -8585,6 +8581,10 @@ namespace Backup
                                             int parameterType = BinaryReadUtils.ReadVariableLengthQuantityAsInt32(stream);
                                             if (parameterType == 0)
                                             {
+                                                if (traceDynpack != null)
+                                                {
+                                                    traceDynpack.WriteLine("New pack format");
+                                                }
                                                 break;
                                             }
                                             else if ((parameterType == PackArchiveStructureTypeManifest) || (parameterType == PackArchiveStructureTypeFiles))
@@ -8596,7 +8596,7 @@ namespace Backup
                                                 structureType = parameterType;
                                                 if (traceDynpack != null)
                                                 {
-                                                    traceDynpack.WriteLine("OLD PACK FORMAT -- INVOKING HACK");
+                                                    traceDynpack.WriteLine("Old pack format -- invoking hack");
                                                 }
                                                 goto TransitionalHack;
                                             }
