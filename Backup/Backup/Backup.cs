@@ -2546,7 +2546,7 @@ namespace Backup
                         }
                         int temp = 0;
                         string tempPath;
-                        while (Directory.Exists(tempPath = Path.Combine(Path.GetDirectoryName(targetPath), temp.ToString())))
+                        while (Directory.Exists(tempPath = Path.Combine(Path.GetDirectoryName(targetPath), temp.ToString())) || File.Exists(tempPath))
                         {
                             temp++;
                         }
