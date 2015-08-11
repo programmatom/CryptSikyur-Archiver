@@ -9759,167 +9759,192 @@ namespace Backup
                                                     using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                                     {
                                                         bool invalid = false;
+                                                        bool completed = false;
 
-                                                        if (threadTraceDynPack != null)
+                                                        try
                                                         {
-                                                            threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.DiagnosticSerialNumber, segment.Name);
-                                                        }
-                                                        messages.WriteLine("Validating non-dirty segment: {0}", segment.Name);
+                                                            if (threadTraceDynPack != null)
+                                                            {
+                                                                threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.DiagnosticSerialNumber, segment.Name);
+                                                            }
+                                                            messages.WriteLine("Validating non-dirty segment: {0}", segment.Name);
 
-                                                        using (ILocalFileCopy fileRef = fileManager.Read(segmentFileName, null/*progressTracker*/, threadTraceFileManager))
-                                                        {
-                                                            Context unpackContext = new Context(context);
-                                                            if (unpackContext.compressionOption == CompressionOption.Compress)
+                                                            using (ILocalFileCopy fileRef = fileManager.Read(segmentFileName, null/*progressTracker*/, threadTraceFileManager))
                                                             {
-                                                                unpackContext.compressionOption = CompressionOption.Decompress;
-                                                            }
-                                                            if (unpackContext.cryptoOption == EncryptionOption.Encrypt)
-                                                            {
-                                                                unpackContext.cryptoOption = EncryptionOption.Decrypt;
-                                                                unpackContext.decrypt = unpackContext.encrypt;
-                                                                unpackContext.encrypt = null;
-                                                            }
-                                                            ulong segmentSerialNumber = 0;
-                                                            byte[] segmentRandomArchiveSignature = new byte[0];
-                                                            UnpackedFileRecord[] archiveFiles = null;
-                                                            try
-                                                            {
-                                                                using (Stream segmentStream = fileRef.Read())
+                                                                Context unpackContext = new Context(context);
+                                                                if (unpackContext.compressionOption == CompressionOption.Compress)
                                                                 {
-                                                                    ApplicationException[] deferredExceptions;
-                                                                    archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, faultDynamicPack.Select("VerifySegment", segmentFileName), out deferredExceptions, null/*localSignaturePath*/);
-                                                                    Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
+                                                                    unpackContext.compressionOption = CompressionOption.Decompress;
                                                                 }
-                                                            }
-                                                            catch (Exception exception)
-                                                            {
-                                                                invalid = true;
-
-                                                                if (traceDynpack != null)
+                                                                if (unpackContext.cryptoOption == EncryptionOption.Encrypt)
                                                                 {
-                                                                    traceDynpack.WriteLine("Segment corrupt, could not be read: {0}", exception);
+                                                                    unpackContext.cryptoOption = EncryptionOption.Decrypt;
+                                                                    unpackContext.decrypt = unpackContext.encrypt;
+                                                                    unpackContext.encrypt = null;
                                                                 }
-                                                                messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (segment corrupt, could not be read): {1}", segment.Name, exception);
-                                                            }
-
-                                                            if (!ArrayEqual(segmentRandomArchiveSignature, randomArchiveSignature))
-                                                            {
-                                                                invalid = true;
-
-                                                                if (traceDynpack != null)
+                                                                ulong segmentSerialNumber = 0;
+                                                                byte[] segmentRandomArchiveSignature = new byte[0];
+                                                                UnpackedFileRecord[] archiveFiles = null;
+                                                                try
                                                                 {
-                                                                    traceDynpack.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", LogWriter.ScrubSecuritySensitiveValue(randomArchiveSignature), LogWriter.ScrubSecuritySensitiveValue(segmentRandomArchiveSignature));
+                                                                    using (Stream segmentStream = fileRef.Read())
+                                                                    {
+                                                                        ApplicationException[] deferredExceptions;
+                                                                        archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, faultDynamicPack.Select("VerifySegment", segmentFileName), out deferredExceptions, null/*localSignaturePath*/);
+                                                                        Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
+                                                                    }
                                                                 }
-                                                                messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
-                                                            }
-
-                                                            if (segmentSerialNumber != segment.SerialNumber)
-                                                            {
-                                                                invalid = true;
-
-                                                                if (traceDynpack != null)
-                                                                {
-                                                                    traceDynpack.WriteLine("Segment serial number mismatch: manfest-ref={0}, actual={1}", segment.SerialNumber, segmentSerialNumber);
-                                                                }
-                                                                messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
-                                                            }
-
-                                                            if (archiveFiles != null)
-                                                            {
-                                                                int segmentStart = segment.start.Value;
-                                                                int segmentLength = (i < segments.Count - 1 ? segments[i + 1].start.Value : mergedFiles.Count) - segmentStart;
-                                                                if (segmentLength != archiveFiles.Length)
+                                                                catch (Exception exception)
                                                                 {
                                                                     invalid = true;
 
                                                                     if (traceDynpack != null)
                                                                     {
-                                                                        traceDynpack.WriteLine("Length mismatch: {0}, {1}", segmentLength, archiveFiles.Length);
+                                                                        traceDynpack.WriteLine("Segment corrupt, could not be read: {0}", exception);
                                                                     }
-                                                                    messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (length mismatch): {1}", segment.Name, segmentFileName);
+                                                                    messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (segment corrupt, could not be read): {1}", segment.Name, exception);
                                                                 }
 
-                                                                bool stop = false;
-                                                                for (int j = 0; (j < segmentLength) && !stop; j++)
+                                                                if (!ArrayEqual(segmentRandomArchiveSignature, randomArchiveSignature))
                                                                 {
-                                                                    if (!String.Equals(archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath.ToString()))
+                                                                    invalid = true;
+
+                                                                    if (traceDynpack != null)
                                                                     {
-                                                                        invalid = true;
-                                                                        stop = true;
-
-                                                                        if (traceDynpack != null)
-                                                                        {
-                                                                            traceDynpack.WriteLine("File added or removed: {0} : {1}", archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
-                                                                        }
-                                                                        messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file added or removed): {1} : {2}", segment.Name, archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
+                                                                        traceDynpack.WriteLine("Segment random signature mismatch: expected={0}, actual={1}", LogWriter.ScrubSecuritySensitiveValue(randomArchiveSignature), LogWriter.ScrubSecuritySensitiveValue(segmentRandomArchiveSignature));
                                                                     }
-                                                                    else if ((archiveFiles[j].CreationTimeUtc != mergedFiles[j + segmentStart].CreationTimeUtc) ||
-                                                                        (archiveFiles[j].LastWriteTimeUtc != mergedFiles[j + segmentStart].LastWriteTimeUtc))
+                                                                    messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
+                                                                }
+
+                                                                if (segmentSerialNumber != segment.SerialNumber)
+                                                                {
+                                                                    invalid = true;
+
+                                                                    if (traceDynpack != null)
                                                                     {
-                                                                        // TODO: when using -ignoreunchanged, hashes should be checked.
-                                                                        // BUT: hashes are stored only in manifest, not segment - requires change to that
-                                                                        // Putting manifest hash in segment is misleading if file has changed since manifest creation,
-                                                                        // but it's inefficient to recompute hash for each file. No good solution at this time.
-
-                                                                        invalid = true;
-
-                                                                        if (traceDynpack != null)
-                                                                        {
-                                                                            traceDynpack.WriteLine("File timestamp(s) different: {0}", archiveFiles[j].ArchivePath);
-                                                                        }
-                                                                        messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file timestamp(s) different): {1}", segment.Name, archiveFiles[j].ArchivePath);
-                                                                        break;
+                                                                        traceDynpack.WriteLine("Segment serial number mismatch: manfest-ref={0}, actual={1}", segment.SerialNumber, segmentSerialNumber);
                                                                     }
-                                                                    else if (archiveFiles[j].EmbeddedStreamLength != mergedFiles[j + segmentStart].EmbeddedStreamLength)
+                                                                    messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (serial number mismatch): {1}", segment.Name, segmentFileName);
+                                                                }
+
+                                                                if (archiveFiles != null)
+                                                                {
+                                                                    int segmentStart = segment.start.Value;
+                                                                    int segmentLength = (i < segments.Count - 1 ? segments[i + 1].start.Value : mergedFiles.Count) - segmentStart;
+                                                                    if (segmentLength != archiveFiles.Length)
                                                                     {
                                                                         invalid = true;
 
                                                                         if (traceDynpack != null)
                                                                         {
-                                                                            traceDynpack.WriteLine("File length different: {0}", archiveFiles[j].ArchivePath);
+                                                                            traceDynpack.WriteLine("Length mismatch: {0}, {1}", segmentLength, archiveFiles.Length);
                                                                         }
-                                                                        messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file length different): {1}", segment.Name, archiveFiles[j].ArchivePath);
-                                                                        break;
+                                                                        messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (length mismatch): {1}", segment.Name, segmentFileName);
                                                                     }
+
+                                                                    bool stop = false;
+                                                                    for (int j = 0; (j < segmentLength) && !stop; j++)
+                                                                    {
+                                                                        if (!String.Equals(archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath.ToString()))
+                                                                        {
+                                                                            invalid = true;
+                                                                            stop = true;
+
+                                                                            if (traceDynpack != null)
+                                                                            {
+                                                                                traceDynpack.WriteLine("File added or removed: {0} : {1}", archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
+                                                                            }
+                                                                            messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file added or removed): {1} : {2}", segment.Name, archiveFiles[j].ArchivePath, mergedFiles[j + segmentStart].PartialPath);
+                                                                        }
+                                                                        else if ((archiveFiles[j].CreationTimeUtc != mergedFiles[j + segmentStart].CreationTimeUtc) ||
+                                                                            (archiveFiles[j].LastWriteTimeUtc != mergedFiles[j + segmentStart].LastWriteTimeUtc))
+                                                                        {
+                                                                            // TODO: when using -ignoreunchanged, hashes should be checked.
+                                                                            // BUT: hashes are stored only in manifest, not segment - requires change to that
+                                                                            // Putting manifest hash in segment is misleading if file has changed since manifest creation,
+                                                                            // but it's inefficient to recompute hash for each file. No good solution at this time.
+
+                                                                            invalid = true;
+
+                                                                            if (traceDynpack != null)
+                                                                            {
+                                                                                traceDynpack.WriteLine("File timestamp(s) different: {0}", archiveFiles[j].ArchivePath);
+                                                                            }
+                                                                            messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file timestamp(s) different): {1}", segment.Name, archiveFiles[j].ArchivePath);
+                                                                            break;
+                                                                        }
+                                                                        else if (archiveFiles[j].EmbeddedStreamLength != mergedFiles[j + segmentStart].EmbeddedStreamLength)
+                                                                        {
+                                                                            invalid = true;
+
+                                                                            if (traceDynpack != null)
+                                                                            {
+                                                                                traceDynpack.WriteLine("File length different: {0}", archiveFiles[j].ArchivePath);
+                                                                            }
+                                                                            messages.WriteLine("SEGMENT INTEGRITY PROBLEM {0} (file length different): {1}", segment.Name, archiveFiles[j].ArchivePath);
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                if (invalid)
+                                                                {
+                                                                    try
+                                                                    {
+                                                                        string tempFile = Path.GetTempFileName();
+                                                                        fileRef.CopyLocal(tempFile, true/*overwrite*/);
+                                                                        string message = String.Format("Copied of corrupt segment \"{0}\" to \"{1}\"", segmentFileName, tempFile);
+                                                                        if (traceDynpack != null)
+                                                                        {
+                                                                            traceDynpack.WriteLine(message);
+                                                                        }
+                                                                        messages.WriteLine(ConsoleColor.Yellow, message);
+                                                                    }
+                                                                    catch (IOException exception)
+                                                                    {
+                                                                        if (threadTraceDynPack != null)
+                                                                        {
+                                                                            threadTraceDynPack.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
+                                                                        }
+                                                                        messages.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
+                                                                        uint hr = (uint)Marshal.GetHRForException(exception);
+                                                                        if (hr != 0x80070070/*out of disk space*/)
+                                                                        {
+                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            throw;
+                                                                        }
+                                                                        // running out of disk space saving the invalid segment was regarded as non-fatal
+                                                                    }
+
+                                                                    // TODO: rename segment to backup name or delete segment as appropriate
                                                                 }
                                                             }
-                                                            if (invalid)
+
+                                                            completed = true;
+                                                        }
+                                                        catch (Exception exception)
+                                                        {
+                                                            if (threadTraceDynPack != null)
+                                                            {
+                                                                threadTraceDynPack.WriteLine("Exception verifying non-dirty segment {0}: {1}", segmentFileName, exception);
+                                                            }
+                                                            messages.WriteLine("Error verifying non-dirty segment {0}: {1}", segmentFileName, exception.Message);
+
+                                                            // Failure is fatal because it interferes with the integrity of backup
+                                                            // files. If process were allowed to continue and files overwritten, the
+                                                            // archive could be inconsistent (e.g. if old segments are not removed or
+                                                            // renamed but new manifest is written, then program fails before writing
+                                                            // new versions of the segments - old segment will remain while manifest
+                                                            // will claim it is the new one, resulting in serial number inconsistency)
+                                                            Interlocked.Exchange(ref fatal, 1);
+                                                            throw;
+                                                        }
+                                                        finally
+                                                        {
+                                                            if (invalid || !completed)
                                                             {
                                                                 segment.Dirty.Set();
                                                                 // dirty segment will be removed in subsequent pass
 
-                                                                try
-                                                                {
-                                                                    string tempFile = Path.GetTempFileName();
-                                                                    fileRef.CopyLocal(tempFile, true/*overwrite*/);
-                                                                    string message = String.Format("Copied of corrupt segment \"{0}\" to \"{1}\"", segmentFileName, tempFile);
-                                                                    if (traceDynpack != null)
-                                                                    {
-                                                                        traceDynpack.WriteLine(message);
-                                                                    }
-                                                                    messages.WriteLine(ConsoleColor.Yellow, message);
-                                                                }
-                                                                catch (IOException exception)
-                                                                {
-                                                                    if (threadTraceDynPack != null)
-                                                                    {
-                                                                        threadTraceDynPack.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
-                                                                    }
-                                                                    messages.WriteLine("Exception verifying {0}: {1}", segmentFileName, exception);
-                                                                    uint hr = (uint)Marshal.GetHRForException(exception);
-                                                                    if (hr != 0x80070070/*out of disk space*/)
-                                                                    {
-                                                                        Interlocked.Exchange(ref fatal, 1);
-                                                                        throw;
-                                                                    }
-                                                                    // running out of disk space saving the invalid segment was regarded as non-fatal
-                                                                }
-
-                                                                // TODO: rename segment to backup name or delete segment as appropriate
-                                                            }
-
-                                                            if (invalid)
-                                                            {
                                                                 lock (badSegments)
                                                                 {
                                                                     badSegments.Add(segmentFileName);

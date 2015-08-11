@@ -143,7 +143,7 @@ namespace Backup
             this.localFilePath = localFilePath;
             this.writable = writable;
             this.delete = delete;
-            using (Stream stream = !File.Exists(localFilePath) ? new FileStream(localFilePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, 1) : null)
+            using (Stream stream = !File.Exists(localFilePath) && writable ? new FileStream(localFilePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, 1) : null)
             {
                 this.keeper = new FileStream(localFilePath, FileMode.Open, FileAccess.Read, writable ? FileShare.ReadWrite : FileShare.Read, 1);
             }
