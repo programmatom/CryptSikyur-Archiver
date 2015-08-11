@@ -237,3 +237,130 @@ endlist
 test final clean server
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
 exitcode-verify 0
+
+
+module copy
+
+test setup
+date 2015-01-01
+load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+encrypt-memory refreshtoken
+
+test clean server
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+endoutput
+
+test upload test files
+date + 1
+create one -size 50000
+create two -size 50000
+date + 1
+list-verify .
+.          2015-01-02          2015-01-02 -A---- one [1]
+.          2015-01-02          2015-01-02 -A---- two [2]
+endlist
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ upload one one upload two two
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
+endoutput
+
+test copy to new file
+date + 1
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ copy one filecopy
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+filecopy$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
+endoutput
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ download filecopy filecopy1
+exitcode-verify 0
+list-verify .
+.          2015-01-04          2015-01-04 -A---- filecopy1 [1]
+.          2015-01-02          2015-01-02 -A---- one [1]
+.          2015-01-02          2015-01-02 -A---- two [2]
+endlist
+
+test copy overwrite file
+date + 1
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ copy two filecopy
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+filecopy$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
+endoutput
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ download filecopy filecopy2
+exitcode-verify 0
+list-verify .
+.          2015-01-04          2015-01-04 -A---- filecopy1 [1]
+.          2015-01-05          2015-01-05 -A---- filecopy2 [2]
+.          2015-01-02          2015-01-02 -A---- one [1]
+.          2015-01-02          2015-01-02 -A---- two [2]
+endlist
+
+test final clean server
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+exitcode-verify 0
+
+
+module throttle (code coverage)
+
+test setup
+date 2015-01-01
+load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+encrypt-memory refreshtoken
+
+test clean server
+call backup -refreshtoken %refreshtoken% -throttle 1 remote https://drive.google.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% -throttle 1 remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+endoutput
+
+test upload test file
+date + 1
+create file -size 200000
+date + 1
+list-verify .
+.          2015-01-02          2015-01-02 -A---- file [1]
+endlist
+call backup -refreshtoken %refreshtoken% -throttle 0,10000 remote https://drive.google.com/ upload file file
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% -throttle 20000,0 remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+200000\s+[0-9a-zA-Z!.]+\s+file$
+endoutput
+
+test download test file
+date + 1
+call backup -refreshtoken %refreshtoken% -throttle 500000,4096 remote https://drive.google.com/ download file file2
+exitcode-verify 0
+list-verify .
+.          2015-01-02          2015-01-02 -A---- file [1]
+.          2015-01-04          2015-01-04 -A---- file2 [1]
+endlist
+
+test final clean server
+call backup -refreshtoken %refreshtoken% -throttle 0 remote https://drive.google.com/ del *
+exitcode-verify 0

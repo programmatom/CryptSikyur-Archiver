@@ -4389,8 +4389,7 @@ namespace Backup
             return c;
         }
 
-#if true // EXPERIMENTAL
-        private static class FileCompressionHelper
+        private static class NTFSFileCompressionHelper
         {
             [Flags]
             private enum EFileAttributes : uint
@@ -4493,7 +4492,6 @@ namespace Backup
                 }
             }
         }
-#endif
 
         internal static void BackupRecursive(string source, string previous, string current, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, TextWriter log, bool deepRollback)
         {
@@ -4669,7 +4667,7 @@ namespace Backup
                                 try
                                 {
                                     Directory.CreateDirectory(currentPath);
-#if true // EXPERIMENTAL
+
                                     if ((context.cryptoOption == EncryptionOption.None)
                                         && (context.compressionOption == CompressionOption.None)
                                         && ((File.GetAttributes(sourcePath) & FileAttributes.Compressed) != 0))
@@ -4677,14 +4675,14 @@ namespace Backup
                                         // if source directory is compressed, assume it's for a good reason
                                         try
                                         {
-                                            FileCompressionHelper.SetCompressed(currentPath, true/*compress*/);
+                                            NTFSFileCompressionHelper.SetCompressed(currentPath, true/*compress*/);
                                         }
                                         catch
                                         {
                                             // ignore any errors and proceed uncompressed
                                         }
                                     }
-#endif
+
                                     return true;
                                 }
                                 catch (PathTooLongException exception)

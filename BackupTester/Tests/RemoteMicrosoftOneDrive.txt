@@ -242,3 +242,88 @@ endlist
 test final clean server
 call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
 exitcode-verify 0
+
+
+module copy
+
+test setup
+date 2015-01-01
+load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
+encrypt-memory refreshtoken
+
+test clean server
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+endoutput
+
+test upload test files
+date + 1
+create one -size 50000
+create two -size 50000
+date + 1
+list-verify .
+.          2015-01-02          2015-01-02 -A---- one [1]
+.          2015-01-02          2015-01-02 -A---- two [2]
+endlist
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ upload one one upload two two
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
+endoutput
+
+test copy to new file
+date + 1
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ copy one filecopy
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+filecopy$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
+endoutput
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ download filecopy filecopy1
+exitcode-verify 0
+list-verify .
+.          2015-01-04          2015-01-04 -A---- filecopy1 [1]
+.          2015-01-02          2015-01-02 -A---- one [1]
+.          2015-01-02          2015-01-02 -A---- two [2]
+endlist
+
+test copy overwrite file
+date + 1
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ copy two filecopy
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+filecopy$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
+*[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
+endoutput
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ download filecopy filecopy2
+exitcode-verify 0
+list-verify .
+.          2015-01-04          2015-01-04 -A---- filecopy1 [1]
+.          2015-01-05          2015-01-05 -A---- filecopy2 [2]
+.          2015-01-02          2015-01-02 -A---- one [1]
+.          2015-01-02          2015-01-02 -A---- two [2]
+endlist
+
+test final clean server
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
+exitcode-verify 0

@@ -399,5 +399,36 @@ list-verify .
 endlist
 
 
-module dynpack-rollback
-#TODO
+# dynpack-rollback is tested in DynpackTransactionality.txt
+
+
+module copy
+
+test setup
+date 2015-01-01
+mkdir test
+create test\one
+date + 1
+list-verify .
+.                                         -----D test\
+.          2015-01-01          2015-01-01 -A---- test\one [1]
+endlist
+
+test copy to new file
+date + 1
+call backup remote test copy one two
+list-verify .
+.                                         -----D test\
+.          2015-01-01          2015-01-01 -A---- test\one [1]
+.          2015-01-03          2015-01-03 -A---- test\two [1]
+endlist
+
+test overwrite file
+date + 1
+edit test\one
+call backup remote test copy one two
+list-verify .
+.                                         -----D test\
+.          2015-01-01          2015-01-04 -A---- test\one [2]
+.          2015-01-04          2015-01-04 -A---- test\two [2]
+endlist
