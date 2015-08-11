@@ -220,6 +220,26 @@ lastoutput-verify
 *[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
 endoutput
 
+test validate and dump archive
+call backup -refreshtoken %refreshtoken% -decrypt aes256 P1ssvARd valdynpack https://onedrive.live.com/archive
+exitcode-verify 0
+lastoutput-verify
+.Reading archive.0.dynpack
+.[3 of 3 segments OK]
+.[0 segments missing]
+endoutput
+call backup -refreshtoken %refreshtoken% -decrypt aes256 P1ssvARd dumppack https://onedrive.live.com/archive.0.dynpack
+exitcode-verify 0
+lastoutput-verify
+*SERIAL: 6; SIGNATURE: .*$
+. [a: 1]
+.        1 977KB  2015-01-01T00:00:00 2015-01-01T00:00:00 -- .\a
+. [s: 3]
+.        2 9.54MB 2015-01-01T00:00:00 2015-01-01T00:00:00 -- .\c
+. [v: 5]
+.        3 977KB  2015-01-04T00:00:00 2015-01-04T00:00:00 -- .\d
+endoutput
+
 test extract modified archive
 date + 1
 call backup -refreshtoken %refreshtoken% -decrypt aes256 P1ssvARd dynunpack https://onedrive.live.com/archive output2

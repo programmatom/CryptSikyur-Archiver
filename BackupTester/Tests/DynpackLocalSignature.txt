@@ -21,8 +21,6 @@ lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
 .Writing: archive.0.dynpack
 .Writing: archive.a.dynpack
-.Marking (uncreated segment barrier): archive.-a.dynpack
-.Deleting (backup file): archive.-a.dynpack
 .
 endoutput
 list-verify .
@@ -54,11 +52,7 @@ lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
 .Writing: archive.0.dynpack
 .Writing: archive.a.dynpack
-.Marking (uncreated segment barrier): archive.-a.dynpack
 .Writing: archive.m.dynpack
-.Marking (uncreated segment barrier): archive.-m.dynpack
-.Deleting (backup file): archive.-a.dynpack
-.Deleting (backup file): archive.-m.dynpack
 .
 endoutput
 list-verify .
@@ -79,6 +73,8 @@ call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive 
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
+.[2 of 2 segments OK]
+.[0 segments missing]
 endoutput
 mkdir unpack-1
 call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-1 -localsig signatures\localsig
@@ -140,6 +136,8 @@ call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive 
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
+.[2 of 2 segments OK]
+.[0 segments missing]
 endoutput
 mkdir unpack-2
 call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-2 -localsig signatures\localsig
@@ -268,6 +266,8 @@ call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive 
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
+.[2 of 2 segments OK]
+.[0 segments missing]
 endoutput
 mkdir unpack-4
 call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-4 -localsig signatures\localsig
@@ -389,6 +389,8 @@ call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive 
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
+.[2 of 2 segments OK]
+.[0 segments missing]
 endoutput
 mkdir unpack-6
 call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-6 -localsig signatures\localsig
@@ -515,6 +517,8 @@ call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive 
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
+.[2 of 2 segments OK]
+.[0 segments missing]
 endoutput
 mkdir unpack-8
 call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-8 -localsig signatures\localsig
@@ -633,6 +637,8 @@ call backup -concurrency 0 -decrypt aes256 pA55w01D valdynpack archives\archive 
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .Reading archive.0.dynpack
+.[2 of 2 segments OK]
+.[0 segments missing]
 endoutput
 mkdir unpack-10
 call backup -concurrency 0 -decrypt aes256 pA55w01D dynunpack archives\archive unpack-10 -localsig signatures\localsig

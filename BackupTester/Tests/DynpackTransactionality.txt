@@ -9,6 +9,119 @@ fail-pause on
 # several modules are suspect or obsolete
 
 
+module new segment barrier basic functionality tests
+
+test setup
+date 2015-01-01
+mkdir source
+mkdir archive
+create source\a -size 9500
+create source\b -size 9500
+create source\c -size 9500
+create source\g -size 9500
+create source\h -size 9500
+create source\i -size 9500
+create source\m -size 9500
+create source\n -size 9500
+create source\o -size 9500
+create source\p -size 9500
+create source\q -size 9500
+create source\r -size 9500
+create source\s -size 9500
+create source\t -size 9500
+create source\u -size 9500
+qlist .
+
+test do not create barriers on initial run
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'7-write-segment-files']/ArchiveSegment[count:3] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\x.0.dynpack [16]
+.          2015-01-02          2015-01-02 -A---- archive\x.a.dynpack [17]
+.          2015-01-02          2015-01-02 -A---- archive\x.g.dynpack [18]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+.          2015-01-01          2015-01-01 -A---- source\g [4]
+.          2015-01-01          2015-01-01 -A---- source\h [5]
+.          2015-01-01          2015-01-01 -A---- source\i [6]
+.          2015-01-01          2015-01-01 -A---- source\m [7]
+.          2015-01-01          2015-01-01 -A---- source\n [8]
+.          2015-01-01          2015-01-01 -A---- source\o [9]
+.          2015-01-01          2015-01-01 -A---- source\p [10]
+.          2015-01-01          2015-01-01 -A---- source\q [11]
+.          2015-01-01          2015-01-01 -A---- source\r [12]
+.          2015-01-01          2015-01-01 -A---- source\s [13]
+.          2015-01-01          2015-01-01 -A---- source\t [14]
+.          2015-01-01          2015-01-01 -A---- source\u [15]
+endlist
+
+test ensure subsequent run is producing barriers for new segments
+date + 1
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'7-write-segment-files']/ArchiveSegment[count:3] dynpack source archive\x 30000
+exitcode-verify not 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-03          2015-01-03 -A---- archive\x.-0.dynpack [16]
+.          2015-01-03          2015-01-03 -A--Z- archive\x.-m.dynpack [0]
+.          2015-01-03          2015-01-03 -A--Z- archive\x.-s.dynpack [0]
+.          2015-01-02          2015-01-03 -A---- archive\x.0.dynpack [19]
+.          2015-01-02          2015-01-02 -A---- archive\x.a.dynpack [17]
+.          2015-01-02          2015-01-02 -A---- archive\x.g.dynpack [18]
+.          2015-01-03          2015-01-03 -A---- archive\x.m.dynpack [20]
+.          2015-01-03          2015-01-03 -A---- archive\x.s.dynpack [21]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+.          2015-01-01          2015-01-01 -A---- source\g [4]
+.          2015-01-01          2015-01-01 -A---- source\h [5]
+.          2015-01-01          2015-01-01 -A---- source\i [6]
+.          2015-01-01          2015-01-01 -A---- source\m [7]
+.          2015-01-01          2015-01-01 -A---- source\n [8]
+.          2015-01-01          2015-01-01 -A---- source\o [9]
+.          2015-01-01          2015-01-01 -A---- source\p [10]
+.          2015-01-01          2015-01-01 -A---- source\q [11]
+.          2015-01-01          2015-01-01 -A---- source\r [12]
+.          2015-01-01          2015-01-01 -A---- source\s [13]
+.          2015-01-01          2015-01-01 -A---- source\t [14]
+.          2015-01-01          2015-01-01 -A---- source\u [15]
+endlist
+
+test ensure completion removes barriers
+date + 1
+call backup -concurrency 0 dynpack source archive\x 30000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-04 -A---- archive\x.0.dynpack [22]
+.          2015-01-02          2015-01-02 -A---- archive\x.a.dynpack [17]
+.          2015-01-02          2015-01-02 -A---- archive\x.g.dynpack [18]
+.          2015-01-03          2015-01-03 -A---- archive\x.m.dynpack [20]
+.          2015-01-03          2015-01-03 -A---- archive\x.s.dynpack [21]
+.          2015-01-04          2015-01-04 -A---- archive\x.v.dynpack [23]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+.          2015-01-01          2015-01-01 -A---- source\g [4]
+.          2015-01-01          2015-01-01 -A---- source\h [5]
+.          2015-01-01          2015-01-01 -A---- source\i [6]
+.          2015-01-01          2015-01-01 -A---- source\m [7]
+.          2015-01-01          2015-01-01 -A---- source\n [8]
+.          2015-01-01          2015-01-01 -A---- source\o [9]
+.          2015-01-01          2015-01-01 -A---- source\p [10]
+.          2015-01-01          2015-01-01 -A---- source\q [11]
+.          2015-01-01          2015-01-01 -A---- source\r [12]
+.          2015-01-01          2015-01-01 -A---- source\s [13]
+.          2015-01-01          2015-01-01 -A---- source\t [14]
+.          2015-01-01          2015-01-01 -A---- source\u [15]
+endlist
+
+
 module transactionality - 1 - change manifest only
 
 test setup

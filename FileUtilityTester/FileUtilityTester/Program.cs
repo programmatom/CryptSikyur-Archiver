@@ -1281,7 +1281,7 @@ namespace FileUtilityTester
                     testFailed = testFailed || currentFailed;
                     if (currentFailed && failPause)
                     {
-                        Console.Write("<ENTER> to continue...");
+                        Console.Write("<ENTER> to continue ('r' to attempt to ignore error)...");
                         string s = Console.ReadLine();
                         if (s == "r")
                         {

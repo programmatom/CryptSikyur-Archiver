@@ -8554,11 +8554,13 @@ namespace Backup
                 //
                 List<SegmentRecord> segments = new List<SegmentRecord>();
                 List<FileRecord> previousFiles = new List<FileRecord>();
+                bool firstRun;
                 string manifestFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestName, DynPackFileExtension);
                 {
                     string manifestFileNameOld = String.Concat(targetArchiveFileNameTemplate, ".", DynPackManifestNameOld, DynPackFileExtension);
                     bool manifestFileNameExists = fileManager.Exists(manifestFileName, fileManager.GetMasterTrace());
                     bool manifestFileNameOldExists = fileManager.Exists(manifestFileNameOld, fileManager.GetMasterTrace());
+                    firstRun = !manifestFileNameExists && !manifestFileNameOldExists;
                     if (manifestFileNameExists || manifestFileNameOldExists)
                     {
                         string manifestFileNameActual = manifestFileName;
@@ -10623,24 +10625,27 @@ namespace Backup
                                                                         }
 
                                                                         // create backup barrier before committing segment
-                                                                        if (!fileManager.Exists(segmentFileName, threadTraceFileManager))
+                                                                        if (!firstRun)
                                                                         {
-                                                                            string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, segment.Name, DynPackFileExtension);
-                                                                            if (safe && !fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
+                                                                            if (!fileManager.Exists(segmentFileName, threadTraceFileManager))
                                                                             {
-                                                                                // For non-existing segment, create empty backup file to ensure integrity
-                                                                                // if partial archive is rolled back. Specifically: if a segment existed in the old
-                                                                                // manifest but had not yet been created, in the new manifest the serial number will
-                                                                                // be changed. Therefore, any such segments subsequently written must be removed
-                                                                                // during roll-back or the archive will fail integrity checks.
-                                                                                using (ConcurrentMessageLog.ThreadMessageLog messages2 = messagesLog.GetNewMessageLog(sequenceNumber))
+                                                                                string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, segment.Name, DynPackFileExtension);
+                                                                                if (safe && !fileManager.Exists(segmentBackupFileName, threadTraceFileManager))
                                                                                 {
-                                                                                    messages2.WriteLine("Marking (uncreated segment barrier): {0}", segmentBackupFileName);
-                                                                                }
-                                                                                string segmentBackupFileNameTemp = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, segment.Name, DynPackTempFileExtension);
-                                                                                using (ILocalFileCopy fileRefBarrier = fileManager.WriteTemp(segmentBackupFileNameTemp, fileManager.GetMasterTrace()))
-                                                                                {
-                                                                                    fileManager.Commit(fileRefBarrier, segmentBackupFileNameTemp, segmentBackupFileName, true/*overwrite*/, null, threadTraceFileManager);
+                                                                                    // For non-existing segment, create empty backup file to ensure integrity
+                                                                                    // if partial archive is rolled back. Specifically: if a segment existed in the old
+                                                                                    // manifest but had not yet been created, in the new manifest the serial number will
+                                                                                    // be changed. Therefore, any such segments subsequently written must be removed
+                                                                                    // during roll-back or the archive will fail integrity checks.
+                                                                                    using (ConcurrentMessageLog.ThreadMessageLog messages2 = messagesLog.GetNewMessageLog(sequenceNumber))
+                                                                                    {
+                                                                                        messages2.WriteLine("Marking (uncreated segment barrier): {0}", segmentBackupFileName);
+                                                                                    }
+                                                                                    string segmentBackupFileNameTemp = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, segment.Name, DynPackTempFileExtension);
+                                                                                    using (ILocalFileCopy fileRefBarrier = fileManager.WriteTemp(segmentBackupFileNameTemp, fileManager.GetMasterTrace()))
+                                                                                    {
+                                                                                        fileManager.Commit(fileRefBarrier, segmentBackupFileNameTemp, segmentBackupFileName, true/*overwrite*/, null, threadTraceFileManager);
+                                                                                    }
                                                                                 }
                                                                             }
                                                                         }
@@ -11700,6 +11705,7 @@ namespace Backup
 
 
                             // process segments (concurrently)
+                            int validSegmentCount = 0;
                             long sharedSequenceNumber = messagesLog.GetSequenceNumber();
                             using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sharedSequenceNumber))
                             {
@@ -11806,6 +11812,8 @@ namespace Backup
 
                                             using (TextWriter threadTraceFileManager = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                             {
+                                                bool localValid = true;
+
                                                 if (threadTraceFileManager != null)
                                                 {
                                                     threadTraceFileManager.WriteLine("unpack:{0}", segmentFileName);
@@ -11851,6 +11859,7 @@ namespace Backup
                                                                                 threadTraceDynunpack.WriteLine("  completion object missing for required dependency {0}", dependentOnName);
                                                                             }
                                                                             Interlocked.Exchange(ref fatal, 1);
+                                                                            localValid = false;
                                                                             throw new InvalidOperationException();
                                                                         }
 
@@ -11862,6 +11871,7 @@ namespace Backup
                                                                                 threadTraceDynunpack.WriteLine("  completion object null for index={0}", completionIndex);
                                                                             }
                                                                             Interlocked.Exchange(ref fatal, 1);
+                                                                            localValid = false;
                                                                             throw new InvalidOperationException();
                                                                         }
 
@@ -11879,6 +11889,7 @@ namespace Backup
                                                                                 threadTraceDynunpack.WriteLine("  dependency task failed, aborting");
                                                                             }
                                                                             Interlocked.Exchange(ref fatal, 1);
+                                                                            localValid = false;
                                                                             throw new InvalidOperationException();
                                                                         }
                                                                     }
@@ -11910,6 +11921,7 @@ namespace Backup
                                                                     {
                                                                         messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: random signature number is invalid - segment does not belong to this archive. Segment may have been inadvertently included, or segments have been deliberately tampered with. Examine unpacked contents carefully!", name);
                                                                         invalid.Set();
+                                                                        localValid = false;
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
                                                                             Interlocked.Exchange(ref fatal, 1);
@@ -11921,6 +11933,7 @@ namespace Backup
                                                                     {
                                                                         messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: serial number {1} is invalid", name, segmentSerialNumber);
                                                                         invalid.Set();
+                                                                        localValid = false;
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
                                                                             Interlocked.Exchange(ref fatal, 1);
@@ -11935,6 +11948,7 @@ namespace Backup
                                                                         {
                                                                             messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: wrong serial number (is {1}, should be {2})", name, segmentSerialNumber, expectedSerialNumber);
                                                                             invalid.Set();
+                                                                            localValid = false;
                                                                             if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                             {
                                                                                 Interlocked.Exchange(ref fatal, 1);
@@ -11953,6 +11967,7 @@ namespace Backup
                                                                     {
                                                                         messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: segment is extraneous (not referenced from manifest)", name);
                                                                         invalid.Set();
+                                                                        localValid = false;
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
                                                                             Interlocked.Exchange(ref fatal, 1);
@@ -11972,6 +11987,11 @@ namespace Backup
                                                                             throw new DeferredMultiException(deferredExceptions);
                                                                         }
                                                                     }
+
+                                                                    if (localValid)
+                                                                    {
+                                                                        Interlocked.Increment(ref validSegmentCount);
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -11979,6 +11999,7 @@ namespace Backup
                                                         {
                                                             messages.WriteLine(ConsoleColor.Yellow, "Segment {0}: {1}", name, exception);
                                                             invalid.Set();
+                                                            localValid = false;
                                                             // continue processing remaining files
                                                         }
                                                         catch (Exception exception)
@@ -12052,12 +12073,19 @@ namespace Backup
                                 }
                             }
 
+                            if (!((mode & UnpackMode.Unpack) == UnpackMode.Unpack))
+                            {
+                                Console.WriteLine("[{0} of {1} segments OK]", validSegmentCount, segmentNameList.Count);
+                            }
+
 
                             // final pass to list missing segments
+                            int segmentsMissingCount = 0;
                             foreach (KeyValuePair<string, ulong> declaredSegments in serialNumberMapping)
                             {
                                 if (!usedMapping[declaredSegments.Value])
                                 {
+                                    segmentsMissingCount++;
                                     ConsoleWriteLineColor(ConsoleColor.Yellow, "Segment {0}: missing segment (referenced in manifest, serial number {1})", declaredSegments.Key, declaredSegments.Value);
                                     invalid.Set();
                                     if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
@@ -12065,6 +12093,10 @@ namespace Backup
                                         goto Abort; // if unpacking, abort, otherwise continue to see what else is wrong
                                     }
                                 }
+                            }
+                            if (!((mode & UnpackMode.Unpack) == UnpackMode.Unpack))
+                            {
+                                Console.WriteLine("[{0} segments missing]", segmentsMissingCount);
                             }
                         }
                     }
