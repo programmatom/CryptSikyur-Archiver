@@ -210,6 +210,11 @@ namespace Backup
             return result;
         }
 
+        public void DeleteOnClose()
+        {
+            delete = true;
+        }
+
         public Stream Read()
         {
             return new FileStream(localFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);

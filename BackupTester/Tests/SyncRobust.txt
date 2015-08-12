@@ -127,7 +127,7 @@ call backup -ignoreinuse sync scenario\left scenario\right control
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .EXCEPTION at "b": The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
-.EXCEPTION: The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
+.EXCEPTION - ignored: The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
 .
 endoutput
 close-all

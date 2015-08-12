@@ -735,7 +735,8 @@ namespace Backup
 
         internal delegate ResultType TryFunctionType<ResultType>();
         internal delegate void ResetFunctionType();
-        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enable, Context context, TextWriter trace)
+        internal delegate void ConsoleWriteLine(string line, params string[] args);
+        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enableUserInteraction, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace)
         {
             bool tried = false;
             while (true)
@@ -751,17 +752,8 @@ namespace Backup
                 catch (Exception exception)
                 {
                     tried = true;
-                    if (trace != null)
-                    {
-                        trace.WriteLine("DoRetryable received exception: {0}", exception);
-                    }
-                    Console.WriteLine("EXCEPTION: {0}", exception.Message);
 
-                    if (!enable)
-                    {
-                        throw;
-                    }
-
+                    bool ignore = false;
                     // Check for auto-resume from error scenarios.
                     // Note that unauthorized (permissions) and in-use (sharing) violations are controllable
                     // separately, by design. In-use error smay occur commonly if an application has a file open when a
@@ -775,7 +767,7 @@ namespace Backup
                         {
                             trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoreunauthorized specified): {0}", exception);
                         }
-                        return continueFunction();
+                        ignore = true;
                     }
                     if ((continueFunction != null) && context.continueOnInUse && IsInUseException(exception))
                     {
@@ -783,7 +775,7 @@ namespace Backup
                         {
                             trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoreinuse specified): {0}", exception);
                         }
-                        return continueFunction();
+                        ignore = true;
                     }
                     if ((continueFunction != null) && context.continueOnMissing && IsMissingException(exception))
                     {
@@ -791,7 +783,25 @@ namespace Backup
                         {
                             trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoremissing specified): {0}", exception);
                         }
+                        ignore = true;
+                    }
+
+                    if (trace != null)
+                    {
+                        trace.WriteLine("DoRetryable received exception{1}: {0}", exception, ignore ? " - ignored" : null);
+                    }
+                    consoleWriteLine("EXCEPTION{1}: {0}", exception.Message, ignore ? " - ignored" : null);
+
+                    if (ignore)
+                    {
                         return continueFunction();
+                    }
+
+                    // If user interaction is disabled, then propagate exception to caller.
+                    // User interaction uses the console, so must be disabled during concurrent execution.
+                    if (!enableUserInteraction)
+                    {
+                        throw;
                     }
 
                     if (context.beepEnabled)
@@ -833,7 +843,7 @@ namespace Backup
 
         internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, Context context, TextWriter trace)
         {
-            return DoRetryable(tryFunction, continueFunction, resetFunction, true/*enable*/, context, trace);
+            return DoRetryable(tryFunction, continueFunction, resetFunction, true/*enableUserInteraction*/, Console.WriteLine, context, trace);
         }
 
         internal static void GetExclusionArguments(string[] args, out InvariantStringSet excludedExtensions, bool relative, out InvariantStringSet excludedItems)
@@ -1186,12 +1196,13 @@ namespace Backup
             public CompressionOption compressionOption;
             public bool doNotPreValidateMAC;
             public bool dirsOnly;
-            public bool continueOnUnauthorized;
-            public bool continueOnInUse;
-            public bool continueOnMissing;
             public bool zeroLengthSpecial;
             public bool beepEnabled;
             public bool traceEnabled;
+
+            public bool continueOnUnauthorized;
+            public bool continueOnInUse;
+            public bool continueOnMissing;
 
             public EncryptionOption cryptoOption;
             public CryptoContext encrypt;
@@ -1243,6 +1254,13 @@ namespace Backup
 
                 this.faultInjectionTemplateRoot = original.faultInjectionTemplateRoot;
                 this.faultInjectionRoot = original.faultInjectionRoot;
+            }
+
+            public void ClearContinueOnExceptions()
+            {
+                continueOnUnauthorized = false;
+                continueOnInUse = false;
+                continueOnMissing = false;
             }
         }
 
@@ -6600,7 +6618,7 @@ namespace Backup
             }
         }
 
-        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableRetry, Context context, TextWriter trace)
+        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableUserInteraction, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace)
         {
             bool directory = false;
 
@@ -6623,7 +6641,8 @@ namespace Backup
                 },
                 delegate { return null; },
                 delegate { },
-                enableRetry,
+                enableUserInteraction,
+                consoleWriteLine,
                 context,
                 trace))
             {
@@ -6722,7 +6741,7 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            PackOne(file, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context, null/*trace*/);
+                            PackOne(file, stream, partialPathPrefix, null/*range*/, true/*enableUserInteraction*/, Console.WriteLine, context, null/*trace*/);
                             addedCount++;
                         }
                         else
@@ -6744,7 +6763,7 @@ namespace Backup
                     // for subdirectories, only if it is empty add it explicitly
                     if (addedCount == initialAddedCount)
                     {
-                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, true/*enableRetry*/, context, null/*trace*/);
+                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, true/*enableUserInteraction*/, Console.WriteLine, context, null/*trace*/);
                         addedCount++;
                     }
                 }
@@ -10448,6 +10467,18 @@ namespace Backup
                         };
 
 
+                        // This pertains to -ignoreinuse, -ignoreunauthorized, -ignoredeleted
+                        // It is acceptable for files to be ignored during enumeration for the manifest.
+                        // However, if they are accessible during enumeration, and become inaccessible when creating
+                        // the individual segment, there is no way to propagate that back to the manifest, and they
+                        // will be silently lost forever unless some lucky change triggers a future re-archiving of
+                        // that segment.
+                        // Therefore, these ignore options are not permitted during individual segment creation.
+                        bool originalContinueOnUnauthorized = context.continueOnUnauthorized;
+                        bool originalContinueOnInUse = context.continueOnInUse;
+                        bool originalContinueOnMissing = context.continueOnMissing;
+                        context.ClearContinueOnExceptions();
+
                         // Archive modified segments (concurrently)
                         faultDynamicPackStage = faultDynamicPack.Select("Stage", "7-write-segment-files");
                         long sharedSequenceNumber = messagesLog.GetSequenceNumber();
@@ -10510,6 +10541,7 @@ namespace Backup
 
                                                         try
                                                         {
+                                                            bool willSucceed = true;
                                                             bool succeeded = false;
                                                             string segmentTempFileName = String.Concat(targetArchiveFileNameTemplate, ".", segment.Name, DynPackTempFileExtension);
                                                             using (ILocalFileCopy fileRef = fileManager.WriteTemp(segmentTempFileName, threadTraceFileManager))
@@ -10633,7 +10665,23 @@ namespace Backup
                                                                                         fullPath = fullPath.Substring(NoOpPrefix.Length);
                                                                                     }
                                                                                     fullPath = Path.Combine(source, fullPath);
-                                                                                    PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount == 0/*enableRetry*/, context, threadTraceDynPack);
+                                                                                    try
+                                                                                    {
+                                                                                        PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount == 0/*enableUserInteraction*/, messages.WriteLine, context, threadTraceDynPack);
+                                                                                    }
+                                                                                    catch (Exception exception)
+                                                                                    {
+                                                                                        if ((originalContinueOnInUse && IsInUseException(exception))
+                                                                                            || (originalContinueOnUnauthorized && IsPermissionDeniedException(exception))
+                                                                                            || (originalContinueOnMissing && IsMissingException(exception)))
+                                                                                        {
+                                                                                            willSucceed = false;
+                                                                                        }
+                                                                                        else
+                                                                                        {
+                                                                                            throw;
+                                                                                        }
+                                                                                    }
                                                                                 }
 
                                                                                 PackedFileHeaderRecord.WriteNullHeader(stream);
@@ -10671,7 +10719,7 @@ namespace Backup
                                                                             }
                                                                         }
 
-                                                                        succeeded = true;
+                                                                        succeeded = willSucceed;
                                                                     }
                                                                 }
                                                                 finally
@@ -10688,6 +10736,15 @@ namespace Backup
                                                                     {
                                                                         fileManager.Commit(fileRef, segmentTempFileName, segmentFileName, false/*overwrite*/, progressTracker, threadTraceFileManager);
                                                                         faultDynamicPackFileOperation.Select("Committed", segmentFileName);
+                                                                    }
+
+                                                                    if (!willSucceed)
+                                                                    {
+                                                                        if (threadTraceDynPack != null)
+                                                                        {
+                                                                            threadTraceDynPack.WriteLine("Error archiving {0}: file access errors occurred", segmentFileName);
+                                                                        }
+                                                                        messages.WriteLine("Error archiving {0}: file access errors occurred", segmentFileName);
                                                                     }
                                                                 }
                                                             }
@@ -11283,7 +11340,9 @@ namespace Backup
                 }
                 uncommitted.Release();
 
-                File.Delete(pathTemp);
+                // File.Delete(pathTemp);
+                // can't delete yet - still owned by caller - do this instead
+                uncommitted.DeleteOnClose();
             }
 
             public void Delete(string name, TextWriter trace)
@@ -13251,10 +13310,12 @@ namespace Backup
                             else
                             {
                                 context.explicitConcurrency = Int32.Parse(args[i]);
+#if false // single thread concurrency is useful for testing
                                 if (context.explicitConcurrency.Value == 1)
                                 {
                                     context.explicitConcurrency = 0; // see ConcurrentTasks constructor for why
                                 }
+#endif
                                 if ((context.explicitConcurrency.Value < 0) || (context.explicitConcurrency.Value > 64))
                                 {
                                     throw new UsageException();

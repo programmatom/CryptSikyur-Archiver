@@ -1,7 +1,4 @@
 # Backup tool test scripts
-DynpackRobust.txt
-BackupRobust.txt
-SyncRobust.txt
 
 RemoteBasic.txt
 RemoteGoogleDrive.txt

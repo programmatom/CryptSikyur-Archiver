@@ -111,7 +111,7 @@ call backup -ignoreinuse backup source archive
 exitcode-verify 0
 lastoutput-verify -workspacepathhack
 .%WORKSPACE%\source
-.EXCEPTION: The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process. (%WORKSPACE%\source\b)
+.EXCEPTION - ignored: The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process. (%WORKSPACE%\source\b)
 endoutput
 close-all
 list-verify .
