@@ -761,6 +761,10 @@ namespace Diagnostics
                                 Environment.ExitCode = 1; // (int)Core.ExitCodes.ProgramFailure;
                                 Process.GetCurrentProcess().Kill(); // no finalizers!
                                 break;
+
+                            case FaultTemplateNode.FaultMethod.Synch:
+                                DoSynch(predicates[i].Value);
+                                break;
                         }
                     }
                     else
@@ -814,6 +818,28 @@ namespace Diagnostics
                 message.Append(path);
             }
             throw new FaultTemplateNode.FaultInjectionException(message.ToString());
+        }
+
+        private static void DoSynch(FaultTemplateNode node)
+        {
+            string[] eventNames;
+            if ((node.Payload == null) || ((eventNames = node.Payload.Split(',')).Length != 2))
+            {
+                throw new ApplicationException("Invalid payload format for FaultMethod.Synch");
+            }
+            using (EventWaitHandle triggerEvent = EventWaitHandle.OpenExisting(eventNames[0]))
+            {
+                using (EventWaitHandle resumeEvent = EventWaitHandle.OpenExisting(eventNames[1]))
+                {
+                    // trigger remote task
+                    triggerEvent.Set();
+
+                    // remote task execution
+
+                    // wait for remote task to complete
+                    resumeEvent.WaitOne();
+                }
+            }
         }
 
         private static string ComputePath(FaultTemplateNode node)
@@ -920,6 +946,10 @@ namespace Diagnostics
                                     }
                                     Environment.ExitCode = 1; // (int)Core.ExitCodes.ProgramFailure;
                                     Process.GetCurrentProcess().Kill(); // no finalizers!
+                                    break;
+
+                                case FaultTemplateNode.FaultMethod.Synch:
+                                    DoSynch(predicates[i].Value);
                                     break;
                             }
                         }
@@ -1182,6 +1212,7 @@ namespace Diagnostics
             Throw,
             Kill,
             Custom,
+            Synch,
         }
 
         private string tag;
@@ -1242,6 +1273,10 @@ namespace Diagnostics
                     break;
                 case "custom":
                     faultMethod = FaultMethod.Custom;
+                    faultPayload = method.Substring(faultMethodColon + 1, method.Length - (faultMethodColon + 1));
+                    break;
+                case "synch":
+                    faultMethod = FaultMethod.Synch;
                     faultPayload = method.Substring(faultMethodColon + 1, method.Length - (faultMethodColon + 1));
                     break;
             }
