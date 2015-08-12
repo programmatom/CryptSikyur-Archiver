@@ -1,4 +1,7 @@
 # Backup tool test scripts
+DynpackRobust.txt
+BackupRobust.txt
+SyncRobust.txt
 
 RemoteBasic.txt
 RemoteGoogleDrive.txt
@@ -12,6 +15,7 @@ BackupFileAttributes.txt
 BackupRestartable.txt
 BackupLogging.txt
 BackupValidations.txt
+BackupRobust.txt
 
 CopyBasic.txt
 CopyExclusions.txt
@@ -27,6 +31,7 @@ SyncBasic.txt
 SyncLogging.txt
 SyncExclusions.txt
 SyncFaults.txt
+SyncRobust.txt
 
 DynpackBasic.txt
 DynpackExclusions.txt
@@ -35,6 +40,7 @@ DynpackLargeFileSplitting.txt
 DynpackRangeFaults.txt
 DynpackIgnoreUnchanged.txt
 DynpackTransactionality.txt
+DynpackRobust.txt
 # TODO: dynpack case sensitivity disambiguation
 # TODO: segment name insertion algorithm
 # TODO: dynunpack with journalling and resumability

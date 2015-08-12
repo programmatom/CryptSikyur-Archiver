@@ -1,0 +1,165 @@
+command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE%
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module file in use
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\left
+mkdir scenario\right
+create scenario\left\a
+create scenario\left\b
+create scenario\left\c
+mkdir control
+qlist .
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-01 -A---- left\a [1]
+.          2015-01-01          2015-01-01 -A---- left\b [2]
+.          2015-01-01          2015-01-01 -A---- left\c [3]
+.                                         -----D right\
+.          2015-01-01          2015-01-01 -A---- right\a [1]
+.          2015-01-01          2015-01-01 -A---- right\b [2]
+.          2015-01-01          2015-01-01 -A---- right\c [3]
+endlist
+
+test prompt on file in use
+date + 1
+edit scenario\left\a
+edit scenario\left\b
+edit scenario\left\c
+qlist .
+date + 1
+open scenario\left\b rx
+date + 1
+call-with-input backup sync scenario\left scenario\right control
+.r
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION at "b": The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION at "b": The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+.
+endoutput
+close-all
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\b [6]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+# current behavior acts as if the in-use file is deleted, propagating deletion to the other side
+# TODO: consider: it can be argued that it should leave the other side unchanged
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+test final run
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\b [6]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+# after file lock is cleared, resyncing should place the newer file in the other side
+# (it would be a defect to back-propagate the deletion to the source)
+.          2015-01-01          2015-01-03 -A---- right\b [6]
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+
+module file in use, with -ignoreinuse
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\left
+mkdir scenario\right
+create scenario\left\a
+create scenario\left\b
+create scenario\left\c
+mkdir control
+qlist .
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-01 -A---- left\a [1]
+.          2015-01-01          2015-01-01 -A---- left\b [2]
+.          2015-01-01          2015-01-01 -A---- left\c [3]
+.                                         -----D right\
+.          2015-01-01          2015-01-01 -A---- right\a [1]
+.          2015-01-01          2015-01-01 -A---- right\b [2]
+.          2015-01-01          2015-01-01 -A---- right\c [3]
+endlist
+
+test prompt on file in use, with -ignoreinuse
+date + 1
+edit scenario\left\a
+edit scenario\left\b
+edit scenario\left\c
+qlist .
+date + 1
+open scenario\left\b rx
+date + 1
+call backup -ignoreinuse sync scenario\left scenario\right control
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION at "b": The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\scenario\left\b' because it is being used by another process.
+.
+endoutput
+close-all
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\b [6]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+# current behavior acts as if the in-use file is deleted, propagating deletion to the other side
+# TODO: consider: it can be argued that it should leave the other side unchanged
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+test final run
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\b [6]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+# after file lock is cleared, resyncing should place the newer file in the other side
+# (it would be a defect to back-propagate the deletion to the source)
+.          2015-01-01          2015-01-03 -A---- right\b [6]
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+
+# TODO: find a way to test -ignoreunauthorized (requires administrator for test tool and enhancements to set permissions)
+# TODO: test -ignoredeleted (requires test tool and fault-injection enhancements to do triggered tasks)

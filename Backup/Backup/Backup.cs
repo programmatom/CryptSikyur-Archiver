@@ -696,7 +696,7 @@ namespace Backup
             return false;
         }
 
-        private static bool IsUnableToAccessException(Exception exception)
+        private static bool IsPermissionDeniedException(Exception exception)
         {
             // permission denied
             if (exception is UnauthorizedAccessException)
@@ -704,8 +704,17 @@ namespace Backup
                 return true;
             }
 
+            return false;
+        }
+
+        private static bool IsInUseException(Exception exception)
+        {
             // file in use
-            if ((exception is IOException) && (Marshal.GetHRForException(exception) == unchecked((int)0x80070020)))
+            const int E_SHARING_VIOLATION = unchecked((int)0x80070020);
+            // It's unclear when this started putting the IOException as an inner exception to a generic Exception
+            // classed object. It's also unclear if/when it won't. Therefore, check both.
+            if (((exception is IOException) && (Marshal.GetHRForException(exception) == E_SHARING_VIOLATION))
+                || ((exception.InnerException is IOException) && (Marshal.GetHRForException(exception.InnerException) == E_SHARING_VIOLATION)))
             {
                 return true;
             }
@@ -713,7 +722,7 @@ namespace Backup
             return false;
         }
 
-        private static bool IsMissing(Exception exception)
+        private static bool IsMissingException(Exception exception)
         {
             // file was deleted after detection but before archiving
             if (exception is FileNotFoundException)
@@ -753,20 +762,30 @@ namespace Backup
                         throw;
                     }
 
-                    if (context.continueOnAccessDenied
-                        && IsUnableToAccessException(exception)
-                        && (continueFunction != null))
+                    // Check for auto-resume from error scenarios.
+                    // Note that unauthorized (permissions) and in-use (sharing) violations are controllable
+                    // separately, by design. In-use error smay occur commonly if an application has a file open when a
+                    // backup or sync operation occurs. On the other hand, unauthorized might occur for an entire
+                    // file hierarchy if the tool is invoked with wrong permissions (e.g. if administrator permissions
+                    // were required and not given). Therefore one might wish to fail in the latter case as a use error
+                    // but automatically handle the former case as an expected transient error.
+                    if ((continueFunction != null) && context.continueOnUnauthorized && IsPermissionDeniedException(exception))
                     {
                         if (trace != null)
                         {
-                            trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoreaccessdenied specified): {0}", exception);
+                            trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoreunauthorized specified): {0}", exception);
                         }
                         return continueFunction();
                     }
-
-                    if (context.continueOnMissing
-                        && IsMissing(exception)
-                        && (continueFunction != null))
+                    if ((continueFunction != null) && context.continueOnInUse && IsInUseException(exception))
+                    {
+                        if (trace != null)
+                        {
+                            trace.WriteLine("DoRetryable: automatically continuing from exception (-ignoreinuse specified): {0}", exception);
+                        }
+                        return continueFunction();
+                    }
+                    if ((continueFunction != null) && context.continueOnMissing && IsMissingException(exception))
                     {
                         if (trace != null)
                         {
@@ -1167,7 +1186,8 @@ namespace Backup
             public CompressionOption compressionOption;
             public bool doNotPreValidateMAC;
             public bool dirsOnly;
-            public bool continueOnAccessDenied;
+            public bool continueOnUnauthorized;
+            public bool continueOnInUse;
             public bool continueOnMissing;
             public bool zeroLengthSpecial;
             public bool beepEnabled;
@@ -1201,7 +1221,8 @@ namespace Backup
                 this.compressionOption = original.compressionOption;
                 this.doNotPreValidateMAC = original.doNotPreValidateMAC;
                 this.dirsOnly = original.dirsOnly;
-                this.continueOnAccessDenied = original.continueOnAccessDenied;
+                this.continueOnUnauthorized = original.continueOnUnauthorized;
+                this.continueOnInUse = original.continueOnInUse;
                 this.continueOnMissing = original.continueOnMissing;
                 this.zeroLengthSpecial = original.zeroLengthSpecial;
                 this.beepEnabled = original.beepEnabled;
@@ -12939,8 +12960,7 @@ namespace Backup
             Console.WriteLine("  -decrypt <algo> <source-key> | -encrypt <algo> <destination-key> | -recrypt <algo1> <algo2> <source-key> <destination-key>");
             Console.WriteLine("     <algo> one of {{{0}}}", ListCryptoSystems());
             Console.WriteLine("  -dirsonly");
-            Console.WriteLine("  -ignoreaccessdenied");
-            Console.WriteLine("  -ignoredeleted");
+            Console.WriteLine("  -ignoreinuse and/or -ignoreunauthorized and/or -ignoredeleted");
             Console.WriteLine("  -zerolen");
             Console.WriteLine("  -beep");
             Console.WriteLine("  -priority {lowest | belownormal | normal | abovenormal | highest }");
@@ -13053,9 +13073,13 @@ namespace Backup
                     {
                         context.dirsOnly = true;
                     }
-                    else if (args[i] == "-ignoreaccessdenied")
+                    else if (args[i] == "-ignoreunauthorized")
                     {
-                        context.continueOnAccessDenied = true;
+                        context.continueOnUnauthorized = true;
+                    }
+                    else if (args[i] == "-ignoreinuse")
+                    {
+                        context.continueOnInUse = true;
                     }
                     else if (args[i] == "-ignoredeleted")
                     {

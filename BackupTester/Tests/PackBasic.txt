@@ -340,8 +340,6 @@ endlist
 
 module file in use test
 
-mkdir source
-
 test file in use
 date 2014-01-01
 mkdir source
@@ -352,24 +350,30 @@ create source\b
 date + 1
 create source\c
 date + 1
+qlist .
 open source\b wx
 date + 1
 call-with-input backup pack source archive.pack
 .c
 endinput
 exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+endoutput
 date + 1
 call backup unpack archive.pack copy
 exitcode-verify 0
 close-all
 list-verify .
-.          2014-01-06          2014-01-06 -A---- archive.pack [1]
+.          2014-01-06          2014-01-06 -A---- archive.pack [4]
 .                                         -----D copy\
-.          2014-01-02          2014-01-02 -A---- copy\a [2]
+.          2014-01-02          2014-01-02 -A---- copy\a [1]
 .          2014-01-04          2014-01-04 -A---- copy\c [3]
 .                                         -----D source\
-.          2014-01-02          2014-01-02 -A---- source\a [2]
-.          2014-01-03          2014-01-03 -A---- source\b [4]
+.          2014-01-02          2014-01-02 -A---- source\a [1]
+.          2014-01-03          2014-01-03 -A---- source\b [2]
 .          2014-01-04          2014-01-04 -A---- source\c [3]
 endlist
 

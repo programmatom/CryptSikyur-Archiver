@@ -44,6 +44,7 @@
     <Content Include="BackupFileAttributes.txt" />
     <Content Include="BackupLogging.txt" />
     <Content Include="BackupRestartable.txt" />
+    <Content Include="BackupRobust.txt" />
     <Content Include="BackupValidations.txt" />
     <Content Include="CompareDirectories.txt" />
     <Content Include="CompareFiles.txt" />
@@ -57,6 +58,7 @@
     <Content Include="DynpackLocalSignature.txt" />
     <Content Include="DynpackLogging.txt" />
     <Content Include="DynpackRangeFaults.txt" />
+    <Content Include="DynpackRobust.txt" />
     <Content Include="DynpackTransactionality.txt" />
     <Content Include="PackAttributes.txt" />
     <Content Include="PackBasic.txt" />
@@ -75,6 +77,7 @@
     <Content Include="SyncExclusions.txt" />
     <Content Include="SyncFaults.txt" />
     <Content Include="SyncLogging.txt" />
+    <Content Include="SyncRobust.txt" />
     <Content Include="TestScripts.txt" />
     <Content Include="RemoteBasic.txt" />
     <Content Include="UsageBasic.txt" />
