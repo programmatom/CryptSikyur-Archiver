@@ -168,30 +168,50 @@ namespace FileUtilityTester
             }
         }
 
-        private static void Eval(TextReader scriptReader, int scriptNumber, string scriptName, TestResultMatrix resultMatrix)
+        private class Context
         {
-            Dictionary<string, KeyValuePair<string, string>> commands = new Dictionary<string, KeyValuePair<string, string>>();
-            Dictionary<string, bool> opencover = new Dictionary<string, bool>();
-            Dictionary<string, object> variables = new Dictionary<string, object>();
-            DateTime resetNow = new DateTime(2010, 1, 1);
-            DateTime now;
-            int moduleNumber = 0;
-            string moduleName = null;
-            int testNumber = 0;
-            string testName = null;
-            bool testFailed = false;
-            HashDispenser hashes = new HashDispenser();
+            readonly public int scriptNumber;
+            readonly public TestResultMatrix resultMatrix;
+
+            public int moduleNumber = 0;
+            public string moduleName = null;
+            public int testNumber = 0;
+            public string testName = null;
+            public bool testFailed = false;
+
+            public readonly DateTime resetNow = new DateTime(2010, 1, 1);
+            public DateTime now;
+
+            public const string InitialDefaultDateFormat = "s"; // sortable datetime format: yyyy-MM-ddTHH:mm:ss
+            public string defaultDateFormat = InitialDefaultDateFormat;
+            public int? commandTimeoutSeconds = null;
+
+            public Dictionary<string, KeyValuePair<string, string>> commands = new Dictionary<string, KeyValuePair<string, string>>();
+            public Dictionary<string, bool> opencover = new Dictionary<string, bool>();
+            public Dictionary<string, object> variables = new Dictionary<string, object>();
+            public HashDispenser hashes = new HashDispenser();
+            public Dictionary<string, Stream> openFiles = new Dictionary<string, Stream>();
+
+            public Context()
+            {
+                now = resetNow;
+                variables["DATE"] = now.ToString(Context.InitialDefaultDateFormat);
+            }
+
+            public Context(int scriptNumber, TestResultMatrix resultMatrix)
+                : this()
+            {
+                this.scriptNumber = scriptNumber;
+                this.resultMatrix = resultMatrix;
+            }
+        }
+
+        private static void Eval(TextReader scriptReader, string scriptName, Context context, bool restricted)
+        {
             int lastExitCode = 0;
             string lastOutput = null;
             string skipToModule = null;
-            const string InitialDefaultDateFormat = "s"; // sortable datetime format: yyyy-MM-ddTHH:mm:ss
-            string defaultDateFormat = InitialDefaultDateFormat;
             bool failPause = false;
-            int? commandTimeoutSeconds = null;
-            Dictionary<string, Stream> openFiles = new Dictionary<string, Stream>();
-
-            now = resetNow;
-            variables["DATE"] = now.ToString(InitialDefaultDateFormat);
 
             int lineNumber = 0;
             //try
@@ -236,7 +256,11 @@ namespace FileUtilityTester
                             throw new ApplicationException(String.Format("Invalid command \"{0}\" on line {1}", command, lineNumber));
 
                         case "reset":
-                            if (testFailed)
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -245,32 +269,38 @@ namespace FileUtilityTester
                                 throw new ApplicationException();
                             }
                         Reset:
-                            hashes = new HashDispenser();
+                            VerifyDeferredClear(true/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
+                            context.hashes = new HashDispenser();
                             lastExitCode = 0;
                             lastOutput = null;
-                            variables = new Dictionary<string, object>();
-                            foreach (Stream stream in openFiles.Values)
+                            context.variables = new Dictionary<string, object>();
+                            foreach (Stream stream in context.openFiles.Values)
                             {
                                 stream.Dispose();
                             }
-                            openFiles.Clear();
+                            context.openFiles.Clear();
                             PrepareWorkspace(); // delete temp files
 
-                            now = resetNow;
-                            variables["DATE"] = now.ToString(InitialDefaultDateFormat);
+                            context.now = context.resetNow;
+                            context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
                             break;
 
                         case "module":
-                            moduleNumber++;
-                            testFailed = false;
-                            testNumber = 0;
-                            testName = null;
-                            moduleName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
+                            VerifyDeferredClear(true/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
+                            context.moduleNumber++;
+                            context.testFailed = false;
+                            context.testNumber = 0;
+                            context.testName = null;
+                            context.moduleName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
                             if (skipToModule != null)
                             {
-                                if (!skipToModule.Equals(moduleName))
+                                if (!skipToModule.Equals(context.moduleName))
                                 {
-                                    testFailed = true;
+                                    context.testFailed = true;
                                 }
                                 else
                                 {
@@ -279,23 +309,32 @@ namespace FileUtilityTester
                             }
                             Console.WriteLine();
                             Console.WriteLine();
-                            Console.WriteLine(String.Format("MODULE {0} ({1})", moduleName, moduleNumber));
+                            Console.WriteLine(String.Format("MODULE {0} ({1})", context.moduleName, context.moduleNumber));
                             goto Reset;
 
                         case "test":
-                            if (testFailed)
+                            if (restricted)
                             {
-                                resultMatrix.Skipped();
+                                throw new ApplicationException();
+                            }
+                            if (context.testFailed)
+                            {
+                                context.resultMatrix.Skipped();
                                 break;
                             }
-                            testNumber++;
-                            testName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
-                            resultMatrix.InitTest(scriptNumber, scriptName, moduleNumber, moduleName, testNumber, testName);
+                            VerifyDeferredClear(true/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
+                            context.testNumber++;
+                            context.testName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
+                            context.resultMatrix.InitTest(context.scriptNumber, scriptName, context.moduleNumber, context.moduleName, context.testNumber, context.testName);
                             Console.WriteLine();
-                            Console.WriteLine(String.Format("TEST {0} ({1})", testName, testNumber));
+                            Console.WriteLine(String.Format("TEST {0} ({1})", context.testName, context.testNumber));
                             break;
 
                         case "skip-to":
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
                             if (args.Length == 0)
                             {
                                 throw new ApplicationException();
@@ -303,7 +342,7 @@ namespace FileUtilityTester
                             if (args[0].Equals("module", StringComparison.OrdinalIgnoreCase))
                             {
                                 skipToModule = Combine(args, 1, args.Length - 1, " ", false/*quoteWhitespace*/);
-                                testFailed = true;
+                                context.testFailed = true;
                             }
                             else
                             {
@@ -317,11 +356,15 @@ namespace FileUtilityTester
                                 int equals = statement.IndexOf('=');
                                 string var = statement.Substring(0, equals).Trim();
                                 string expression = statement.Substring(equals + 1);
-                                variables[var] = EvalExpression(expression, variables);
+                                context.variables[var] = EvalExpression(expression, context.variables);
                             }
                             break;
 
                         case "fail-pause":
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
                             if (args.Length != 1)
                             {
                                 throw new ApplicationException();
@@ -340,42 +383,54 @@ namespace FileUtilityTester
                             break;
 
                         case "timeout":
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
                             if (args.Length != 1)
                             {
                                 throw new ApplicationException();
                             }
                             if (args[0].Equals("none"))
                             {
-                                commandTimeoutSeconds = null;
+                                context.commandTimeoutSeconds = null;
                             }
                             else
                             {
-                                commandTimeoutSeconds = Int32.Parse(args[0]);
+                                context.commandTimeoutSeconds = Int32.Parse(args[0]);
                             }
                             break;
 
                         case "command":
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
                             if (args.Length < 2)
                             {
                                 throw new ApplicationException();
                             }
-                            commands[args[0]] = new KeyValuePair<string, string>(FindCommand(args[1]), Combine(args, 2, args.Length - 2, " ", true/*quoteWhitespace*/));
+                            context.commands[args[0]] = new KeyValuePair<string, string>(FindCommand(args[1]), Combine(args, 2, args.Length - 2, " ", true/*quoteWhitespace*/));
                             break;
 
                         case "opencover":
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
                             if (args.Length != 1)
                             {
                                 throw new ApplicationException();
                             }
-                            if (!commands.ContainsKey(args[0]))
+                            if (!context.commands.ContainsKey(args[0]))
                             {
                                 throw new ApplicationException();
                             }
-                            opencover[args[0]] = true;
+                            context.opencover[args[0]] = true;
                             break;
 
                         case "mkdir":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -386,13 +441,13 @@ namespace FileUtilityTester
                             {
                                 string path = CheckPath(args[0], lineNumber);
                                 Directory.CreateDirectory(path);
-                                Directory.SetCreationTime(path, now);
-                                Directory.SetLastWriteTime(path, now);
+                                Directory.SetCreationTime(path, context.now);
+                                Directory.SetLastWriteTime(path, context.now);
                             }
                             break;
 
                         case "rmdir":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -404,7 +459,7 @@ namespace FileUtilityTester
                             break;
 
                         case "show-output":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -416,7 +471,7 @@ namespace FileUtilityTester
                             break;
 
                         case "save-output":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -435,18 +490,18 @@ namespace FileUtilityTester
                                 0,
                                 "endoutput",
                                 ref lineNumber,
-                                defaultDateFormat,
+                                context.defaultDateFormat,
                                 delegate(string dateFormat) { return lastOutput; },
-                                testFailed,
+                                context.testFailed,
                                 ref currentFailed,
-                                resultMatrix,
-                                scriptNumber,
-                                moduleNumber,
-                                testNumber);
+                                context.resultMatrix,
+                                context.scriptNumber,
+                                context.moduleNumber,
+                                context.testNumber);
                             break;
 
                         case "call":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -456,19 +511,20 @@ namespace FileUtilityTester
                             }
                             {
                                 string exe = args[0];
-                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " ", true/*quoteWhitespace*/));
-                                foreach (KeyValuePair<string, object> variable in variables)
+                                string commandArgs = String.Concat(context.commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " ", true/*quoteWhitespace*/));
+                                foreach (KeyValuePair<string, object> variable in context.variables)
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
                                 }
-                                Console.WriteLine("{0} {1}", commands[exe].Key, commandArgs);
-                                if (!Exec(commands[exe].Key, opencover.ContainsKey(exe), commandArgs, null, commandTimeoutSeconds, out lastExitCode, out lastOutput))
+                                Console.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
+                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, null, context.commandTimeoutSeconds, out lastExitCode, out lastOutput))
                                 {
                                     currentFailed = true;
-                                    resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
+                                    context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
                                     Console.WriteLine("FAILURE: command exceeded timeout, script line {0}", lineNumber);
                                 }
+                                VerifyDeferredClear(false/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
                             }
                             break;
 
@@ -488,27 +544,28 @@ namespace FileUtilityTester
                                 }
 
                                 string exe = args[0];
-                                string commandArgs = String.Concat(commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " ", true/*quoteWhitespace*/));
-                                foreach (KeyValuePair<string, object> variable in variables)
+                                string commandArgs = String.Concat(context.commands[exe].Value, " ", Combine(args, 1, args.Length - 1, " ", true/*quoteWhitespace*/));
+                                foreach (KeyValuePair<string, object> variable in context.variables)
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
                                 }
 
                                 string input = ReadInlineContent(scriptReader, linePrefix, "endinput", ref lineNumber, null);
 
-                                if (testFailed)
+                                if (context.testFailed)
                                 {
                                     break;
                                 }
 
-                                Console.WriteLine("{0} {1}", commands[exe].Key, commandArgs);
-                                if (!Exec(commands[exe].Key, opencover.ContainsKey(exe), commandArgs, input, commandTimeoutSeconds, out lastExitCode, out lastOutput))
+                                Console.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
+                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, input, context.commandTimeoutSeconds, out lastExitCode, out lastOutput))
                                 {
                                     currentFailed = true;
-                                    resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
+                                    context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
                                     Console.WriteLine("FAILURE: command exceeded timeout, script line {0}", lineNumber);
                                 }
+                                VerifyDeferredClear(false/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
                             }
                             break;
 
@@ -524,8 +581,8 @@ namespace FileUtilityTester
                                 {
                                     throw new ApplicationException();
                                 }
-                                now = now.Add(TimeSpan.Parse(args[1]));
-                                variables["DATE"] = now.ToString(InitialDefaultDateFormat);
+                                context.now = context.now.Add(TimeSpan.Parse(args[1]));
+                                context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
                             }
                             else if (args[0] == "-")
                             {
@@ -533,8 +590,8 @@ namespace FileUtilityTester
                                 {
                                     throw new ApplicationException();
                                 }
-                                now = now.Subtract(TimeSpan.Parse(args[1]));
-                                variables["DATE"] = now.ToString(InitialDefaultDateFormat);
+                                context.now = context.now.Subtract(TimeSpan.Parse(args[1]));
+                                context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
                             }
                             else
                             {
@@ -542,13 +599,13 @@ namespace FileUtilityTester
                                 {
                                     throw new ApplicationException();
                                 }
-                                now = DateTime.Parse(args[0]);
-                                variables["DATE"] = now.ToString(InitialDefaultDateFormat);
+                                context.now = DateTime.Parse(args[0]);
+                                context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
                             }
                             break;
 
                         case "delete":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -564,7 +621,7 @@ namespace FileUtilityTester
 
                         case "edit":
                         case "create":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -667,9 +724,9 @@ namespace FileUtilityTester
                                 }
                                 if (create)
                                 {
-                                    File.SetCreationTime(file, now);
+                                    File.SetCreationTime(file, context.now);
                                 }
-                                File.SetLastWriteTime(file, now);
+                                File.SetLastWriteTime(file, context.now);
                             }
                             break;
 
@@ -701,7 +758,7 @@ namespace FileUtilityTester
 
                                 bool create = !File.Exists(file);
                                 string content = ReadInlineContent(scriptReader, linePrefix, "endwrite", ref lineNumber, null);
-                                if (testFailed)
+                                if (context.testFailed)
                                 {
                                     break;
                                 }
@@ -721,9 +778,9 @@ namespace FileUtilityTester
                                 }
                                 if (create)
                                 {
-                                    File.SetCreationTime(file, now);
+                                    File.SetCreationTime(file, context.now);
                                 }
-                                File.SetLastWriteTime(file, now);
+                                File.SetLastWriteTime(file, context.now);
                             }
                             break;
 
@@ -732,7 +789,7 @@ namespace FileUtilityTester
                             {
                                 throw new ApplicationException();
                             }
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -757,7 +814,7 @@ namespace FileUtilityTester
                                     stream.Seek(offset >= 0 ? offset : stream.Length + offset, SeekOrigin.Begin);
                                     stream.Write(b, 0, range);
                                 }
-                                File.SetLastWriteTime(file, now);
+                                File.SetLastWriteTime(file, context.now);
                             }
                             break;
 
@@ -775,19 +832,19 @@ namespace FileUtilityTester
                                     1,
                                     "endfile",
                                     ref lineNumber,
-                                    defaultDateFormat,
+                                    context.defaultDateFormat,
                                     delegate(string dateFormat) { return File.ReadAllText(file); },
-                                    testFailed,
+                                    context.testFailed,
                                     ref currentFailed,
-                                    resultMatrix,
-                                    scriptNumber,
-                                    moduleNumber,
-                                    testNumber);
+                                    context.resultMatrix,
+                                    context.scriptNumber,
+                                    context.moduleNumber,
+                                    context.testNumber);
                             }
                             break;
 
                         case "open":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -802,35 +859,35 @@ namespace FileUtilityTester
                                     default:
                                         throw new ApplicationException();
                                     case "wx":
-                                        openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Write, FileShare.None);
+                                        context.openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Write, FileShare.None);
                                         break;
                                     case "rx":
-                                        openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.None);
+                                        context.openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.None);
                                         break;
                                     case "rr":
-                                        openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+                                        context.openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read);
                                         break;
                                     case "ra":
-                                        openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                                        context.openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                                         break;
                                 }
                             }
                             break;
 
                         case "close-all":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
-                            foreach (Stream stream in openFiles.Values)
+                            foreach (Stream stream in context.openFiles.Values)
                             {
                                 stream.Dispose();
                             }
-                            openFiles.Clear();
+                            context.openFiles.Clear();
                             break;
 
                         case "copy":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -861,7 +918,7 @@ namespace FileUtilityTester
                             break;
 
                         case "move":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -905,7 +962,7 @@ namespace FileUtilityTester
                             break;
 
                         case "attrib":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -985,21 +1042,21 @@ namespace FileUtilityTester
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
-                                if (testFailed)
+                                if (context.testFailed)
                                 {
                                     break;
                                 }
                                 if (args.Length == 1)
                                 {
-                                    File.SetLastWriteTime(path, now);
+                                    File.SetLastWriteTime(path, context.now);
                                 }
                                 else if ((args.Length == 2) && args[1].Equals("-created"))
                                 {
-                                    File.SetCreationTime(path, now);
+                                    File.SetCreationTime(path, context.now);
                                 }
                                 else if ((args.Length == 2) && args[1].Equals("-modified"))
                                 {
-                                    File.SetLastWriteTime(path, now);
+                                    File.SetLastWriteTime(path, context.now);
                                 }
                                 else
                                 {
@@ -1036,17 +1093,21 @@ namespace FileUtilityTester
                             break;
 
                         case "date-format":
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
                             if (args.Length != 1)
                             {
                                 throw new ApplicationException();
                             }
-                            defaultDateFormat = args[0];
-                            DateTime.Now.ToString(defaultDateFormat); // validate
+                            context.defaultDateFormat = args[0];
+                            DateTime.Now.ToString(context.defaultDateFormat); // validate
                             break;
 
                         case "list":
                         case "qlist":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -1056,7 +1117,7 @@ namespace FileUtilityTester
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
-                                string dateFormat = defaultDateFormat;
+                                string dateFormat = context.defaultDateFormat;
                                 string linePrefix = ".";
                                 bool showSizes = false;
                                 bool showCompressed = false;
@@ -1086,7 +1147,7 @@ namespace FileUtilityTester
                                     }
                                 }
 
-                                string output = List(path, hashes, dateFormat, showSizes, showCompressed);
+                                string output = List(path, context.hashes, dateFormat, showSizes, showCompressed);
                                 if (command != "qlist")
                                 {
                                     WriteWithLinePrefix(Console.Out, output, linePrefix);
@@ -1123,19 +1184,19 @@ namespace FileUtilityTester
                                     1,
                                     "endlist",
                                     ref lineNumber,
-                                    defaultDateFormat,
-                                    delegate(string dateFormat) { return List(path, hashes, dateFormat, showSizes, showCompressed); },
-                                    testFailed,
+                                    context.defaultDateFormat,
+                                    delegate(string dateFormat) { return List(path, context.hashes, dateFormat, showSizes, showCompressed); },
+                                    context.testFailed,
                                     ref currentFailed,
-                                    resultMatrix,
-                                    scriptNumber,
-                                    moduleNumber,
-                                    testNumber);
+                                    context.resultMatrix,
+                                    context.scriptNumber,
+                                    context.moduleNumber,
+                                    context.testNumber);
                             }
                             break;
 
                         case "dirs-equal-verify":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -1146,7 +1207,7 @@ namespace FileUtilityTester
                             {
                                 string left = CheckPath(args[0], lineNumber);
                                 string right = CheckPath(args[1], lineNumber);
-                                string dateFormat = defaultDateFormat;
+                                string dateFormat = context.defaultDateFormat;
                                 string linePrefix = ".";
                                 bool showSizes = false;
                                 bool showCompressed = false;
@@ -1175,12 +1236,12 @@ namespace FileUtilityTester
                                         throw new ApplicationException();
                                     }
                                 }
-                                string leftList = List(left, hashes, dateFormat, showSizes, showCompressed);
-                                string rightList = List(right, hashes, dateFormat, showSizes, showCompressed);
+                                string leftList = List(left, context.hashes, dateFormat, showSizes, showCompressed);
+                                string rightList = List(right, context.hashes, dateFormat, showSizes, showCompressed);
                                 if (!String.Equals(leftList, rightList))
                                 {
                                     currentFailed = true;
-                                    resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
+                                    context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
                                     Console.WriteLine("FAILURE in 'dirs-equal-verify', script line {0}", lineNumber);
                                     Console.WriteLine("LEFT");
@@ -1198,7 +1259,7 @@ namespace FileUtilityTester
                             break;
 
                         case "exitcode-verify":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -1212,7 +1273,7 @@ namespace FileUtilityTester
                                 if (not != (lastExitCode != expected))
                                 {
                                     currentFailed = true;
-                                    resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
+                                    context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
                                     Console.WriteLine("FAILURE in 'exitcode-verify', script line {0}", lineNumber);
                                     Console.WriteLine("EXITCODE expected={0}{1} actual={2}", not ? "not " : String.Empty, expected, lastExitCode);
@@ -1223,7 +1284,7 @@ namespace FileUtilityTester
                             break;
 
                         case "verify-not-exist":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -1236,7 +1297,7 @@ namespace FileUtilityTester
                                 if (File.Exists(path) || Directory.Exists(path))
                                 {
                                     currentFailed = true;
-                                    resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
+                                    context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
                                     Console.WriteLine("FAILURE in 'verify-not-exist', script line {0}", lineNumber);
                                     Console.WriteLine(lastOutput);
@@ -1245,7 +1306,7 @@ namespace FileUtilityTester
                             break;
 
                         case "load-resource":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -1256,12 +1317,12 @@ namespace FileUtilityTester
                             {
                                 string variable = args[0];
                                 string resourcePath = CheckPath(args[1], lineNumber);
-                                variables[variable] = File.ReadAllText(Path.Combine(Path.GetDirectoryName(scriptName), resourcePath));
+                                context.variables[variable] = File.ReadAllText(Path.Combine(Path.GetDirectoryName(scriptName), resourcePath));
                             }
                             break;
 
                         case "encrypt-memory":
-                            if (testFailed)
+                            if (context.testFailed)
                             {
                                 break;
                             }
@@ -1271,23 +1332,62 @@ namespace FileUtilityTester
                             }
                             {
                                 string variable = args[0];
-                                byte[] data = Encoding.UTF8.GetBytes(variables[variable].ToString());
+                                byte[] data = Encoding.UTF8.GetBytes(context.variables[variable].ToString());
                                 byte[] encryptedData = ProtectedDataStorage.EncryptEphemeral(data, 0, data.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
-                                variables[variable] = HexUtility.HexEncode(encryptedData);
+                                context.variables[variable] = HexUtility.HexEncode(encryptedData);
+                            }
+                            break;
+
+                        case "defer":
+                            if (restricted)
+                            {
+                                throw new ApplicationException();
+                            }
+                            if (args.Length < 1)
+                            {
+                                throw new ApplicationException();
+                            }
+                            {
+                                string name = args[0];
+                                string linePrefix = ".";
+                                for (int i = 1; i < args.Length; i++)
+                                {
+                                    switch (args[i])
+                                    {
+                                        default:
+                                            throw new ApplicationException();
+                                        case "-lineprefix":
+                                            linePrefix = args[1];
+                                            break;
+                                    }
+                                }
+
+                                string task = ReadInlineContent(scriptReader, linePrefix, "enddefer", ref lineNumber, null);
+                                if (context.testFailed)
+                                {
+                                    break;
+                                }
+
+                                context.variables.Add(args[0], new DeferredTask(task, scriptName, lineNumber, context));
                             }
                             break;
                     }
 
-                    testFailed = testFailed || currentFailed;
+                    context.testFailed = context.testFailed || currentFailed;
                     if (currentFailed && failPause)
                     {
                         Console.Write("<ENTER> to continue ('r' to attempt to ignore error)...");
                         string s = Console.ReadLine();
                         if (s == "r")
                         {
-                            testFailed = false;
+                            context.testFailed = false;
                         }
                     }
+                }
+
+                if (!restricted)
+                {
+                    VerifyDeferredClear(false/*forceClose*/, context.variables, ref context.testFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
                 }
             }
             //catch (Exception exception)
@@ -1298,6 +1398,135 @@ namespace FileUtilityTester
             //    }
             //    throw new Exception(String.Format("line {0} of script", lineNumber), exception);
             //}
+        }
+
+        private static void VerifyDeferredClear(bool forceClose, Dictionary<string, object> variables, ref bool currentFailed, TestResultMatrix resultMatrix, int scriptNumber, int moduleNumber, int testNumber, int lineNumber)
+        {
+            List<KeyValuePair<string, object>> toRemove = new List<KeyValuePair<string, object>>();
+            foreach (KeyValuePair<string, object> variable in variables)
+            {
+                DeferredTask deferredTask = variable.Value as DeferredTask;
+                if (deferredTask != null)
+                {
+                    if (deferredTask.Active)
+                    {
+                        currentFailed = true;
+                        resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
+
+                        Console.WriteLine("FAILURE in 'verify-deferred-clear', script line {0}", lineNumber);
+                        Console.WriteLine("Deferred task \"{0}\" still active", variable.Key);
+                        toRemove.Add(variable);
+                    }
+                    else
+                    {
+                        if (forceClose)
+                        {
+                            toRemove.Add(variable);
+                        }
+                    }
+                }
+            }
+            foreach (KeyValuePair<string, object> variable in toRemove)
+            {
+                variables.Remove(variable.Key);
+                ((IDisposable)variable.Value).Dispose();
+            }
+        }
+
+        private class DeferredTask : IDisposable
+        {
+            private readonly string triggerEventName;
+            private readonly string resumeEventName;
+            private EventWaitHandle triggerEvent;
+            private EventWaitHandle resumeEvent;
+            private const string EventNamePrefix = "FileUtilityTester.exe-";
+
+            private bool active;
+            private readonly Thread thread;
+
+            private readonly string scriptName;
+            private readonly int originatingLineNumber;
+            private readonly Context context;
+            private readonly string task;
+
+            public string TriggerEventName { get { return EventNamePrefix + triggerEventName; } }
+            public string ResumeEventName { get { return EventNamePrefix + resumeEventName; } }
+
+            public bool Active { get { return active; } }
+
+            public DeferredTask(string task, string scriptName, int originatingLineNumber, Context context)
+                : this(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), task, scriptName, originatingLineNumber, context)
+            {
+            }
+
+            public DeferredTask(string triggerEventName, string resumeEventName, string task, string scriptName, int originatingLineNumber, Context context)
+            {
+                this.scriptName = scriptName;
+                this.originatingLineNumber = originatingLineNumber;
+                this.task = task;
+                this.context = context;
+
+                this.triggerEventName = triggerEventName;
+                this.resumeEventName = resumeEventName;
+                this.triggerEvent = new EventWaitHandle(false, EventResetMode.AutoReset, TriggerEventName);
+                this.resumeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ResumeEventName);
+
+                this.active = true;
+                this.thread = new Thread(StaticThreadMain);
+                this.thread.Start(this);
+            }
+
+            private static void StaticThreadMain(object o)
+            {
+                DeferredTask This = (DeferredTask)o;
+                This.ThreadMain();
+            }
+
+            private void ThreadMain()
+            {
+                // wait for subprogram to trigger task
+                if (!triggerEvent.WaitOne())
+                {
+                    return;
+                }
+
+                // do task
+                using (StringReader taskReader = new StringReader(task))
+                {
+                    try
+                    {
+                        Eval(taskReader, String.Format("{0}-defer{1}", scriptName, originatingLineNumber), context, true/*restricted*/);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+
+                // signal subprogram to resume
+                active = false;
+                resumeEvent.Set();
+            }
+
+            public void Dispose()
+            {
+                active = false;
+                thread.Abort();
+                if (resumeEvent != null)
+                {
+                    resumeEvent.Close();
+                    resumeEvent = null;
+                }
+                if (triggerEvent != null)
+                {
+                    triggerEvent.Close();
+                    triggerEvent = null;
+                }
+            }
+
+            public override string ToString()
+            {
+                return String.Concat(TriggerEventName, ",", ResumeEventName);
+            }
         }
 
         private static string FindCommand(string specifiedPath)
@@ -2215,7 +2444,7 @@ namespace FileUtilityTester
                 using (TextReader reader = new StreamReader(scriptPath))
                 {
                     Console.Title = String.Format("{0} - {1}", Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName), Path.GetFileName(scriptPath));
-                    Eval(reader, i + 1, scriptPath, resultMatrix);
+                    Eval(reader, scriptPath, new Context(i + 1, resultMatrix), false/*restricted*/);
                 }
             }
 
