@@ -224,12 +224,240 @@ endlist
 rmdir output2
 
 
-# TODO:
 module file in use (during -ignoreunchanged hashing)
 
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+# Note syncpoint2 @ '1-start': we don't want to test anything but SetDigest() in this code
+defer syncpoint1
+.open source\b rx
+enddefer
+defer syncpoint2
+.close-all
+enddefer
+call-with-input backup -concurrency 1 -injectfault synch:%syncpoint1% /DynamicPack/SetDigest[count:1] -injectfault synch:%syncpoint2% /DynamicPack/Stage[stringequal:'1-start'] dynpack source archive\archive 60000 -ignoreunchanged
+.r
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Computing any needed file hashes for -ignoreunchanged
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process.
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\b [2]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
 
-# TODO:
+test touch timestamps and update
+date + 1
+touch source\a
+touch source\b
+touch source\c
+date + 1
+# a and c should be skipped because they were hashed, but b should be updated because hash couldn't be created
+qlist .
+call backup -concurrency 1 dynpack source archive\archive 60000 -ignoreunchanged
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Computing any needed file hashes for -ignoreunchanged
+.Copying: archive.0.dynpack to archive.-0.dynpack
+.Renaming (segment dirty): archive.m.dynpack to archive.-m.dynpack
+.Writing: archive.0.dynpack
+.Writing: archive.m.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.Deleting (backup file): archive.-m.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-04 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-04 -A---- archive\archive.m.dynpack [9]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\a [1]
+.          2015-01-01          2015-01-03 -A---- source\b [2]
+.          2015-01-01          2015-01-03 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-04 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-04 -A---- archive\archive.m.dynpack [9]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output2\
+# a and c have the old timestamps because they weren't updated. b was updated, so has new timestamp.
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-03 -A---- output2\b [2]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\a [1]
+.          2015-01-01          2015-01-03 -A---- source\b [2]
+.          2015-01-01          2015-01-03 -A---- source\c [3]
+endlist
+rmdir output2
+
+
 module file in use (during -ignoreunchanged hashing), with -ignoreinuse
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+# Note syncpoint2 @ '1-start': we don't want to test anything but SetDigest() in this code
+defer syncpoint1
+.open source\b rx
+enddefer
+defer syncpoint2
+.close-all
+enddefer
+call backup -concurrency 1 -ignoreinuse -injectfault synch:%syncpoint1% /DynamicPack/SetDigest[count:1] -injectfault synch:%syncpoint2% /DynamicPack/Stage[stringequal:'1-start'] dynpack source archive\archive 60000 -ignoreunchanged
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Computing any needed file hashes for -ignoreunchanged
+.EXCEPTION - ignored: The process cannot access the file '%WORKSPACE%\source\b' because it is being used by another process.
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\b [2]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
+
+test touch timestamps and update
+date + 1
+touch source\a
+touch source\b
+touch source\c
+date + 1
+# a and c should be skipped because they were hashed, but b should be updated because hash couldn't be created
+qlist .
+call backup -concurrency 1 dynpack source archive\archive 60000 -ignoreunchanged
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Computing any needed file hashes for -ignoreunchanged
+.Copying: archive.0.dynpack to archive.-0.dynpack
+.Renaming (segment dirty): archive.m.dynpack to archive.-m.dynpack
+.Writing: archive.0.dynpack
+.Writing: archive.m.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.Deleting (backup file): archive.-m.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-04 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-04 -A---- archive\archive.m.dynpack [9]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\a [1]
+.          2015-01-01          2015-01-03 -A---- source\b [2]
+.          2015-01-01          2015-01-03 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-04 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-04 -A---- archive\archive.m.dynpack [9]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output2\
+# a and c have the old timestamps because they weren't updated. b was updated, so has new timestamp.
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-03 -A---- output2\b [2]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\a [1]
+.          2015-01-01          2015-01-03 -A---- source\b [2]
+.          2015-01-01          2015-01-03 -A---- source\c [3]
+endlist
+rmdir output2
 
 
 # TODO:

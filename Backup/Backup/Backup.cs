@@ -6468,7 +6468,7 @@ namespace Backup
                 }
             }
 
-            internal void SetDigest(ConcurrentTasks concurrent, string root)
+            internal void SetDigest(ConcurrentTasks concurrent, string root, Context context, TextWriter trace)
             {
                 digest = null;
 
@@ -6480,8 +6480,24 @@ namespace Backup
                 }
                 partialPath = partialPath.Substring(Prefix.Length);
                 string fullPath = Path.Combine(root, partialPath);
-                using (Stream controlStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+
+                using (Stream controlStream = DoRetryable<Stream>(
+                    delegate { return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite); },
+                    delegate { return null; },
+                    delegate { },
+                    true/*enableUserInteraction*/, // OK as long as file enumeration loop is done on main thread
+                    Console.WriteLine,
+                    context,
+                    trace))
                 {
+                    // failure case
+                    if (controlStream == null)
+                    {
+                        Debug.Assert(digest == null);
+                        return;
+                    }
+
+
                     // Merkle hash tree
 
                     byte[] leafPrefix = new byte[1] { 0x00 };
@@ -6636,6 +6652,7 @@ namespace Backup
                     }
                     catch (PathTooLongException exception)
                     {
+                        // I don't remember why this "catch (PathTooLongException exception)" is here. In theory it shouldn't happen for Pack()
                         throw new PathTooLongException(String.Format("{0} (length={2}, path=\'{1}\')", exception.Message, file, file.Length));
                     }
                 },
@@ -8139,9 +8156,9 @@ namespace Backup
                 }
             }
 
-            internal void SetDigest(ConcurrentTasks concurrent, string root)
+            internal void SetDigest(ConcurrentTasks concurrent, string root, Context context, TextWriter trace)
             {
-                header.SetDigest(concurrent, root);
+                header.SetDigest(concurrent, root, context, trace);
 
                 headerOverhead = null; // digests computed later, on demand; reset overhead as length may have changed
             }
@@ -9019,7 +9036,7 @@ namespace Backup
                     }
 
                     // main merge occurs here
-                    using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, traceDynpack != null ? TextWriter.Synchronized(traceDynpack) : null))
+                    using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, traceDynpack))
                     {
                         iCurrent = 0;
                         iPrevious = 0;
@@ -9056,7 +9073,7 @@ namespace Backup
                                     && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                                 {
                                     faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                    currentFiles[iCurrent].SetDigest(concurrent, source);
+                                    currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack);
                                 }
 
                                 mergedFiles.Add(currentFiles[iCurrent]);
@@ -9079,7 +9096,7 @@ namespace Backup
                                         && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                                     {
                                         faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                        currentFiles[iCurrent].SetDigest(concurrent, source);
+                                        currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack);
                                     }
 
                                     mergedFiles.Add(currentFiles[iCurrent]);
@@ -9111,7 +9128,7 @@ namespace Backup
                                         if ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0))
                                         {
                                             faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                            currentFiles[iCurrent].SetDigest(concurrent, source);
+                                            currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack);
                                             currentDigest = currentFiles[iCurrent].Digest;
                                         }
                                         else
