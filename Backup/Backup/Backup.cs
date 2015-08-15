@@ -738,6 +738,8 @@ namespace Backup
         internal delegate void ConsoleWriteLine(string line, params string[] args);
         internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enableUserInteraction, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace)
         {
+            IFaultInstance faultDoRetryable = context.faultInjectionRoot.Select("DoRetryable");
+
             bool tried = false;
             while (true)
             {
@@ -790,7 +792,7 @@ namespace Backup
                     {
                         trace.WriteLine("DoRetryable received exception{1}: {0}", exception, ignore ? " - ignored" : null);
                     }
-                    consoleWriteLine("EXCEPTION{1}: {0}", exception.Message, ignore ? " - ignored" : null);
+                    (enableUserInteraction ? Console.WriteLine : consoleWriteLine)("EXCEPTION{1}: {0}", exception.Message, ignore ? " - ignored" : null);
 
                     if (ignore)
                     {
@@ -804,6 +806,7 @@ namespace Backup
                         throw;
                     }
 
+                    IFaultInstance faultPromptUser = faultDoRetryable.Select("PromptUser");
                     if (context.beepEnabled)
                     {
                         Console.Beep(440, 500);
@@ -6634,7 +6637,7 @@ namespace Backup
             }
         }
 
-        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableUserInteraction, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace)
+        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableUserInteraction, bool enableContinue, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace)
         {
             bool directory = false;
 
@@ -6663,6 +6666,11 @@ namespace Backup
                 context,
                 trace))
             {
+                if ((inputStream == null) && !enableContinue && !directory)
+                {
+                    throw new ApplicationException("Unable to open file for inclusion in package");
+                }
+
                 if ((inputStream != null) || directory)
                 {
                     // write header
@@ -6758,7 +6766,16 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            PackOne(file, stream, partialPathPrefix, null/*range*/, true/*enableUserInteraction*/, Console.WriteLine, context, null/*trace*/);
+                            PackOne(
+                                file,
+                                stream,
+                                partialPathPrefix,
+                                null/*range*/,
+                                true/*enableUserInteraction*/,
+                                true/*enableContinue*/,
+                                Console.WriteLine,
+                                context,
+                                null/*trace*/);
                             addedCount++;
                         }
                         else
@@ -6775,12 +6792,28 @@ namespace Backup
                 {
                     long initialAddedCount = addedCount;
 
-                    PackRecursive(subdirectory, stream, context, excludedExtensions, excludedItems, Path.Combine(partialPathPrefix, Path.GetFileName(subdirectory)), ref addedCount);
+                    PackRecursive(
+                        subdirectory,
+                        stream,
+                        context,
+                        excludedExtensions,
+                        excludedItems,
+                        Path.Combine(partialPathPrefix, Path.GetFileName(subdirectory)),
+                        ref addedCount);
 
                     // for subdirectories, only if it is empty add it explicitly
                     if (addedCount == initialAddedCount)
                     {
-                        PackOne(subdirectory, stream, partialPathPrefix, null/*range*/, true/*enableUserInteraction*/, Console.WriteLine, context, null/*trace*/);
+                        PackOne(
+                            subdirectory,
+                            stream,
+                            partialPathPrefix,
+                            null/*range*/,
+                            true/*enableUserInteraction*/,
+                            true/*enableContinue*/,
+                            Console.WriteLine,
+                            context,
+                            null/*trace*/);
                         addedCount++;
                     }
                 }
@@ -10494,7 +10527,10 @@ namespace Backup
                         bool originalContinueOnUnauthorized = context.continueOnUnauthorized;
                         bool originalContinueOnInUse = context.continueOnInUse;
                         bool originalContinueOnMissing = context.continueOnMissing;
-                        context.ClearContinueOnExceptions();
+                        if (!(threadCount == 0))
+                        {
+                            context.ClearContinueOnExceptions();
+                        }
 
                         // Archive modified segments (concurrently)
                         faultDynamicPackStage = faultDynamicPack.Select("Stage", "7-write-segment-files");
@@ -10684,7 +10720,16 @@ namespace Backup
                                                                                     fullPath = Path.Combine(source, fullPath);
                                                                                     try
                                                                                     {
-                                                                                        PackOne(fullPath, stream, Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()), mergedFiles[j + start].Range, threadCount == 0/*enableUserInteraction*/, messages.WriteLine, context, threadTraceDynPack);
+                                                                                        PackOne(
+                                                                                            fullPath,
+                                                                                            stream,
+                                                                                            Path.GetDirectoryName(mergedFiles[j + start].PartialPath.ToString()),
+                                                                                            mergedFiles[j + start].Range,
+                                                                                            threadCount == 0/*enableUserInteraction*/,
+                                                                                            false/*enableContinue*/,
+                                                                                            messages.WriteLine,
+                                                                                            context,
+                                                                                            threadTraceDynPack);
                                                                                     }
                                                                                     catch (Exception exception)
                                                                                     {

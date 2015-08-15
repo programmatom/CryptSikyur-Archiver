@@ -217,10 +217,10 @@ namespace Concurrent
                 throw new InvalidOperationException();
             }
 
+            CompareRecords comparer = new CompareRecords();
+            Record record = new Record(sequenceNumber, lines);
             lock (this)
             {
-                Record record = new Record(sequenceNumber, lines);
-
                 int index;
                 if (sequenceNumbering != null)
                 {
@@ -229,7 +229,6 @@ namespace Concurrent
                     // large the vector manipulations may become inefficient and should be
                     // replaced with a tree-based implementation.
 
-                    CompareRecords comparer = new CompareRecords();
                     index = records.BinarySearch(record, comparer);
                     if (index >= 0)
                     {
@@ -257,6 +256,12 @@ namespace Concurrent
                 }
 
                 records.Insert(index, record);
+
+                // assert ordering invariant
+                for (int i = 1; i < records.Count; i++)
+                {
+                    Debug.Assert(records[i - 1].sequenceNumber <= records[i].sequenceNumber);
+                }
             }
         }
 
@@ -354,7 +359,8 @@ namespace Concurrent
         public void Dispose()
         {
             Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
-            Flush(true/*permitOutOfSequence*/, null/*prepareConsole*/);
+            bool flushedAll = Flush(true/*permitOutOfSequence*/, null/*prepareConsole*/);
+            Debug.Assert(flushedAll);
         }
 
         public int BufferWidth

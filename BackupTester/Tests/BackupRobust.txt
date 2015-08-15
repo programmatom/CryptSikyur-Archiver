@@ -132,7 +132,6 @@ list-verify .
 endlist
 
 
-# TODO: find a way to test -ignoreunauthorized (requires administrator for test tool and enhancements to set permissions)
-# TODO: test -ignoredeleted (requires test tool and fault-injection enhancements to do triggered tasks)
+# TODO: test -ignoreunauthorized (requires administrator for test tool and enhancements to set permissions)
+# TODO: test -ignoredeleted
 # TODO: add automatic handling of path too long
-
