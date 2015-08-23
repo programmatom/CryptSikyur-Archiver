@@ -27,8 +27,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Xml;
+using System.Xml.XPath;
 using Microsoft.Win32.SafeHandles;
 
+using Concurrent;
 using HexUtil;
 using ProtectedData;
 
@@ -36,16 +39,568 @@ namespace FileUtilityTester
 {
     class Program
     {
-        private const string WorkspaceRoot = "test-workspace";
+        private const string WorkspaceRootCollection = "test-workspace";
 
         private const string CodeCoverageReports = "test-coverage";
         // OpenCoverage reports can be processed after run with a script like this:
         //   cd %TEMP%\test-coverage
-        //   "C:\Program Files\ReportGenerator\ReportGenerator_1.9.1.0\bin\ReportGenerator.exe" -reports:results*.xml -targetdir:.
+        //   "C:\Program Files (x86)\ReportGenerator_2.1.8.0\bin\ReportGenerator.exe" -reports:result*.xml -targetdir:.
         //   start index.html
 
-        private static readonly RandomNumberGenerator random = RNGCryptoServiceProvider.Create();
-        private static readonly SHA256 sha256 = SHA256.Create();
+        private static readonly RandomNumberGenerator random = RNGCryptoServiceProvider.Create(); // threadsafe
+
+        private static void Throw(Exception exception)
+        {
+            if (Debugger.IsAttached)
+            {
+                Debugger.Break();
+            }
+            throw exception;
+        }
+
+        private class TaskHistory
+        {
+            public const int DurationHistory = 5;
+            public const int FailuresHistory = 5;
+
+            private Dictionary<string, Record> records = new Dictionary<string, Record>();
+
+            public struct Record
+            {
+                public string identifier;
+                public long[] durations;
+                public uint failures;
+                public bool visited;
+
+                public Record(string identifier, long[] durations, uint failures, bool visited)
+                {
+                    this.identifier = identifier;
+                    this.durations = durations;
+                    this.failures = failures;
+                    this.visited = visited;
+                }
+            }
+
+            public TaskHistory()
+            {
+            }
+
+            public TaskHistory(string path)
+            {
+                XmlDocument xml = new XmlDocument();
+                xml.Load(path);
+                foreach (XPathNavigator task in xml.CreateNavigator().Select("/history/tasks/task"))
+                {
+                    string identifier = task.SelectSingleNode("id").Value;
+                    List<long> durations = new List<long>();
+                    foreach (XPathNavigator duration in task.Select("durations/duration"))
+                    {
+                        durations.Add(duration.ValueAsLong);
+                    }
+                    uint failures = (uint)task.SelectSingleNode("failures").ValueAsInt;
+
+                    records.Add(identifier, new Record(identifier, durations.ToArray(), failures, false/*visited*/));
+                }
+            }
+
+            public void Save(string path)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                try
+                {
+                    File.Copy(Path.ChangeExtension(path, ".bak1"), Path.ChangeExtension(path, ".bak2"), true/*overwrite*/);
+                }
+                catch
+                {
+                }
+                try
+                {
+                    File.Copy(path, Path.ChangeExtension(path, ".bak1"), true/*overwrite*/);
+                }
+                catch
+                {
+                }
+
+                XmlWriterSettings settings = new XmlWriterSettings();
+                settings.Indent = true;
+                settings.IndentChars = new String((char)32, 4);
+                using (XmlWriter writer = XmlWriter.Create(path, settings))
+                {
+                    writer.WriteStartElement("history");
+
+                    writer.WriteStartElement("tasks");
+
+                    foreach (KeyValuePair<string, Record> item in records)
+                    {
+                        if (item.Value.visited)
+                        {
+                            writer.WriteStartElement("task");
+
+                            writer.WriteStartElement("id");
+                            writer.WriteString(item.Value.identifier);
+                            writer.WriteEndElement(); // id
+
+                            writer.WriteStartElement("durations");
+                            foreach (long duration in item.Value.durations)
+                            {
+                                writer.WriteStartElement("duration");
+                                writer.WriteValue(duration);
+                                writer.WriteEndElement(); // duration
+                            }
+                            writer.WriteEndElement(); // durations
+
+                            writer.WriteStartElement("failures");
+                            writer.WriteValue((int)item.Value.failures);
+                            writer.WriteEndElement(); // failures
+
+                            writer.WriteEndElement(); // task
+                        }
+                    }
+
+                    writer.WriteEndElement(); // tasks
+
+                    writer.WriteEndElement(); // history
+                }
+            }
+
+            public int Count
+            {
+                get
+                {
+                    lock (this)
+                    {
+                        return records.Count;
+                    }
+                }
+            }
+
+            public static string FormatIdentifier(string scriptName, int moduleNumber, string moduleName)
+            {
+                return String.Format("{0}:{1}:{2}", scriptName, moduleNumber, moduleName);
+            }
+
+            public void UpdateHistory(string scriptName, int moduleNumber, string moduleName, long? duration, bool failed)
+            {
+                UpdateHistory(FormatIdentifier(scriptName, moduleNumber, moduleName), duration, failed);
+            }
+
+            public void UpdateHistory(string identifier, long? duration, bool failed)
+            {
+                lock (this)
+                {
+                    long[] durations;
+                    uint failures;
+                    Record record;
+                    if (records.TryGetValue(identifier, out record))
+                    {
+                        durations = record.durations;
+                        failures = record.failures;
+                    }
+                    else
+                    {
+                        durations = new long[0];
+                        failures = 0;
+                    }
+
+                    if (duration.HasValue)
+                    {
+                        Array.Resize(ref durations, durations.Length + 1);
+                        durations[durations.Length - 1] = duration.Value;
+                        if (durations.Length > DurationHistory)
+                        {
+                            Array.Copy(durations, durations.Length - DurationHistory, durations, 0, DurationHistory);
+                            Array.Resize(ref durations, DurationHistory);
+                        }
+                    }
+
+                    failures = (((failures << 1) | (uint)(failed ? 1 : 0)) & (uint)((1 << FailuresHistory) - 1));
+
+                    records[identifier] = new Record(identifier, durations, failures, true/*visited*/);
+                }
+            }
+
+            public bool QueryHistory(string scriptName, int moduleNumber, string moduleName, out Record record)
+            {
+                return QueryHistory(FormatIdentifier(scriptName, moduleNumber, moduleName), out record);
+            }
+
+            public bool QueryHistory(string identifier, out Record record)
+            {
+                lock (this)
+                {
+                    return records.TryGetValue(identifier, out record);
+                }
+            }
+
+            public void VisitHistory(string scriptName, int moduleNumber, string moduleName)
+            {
+                VisitHistory(FormatIdentifier(scriptName, moduleNumber, moduleName));
+            }
+
+            public void VisitHistory(string identifier)
+            {
+                lock (this)
+                {
+                    Record record;
+                    if (records.TryGetValue(identifier, out record))
+                    {
+                        record.visited = true;
+                        records[identifier] = record;
+                    }
+                }
+            }
+        }
+
+        private class TaskQueue
+        {
+            private readonly Dictionary<string, bool> mutexes = new Dictionary<string, bool>();
+            private readonly List<Task> queue = new List<Task>();
+            private bool adding = true;
+            private bool fatal;
+
+            public class Task
+            {
+                public readonly string scriptName;
+                public readonly int moduleNumber;
+                public readonly string moduleName;
+
+                public readonly TaskMethod method;
+                public readonly string[] mutexes;
+                public readonly int sequence;
+                public long? messageSequenceNumber;
+
+                public long averageDuration;
+                public int recentFailures;
+
+                private static int sequenceGenerator;
+
+                public class TaskContext
+                {
+                    private readonly TextWriter consoleWriter;
+                    private bool fatal;
+                    public Status status;
+
+                    public TextWriter ConsoleWriter { get { return consoleWriter; } }
+                    public bool Fatal { get { return fatal; } }
+
+                    public TaskContext(TextWriter consoleWriter, Status status)
+                    {
+                        this.consoleWriter = consoleWriter;
+                        this.status = status;
+                    }
+
+                    public void SetFatal()
+                    {
+                        fatal = true;
+                    }
+                }
+
+                public delegate void TaskMethod(TaskContext taskContext);
+
+                public Task(string scriptName, int moduleNumber, string moduleName, TaskMethod method, string[] mutexes)
+                {
+                    this.scriptName = scriptName;
+                    this.moduleNumber = moduleNumber;
+                    this.moduleName = moduleName;
+
+                    this.method = method;
+                    this.sequence = Interlocked.Increment(ref sequenceGenerator);
+
+                    this.mutexes = (string[])mutexes.Clone();
+                    Array.Sort(mutexes);
+                    for (int i = 1; i < mutexes.Length; i++)
+                    {
+                        if (String.Equals(mutexes[i - 1], mutexes[i]))
+                        {
+                            Throw(new ArgumentException());
+                        }
+                    }
+                }
+
+                public class CompareTasks : IComparer<Task>
+                {
+                    public int Compare(Task l, Task r)
+                    {
+                        int c = 0;
+
+                        if (c == 0)
+                        {
+                            c = -l.recentFailures.CompareTo(r.recentFailures);
+                        }
+
+                        if (c == 0)
+                        {
+                            c = -l.mutexes.Length.CompareTo(r.mutexes.Length);
+                        }
+                        for (int i = 0; (c == 0) && (i < l.mutexes.Length); i++)
+                        {
+                            c = String.Compare(l.mutexes[i], r.mutexes[i]);
+                        }
+
+                        if (c == 0)
+                        {
+                            c = -l.averageDuration.CompareTo(r.averageDuration);
+                        }
+
+                        if (c == 0)
+                        {
+                            c = l.sequence.CompareTo(r.sequence);
+                        }
+
+                        return c;
+                    }
+                }
+
+                public class CompareTasksScriptOrdering : IComparer<Task>
+                {
+                    public int Compare(Task l, Task r)
+                    {
+                        return l.sequence.CompareTo(r.sequence);
+                    }
+                }
+            }
+
+            public void Add(IEnumerable<Task> tasks)
+            {
+                if (!adding)
+                {
+                    Throw(new InvalidOperationException());
+                }
+
+                queue.AddRange(tasks);
+
+                foreach (Task task in tasks)
+                {
+                    foreach (string mutex in task.mutexes)
+                    {
+                        mutexes[mutex] = true;
+                    }
+                }
+            }
+
+            public void Prepare(bool forceScriptOrder, Concurrent.ConcurrentMessageLog messagesLog, TaskHistory taskHistory)
+            {
+                if (!adding)
+                {
+                    Throw(new InvalidOperationException());
+                }
+
+                if (taskHistory != null)
+                {
+                    foreach (Task task in queue)
+                    {
+                        TaskHistory.Record record;
+                        if (taskHistory.QueryHistory(task.scriptName, task.moduleNumber, task.moduleName, out record))
+                        {
+                            task.averageDuration = 0;
+                            foreach (long duration in record.durations)
+                            {
+                                task.averageDuration += duration;
+                            }
+                            task.averageDuration /= Math.Max(record.durations.Length, 1);
+
+                            task.recentFailures = 0;
+                            uint f = record.failures;
+                            for (int i = 0; i < TaskHistory.FailuresHistory; i++)
+                            {
+                                if ((f & 1) != 0)
+                                {
+                                    task.recentFailures++;
+                                }
+                                f = f >> 1;
+                            }
+                        }
+                    }
+                }
+
+                queue.Sort(new Task.CompareTasksScriptOrdering());
+
+                // force output in script order
+                if (messagesLog != null)
+                {
+                    foreach (Task task in queue)
+                    {
+                        task.messageSequenceNumber = messagesLog.GetSequenceNumber();
+                    }
+                }
+
+                if (!forceScriptOrder)
+                {
+                    queue.Sort(new Task.CompareTasks());
+                }
+                // else force execution in script order - to the degree possible
+
+                adding = false;
+            }
+
+            // must call FinalizeTask() on all objects returned from this method
+            private Task GetNextTask() // threadsafe
+            {
+                if (adding)
+                {
+                    Throw(new InvalidOperationException());
+                }
+
+                Task task = null;
+
+                lock (this)
+                {
+                    for (int i = 0; i < queue.Count; i++)
+                    {
+                        Task candidate = queue[i];
+
+                        bool resourcesAvailable = true;
+                        for (int j = 0; j < candidate.mutexes.Length; j++)
+                        {
+                            resourcesAvailable = resourcesAvailable && mutexes[candidate.mutexes[j]];
+                        }
+                        if (resourcesAvailable)
+                        {
+                            task = candidate;
+                            queue.RemoveAt(i);
+
+                            for (int j = 0; j < candidate.mutexes.Length; j++)
+                            {
+                                Debug.Assert(mutexes[task.mutexes[j]]);
+                                mutexes[candidate.mutexes[j]] = false;
+                            }
+
+                            break;
+                        }
+                    }
+                }
+
+                return task;
+            }
+
+            private void FinalizeTask(Task task) // threadsafe
+            {
+                if (adding)
+                {
+                    Throw(new InvalidOperationException());
+                }
+
+                lock (this)
+                {
+                    for (int j = 0; j < task.mutexes.Length; j++)
+                    {
+                        Debug.Assert(!mutexes[task.mutexes[j]]);
+                        mutexes[task.mutexes[j]] = true;
+                    }
+                }
+            }
+
+            public int Count // threadsafe
+            {
+                get
+                {
+                    lock (this)
+                    {
+                        return queue.Count;
+                    }
+                }
+            }
+
+            public bool Empty // threadsafe
+            {
+                get
+                {
+                    if (adding)
+                    {
+                        Throw(new InvalidOperationException());
+                    }
+
+                    lock (this)
+                    {
+                        return queue.Count == 0;
+                    }
+                }
+            }
+
+            public bool Fatal // threadsafe
+            {
+                get
+                {
+                    lock (this)
+                    {
+                        return fatal;
+                    }
+                }
+            }
+
+            public void SetFatal() // threadsafe
+            {
+                lock (this)
+                {
+                    fatal = true;
+                }
+            }
+
+            public class Status
+            {
+                private string scriptName;
+                private string moduleName;
+                private int moduleNumber;
+                private DateTime startTime;
+
+                public void SetStatus(string scriptName, string moduleName, int moduleNumber, DateTime startTime)
+                {
+                    lock (this)
+                    {
+                        this.scriptName = scriptName;
+                        this.moduleName = moduleName;
+                        this.moduleNumber = moduleNumber;
+                        this.startTime = startTime;
+                    }
+                }
+
+                public void GetStatus(out string scriptName, out string moduleName, out int moduleNumber, out DateTime startTime)
+                {
+                    lock (this)
+                    {
+                        scriptName = this.scriptName;
+                        moduleName = this.moduleName;
+                        moduleNumber = this.moduleNumber;
+                        startTime = this.startTime;
+                    }
+                }
+            }
+
+            public void ThreadMain(ConcurrentMessageLog messageLog, Status status)
+            {
+                while (!Empty && !Fatal)
+                {
+                    Task task = null;
+                    try
+                    {
+                        task = GetNextTask();
+                        if (task != null)
+                        {
+                            using (ConcurrentMessageLog.ThreadMessageLog messages = task.messageSequenceNumber.HasValue ? messageLog.GetNewMessageLog(task.messageSequenceNumber.Value) : messageLog.GetNewMessageLog())
+                            {
+                                Task.TaskContext taskContext = new Task.TaskContext(messages, status);
+                                task.method(taskContext);
+                                if (taskContext.Fatal)
+                                {
+                                    SetFatal();
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Thread.Sleep(1000);
+                        }
+                    }
+                    finally
+                    {
+                        if (task != null)
+                        {
+                            FinalizeTask(task);
+                        }
+                    }
+                }
+            }
+        }
 
         private static class FileCompressionHelper
         {
@@ -173,8 +728,9 @@ namespace FileUtilityTester
             readonly public int scriptNumber;
             readonly public TestResultMatrix resultMatrix;
 
-            public int moduleNumber = 0;
-            public string moduleName = null;
+            public readonly int moduleNumber;
+            public readonly string moduleName;
+
             public int testNumber = 0;
             public string testName = null;
             public bool testFailed = false;
@@ -185,40 +741,116 @@ namespace FileUtilityTester
             public const string InitialDefaultDateFormat = "s"; // sortable datetime format: yyyy-MM-ddTHH:mm:ss
             public string defaultDateFormat = InitialDefaultDateFormat;
             public int? commandTimeoutSeconds = null;
+            public bool failPause;
 
             public Dictionary<string, KeyValuePair<string, string>> commands = new Dictionary<string, KeyValuePair<string, string>>();
             public Dictionary<string, bool> opencover = new Dictionary<string, bool>();
             public Dictionary<string, object> variables = new Dictionary<string, object>();
             public HashDispenser hashes = new HashDispenser();
             public Dictionary<string, Stream> openFiles = new Dictionary<string, Stream>();
+            public Dictionary<string, bool> mutexes = new Dictionary<string, bool>();
 
-            public Context()
+            public readonly WorkspaceDispenser workspaceDispenser;
+            public Workspace workspace;
+
+            private Context()
             {
                 now = resetNow;
                 variables["DATE"] = now.ToString(Context.InitialDefaultDateFormat);
             }
 
-            public Context(int scriptNumber, TestResultMatrix resultMatrix)
+            public Context(WorkspaceDispenser workspaceDispenser)
                 : this()
+            {
+                this.workspaceDispenser = workspaceDispenser;
+            }
+
+            public Context(int scriptNumber, TestResultMatrix resultMatrix, WorkspaceDispenser workspaceDispenser)
+                : this(workspaceDispenser)
             {
                 this.scriptNumber = scriptNumber;
                 this.resultMatrix = resultMatrix;
             }
+
+            public Context(Context original, int moduleNumber, string moduleName)
+                : this(original.scriptNumber, original.resultMatrix, original.workspaceDispenser)
+            {
+                this.moduleNumber = moduleNumber;
+                this.moduleName = moduleName;
+
+                //this.testNumber = 0; -- redundant
+                //this.testName = null; -- redundant
+                //this.testFailed = false; -- redundant
+
+                this.resetNow = original.resetNow;
+                this.now = this.resetNow;
+                this.variables["DATE"] = this.now.ToString(Context.InitialDefaultDateFormat);
+
+                this.defaultDateFormat = original.defaultDateFormat;
+                this.commandTimeoutSeconds = original.commandTimeoutSeconds;
+                this.failPause = original.failPause;
+
+                this.commands = new Dictionary<string, KeyValuePair<string, string>>(original.commands);
+                this.opencover = new Dictionary<string, bool>(original.opencover);
+                //this.variables = new Dictionary<string, object>(); -- redundant
+                //this.hashes = new HashDispenser(); -- redundant
+                //this.openFiles = new Dictionary<string, Stream>(); -- redundant
+                this.mutexes = new Dictionary<string, bool>(original.mutexes);
+            }
         }
 
-        private static void Eval(TextReader scriptReader, string scriptName, Context context, bool restricted)
+        [Flags]
+        private enum Mode
         {
+            Unrestricted = 0x01,
+
+            PrepareTasks = 0x02,
+
+            Module = 0x04,
+            Callback = 0x08,
+
+            GlobalModes = Unrestricted | PrepareTasks,
+            SequentialModes = Unrestricted | PrepareTasks | Module,
+        }
+
+        private static List<TaskQueue.Task> Eval(LineReader scriptReader, int initialLineNumber, string scriptName, Context contextBase, Mode mode, TextWriter consoleWriter, TaskHistory taskHistory)
+        {
+            List<TaskQueue.Task> tasks = null;
+
+            // Stateful commands before the first module have a direct effect on script-global state.
+            // For each module declaration, contextBase is cloned and subsequent changes therefore private to that module.
+            Context context = contextBase;
+
             int lastExitCode = 0;
             string lastOutput = null;
-            string skipToModule = null;
-            bool failPause = false;
 
-            int lineNumber = 0;
-            //try
+            string skipToModule = null;
+
+            int moduleNumber = 0;
+            string moduleName = null;
+
+            DateTime? startTime = null;
+
+            int lineNumber = initialLineNumber;
+            try
             {
-                string line;
-                while ((line = scriptReader.ReadLine()) != null)
+                if (mode == Mode.PrepareTasks)
                 {
+                    tasks = new List<TaskQueue.Task>();
+                    context.testFailed = true;
+                }
+
+                bool firstTime = mode == Mode.Module; // part of a HACK to do "reset" as the first command of a module
+                if (firstTime)
+                {
+                    lineNumber--;
+                }
+
+                string line;
+                while ((line = firstTime ? "\0module"/*HACK*/ : scriptReader.ReadLine()) != null)
+                {
+                    firstTime = false; // part of a HACK to do "reset" as the first command of a module
+
                     bool currentFailed = false;
 
                     lineNumber++;
@@ -253,91 +885,81 @@ namespace FileUtilityTester
                     switch (command)
                     {
                         default:
-                            throw new ApplicationException(String.Format("Invalid command \"{0}\" on line {1}", command, lineNumber));
-
-                        case "reset":
-                            if (restricted)
-                            {
-                                throw new ApplicationException();
-                            }
-                            if (context.testFailed)
-                            {
-                                break;
-                            }
-                            if (args.Length != 0)
-                            {
-                                throw new ApplicationException();
-                            }
-                        Reset:
-                            VerifyDeferredClear(true/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
-                            context.hashes = new HashDispenser();
-                            lastExitCode = 0;
-                            lastOutput = null;
-                            context.variables = new Dictionary<string, object>();
-                            foreach (Stream stream in context.openFiles.Values)
-                            {
-                                stream.Dispose();
-                            }
-                            context.openFiles.Clear();
-                            PrepareWorkspace(); // delete temp files
-
-                            context.now = context.resetNow;
-                            context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
+                            Throw(new ApplicationException(String.Format("Invalid command \"{0}\" on line {1}", command, lineNumber)));
                             break;
 
-                        case "module":
-                            if (restricted)
+                        case "command":
+                            if ((mode & Mode.SequentialModes) == 0)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
-                            VerifyDeferredClear(true/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
-                            context.moduleNumber++;
-                            context.testFailed = false;
-                            context.testNumber = 0;
-                            context.testName = null;
-                            context.moduleName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
-                            if (skipToModule != null)
+                            if (args.Length < 2)
                             {
-                                if (!skipToModule.Equals(context.moduleName))
-                                {
-                                    context.testFailed = true;
-                                }
-                                else
-                                {
-                                    skipToModule = null;
-                                }
+                                Throw(new ApplicationException());
                             }
-                            Console.WriteLine();
-                            Console.WriteLine();
-                            Console.WriteLine(String.Format("MODULE {0} ({1})", context.moduleName, context.moduleNumber));
-                            goto Reset;
+                            context.commands[args[0]] = new KeyValuePair<string, string>(FindCommand(args[1]), Combine(args, 2, args.Length - 2, " ", true/*quoteWhitespace*/));
+                            break;
 
-                        case "test":
-                            if (restricted)
+                        case "opencover":
+                            if ((mode & Mode.GlobalModes) == 0)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
-                            if (context.testFailed)
+                            if (args.Length != 1)
                             {
-                                context.resultMatrix.Skipped();
-                                break;
+                                Throw(new ApplicationException());
                             }
-                            VerifyDeferredClear(true/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
-                            context.testNumber++;
-                            context.testName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
-                            context.resultMatrix.InitTest(context.scriptNumber, scriptName, context.moduleNumber, context.moduleName, context.testNumber, context.testName);
-                            Console.WriteLine();
-                            Console.WriteLine(String.Format("TEST {0} ({1})", context.testName, context.testNumber));
+                            if (!context.commands.ContainsKey(args[0]))
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            context.opencover[args[0]] = true;
+                            break;
+
+                        case "fail-pause":
+                            if ((mode & Mode.SequentialModes) == 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            if (args.Length != 1)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            switch (args[0])
+                            {
+                                default:
+                                    Throw(new ApplicationException());
+                                    break;
+                                case "on":
+                                    context.failPause = true;
+                                    break;
+                                case "off":
+                                    context.failPause = false;
+                                    break;
+                            }
+                            break;
+
+                        case "date-format":
+                            if ((mode & Mode.SequentialModes) == 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            if (args.Length != 1)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            context.defaultDateFormat = args[0];
+                            DateTime.Now.ToString(context.defaultDateFormat); // validate
                             break;
 
                         case "skip-to":
-                            if (restricted)
+                            if (mode != Mode.Unrestricted)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             if (args.Length == 0)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             if (args[0].Equals("module", StringComparison.OrdinalIgnoreCase))
                             {
@@ -346,8 +968,278 @@ namespace FileUtilityTester
                             }
                             else
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
+                            break;
+
+                        case "declare-mutex":
+                            if ((mode & Mode.GlobalModes) == 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            if (args.Length != 1)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            if (moduleNumber > 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            context.mutexes.Add(args[0], false);
+                            break;
+
+                        case "use-mutex":
+                            if ((mode & Mode.SequentialModes) == 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            if (args.Length < 1)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            Dictionary<string, bool> used = new Dictionary<string, bool>();
+                            foreach (string mutex in args)
+                            {
+                                if (!context.mutexes.ContainsKey(mutex))
+                                {
+                                    Throw(new ApplicationException());
+                                }
+                                if (used.ContainsKey(mutex))
+                                {
+                                    Throw(new ApplicationException());
+                                }
+                                used.Add(mutex, false);
+                            }
+                            break;
+
+                        case "reset":
+                            if ((mode & Mode.SequentialModes) == 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            if (context.testFailed)
+                            {
+                                break;
+                            }
+                            if (args.Length != 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                        Reset:
+                            VerifyDeferredClear(
+                                true/*forceClose*/,
+                                context.variables,
+                                ref currentFailed,
+                                context.resultMatrix,
+                                context.scriptNumber,
+                                context.moduleNumber,
+                                context.testNumber,
+                                lineNumber,
+                                consoleWriter);
+                            foreach (Stream stream in context.openFiles.Values)
+                            {
+                                stream.Dispose();
+                            }
+                            context.openFiles.Clear();
+
+                            if (context.workspace != null)
+                            {
+                                context.workspace.Dispose(); // delete temp files
+                                context.workspace = null;
+                            }
+
+                            bool testFailed = context.testFailed; // propagate from previous, not base
+                            // One might think this could be omitted for mode==Mode.Module since each module
+                            // will have a separate prepared context, but it still needs to be done to preserve
+                            // an unpolluted context in order to support the "reset" command.
+                            context = new Context(contextBase, moduleNumber, moduleName);
+                            context.testFailed = testFailed;
+
+                            // One might think this could be omitted for mode==Mode.PrepareTasks, but paths are
+                            // still computed even when execution is suppressed, so the unused workspace needs to
+                            // exist.
+                            context.workspace = context.workspaceDispenser.CreateWorkspace();
+                            break;
+
+                        case "\0module":
+                            if (mode != Mode.Module)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            moduleNumber = context.moduleNumber;
+                            moduleName = context.moduleName;
+                            goto Module2;
+
+                        case "module":
+                            if ((mode & Mode.GlobalModes) == 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            VerifyDeferredClear(
+                                true/*forceClose*/,
+                                context.variables,
+                                ref currentFailed,
+                                context.resultMatrix,
+                                context.scriptNumber,
+                                context.moduleNumber,
+                                context.testNumber,
+                                lineNumber,
+                                consoleWriter);
+                            moduleNumber++;
+                            moduleName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
+                        Module2:
+
+                            taskHistory.VisitHistory(scriptName, moduleNumber, moduleName);
+                            if (startTime.HasValue)
+                            {
+                                long duration = (DateTime.UtcNow - startTime.Value).Ticks;
+                                taskHistory.UpdateHistory(scriptName, moduleNumber, moduleName, context.opencover.Count == 0 ? (long?)duration : null, context.testFailed);
+
+                                startTime = null;
+                            }
+
+                            if (skipToModule != null)
+                            {
+                                if (!String.Equals(skipToModule, moduleName))
+                                {
+                                    context.testFailed = true;
+                                }
+                                else
+                                {
+                                    skipToModule = null;
+                                    context.testFailed = false;
+                                }
+                            }
+                            if (mode != Mode.PrepareTasks)
+                            {
+                                consoleWriter.WriteLine();
+                                consoleWriter.WriteLine();
+                                consoleWriter.WriteLine("[Script \"{0}\"]", scriptName);
+                                consoleWriter.WriteLine("MODULE {0} ({1})", moduleName, moduleNumber);
+                            }
+
+                            if (mode == Mode.PrepareTasks)
+                            {
+                                List<string> mutexes = new List<string>();
+                                LineReader peekReader = new LineReader(scriptReader);
+                                int limit = 0;
+                                while ((line = peekReader.ReadLine()) != null)
+                                {
+                                    limit++;
+
+                                    if (line.StartsWith("#"))
+                                    {
+                                        continue;
+                                    }
+
+                                    line = line.TrimEnd();
+                                    if (String.IsNullOrEmpty(line))
+                                    {
+                                        continue;
+                                    }
+
+                                    string command2;
+                                    int space2 = line.IndexOf(' ');
+                                    if (space2 >= 0)
+                                    {
+                                        command2 = line.Substring(0, space2);
+                                    }
+                                    else
+                                    {
+                                        command2 = line;
+                                    }
+                                    if (space2 < 0)
+                                    {
+                                        space2 = line.Length;
+                                    }
+
+                                    switch (command2)
+                                    {
+                                        default:
+                                            break;
+                                        case "module":
+                                            limit--;
+                                            goto EndPeek;
+                                        case "use-mutex":
+                                            string[] args2 = ParseArguments(line.Substring(space2));
+                                            foreach (string arg in args2)
+                                            {
+                                                mutexes.Add(arg);
+                                            }
+                                            break;
+                                    }
+                                }
+                            EndPeek:
+                                LineReader localScriptReader = new LineReader(scriptReader, limit);
+                                Context localContext = new Context(contextBase, moduleNumber, moduleName);
+                                int localLineNumber = lineNumber;
+                                tasks.Add(
+                                    new TaskQueue.Task(
+                                        scriptName,
+                                        moduleNumber,
+                                        moduleName,
+                                        delegate(TaskQueue.Task.TaskContext taskContext)
+                                        {
+                                            try
+                                            {
+                                                taskContext.status.SetStatus(scriptName, localContext.moduleName, localContext.moduleNumber, DateTime.UtcNow);
+                                                Eval(
+                                                    localScriptReader,
+                                                    localLineNumber,
+                                                    scriptName,
+                                                    localContext,
+                                                    Mode.Module,
+                                                    taskContext.ConsoleWriter,
+                                                    taskHistory);
+                                            }
+                                            catch (Exception exception)
+                                            {
+                                                taskContext.ConsoleWriter.WriteLine("EXCEPTION: {0}", exception);
+                                                taskContext.SetFatal();
+                                            }
+                                            finally
+                                            {
+                                                taskContext.status.SetStatus(null, null, 0, DateTime.MinValue);
+                                            }
+                                        },
+                                        mutexes.ToArray()));
+                            }
+
+                            if (mode != Mode.PrepareTasks)
+                            {
+                                startTime = DateTime.UtcNow;
+                            }
+
+                            goto Reset;
+
+                        case "test":
+                            if ((mode & Mode.SequentialModes) == 0)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            if (context.testFailed)
+                            {
+                                if (mode != Mode.PrepareTasks)
+                                {
+                                    context.resultMatrix.Skipped();
+                                }
+                                break;
+                            }
+                            VerifyDeferredClear(
+                                true/*forceClose*/,
+                                context.variables,
+                                ref currentFailed,
+                                context.resultMatrix,
+                                context.scriptNumber,
+                                context.moduleNumber,
+                                context.testNumber,
+                                lineNumber,
+                                consoleWriter);
+                            context.testNumber++;
+                            context.testName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
+                            context.resultMatrix.InitTest(context.scriptNumber, scriptName, context.moduleNumber, context.moduleName, context.testNumber, context.testName);
+                            consoleWriter.WriteLine();
+                            consoleWriter.WriteLine("TEST {0} ({1})", context.testName, context.testNumber);
                             break;
 
                         case "set":
@@ -360,36 +1252,14 @@ namespace FileUtilityTester
                             }
                             break;
 
-                        case "fail-pause":
-                            if (restricted)
-                            {
-                                throw new ApplicationException();
-                            }
-                            if (args.Length != 1)
-                            {
-                                throw new ApplicationException();
-                            }
-                            switch (args[0])
-                            {
-                                default:
-                                    throw new ApplicationException();
-                                case "on":
-                                    failPause = true;
-                                    break;
-                                case "off":
-                                    failPause = false;
-                                    break;
-                            }
-                            break;
-
                         case "timeout":
-                            if (restricted)
+                            if ((mode & Mode.SequentialModes) == 0)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             if (args.Length != 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             if (args[0].Equals("none"))
                             {
@@ -401,34 +1271,6 @@ namespace FileUtilityTester
                             }
                             break;
 
-                        case "command":
-                            if (restricted)
-                            {
-                                throw new ApplicationException();
-                            }
-                            if (args.Length < 2)
-                            {
-                                throw new ApplicationException();
-                            }
-                            context.commands[args[0]] = new KeyValuePair<string, string>(FindCommand(args[1]), Combine(args, 2, args.Length - 2, " ", true/*quoteWhitespace*/));
-                            break;
-
-                        case "opencover":
-                            if (restricted)
-                            {
-                                throw new ApplicationException();
-                            }
-                            if (args.Length != 1)
-                            {
-                                throw new ApplicationException();
-                            }
-                            if (!context.commands.ContainsKey(args[0]))
-                            {
-                                throw new ApplicationException();
-                            }
-                            context.opencover[args[0]] = true;
-                            break;
-
                         case "mkdir":
                             if (context.testFailed)
                             {
@@ -436,10 +1278,11 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
+                                path = Path.Combine(context.workspace.Root, path);
                                 Directory.CreateDirectory(path);
                                 Directory.SetCreationTime(path, context.now);
                                 Directory.SetLastWriteTime(path, context.now);
@@ -453,9 +1296,9 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
-                            DeleteDirectory(CheckPath(args[0], lineNumber));
+                            DeleteDirectory(Path.Combine(context.workspace.Root, CheckPath(args[0], lineNumber)));
                             break;
 
                         case "show-output":
@@ -465,9 +1308,9 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 0)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
-                            Console.Write(lastOutput);
+                            consoleWriter.Write(lastOutput);
                             break;
 
                         case "save-output":
@@ -477,9 +1320,9 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
-                            File.WriteAllText(CheckPath(args[0], lineNumber), lastOutput);
+                            File.WriteAllText(Path.Combine(context.workspace.Root, CheckPath(args[0], lineNumber)), lastOutput);
                             break;
 
                         case "lastoutput-verify":
@@ -497,7 +1340,9 @@ namespace FileUtilityTester
                                 context.resultMatrix,
                                 context.scriptNumber,
                                 context.moduleNumber,
-                                context.testNumber);
+                                context.testNumber,
+                                consoleWriter,
+                                context.workspace);
                             break;
 
                         case "call":
@@ -507,7 +1352,7 @@ namespace FileUtilityTester
                             }
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string exe = args[0];
@@ -516,22 +1361,31 @@ namespace FileUtilityTester
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
                                 }
-                                Console.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
-                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, null, context.commandTimeoutSeconds, out lastExitCode, out lastOutput))
+                                consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
+                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, null, context.commandTimeoutSeconds, context.workspace, out lastExitCode, out lastOutput))
                                 {
                                     currentFailed = true;
                                     context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
-                                    Console.WriteLine("FAILURE: command exceeded timeout, script line {0}", lineNumber);
+                                    consoleWriter.WriteLine("FAILURE: command exceeded timeout, script line {0}", lineNumber);
                                 }
-                                VerifyDeferredClear(false/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
+                                VerifyDeferredClear(
+                                    false/*forceClose*/,
+                                    context.variables,
+                                    ref currentFailed,
+                                    context.resultMatrix,
+                                    context.scriptNumber,
+                                    context.moduleNumber,
+                                    context.testNumber,
+                                    lineNumber,
+                                    consoleWriter);
                             }
                             break;
 
                         case "call-with-input":
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string linePrefix = ".";
@@ -557,15 +1411,24 @@ namespace FileUtilityTester
                                     break;
                                 }
 
-                                Console.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
-                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, input, context.commandTimeoutSeconds, out lastExitCode, out lastOutput))
+                                consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
+                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, input, context.commandTimeoutSeconds, context.workspace, out lastExitCode, out lastOutput))
                                 {
                                     currentFailed = true;
                                     context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
-                                    Console.WriteLine("FAILURE: command exceeded timeout, script line {0}", lineNumber);
+                                    consoleWriter.WriteLine("FAILURE: command exceeded timeout, script line {0}", lineNumber);
                                 }
-                                VerifyDeferredClear(false/*forceClose*/, context.variables, ref currentFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
+                                VerifyDeferredClear(
+                                    false/*forceClose*/,
+                                    context.variables,
+                                    ref currentFailed,
+                                    context.resultMatrix,
+                                    context.scriptNumber,
+                                    context.moduleNumber,
+                                    context.testNumber,
+                                    lineNumber,
+                                    consoleWriter);
                             }
                             break;
 
@@ -573,13 +1436,13 @@ namespace FileUtilityTester
                         case "time":
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             if (args[0] == "+")
                             {
                                 if (args.Length != 2)
                                 {
-                                    throw new ApplicationException();
+                                    Throw(new ApplicationException());
                                 }
                                 context.now = context.now.Add(TimeSpan.Parse(args[1]));
                                 context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
@@ -588,7 +1451,7 @@ namespace FileUtilityTester
                             {
                                 if (args.Length != 2)
                                 {
-                                    throw new ApplicationException();
+                                    Throw(new ApplicationException());
                                 }
                                 context.now = context.now.Subtract(TimeSpan.Parse(args[1]));
                                 context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
@@ -597,7 +1460,7 @@ namespace FileUtilityTester
                             {
                                 if (args.Length != 1)
                                 {
-                                    throw new ApplicationException();
+                                    Throw(new ApplicationException());
                                 }
                                 context.now = DateTime.Parse(args[0]);
                                 context.variables["DATE"] = context.now.ToString(Context.InitialDefaultDateFormat);
@@ -611,10 +1474,11 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string file = CheckPath(args[0], lineNumber);
+                                file = Path.Combine(context.workspace.Root, file);
                                 File.Delete(file);
                             }
                             break;
@@ -627,7 +1491,7 @@ namespace FileUtilityTester
                             }
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 bool create = command == "create";
@@ -653,13 +1517,14 @@ namespace FileUtilityTester
                                     }
                                     else
                                     {
-                                        throw new ApplicationException();
+                                        Throw(new ApplicationException());
                                     }
                                 }
                                 string file = CheckPath(args[0], lineNumber);
+                                file = Path.Combine(context.workspace.Root, file);
                                 if (create == File.Exists(file))
                                 {
-                                    throw new ApplicationException(String.Format("file already exists, line {0}", lineNumber));
+                                    Throw(new ApplicationException(String.Format("file already exists, line {0}", lineNumber)));
                                 }
                                 using (Stream stream = new FileStream(file, FileMode.Create))
                                 {
@@ -733,10 +1598,11 @@ namespace FileUtilityTester
                         case "write":
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string file = CheckPath(args[0], lineNumber);
+                                file = Path.Combine(context.workspace.Root, file);
                                 string linePrefix = ".";
                                 bool binary = false;
                                 for (int i = 1; i < args.Length; i++)
@@ -752,7 +1618,7 @@ namespace FileUtilityTester
                                     }
                                     else
                                     {
-                                        throw new ApplicationException();
+                                        Throw(new ApplicationException());
                                     }
                                 }
 
@@ -787,7 +1653,7 @@ namespace FileUtilityTester
                         case "invert-range":
                             if (args.Length != 3)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             if (context.testFailed)
                             {
@@ -795,6 +1661,8 @@ namespace FileUtilityTester
                             }
                             {
                                 string file = CheckPath(args[0], lineNumber);
+                                file = Path.Combine(context.workspace.Root, file);
+
                                 int offset = Int32.Parse(args[1]); // offset >= 0: from start, offset <= 0: from end
                                 int range = Int32.Parse(args[2]);
 
@@ -805,7 +1673,7 @@ namespace FileUtilityTester
                                     int r = stream.Read(b, 0, range);
                                     if (r != range)
                                     {
-                                        throw new IOException();
+                                        Throw(new IOException());
                                     }
                                     for (int i = 0; i < b.Length; i++)
                                     {
@@ -821,10 +1689,11 @@ namespace FileUtilityTester
                         case "file-verify":
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string file = CheckPath(args[0], lineNumber);
+                                file = Path.Combine(context.workspace.Root, file);
                                 StreamVerify(
                                     command,
                                     scriptReader,
@@ -839,7 +1708,9 @@ namespace FileUtilityTester
                                     context.resultMatrix,
                                     context.scriptNumber,
                                     context.moduleNumber,
-                                    context.testNumber);
+                                    context.testNumber,
+                                    consoleWriter,
+                                    context.workspace);
                             }
                             break;
 
@@ -850,14 +1721,16 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 2)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string file = CheckPath(args[0], lineNumber);
+                                file = Path.Combine(context.workspace.Root, file);
                                 switch (args[1])
                                 {
                                     default:
-                                        throw new ApplicationException();
+                                        Throw(new ApplicationException());
+                                        break;
                                     case "wx":
                                         context.openFiles[file] = File.Open(file, FileMode.Open, FileAccess.Write, FileShare.None);
                                         break;
@@ -893,11 +1766,13 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 2)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string source = CheckPath(args[0], lineNumber);
+                                source = Path.Combine(context.workspace.Root, source);
                                 string target = CheckPath(args[1], lineNumber);
+                                target = Path.Combine(context.workspace.Root, target);
                                 if (File.Exists(source))
                                 {
                                     File.Copy(source, target);
@@ -912,7 +1787,7 @@ namespace FileUtilityTester
                                 }
                                 else
                                 {
-                                    throw new ApplicationException();
+                                    Throw(new ApplicationException());
                                 }
                             }
                             break;
@@ -924,11 +1799,13 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 2)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string source = CheckPath(args[0], lineNumber);
+                                source = Path.Combine(context.workspace.Root, source);
                                 string target = CheckPath(args[1], lineNumber);
+                                target = Path.Combine(context.workspace.Root, target);
                                 if (Directory.Exists(source))
                                 {
                                     if (!String.Equals(source, target, StringComparison.OrdinalIgnoreCase))
@@ -968,21 +1845,23 @@ namespace FileUtilityTester
                             }
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
+                                path = Path.Combine(context.workspace.Root, path);
                                 for (int i = 1; i < args.Length; i++)
                                 {
                                     if (args[i].Length != 2)
                                     {
-                                        throw new ApplicationException();
+                                        Throw(new ApplicationException());
                                     }
                                     FileAttributes mask = 0;
                                     switch (Char.ToLower(args[i][1]))
                                     {
                                         default:
-                                            throw new ApplicationException();
+                                            Throw(new ApplicationException());
+                                            break;
                                         case 'a':
                                             mask = FileAttributes.Archive;
                                             break;
@@ -1001,14 +1880,15 @@ namespace FileUtilityTester
                                     }
                                     if (((mask & FileAttributes.Compressed) != 0) && ((mask & ~FileAttributes.Compressed) != 0))
                                     {
-                                        throw new ApplicationException("compressed attribute must be set/cleared by itself");
+                                        Throw(new ApplicationException("compressed attribute must be set/cleared by itself"));
                                     }
                                     if ((mask & FileAttributes.Compressed) == 0)
                                     {
                                         switch (args[i][0])
                                         {
                                             default:
-                                                throw new ApplicationException();
+                                                Throw(new ApplicationException());
+                                                break;
                                             case '-':
                                                 File.SetAttributes(path, File.GetAttributes(path) & ~mask);
                                                 break;
@@ -1022,7 +1902,8 @@ namespace FileUtilityTester
                                         switch (args[i][0])
                                         {
                                             default:
-                                                throw new ApplicationException();
+                                                Throw(new ApplicationException());
+                                                break;
                                             case '-':
                                                 FileCompressionHelper.SetCompressed(path, false);
                                                 break;
@@ -1038,10 +1919,11 @@ namespace FileUtilityTester
                         case "touch":
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
+                                path = Path.Combine(context.workspace.Root, path);
                                 if (context.testFailed)
                                 {
                                     break;
@@ -1076,7 +1958,7 @@ namespace FileUtilityTester
                                         }
                                         else
                                         {
-                                            throw new ApplicationException();
+                                            Throw(new ApplicationException());
                                         }
                                     }
                                     if (created.HasValue)
@@ -1086,23 +1968,9 @@ namespace FileUtilityTester
                                     if (lastWritten.HasValue)
                                     {
                                         File.SetLastWriteTime(path, lastWritten.Value);
-
                                     }
                                 }
                             }
-                            break;
-
-                        case "date-format":
-                            if (restricted)
-                            {
-                                throw new ApplicationException();
-                            }
-                            if (args.Length != 1)
-                            {
-                                throw new ApplicationException();
-                            }
-                            context.defaultDateFormat = args[0];
-                            DateTime.Now.ToString(context.defaultDateFormat); // validate
                             break;
 
                         case "list":
@@ -1113,10 +1981,11 @@ namespace FileUtilityTester
                             }
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
+                                path = Path.Combine(context.workspace.Root, path);
                                 string dateFormat = context.defaultDateFormat;
                                 string linePrefix = ".";
                                 bool showSizes = false;
@@ -1143,15 +2012,15 @@ namespace FileUtilityTester
                                     }
                                     else
                                     {
-                                        throw new ApplicationException();
+                                        Throw(new ApplicationException());
                                     }
                                 }
 
                                 string output = List(path, context.hashes, dateFormat, showSizes, showCompressed);
                                 if (command != "qlist")
                                 {
-                                    WriteWithLinePrefix(Console.Out, output, linePrefix);
-                                    Console.WriteLine("endlist");
+                                    WriteWithLinePrefix(consoleWriter, output, linePrefix);
+                                    consoleWriter.WriteLine("endlist");
                                 }
                             }
                             break;
@@ -1159,10 +2028,11 @@ namespace FileUtilityTester
                         case "list-verify":
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
+                                path = Path.Combine(context.workspace.Root, path);
                                 bool showSizes = false;
                                 if ((args.Length > 1) && args[1].Equals("-sizes"))
                                 {
@@ -1191,7 +2061,9 @@ namespace FileUtilityTester
                                     context.resultMatrix,
                                     context.scriptNumber,
                                     context.moduleNumber,
-                                    context.testNumber);
+                                    context.testNumber,
+                                    consoleWriter,
+                                    context.workspace);
                             }
                             break;
 
@@ -1202,11 +2074,13 @@ namespace FileUtilityTester
                             }
                             if (args.Length < 2)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string left = CheckPath(args[0], lineNumber);
+                                left = Path.Combine(context.workspace.Root, left);
                                 string right = CheckPath(args[1], lineNumber);
+                                right = Path.Combine(context.workspace.Root, right);
                                 string dateFormat = context.defaultDateFormat;
                                 string linePrefix = ".";
                                 bool showSizes = false;
@@ -1233,7 +2107,7 @@ namespace FileUtilityTester
                                     }
                                     else
                                     {
-                                        throw new ApplicationException();
+                                        Throw(new ApplicationException());
                                     }
                                 }
                                 string leftList = List(left, context.hashes, dateFormat, showSizes, showCompressed);
@@ -1243,11 +2117,11 @@ namespace FileUtilityTester
                                     currentFailed = true;
                                     context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
-                                    Console.WriteLine("FAILURE in 'dirs-equal-verify', script line {0}", lineNumber);
-                                    Console.WriteLine("LEFT");
-                                    WriteWithLinePrefix(Console.Out, leftList, linePrefix);
-                                    Console.WriteLine("RIGHT");
-                                    WriteWithLinePrefix(Console.Out, rightList, linePrefix);
+                                    consoleWriter.WriteLine("FAILURE in 'dirs-equal-verify', script line {0}", lineNumber);
+                                    consoleWriter.WriteLine("LEFT");
+                                    WriteWithLinePrefix(consoleWriter, leftList, linePrefix);
+                                    consoleWriter.WriteLine("RIGHT");
+                                    WriteWithLinePrefix(consoleWriter, rightList, linePrefix);
 
                                     string leftTemp = Path.GetTempFileName();
                                     string rightTemp = Path.GetTempFileName();
@@ -1265,7 +2139,7 @@ namespace FileUtilityTester
                             }
                             if ((args.Length < 1) || (args.Length > 2))
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 bool not = args[0] == "not";
@@ -1275,10 +2149,10 @@ namespace FileUtilityTester
                                     currentFailed = true;
                                     context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
-                                    Console.WriteLine("FAILURE in 'exitcode-verify', script line {0}", lineNumber);
-                                    Console.WriteLine("EXITCODE expected={0}{1} actual={2}", not ? "not " : String.Empty, expected, lastExitCode);
-                                    Console.WriteLine("program output was:{0}", String.IsNullOrEmpty(lastOutput) ? " [none]" : String.Empty);
-                                    Console.WriteLine(lastOutput);
+                                    consoleWriter.WriteLine("FAILURE in 'exitcode-verify', script line {0}", lineNumber);
+                                    consoleWriter.WriteLine("EXITCODE expected={0}{1} actual={2}", not ? "not " : String.Empty, expected, lastExitCode);
+                                    consoleWriter.WriteLine("program output was:{0}", String.IsNullOrEmpty(lastOutput) ? " [none]" : String.Empty);
+                                    consoleWriter.WriteLine(lastOutput);
                                 }
                             }
                             break;
@@ -1290,17 +2164,18 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string path = CheckPath(args[0], lineNumber);
+                                path = Path.Combine(context.workspace.Root, path);
                                 if (File.Exists(path) || Directory.Exists(path))
                                 {
                                     currentFailed = true;
                                     context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
 
-                                    Console.WriteLine("FAILURE in 'verify-not-exist', script line {0}", lineNumber);
-                                    Console.WriteLine(lastOutput);
+                                    consoleWriter.WriteLine("FAILURE in 'verify-not-exist', script line {0}", lineNumber);
+                                    consoleWriter.WriteLine(lastOutput);
                                 }
                             }
                             break;
@@ -1312,7 +2187,7 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 2)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string variable = args[0];
@@ -1328,7 +2203,7 @@ namespace FileUtilityTester
                             }
                             if (args.Length != 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string variable = args[0];
@@ -1339,13 +2214,13 @@ namespace FileUtilityTester
                             break;
 
                         case "defer":
-                            if (restricted)
+                            if ((mode & Mode.SequentialModes) == 0)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             if (args.Length < 1)
                             {
-                                throw new ApplicationException();
+                                Throw(new ApplicationException());
                             }
                             {
                                 string name = args[0];
@@ -1355,7 +2230,8 @@ namespace FileUtilityTester
                                     switch (args[i])
                                     {
                                         default:
-                                            throw new ApplicationException();
+                                            Throw(new ApplicationException());
+                                            break;
                                         case "-lineprefix":
                                             linePrefix = args[1];
                                             break;
@@ -1368,15 +2244,15 @@ namespace FileUtilityTester
                                     break;
                                 }
 
-                                context.variables.Add(args[0], new DeferredTask(task, scriptName, lineNumber, context));
+                                context.variables.Add(args[0], new DeferredTask(task, scriptName, lineNumber, context, consoleWriter));
                             }
                             break;
                     }
 
                     context.testFailed = context.testFailed || currentFailed;
-                    if (currentFailed && failPause)
+                    if ((mode == Mode.Unrestricted) && currentFailed && context.failPause)
                     {
-                        Console.Write("<ENTER> to continue ('r' to attempt to ignore error)...");
+                        consoleWriter.Write("<ENTER> to continue ('r' to attempt to ignore error)...");
                         string s = Console.ReadLine();
                         if (s == "r")
                         {
@@ -1385,22 +2261,62 @@ namespace FileUtilityTester
                     }
                 }
 
-                if (!restricted)
+                if (mode != Mode.Callback)
                 {
-                    VerifyDeferredClear(false/*forceClose*/, context.variables, ref context.testFailed, context.resultMatrix, context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
+                    VerifyDeferredClear(
+                        false/*forceClose*/,
+                        context.variables,
+                        ref context.testFailed,
+                        context.resultMatrix,
+                        context.scriptNumber,
+                        context.moduleNumber,
+                        context.testNumber,
+                        lineNumber,
+                        consoleWriter);
                 }
             }
-            //catch (Exception exception)
-            //{
-            //    if (exception is ApplicationException)
-            //    {
-            //        throw;
-            //    }
-            //    throw new Exception(String.Format("line {0} of script", lineNumber), exception);
-            //}
+            catch (Exception exception)
+            {
+                if (context.moduleNumber != 0)
+                {
+                    context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
+                }
+
+                if (exception is ApplicationException)
+                {
+                    throw;
+                }
+                throw new Exception(String.Format("line {0} of script", lineNumber), exception);
+            }
+            finally
+            {
+                if (startTime.HasValue)
+                {
+                    long duration = (DateTime.UtcNow - startTime.Value).Ticks;
+                    taskHistory.UpdateHistory(scriptName, context.moduleNumber, context.moduleName, duration, context.testFailed);
+
+                    startTime = null;
+                }
+
+                if (mode != Mode.PrepareTasks)
+                {
+                    consoleWriter.Flush();
+                }
+
+                if (mode != Mode.Callback)
+                {
+                    if (context.workspace != null)
+                    {
+                        context.workspace.Dispose();
+                        context.workspace = null;
+                    }
+                }
+            }
+
+            return tasks;
         }
 
-        private static void VerifyDeferredClear(bool forceClose, Dictionary<string, object> variables, ref bool currentFailed, TestResultMatrix resultMatrix, int scriptNumber, int moduleNumber, int testNumber, int lineNumber)
+        private static void VerifyDeferredClear(bool forceClose, Dictionary<string, object> variables, ref bool currentFailed, TestResultMatrix resultMatrix, int scriptNumber, int moduleNumber, int testNumber, int lineNumber, TextWriter consoleWriter)
         {
             List<KeyValuePair<string, object>> toRemove = new List<KeyValuePair<string, object>>();
             foreach (KeyValuePair<string, object> variable in variables)
@@ -1413,8 +2329,8 @@ namespace FileUtilityTester
                         currentFailed = true;
                         resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, lineNumber);
 
-                        Console.WriteLine("FAILURE in 'verify-deferred-clear', script line {0}", lineNumber);
-                        Console.WriteLine("Deferred task \"{0}\" still active", variable.Key);
+                        consoleWriter.WriteLine("FAILURE in 'verify-deferred-clear', script line {0}", lineNumber);
+                        consoleWriter.WriteLine("Deferred task \"{0}\" still active", variable.Key);
                         toRemove.Add(variable);
                     }
                     else
@@ -1447,24 +2363,26 @@ namespace FileUtilityTester
             private readonly string scriptName;
             private readonly int originatingLineNumber;
             private readonly Context context;
-            private readonly string task;
+            private readonly TextWriter consoleWriter;
+            private readonly string taskScript;
 
             public string TriggerEventName { get { return EventNamePrefix + triggerEventName; } }
             public string ResumeEventName { get { return EventNamePrefix + resumeEventName; } }
 
             public bool Active { get { return active; } }
 
-            public DeferredTask(string task, string scriptName, int originatingLineNumber, Context context)
-                : this(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), task, scriptName, originatingLineNumber, context)
+            public DeferredTask(string taskScript, string scriptName, int originatingLineNumber, Context context, TextWriter consoleWriter)
+                : this(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), taskScript, scriptName, originatingLineNumber, context, consoleWriter)
             {
             }
 
-            public DeferredTask(string triggerEventName, string resumeEventName, string task, string scriptName, int originatingLineNumber, Context context)
+            public DeferredTask(string triggerEventName, string resumeEventName, string taskScript, string scriptName, int originatingLineNumber, Context context, TextWriter consoleWriter)
             {
                 this.scriptName = scriptName;
                 this.originatingLineNumber = originatingLineNumber;
-                this.task = task;
+                this.taskScript = taskScript;
                 this.context = context;
+                this.consoleWriter = consoleWriter;
 
                 this.triggerEventName = triggerEventName;
                 this.resumeEventName = resumeEventName;
@@ -1491,15 +2409,19 @@ namespace FileUtilityTester
                 }
 
                 // do task
-                using (StringReader taskReader = new StringReader(task))
+                try
                 {
-                    try
-                    {
-                        Eval(taskReader, String.Format("{0}-defer{1}", scriptName, originatingLineNumber), context, true/*restricted*/);
-                    }
-                    catch (Exception)
-                    {
-                    }
+                    Eval(
+                        new LineReader(taskScript.Split(new string[] { Environment.NewLine }, StringSplitOptions.None)),
+                        originatingLineNumber,
+                        String.Format("{0}-defer{1}", scriptName, originatingLineNumber),
+                        context,
+                        Mode.Callback,
+                        consoleWriter,
+                        null/*taskHistory*/);
+                }
+                catch (Exception)
+                {
                 }
 
                 // signal subprogram to resume
@@ -1553,6 +2475,11 @@ namespace FileUtilityTester
 
         private static void CopyTree(string source, string target)
         {
+            if (!Path.IsPathRooted(source) || !Path.IsPathRooted(target))
+            {
+                Throw(new ApplicationException());
+            }
+
             Directory.CreateDirectory(target);
             foreach (string file in Directory.GetFileSystemEntries(source))
             {
@@ -1576,7 +2503,7 @@ namespace FileUtilityTester
         }
 
         private delegate string GetContent(string dateFormat);
-        private static void StreamVerify(string command, TextReader scriptReader, string[] args, int argsStart, string endKeyword, ref int lineNumber, string defaultDateFormat, GetContent getActual, bool testFailed, ref bool currentFailed, TestResultMatrix resultMatrix, int scriptNumber, int moduleNumber, int testNumber)
+        private static void StreamVerify(string command, LineReader scriptReader, string[] args, int argsStart, string endKeyword, ref int lineNumber, string defaultDateFormat, GetContent getActual, bool testFailed, ref bool currentFailed, TestResultMatrix resultMatrix, int scriptNumber, int moduleNumber, int testNumber, TextWriter consoleWriter, Workspace workspace)
         {
             int startLineNumber = lineNumber;
             string dateFormat = defaultDateFormat;
@@ -1605,7 +2532,7 @@ namespace FileUtilityTester
                 }
                 else
                 {
-                    throw new ApplicationException();
+                    Throw(new ApplicationException());
                 }
             }
 
@@ -1618,33 +2545,33 @@ namespace FileUtilityTester
             string actual = getActual(dateFormat);
             if (workspacePathHack)
             {
-                actual = actual.Replace(Environment.CurrentDirectory, "%WORKSPACE%");
-                actual = actual.Replace(Environment.CurrentDirectory.ToLowerInvariant(), "%WORKSPACE%"); // try a common case variation
+                actual = actual.Replace(workspace.Root, "%WORKSPACE%");
+                actual = actual.Replace(workspace.Root.ToLowerInvariant(), "%WORKSPACE%"); // try a common case variation
             }
             if (!CompareContent(standard, actual, wildcardLines.ToArray(), ignoreExtraLines))
             {
                 currentFailed = true;
                 resultMatrix.Failed(scriptNumber, moduleNumber, testNumber, startLineNumber);
 
-                Console.WriteLine("FAILURE in '{0}', script line {1}", command, startLineNumber);
+                consoleWriter.WriteLine("FAILURE in '{0}', script line {1}", command, startLineNumber);
                 //
-                Console.WriteLine("EXPECTED");
-                WriteWithLinePrefix(Console.Out, standard, linePrefix);
+                consoleWriter.WriteLine("EXPECTED");
+                WriteWithLinePrefix(consoleWriter, standard, linePrefix);
                 string standardPrefixedTempFile = Path.GetTempFileName();
                 using (TextWriter writer = new StreamWriter(standardPrefixedTempFile, false/*append*/, Encoding.UTF8))
                 {
                     WriteWithLinePrefix(writer, standard, linePrefix);
                 }
                 //
-                Console.WriteLine("ACTUAL");
-                WriteWithLinePrefix(Console.Out, actual, linePrefix);
+                consoleWriter.WriteLine("ACTUAL");
+                WriteWithLinePrefix(consoleWriter, actual, linePrefix);
                 string actualPrefixedTempFile = Path.GetTempFileName();
                 using (TextWriter writer = new StreamWriter(actualPrefixedTempFile, false/*append*/, Encoding.UTF8))
                 {
                     WriteWithLinePrefix(writer, actual, linePrefix);
                 }
 
-                Console.WriteLine("Prefixed standard available at \"{0}\", actual at \"{1}\"", standardPrefixedTempFile, actualPrefixedTempFile);
+                consoleWriter.WriteLine("Prefixed standard available at \"{0}\", actual at \"{1}\"", standardPrefixedTempFile, actualPrefixedTempFile);
 
                 string standardTemp = Path.GetTempFileName();
                 string actualTemp = Path.GetTempFileName();
@@ -1724,7 +2651,7 @@ namespace FileUtilityTester
             return sb.ToString();
         }
 
-        private static string ReadInlineContent(TextReader scriptReader, string linePrefix, string ender, ref int lineNumber, List<int> wildcardLines)
+        private static string ReadInlineContent(LineReader scriptReader, string linePrefix, string ender, ref int lineNumber, List<int> wildcardLines)
         {
             string line;
             StringBuilder sb = new StringBuilder();
@@ -1755,7 +2682,7 @@ namespace FileUtilityTester
                 }
                 else
                 {
-                    throw new ApplicationException();
+                    Throw(new ApplicationException());
                 }
             }
             return sb.ToString();
@@ -1841,6 +2768,7 @@ namespace FileUtilityTester
 
             private static string ComputeHash(byte[] data)
             {
+                SHA256 sha256 = SHA256.Create();
                 byte[] hashBytes = sha256.ComputeHash(data);
                 char[] hashChars = new char[hashBytes.Length];
                 for (int i = 0; i < hashChars.Length; i++)
@@ -1863,6 +2791,11 @@ namespace FileUtilityTester
 
         private static void ListRecursive(string root, TextWriter writer, HashDispenser hashes, string dateFormat, bool showSizes, bool showCompressed, int substring)
         {
+            if (!Path.IsPathRooted(root))
+            {
+                Throw(new ApplicationException());
+            }
+
             foreach (string entry in Directory.GetFileSystemEntries(root))
             {
                 string entryPrintable = entry.Substring(substring);
@@ -1905,23 +2838,39 @@ namespace FileUtilityTester
 
         private static string coverageReportsPath;
         private static int coverageResultsCounter;
-        private static bool Exec(string program, bool opencover, string arguments, string input, int? commandTimeoutSeconds, out int exitCode, out string output)
+        private static string openCoverExe;
+        private static bool Exec(string program, bool opencover, string arguments, string input, int? commandTimeoutSeconds, Workspace workspace, out int exitCode, out string output)
         {
             if (opencover)
             {
-                coverageResultsCounter++;
+                if (openCoverExe == null)
+                {
+                    string[] paths = new string[]
+                    {
+                        Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles"), "OpenCover"),
+                        Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles(x86)"), "OpenCover"),
+                        Path.Combine(Environment.GetEnvironmentVariable("USERPROFILE"), @"Local Settings\Application Data\Apps\OpenCover"),
+                    };
+                    foreach (string openCoverHome in paths)
+                    {
+                        string openCoverExeCandidate = Path.Combine(openCoverHome, "OpenCover.Console.exe");
+                        if (Directory.Exists(openCoverHome) && File.Exists(program))
+                        {
+                            openCoverExe = openCoverExeCandidate;
+                            goto FoundOpenCover;
+                        }
+                    }
+                    Throw(new ApplicationException("Could not find OpenCover in the usual places - make sure it is installed"));
+                FoundOpenCover:
+                    ;
+                }
+
+                int coverageResultsIndex = Interlocked.Increment(ref coverageResultsCounter);
+
                 arguments = arguments.Replace("\"", "\\\"");
-                arguments = String.Format("-register \"-target:{0}\" \"-targetargs:{1}\" \"-output:{2}\" -returntargetcode -log:Off", program, arguments, Path.Combine(coverageReportsPath, String.Format("results{0}.xml", coverageResultsCounter)));
-                string openCoverHome = Path.Combine(Environment.GetEnvironmentVariable("USERPROFILE"), @"Local Settings\Application Data\Apps\OpenCover");
-                if (!Directory.Exists(openCoverHome))
-                {
-                    throw new ApplicationException(String.Format("{0} does not exist - is OpenCover installed", openCoverHome));
-                }
-                program = Path.Combine(openCoverHome, "OpenCover.Console.exe");
-                if (!File.Exists(program))
-                {
-                    throw new ApplicationException(String.Format("{0} does not exist - is OpenCover installed", program));
-                }
+                arguments = String.Format("-register \"-target:{0}\" \"-targetargs:{1}\" \"-output:{2}\" -returntargetcode -log:Off", program, arguments, Path.Combine(coverageReportsPath, String.Format("result{0:0000000000}.xml", coverageResultsIndex)));
+
+                program = openCoverExe;
             }
 
             bool killed = false;
@@ -1937,7 +2886,7 @@ namespace FileUtilityTester
                     cmd.StartInfo.CreateNoWindow = true;
                     cmd.StartInfo.FileName = program;
                     cmd.StartInfo.UseShellExecute = false;
-                    cmd.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
+                    cmd.StartInfo.WorkingDirectory = workspace.Root;
                     if (input != null)
                     {
                         cmd.StartInfo.RedirectStandardInput = true;
@@ -1985,7 +2934,7 @@ namespace FileUtilityTester
         {
             if (String.IsNullOrEmpty(path) || Path.IsPathRooted(path))
             {
-                throw new ApplicationException(String.Format("Invalid path \"{0}\" on line {1}", path, lineNumber));
+                Throw(new ApplicationException(String.Format("Invalid path \"{0}\" on line {1}", path, lineNumber)));
             }
 
             Stack<string> parts = new Stack<string>();
@@ -1999,7 +2948,7 @@ namespace FileUtilityTester
                 {
                     if (parts.Count == 0)
                     {
-                        throw new ApplicationException(String.Format("Invalid path \"{0}\" on line {1}", path, lineNumber));
+                        Throw(new ApplicationException(String.Format("Invalid path \"{0}\" on line {1}", path, lineNumber)));
                     }
                     parts.Pop();
                 }
@@ -2007,7 +2956,7 @@ namespace FileUtilityTester
                 {
                     if (part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                     {
-                        throw new ApplicationException(String.Format("Invalid path \"{0}\" on line {1}", path, lineNumber));
+                        Throw(new ApplicationException(String.Format("Invalid path \"{0}\" on line {1}", path, lineNumber)));
                     }
                     parts.Push(part);
                 }
@@ -2037,6 +2986,11 @@ namespace FileUtilityTester
 
         private static long GetFileLength(string path)
         {
+            if (!Path.IsPathRooted(path))
+            {
+                Throw(new ApplicationException());
+            }
+
             using (Stream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 return stream.Length;
@@ -2045,6 +2999,11 @@ namespace FileUtilityTester
 
         private static void DeleteDirectory(string path)
         {
+            if (!Path.IsPathRooted(path))
+            {
+                Throw(new ApplicationException());
+            }
+
             foreach (string subdirectory in Directory.GetDirectories(path))
             {
                 DeleteDirectory(subdirectory);
@@ -2057,29 +3016,6 @@ namespace FileUtilityTester
             }
 
             Directory.Delete(path);
-        }
-
-        private static void PrepareWorkspace()
-        {
-            string previousDirectory = Environment.CurrentDirectory;
-            Environment.CurrentDirectory = Path.GetTempPath();
-
-            try
-            {
-                Directory.CreateDirectory(WorkspaceRoot);
-                DeleteDirectory(WorkspaceRoot);
-            }
-            catch (Exception exception)
-            {
-                // This failure usually occurs because two reasons:
-                // 1. Some process is still running (usually a hung test exe or windiff)
-                // 2. Some object *in this process* has a filesystem reference to one of the
-                //    files and was leaked (i.e. Dispose() wasn't called on it)
-                throw new ApplicationException("Unable to empty workspace directory", exception);
-            }
-            Directory.CreateDirectory(WorkspaceRoot);
-
-            Environment.CurrentDirectory = previousDirectory;
         }
 
         private class TestResultMatrix
@@ -2121,86 +3057,107 @@ namespace FileUtilityTester
                 }
             }
 
-            internal void InitTest(int scriptNumber, string scriptName, int moduleNumber, string moduleName, int testNumber, string testName)
+            public void InitTest(int scriptNumber, string scriptName, int moduleNumber, string moduleName, int testNumber, string testName)
             {
-                if (scripts.Length < scriptNumber)
+                lock (this)
                 {
-                    Array.Resize(ref scripts, scriptNumber);
-                }
-                if (scripts[scriptNumber - 1] == null)
-                {
-                    scripts[scriptNumber - 1] = new ScriptInfo(scriptName);
-                }
-                ScriptInfo script = scripts[scriptNumber - 1];
-
-                if (script.modules.Length < moduleNumber)
-                {
-                    Array.Resize(ref script.modules, moduleNumber);
-                }
-                if (script.modules[moduleNumber - 1] == null)
-                {
-                    script.modules[moduleNumber - 1] = new ModuleInfo(moduleName);
-                }
-                ModuleInfo module = script.modules[moduleNumber - 1];
-
-                if (module.tests.Length < testNumber)
-                {
-                    Array.Resize(ref module.tests, testNumber);
-                }
-                if (module.tests[testNumber - 1] == null)
-                {
-                    module.tests[testNumber - 1] = new TestInfo(testName);
-                }
-                TestInfo testInfo = module.tests[testNumber - 1];
-            }
-
-            internal void Failed(int scriptNumber, int moduleNumber, int testNumber, int lineNumber)
-            {
-                TestInfo testInfo = scripts[scriptNumber - 1].modules[moduleNumber - 1].tests[testNumber - 1];
-                testInfo.passed = false;
-                testInfo.lineNumber = lineNumber;
-            }
-
-            internal void Skipped()
-            {
-                skippedTests++;
-            }
-
-            internal void WriteResults(out int failCount, out int passCount, out int skipCount)
-            {
-                failCount = 0;
-                passCount = 0;
-                skipCount = skippedTests;
-                for (int scriptNumber = 1; scriptNumber <= scripts.Length; scriptNumber++)
-                {
-                    ScriptInfo script = scripts[scriptNumber - 1];
-                    if (script != null)
+                    if (scripts.Length < scriptNumber)
                     {
-                        Console.WriteLine("SCRIPT \"{0}\" ({1})", script.scriptName, scriptNumber);
-                        for (int moduleNumber = 1; moduleNumber <= script.modules.Length; moduleNumber++)
-                        {
-                            ModuleInfo modules = script.modules[moduleNumber - 1];
-                            if (modules != null)
-                            {
-                                Console.WriteLine("  MODULE {0} ({1})", modules.moduleName, moduleNumber);
-                                for (int testNumber = 1; testNumber <= modules.tests.Length; testNumber++)
-                                {
-                                    TestInfo test = modules.tests[testNumber - 1];
-                                    ConsoleColor oldColor = Console.ForegroundColor;
-                                    if (!test.passed)
-                                    {
-                                        Console.ForegroundColor = ConsoleColor.Yellow;
-                                    }
-                                    Console.WriteLine("    {0,6} : TEST {1} ({2}){3}", test.passed ? "passed" : "FAILED", test.testName, testNumber, test.passed ? String.Empty : String.Format(" at line {0}", test.lineNumber));
-                                    Console.ForegroundColor = oldColor;
+                        Array.Resize(ref scripts, scriptNumber);
+                    }
+                    if (scripts[scriptNumber - 1] == null)
+                    {
+                        scripts[scriptNumber - 1] = new ScriptInfo(scriptName);
+                    }
+                    ScriptInfo script = scripts[scriptNumber - 1];
 
-                                    if (!test.passed)
+                    if (script.modules.Length < moduleNumber)
+                    {
+                        Array.Resize(ref script.modules, moduleNumber);
+                    }
+                    if (script.modules[moduleNumber - 1] == null)
+                    {
+                        script.modules[moduleNumber - 1] = new ModuleInfo(moduleName);
+                    }
+                    ModuleInfo module = script.modules[moduleNumber - 1];
+
+                    if (module.tests.Length < testNumber)
+                    {
+                        Array.Resize(ref module.tests, testNumber);
+                    }
+                    if (module.tests[testNumber - 1] == null)
+                    {
+                        module.tests[testNumber - 1] = new TestInfo(testName);
+                    }
+                    TestInfo testInfo = module.tests[testNumber - 1];
+                }
+            }
+
+            public void Failed(int scriptNumber, int moduleNumber, int testNumber, int lineNumber)
+            {
+                lock (this)
+                {
+                    TestInfo testInfo = scripts[scriptNumber - 1].modules[moduleNumber - 1].tests[testNumber - 1];
+                    testInfo.passed = false;
+                    testInfo.lineNumber = lineNumber;
+                }
+            }
+
+            public void Skipped()
+            {
+                lock (this)
+                {
+                    skippedTests++;
+                }
+            }
+
+            public void EnumerateResults(bool write, out int failCount, out int passCount, out int skipCount)
+            {
+                lock (this)
+                {
+                    failCount = 0;
+                    passCount = 0;
+                    skipCount = skippedTests;
+                    for (int scriptNumber = 1; scriptNumber <= scripts.Length; scriptNumber++)
+                    {
+                        ScriptInfo script = scripts[scriptNumber - 1];
+                        if (script != null)
+                        {
+                            if (write)
+                            {
+                                Console.WriteLine("SCRIPT \"{0}\" ({1})", script.scriptName, scriptNumber);
+                            }
+                            for (int moduleNumber = 1; moduleNumber <= script.modules.Length; moduleNumber++)
+                            {
+                                ModuleInfo modules = script.modules[moduleNumber - 1];
+                                if (modules != null)
+                                {
+                                    if (write)
                                     {
-                                        failCount++;
+                                        Console.WriteLine("  MODULE {0} ({1})", modules.moduleName, moduleNumber);
                                     }
-                                    else
+                                    for (int testNumber = 1; testNumber <= modules.tests.Length; testNumber++)
                                     {
-                                        passCount++;
+                                        TestInfo test = modules.tests[testNumber - 1];
+                                        if (write)
+                                        {
+                                            ConsoleColor oldColor = Console.ForegroundColor;
+                                            if (!test.passed)
+                                            {
+                                                Console.ForegroundColor = ConsoleColor.Yellow;
+                                            }
+                                            Console.WriteLine("    {0,6} : TEST {1} ({2}){3}", test.passed ? "passed" : "FAILED", test.testName, testNumber, test.passed ? String.Empty : String.Format(" at line {0}", test.lineNumber));
+                                            Console.ForegroundColor = oldColor;
+                                        }
+
+                                        if (!test.passed)
+                                        {
+                                            failCount++;
+                                        }
+                                        else
+                                        {
+                                            passCount++;
+                                        }
                                     }
                                 }
                             }
@@ -2210,9 +3167,9 @@ namespace FileUtilityTester
             }
         }
 
-        const string Hex = "0123456789abcdef";
+        private const string Hex = "0123456789abcdef";
 
-        static byte[] BinaryDecode(string linePrefix, TextReader reader)
+        private static byte[] BinaryDecode(string linePrefix, TextReader reader)
         {
             bool deflated = false;
 
@@ -2239,7 +3196,7 @@ namespace FileUtilityTester
                     }
                     if (!(i + 1 < line.Length))
                     {
-                        throw new ApplicationException();
+                        Throw(new ApplicationException());
                     }
                     byte b = (byte)((Hex.IndexOf(Char.ToLowerInvariant(line[i])) << 4)
                         | Hex.IndexOf(Char.ToLowerInvariant(line[i + 1])));
@@ -2271,7 +3228,7 @@ namespace FileUtilityTester
             return result.ToArray();
         }
 
-        static string BinaryEncode(string linePrefix, byte[] data, bool? compress)
+        private static string BinaryEncode(string linePrefix, byte[] data, bool? compress)
         {
             bool deflated = false;
             if (!(compress.HasValue && !compress.Value))
@@ -2327,6 +3284,195 @@ namespace FileUtilityTester
             return sb.ToString();
         }
 
+        public class Workspace : IDisposable
+        {
+            public readonly string Root;
+
+            public Workspace(string root)
+            {
+                if (!Path.IsPathRooted(root))
+                {
+                    Throw(new ApplicationException());
+                }
+
+                Root = root;
+            }
+
+            public void Dispose()
+            {
+                try
+                {
+                    DeleteDirectory(Root);
+                }
+                catch (Exception)
+                {
+                    // This failure usually occurs because two reasons:
+                    // 1. Some process is still running (usually a hung test exe or windiff)
+                    // 2. Some object *in this process* has a filesystem reference to one of the
+                    //    files and was leaked (i.e. Dispose() wasn't called on it)
+                }
+            }
+        }
+
+        public class WorkspaceDispenser
+        {
+            private readonly string collection;
+            private int serial;
+
+            public WorkspaceDispenser()
+            {
+                collection = Path.Combine(Path.GetTempPath(), WorkspaceRootCollection);
+
+                try
+                {
+                    Directory.CreateDirectory(collection);
+                    DeleteDirectory(collection);
+                }
+                catch (Exception exception)
+                {
+                    // This failure usually occurs because two reasons:
+                    // 1. Some process is still running (usually a hung test exe or windiff)
+                    // 2. Some object *in this process* has a filesystem reference to one of the
+                    //    files and was leaked (i.e. Dispose() wasn't called on it)
+                    throw new ApplicationException("Unable to empty workspace directory", exception);
+                }
+
+                Directory.CreateDirectory(collection);
+            }
+
+            public Workspace CreateWorkspace()
+            {
+                lock (this)
+                {
+                    while (true)
+                    {
+                        string root = Path.Combine(collection, (serial++).ToString());
+                        if (!Directory.Exists(root))
+                        {
+                            Directory.CreateDirectory(root);
+                            return new Workspace(root);
+                        }
+                    }
+                }
+            }
+        }
+
+        private class LineReader
+        {
+            private string[] lines;
+            private int next;
+            private int limit;
+
+            public LineReader()
+            {
+                lines = new string[0];
+                limit = Int32.MaxValue;
+            }
+
+            public LineReader(string path)
+            {
+                lines = File.ReadAllLines(path);
+                limit = Int32.MaxValue;
+            }
+
+            public LineReader(string[] lines)
+            {
+                this.lines = lines;
+                limit = Int32.MaxValue;
+            }
+
+            public LineReader(LineReader original, int limit)
+            {
+                this.lines = original.lines;
+                this.next = original.next;
+                this.limit = limit;
+            }
+
+            public LineReader(LineReader original)
+                : this(original, original.limit)
+            {
+            }
+
+            public string ReadLine()
+            {
+                if (limit == 0)
+                {
+                    return null;
+                }
+
+                if (next < lines.Length)
+                {
+                    limit--;
+                    return lines[next++];
+                }
+                return null;
+            }
+        }
+
+        private class MulticastWriter : TextWriter
+        {
+            private TextWriter[] writers;
+
+            public MulticastWriter(TextWriter[] writers)
+            {
+                this.writers = writers;
+            }
+
+            public MulticastWriter(TextWriter one, TextWriter two)
+                : this(new TextWriter[] { one, two })
+            {
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                foreach (TextWriter writer in writers)
+                {
+                    writer.Close();
+                }
+                writers = null;
+            }
+
+            public override void Flush()
+            {
+                foreach (TextWriter writer in writers)
+                {
+                    writer.Flush();
+                }
+            }
+
+            public override Encoding Encoding
+            {
+                get
+                {
+                    return Encoding.UTF8;
+                }
+            }
+
+            public override void Write(char value)
+            {
+                foreach (TextWriter writer in writers)
+                {
+                    writer.Write(value);
+                }
+            }
+
+            public override void Write(string value)
+            {
+                foreach (TextWriter writer in writers)
+                {
+                    writer.Write(value);
+                }
+            }
+
+            public override void WriteLine(String value)
+            {
+                foreach (TextWriter writer in writers)
+                {
+                    writer.WriteLine(value);
+                }
+            }
+        }
+
         static void Main(string[] args)
         {
             // special hacks
@@ -2359,12 +3505,64 @@ namespace FileUtilityTester
             }
 
 
+            // program switches
+
+            int concurrency = 0;
+            if ((args.Length >= 2) && (args[0] == "-concurrency"))
+            {
+                if (String.Equals(args[1], "*") || String.Equals(args[1], "default"))
+                {
+                    concurrency = Int32.Parse(Environment.GetEnvironmentVariable("NUMBER_OF_PROCESSORS"));
+                }
+                else
+                {
+                    concurrency = Int32.Parse(args[1]);
+                }
+                Array.Copy(args, 2, args, 0, args.Length - 2);
+                Array.Resize(ref args, args.Length - 2);
+            }
+            if (concurrency > 0)
+            {
+                Console.WriteLine("Running concurrently with {0} task threads", concurrency);
+            }
+
+            TextWriter consoleExclusiveOut = Console.Out;
+            string consoleLogPath = null;
+            if ((args.Length >= 2) && (args[0] == "-log"))
+            {
+                consoleLogPath = Path.GetFullPath(args[1]);
+                Array.Copy(args, 2, args, 0, args.Length - 2);
+                Array.Resize(ref args, args.Length - 2);
+            }
+            if (consoleLogPath != null)
+            {
+                TextWriter logWriter = new StreamWriter(consoleLogPath, false/*append*/, Encoding.UTF8);
+                TextWriter consoleWriter = Console.Out;
+                Console.SetOut(new MulticastWriter(logWriter, consoleWriter));
+            }
+
+            bool orderedOutput = false;
+            if ((args.Length >= 1) && (args[0] == "-orderedoutput"))
+            {
+                orderedOutput = true;
+                Array.Copy(args, 1, args, 0, args.Length - 1);
+                Array.Resize(ref args, args.Length - 1);
+            }
+
+            string taskHistoryPath = null;
+            if ((args.Length >= 2) && (args[0] == "-history"))
+            {
+                taskHistoryPath = Path.GetFullPath(args[1]);
+                Array.Copy(args, 2, args, 0, args.Length - 2);
+                Array.Resize(ref args, args.Length - 2);
+            }
+
+
+            // main
+
             Environment.ExitCode = 2;
 
-            string originalDirectory = Environment.CurrentDirectory;
-
-            PrepareWorkspace();
-            Environment.CurrentDirectory = Path.Combine(Path.GetTempPath(), WorkspaceRoot);
+            WorkspaceDispenser workspaceDispenser = new WorkspaceDispenser();
 
             coverageReportsPath = Path.Combine(Path.GetTempPath(), CodeCoverageReports);
             try
@@ -2377,17 +3575,20 @@ namespace FileUtilityTester
             Directory.CreateDirectory(coverageReportsPath);
             if (Directory.GetFileSystemEntries(coverageReportsPath).Length > 0)
             {
-                throw new ApplicationException(String.Format("Unable to empty/create {0}", coverageReportsPath));
+                Throw(new ApplicationException(String.Format("Unable to empty/create {0}", coverageReportsPath)));
+            }
+            try
+            {
+                FileCompressionHelper.SetCompressed(coverageReportsPath, true);
+            }
+            catch
+            {
             }
 
             List<string> scripts = new List<string>();
             foreach (string manifest in args)
             {
-                string manifestPath = manifest;
-                if (!Path.IsPathRooted(manifestPath))
-                {
-                    manifestPath = Path.Combine(originalDirectory, manifestPath);
-                }
+                string manifestPath = Path.GetFullPath(manifest);
                 if (File.Exists(manifestPath))
                 {
                     using (TextReader reader = new StreamReader(manifestPath))
@@ -2411,7 +3612,7 @@ namespace FileUtilityTester
                                 string scriptPath2 = Path.Combine(Path.GetDirectoryName(manifestPath), scriptPath);
                                 if (!File.Exists(scriptPath2))
                                 {
-                                    scriptPath2 = Path.Combine(originalDirectory, scriptPath);
+                                    scriptPath2 = Path.GetFullPath(scriptPath);
                                 }
                                 scriptPath = scriptPath2;
                             }
@@ -2428,37 +3629,234 @@ namespace FileUtilityTester
                 }
                 else
                 {
-                    throw new ApplicationException(String.Format("{0} does not exist", manifestPath));
+                    Throw(new ApplicationException(String.Format("{0} does not exist", manifestPath)));
                 }
             }
 
-            TestResultMatrix resultMatrix = new TestResultMatrix();
-            for (int i = 0; i < scripts.Count; i++)
-            {
-                string scriptPath = scripts[i];
+            Environment.CurrentDirectory = Path.GetTempPath(); // try to fail uses of relative paths
 
-                Console.WriteLine();
-                Console.WriteLine();
-                Console.WriteLine(new String('-', Console.BufferWidth - 1));
-                Console.WriteLine("SCRIPT \"{0}\" ({1})", scriptPath, i + 1);
-                using (TextReader reader = new StreamReader(scriptPath))
+            TaskHistory taskHistory = new TaskHistory();
+            if (taskHistoryPath != null)
+            {
+                try
                 {
+                    taskHistory = new TaskHistory(taskHistoryPath);
+                }
+                catch (FileNotFoundException)
+                {
+                }
+                catch (DirectoryNotFoundException)
+                {
+                }
+                consoleExclusiveOut.WriteLine("Loaded {0} history records from previous runs", taskHistory.Count);
+            }
+
+            TestResultMatrix resultMatrix = new TestResultMatrix();
+
+            DateTime programStartTime = DateTime.UtcNow;
+            Console.WriteLine(programStartTime.ToLocalTime());
+            Console.WriteLine();
+            Console.WriteLine();
+            if (concurrency == 0)
+            {
+                for (int i = 0; i < scripts.Count; i++)
+                {
+                    string scriptPath = scripts[i];
+
+                    if (consoleLogPath == null)
+                    {
+                        // only write header if not logging - for output comparability between concurrent and non-concurrent modes
+                        Console.WriteLine();
+                        Console.WriteLine();
+                        Console.WriteLine(new String('-', Console.BufferWidth - 1));
+                        Console.WriteLine("SCRIPT \"{0}\" ({1})", scriptPath, i + 1);
+                    }
+
                     Console.Title = String.Format("{0} - {1}", Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName), Path.GetFileName(scriptPath));
-                    Eval(reader, scriptPath, new Context(i + 1, resultMatrix), false/*restricted*/);
+                    Eval(
+                        new LineReader(scriptPath),
+                        0,
+                        scriptPath,
+                        new Context(i + 1, resultMatrix, workspaceDispenser),
+                        Mode.Unrestricted,
+                        Console.Out,
+                        taskHistory);
+                }
+            }
+            else
+            {
+                TaskQueue taskQueue = new TaskQueue();
+
+                using (ConcurrentMessageLog messagesLog = concurrency > 0 ? new ConcurrentMessageLog(true/*interactive*/, orderedOutput/*enableSequencing*/) : null)
+                {
+                    using (ConcurrentTasks concurrent = concurrency > 0 ? new ConcurrentTasks(concurrency, 0, messagesLog, null/*trace*/) : null)
+                    {
+                        for (int i = 0; i < scripts.Count; i++)
+                        {
+                            List<TaskQueue.Task> tasks = Eval(
+                                new LineReader(scripts[i]),
+                                0,
+                                scripts[i],
+                                new Context(i + 1, resultMatrix, workspaceDispenser),
+                                Mode.PrepareTasks,
+                                null/*consoleWriter*/,
+                                taskHistory);
+                            taskQueue.Add(tasks);
+                        }
+
+                        taskQueue.Prepare(concurrency == 1, orderedOutput ? messagesLog : null, taskHistory);
+
+                        int total = taskQueue.Count;
+
+                        int maxStatusLines = 0;
+                        bool progressVisible = false;
+                        DateTime lastProgressUpdate = default(DateTime);
+                        const int WaitInterval = 1000;
+                        TaskQueue.Status[] statuses = new TaskQueue.Status[concurrency];
+                        ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
+                        {
+                            if (progressVisible)
+                            {
+                                for (int i = 0; i < maxStatusLines; i++)
+                                {
+                                    consoleExclusiveOut.WriteLine(new String(' ', Math.Max(0, Console.BufferWidth - 1)));
+                                }
+                                Console.CursorTop -= maxStatusLines;
+
+                                progressVisible = false;
+                                lastProgressUpdate = default(DateTime);
+                            }
+                        };
+                        ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
+                        {
+                            eraseProgress();
+                        };
+                        ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
+                        {
+                            messagesLog.Flush(prepareConsole);
+
+                            while (Console.KeyAvailable)
+                            {
+                                ConsoleKeyInfo key = Console.ReadKey(true/*intercept*/);
+                                if (key.KeyChar == 'q')
+                                {
+                                    taskQueue.SetFatal();
+                                }
+                            }
+
+                            if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.UtcNow)
+                            {
+                                lock (statuses)
+                                {
+                                    List<KeyValuePair<string, ConsoleColor?>> lines = new List<KeyValuePair<string, ConsoleColor?>>();
+
+                                    lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Empty, null));
+                                    lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Empty, null));
+
+                                    if (taskQueue.Fatal)
+                                    {
+                                        lines.Add(new KeyValuePair<string, ConsoleColor?>("  [fatal error pending]", ConsoleColor.Yellow));
+                                    }
+
+                                    for (int i = 0; i < statuses.Length; i++)
+                                    {
+                                        string scriptName, moduleName;
+                                        int moduleNumber;
+                                        DateTime startTime;
+                                        statuses[i].GetStatus(out scriptName, out moduleName, out moduleNumber, out startTime);
+
+                                        string progress = !String.IsNullOrEmpty(scriptName) ? String.Format("  {2,3} sec  {0}: module {1} ({3})", Path.GetFileName(scriptName), moduleName, (int)(DateTime.UtcNow - startTime).TotalSeconds, moduleNumber) : String.Empty;
+                                        lines.Add(new KeyValuePair<string, ConsoleColor?>(progress, null));
+                                    }
+
+                                    int failCount2, passCount2, skipCount2;
+                                    resultMatrix.EnumerateResults(false/*write*/, out failCount2, out passCount2, out skipCount2);
+                                    lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Format("  {0}/{1} modules remaining;  tests: failed={2} skipped={3} passed={4}", taskQueue.Count, total, failCount2, skipCount2, passCount2), null));
+
+                                    while (lines.Count < maxStatusLines)
+                                    {
+                                        lines.Add(new KeyValuePair<string, ConsoleColor?>(String.Empty, null));
+                                    }
+                                    maxStatusLines = lines.Count;
+
+                                    foreach (KeyValuePair<string, ConsoleColor?> line in lines)
+                                    {
+                                        ConsoleColor? oldConsoleColor = null;
+                                        if (line.Value.HasValue)
+                                        {
+                                            oldConsoleColor = Console.ForegroundColor;
+                                            Console.ForegroundColor = line.Value.Value;
+                                        }
+                                        consoleExclusiveOut.WriteLine(line.Key + new String(' ', Math.Max(0, Console.BufferWidth - 1 - line.Key.Length)));
+                                        if (oldConsoleColor.HasValue)
+                                        {
+                                            Console.ForegroundColor = oldConsoleColor.Value;
+                                        }
+                                    }
+                                    Console.CursorTop -= lines.Count;
+                                    progressVisible = true;
+                                }
+
+                                lastProgressUpdate = DateTime.UtcNow;
+
+                                string title = String.Format("{0} - {1}/{2}", Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName), total - taskQueue.Count, total);
+                                if (!String.Equals(title, Console.Title))
+                                {
+                                    Console.Title = title;
+                                }
+                            }
+                        };
+
+                        for (int i = 0; i < concurrency; i++)
+                        {
+                            if (i > 0)
+                            {
+                                Thread.Sleep(50);
+                            }
+                            TaskQueue.Status status = statuses[i] = new TaskQueue.Status();
+                            concurrent.Do(
+                                null,
+                                delegate(ConcurrentTasks.ITaskContext context)
+                                {
+                                    taskQueue.ThreadMain(messagesLog, status);
+                                });
+                        }
+                        concurrent.Drain(showProgress, WaitInterval);
+                        messagesLog.Flush(prepareConsole);
+                    }
+                }
+
+                if (taskQueue.Fatal)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine();
+                    ConsoleColor oldColor = Console.ForegroundColor;
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("FATAL EXCEPTION OCCURRED RUNNING TESTS");
+                    Console.ForegroundColor = oldColor;
+                    Console.WriteLine();
+                    Console.WriteLine();
                 }
             }
 
             Console.Title = String.Format("{0} - {1}", Path.GetFileName(Process.GetCurrentProcess().MainModule.FileName), "Finished");
             Console.WriteLine();
             Console.WriteLine();
-            Console.WriteLine("finished");
+            Console.WriteLine("finished - total run time {0:g}", DateTime.UtcNow - programStartTime);
             Console.WriteLine();
             Console.WriteLine();
             int failCount, passCount, skipCount;
-            resultMatrix.WriteResults(out failCount, out passCount, out skipCount);
+            resultMatrix.EnumerateResults(true/*write*/, out failCount, out passCount, out skipCount);
             Console.WriteLine();
-            Console.WriteLine("failed={0} skipped={2} passed={1}", failCount, passCount, skipCount);
+            Console.WriteLine("failed={0} skipped={1} passed={2}", failCount, skipCount, passCount);
             Console.WriteLine();
+            Console.Out.Flush();
+
+            if (taskHistoryPath != null)
+            {
+                taskHistory.Save(taskHistoryPath);
+            }
+
             if (Debugger.IsAttached)
             {
                 Console.ReadLine();
