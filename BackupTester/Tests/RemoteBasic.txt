@@ -339,7 +339,7 @@ date + 1
 create orig1file
 create origtwofile
 create orig3item
-create orixg4item
+create orixg4file
 date + 1
 qlist .
 call backup remote test upload orig*file
@@ -348,7 +348,7 @@ list-verify .
 .          2014-01-03          2014-01-03 -A---- orig1file [2]
 .          2014-01-03          2014-01-03 -A---- orig3item [3]
 .          2014-01-03          2014-01-03 -A---- origtwofile [4]
-.          2014-01-03          2014-01-03 -A---- orixg4item [5]
+.          2014-01-03          2014-01-03 -A---- orixg4file [5]
 .                                         -----D test\
 .          2014-01-04          2014-01-04 -A---- test\orig1file [2]
 .          2014-01-04          2014-01-04 -A---- test\origtwofile [4]

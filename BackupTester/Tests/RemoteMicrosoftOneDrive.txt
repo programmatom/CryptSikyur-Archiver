@@ -7,8 +7,12 @@ date-format yyyy-MM-dd
 
 fail-pause on
 
+declare-mutex microsoft-test-account
+
 
 module prerequisites
+
+use-mutex microsoft-test-account
 
 test ensure remote configured
 date 2014-01-01
@@ -31,6 +35,8 @@ endoutput
 
 module command - quota
 
+use-mutex microsoft-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
@@ -45,23 +51,44 @@ endoutput
 
 
 module delete previous data
+# all modules should start with this
+
+use-mutex microsoft-test-account
 
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
 encrypt-memory refreshtoken
 
-test delete
+test clean remote
 call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
 exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+endoutput
 
 
 module upload and download tests - single file
 
+use-mutex microsoft-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
 encrypt-memory refreshtoken
+
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+endoutput
 
 test upload one file
 create localfile -size 1023456
@@ -134,6 +161,8 @@ endoutput
 
 
 module dynpack integration test
+
+use-mutex microsoft-test-account
 
 test setup
 date 2015-01-01
@@ -265,6 +294,8 @@ exitcode-verify 0
 
 
 module copy
+
+use-mutex microsoft-test-account
 
 test setup
 date 2015-01-01

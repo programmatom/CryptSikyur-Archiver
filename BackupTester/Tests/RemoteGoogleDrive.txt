@@ -7,8 +7,12 @@ date-format yyyy-MM-dd
 
 fail-pause on
 
+declare-mutex google-test-account
+
 
 module prerequisites
+
+use-mutex google-test-account
 
 test ensure remote configured
 date 2014-01-01
@@ -31,6 +35,8 @@ endoutput
 
 module command - quota
 
+use-mutex google-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
@@ -45,23 +51,42 @@ endoutput
 
 
 module delete previous data
+# all modules should start with this
+
+use-mutex google-test-account
 
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
 
-test delete
+test clean remote
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
 exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+endoutput
 
 
 module upload and download tests - single file
 
+use-mutex google-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
+
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+endoutput
 
 test upload one file
 create localfile -size 1023456
@@ -132,6 +157,8 @@ endoutput
 
 
 module dynpack integration test
+
+use-mutex google-test-account
 
 test setup
 date 2015-01-01
@@ -261,6 +288,8 @@ exitcode-verify 0
 
 module copy
 
+use-mutex google-test-account
+
 test setup
 date 2015-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
@@ -341,6 +370,8 @@ exitcode-verify 0
 
 
 module throttle (code coverage)
+
+use-mutex google-test-account
 
 test setup
 date 2015-01-01

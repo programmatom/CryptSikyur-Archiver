@@ -7,8 +7,13 @@ date-format yyyy-MM-dd
 
 fail-pause on
 
+declare-mutex google-test-account
+declare-mutex microsoft-test-account
+
 
 module prerequisites
+
+use-mutex google-test-account microsoft-test-account
 
 # omitted here;
 # see RemoteGoogleDrive.txt and RemoteMicrosoftOneDrive.txt for prerequisite tests
@@ -16,10 +21,22 @@ module prerequisites
 
 module resumable download test - microsoft
 
+use-mutex microsoft-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
 encrypt-memory refreshtoken
+
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://onedrive.live.com/*
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+endoutput
 
 test upload file
 create localfile -size 500000
@@ -79,10 +96,21 @@ exitcode-verify 0
 
 module resumable download test - google
 
+use-mutex google-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
+
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+exitcode-verify 0
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+exitcode-verify 0
+lastoutput-verify
+.list https://drive.google.com/*
+endoutput
 
 test upload file
 create localfile -size 500000
@@ -142,15 +170,16 @@ exitcode-verify 0
 
 module resumable upload - 1: initial POST request - google
 
+use-mutex google-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
 
-test initially ensure no remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
 exitcode-verify 0
-# verify file isn't uploaded
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
@@ -225,15 +254,16 @@ exitcode-verify 0
 
 module resumable upload - 2a: initial PUT request - google
 
+use-mutex google-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
 
-test initially ensure no remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
 exitcode-verify 0
-# verify file isn't uploaded
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
@@ -331,15 +361,16 @@ exitcode-verify 0
 
 module resumable upload - 2b-1: resume PUT request - google
 
+use-mutex google-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
 
-test initially ensure no remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
 exitcode-verify 0
-# verify file isn't uploaded
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
@@ -422,15 +453,16 @@ exitcode-verify 0
 
 module resumable upload - 2b-3: resume PUT request - google
 
+use-mutex google-test-account
+
 test setup
 date 2014-01-01
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
 
-test initially ensure no remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+test clean remote
+call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
 exitcode-verify 0
-# verify file isn't uploaded
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
