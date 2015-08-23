@@ -261,7 +261,7 @@ namespace Http
 
             private void EnsureCurrent() // caller must lock(this)
             {
-                long currentEpoch = DateTime.Now.Ticks / (SecondsPerWindow * TicksPerSecond);
+                long currentEpoch = DateTime.UtcNow.Ticks / (SecondsPerWindow * TicksPerSecond);
                 if (currentEpoch - lastEpoch > MaxWindows)
                 {
                     lastEpoch = currentEpoch;

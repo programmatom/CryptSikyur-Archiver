@@ -26,6 +26,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 
 namespace Concurrent
@@ -117,12 +118,12 @@ namespace Concurrent
             }
         }
 
-        public class ThreadMessageLog : IDisposable
+        public class ThreadMessageLog : TextWriter /* IDisposable */
         {
-            private long sequenceNumber;
+            private readonly long sequenceNumber;
             private List<Line> lines = new List<Line>();
             private ConcurrentMessageLog owner;
-            private int threadId = Thread.CurrentThread.ManagedThreadId;
+            private readonly int threadId = Thread.CurrentThread.ManagedThreadId;
 
             public ThreadMessageLog(ConcurrentMessageLog owner, long sequenceNumber)
             {
@@ -130,19 +131,49 @@ namespace Concurrent
                 this.owner = owner;
             }
 
-            public void WriteLine()
+            public override void Write(char value)
+            {
+                Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
+                lines.Add(new Line(new String(value, 1), false));
+            }
+
+            public override void Write(string line)
+            {
+                Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
+                lines.Add(new Line(line, false));
+            }
+
+            public override void WriteLine()
             {
                 Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
                 lines.Add(new Line(String.Empty));
             }
 
-            public void WriteLine(string line)
+            public override void WriteLine(string line)
             {
                 Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
                 lines.Add(new Line(line));
             }
 
-            public void WriteLine(string format, params object[] arg)
+            public override void WriteLine(string format, object arg0)
+            {
+                Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
+                lines.Add(new Line(String.Format(format, arg0)));
+            }
+
+            public override void WriteLine(string format, object arg0, object arg1)
+            {
+                Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
+                lines.Add(new Line(String.Format(format, arg0, arg1)));
+            }
+
+            public override void WriteLine(string format, object arg0, object arg1, object arg2)
+            {
+                Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
+                lines.Add(new Line(String.Format(format, arg0, arg1, arg2)));
+            }
+
+            public override void WriteLine(string format, params object[] arg)
             {
                 Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
                 lines.Add(new Line(String.Format(format, arg)));
@@ -160,16 +191,23 @@ namespace Concurrent
                 lines.Add(new Line(String.Format(format, arg), color));
             }
 
-            public void Write(string line)
+            protected override void Dispose(bool disposing)
             {
-                Debug.Assert(threadId == Thread.CurrentThread.ManagedThreadId);
-                lines.Add(new Line(line, false));
+                if (owner != null)
+                {
+                    owner.Incorporate(lines, sequenceNumber);
+                    lines = null;
+                    owner = null;
+                }
+                base.Dispose(disposing);
             }
 
-            public void Dispose()
+            public override Encoding Encoding
             {
-                owner.Incorporate(lines, sequenceNumber);
-                lines = null;
+                get
+                {
+                    return Encoding.Unicode;
+                }
             }
         }
 
@@ -537,7 +575,7 @@ namespace Concurrent
                 }
 
                 // must drain queue first, otherwise waitAllIdle is invalid because it may jitter
-                DateTime start = DateTime.Now;
+                DateTime start = DateTime.UtcNow;
                 while (!waitQueueEmpty.WaitOne(waitInterval))
                 {
                     if (waitIntervalMethod != null)
@@ -545,11 +583,11 @@ namespace Concurrent
                         waitIntervalMethod();
                     }
 
-                    if ((trace != null) && ((DateTime.Now - start).TotalSeconds >= LogDelayInterval))
+                    if ((trace != null) && ((DateTime.UtcNow - start).TotalSeconds >= LogDelayInterval))
                     {
                         trace.WriteLine("ConcurrentTasks.Drain() {0} seconds for waitQueueEmpty - still waiting", LogDelayInterval);
                         trace.Flush();
-                        start = DateTime.Now;
+                        start = DateTime.UtcNow;
                     }
                 }
 
@@ -560,11 +598,11 @@ namespace Concurrent
                         waitIntervalMethod();
                     }
 
-                    if ((trace != null) && ((DateTime.Now - start).TotalSeconds >= LogDelayInterval))
+                    if ((trace != null) && ((DateTime.UtcNow - start).TotalSeconds >= LogDelayInterval))
                     {
                         trace.WriteLine("ConcurrentTasks.Drain() {0} seconds for waitAllIdle - still waiting", LogDelayInterval);
                         trace.Flush();
-                        start = DateTime.Now;
+                        start = DateTime.UtcNow;
                     }
                 }
 
@@ -886,7 +924,7 @@ namespace Concurrent
                 }
 
                 mainThreadBlocked.EnterWaitRegion();
-                DateTime start = DateTime.Now;
+                DateTime start = DateTime.UtcNow;
                 while (!waitQueueNotFull.WaitOne(waitInterval))
                 {
                     if (waitIntervalMethod != null)
@@ -894,11 +932,11 @@ namespace Concurrent
                         waitIntervalMethod();
                     }
 
-                    if ((trace != null) && ((DateTime.Now - start).TotalSeconds >= LogDelayInterval))
+                    if ((trace != null) && ((DateTime.UtcNow - start).TotalSeconds >= LogDelayInterval))
                     {
                         trace.WriteLine("ConcurrentTasks.Do() {0} seconds for waitQueueNotFull - still waiting", LogDelayInterval);
                         trace.Flush();
-                        start = DateTime.Now;
+                        start = DateTime.UtcNow;
                     }
                 }
                 mainThreadBlocked.ExitWaitRegion();
@@ -1025,14 +1063,14 @@ namespace Concurrent
             public ConcurrencyHistogram(int bins)
             {
                 ticksHistogram = new long[bins];
-                lastTick = DateTime.Now.Ticks;
+                lastTick = DateTime.UtcNow.Ticks;
             }
 
             public void Update(int currentBin)
             {
                 lock (this)
                 {
-                    long currentTick = DateTime.Now.Ticks;
+                    long currentTick = DateTime.UtcNow.Ticks;
                     Interlocked.Add(ref ticksHistogram[lastBin], currentTick - lastTick);
 
                     lastTick = currentTick;
@@ -1073,22 +1111,22 @@ namespace Concurrent
             public ConcurrencyBlocked(string who)
             {
                 this.who = who;
-                this.startTick = DateTime.Now.Ticks;
+                this.startTick = DateTime.UtcNow.Ticks;
             }
 
             public void Stop()
             {
-                endTick = DateTime.Now.Ticks;
+                endTick = DateTime.UtcNow.Ticks;
             }
 
             public void EnterWaitRegion()
             {
-                waitStartTick = DateTime.Now.Ticks;
+                waitStartTick = DateTime.UtcNow.Ticks;
             }
 
             public void ExitWaitRegion()
             {
-                Interlocked.Add(ref blockedTicks, DateTime.Now.Ticks - waitStartTick);
+                Interlocked.Add(ref blockedTicks, DateTime.UtcNow.Ticks - waitStartTick);
             }
 
             public void Report(WriteLineMethod writeLine)

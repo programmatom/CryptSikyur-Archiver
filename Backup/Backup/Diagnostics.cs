@@ -758,6 +758,7 @@ namespace Diagnostics
                                 {
                                     File.WriteAllText(predicates[i].Value.ProofPath, ComputePath(predicates[i].Value));
                                 }
+                                OpenCoverBufferFlushBeforeKillHACK();
                                 Environment.ExitCode = 1; // (int)Core.ExitCodes.ProgramFailure;
                                 Process.GetCurrentProcess().Kill(); // no finalizers!
                                 break;
@@ -861,6 +862,29 @@ namespace Diagnostics
             return path;
         }
 
+        private static void OpenCoverBufferFlushBeforeKillHACK()
+        {
+            if (String.Equals(Environment.GetEnvironmentVariable("COR_ENABLE_PROFILING"), "1"))
+            {
+                // OpenCover buffers events and flushes them as blocks to it's external listener process.
+                // Since Kill() prevents the buffers from flushing, iterate a useless loop a bunch of
+                // times to fill the buffer and trigger flush.
+
+                // OpenCover version 4.6 uses buffer size of 16000 (VP_BUFFER_SIZE in "main\OpenCover.Profiler\Messages.h")
+                // So far sending appears to be synchronous (required for this HACK to work).
+                const int VP_BUFFER_SIZE = 16000;
+
+                // This loop will generate at least VP_BUFFER_SIZE branch points.
+                Random rnd = new Random();
+                int v = 0;
+                for (int i = 0; i < VP_BUFFER_SIZE + 1; i++)
+                {
+                    v = unchecked(v + rnd.Next());
+                }
+                Environment.SetEnvironmentVariable("NOTHING", v.ToString()); // defeat optimization
+            }
+        }
+
 
         // Fast predicate evaluator for performance-sensitive code
         private class FaultInstancePredicate : IFaultPredicate
@@ -944,6 +968,7 @@ namespace Diagnostics
                                     {
                                         File.WriteAllText(predicates[i].Value.ProofPath, ComputePath(predicates[i].Value));
                                     }
+                                    OpenCoverBufferFlushBeforeKillHACK();
                                     Environment.ExitCode = 1; // (int)Core.ExitCodes.ProgramFailure;
                                     Process.GetCurrentProcess().Kill(); // no finalizers!
                                     break;

@@ -113,7 +113,7 @@ namespace Backup
 
             lock (this)
             {
-                DateTime currentBase = notBefore >= DateTime.Now ? notBefore : DateTime.Now;
+                DateTime currentBase = notBefore >= DateTime.UtcNow ? notBefore : DateTime.UtcNow;
                 notBefore = currentBase.AddMilliseconds(delay);
             }
 
@@ -127,7 +127,7 @@ namespace Backup
             {
                 lock (this)
                 {
-                    if (notBefore < DateTime.Now)
+                    if (notBefore < DateTime.UtcNow)
                     {
                         break;
                     }
@@ -221,7 +221,7 @@ namespace Backup
                     trace.WriteLine("+RemoteAccessControl.GetAccessToken");
                 }
 
-                if (accessTokenExpiration < DateTime.Now)
+                if (accessTokenExpiration < DateTime.UtcNow)
                 {
                     accessToken = null;
                     trace.WriteLine(" expiration time reached - reauthorizing");
@@ -353,7 +353,7 @@ namespace Backup
                 expires_in = Int64.Parse(Encoding.UTF8.GetString(expiresIn.ExposeArray()));
                 // expire in 1/2 the given window, to allow plenty of time for large file
                 // uploads to complete without receiving an unauthorized error.
-                accessTokenExpiration = DateTime.Now.AddSeconds(expires_in / 2);
+                accessTokenExpiration = DateTime.UtcNow.AddSeconds(expires_in / 2);
             }
             if (trace != null)
             {

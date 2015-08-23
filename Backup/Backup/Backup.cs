@@ -193,13 +193,13 @@ namespace Backup
 
         internal static char WaitReadKey(bool intercept, int timeout)
         {
-            DateTime started = DateTime.Now;
+            DateTime started = DateTime.UtcNow;
             if (Interactive())
             {
                 while (!Console.KeyAvailable)
                 {
                     Thread.Sleep(50);
-                    if ((timeout >= 0) && ((DateTime.Now - started).TotalMilliseconds >= timeout))
+                    if ((timeout >= 0) && ((DateTime.UtcNow - started).TotalMilliseconds >= timeout))
                     {
                         return (char)0;
                     }
@@ -212,7 +212,7 @@ namespace Backup
                 while (Console.In.Peek() < 0)
                 {
                     Thread.Sleep(50);
-                    if ((timeout >= 0) && ((DateTime.Now - started).TotalMilliseconds >= timeout))
+                    if ((timeout >= 0) && ((DateTime.UtcNow - started).TotalMilliseconds >= timeout))
                     {
                         return (char)0;
                     }
@@ -1235,12 +1235,13 @@ namespace Backup
                 this.compressionOption = original.compressionOption;
                 this.doNotPreValidateMAC = original.doNotPreValidateMAC;
                 this.dirsOnly = original.dirsOnly;
-                this.continueOnUnauthorized = original.continueOnUnauthorized;
-                this.continueOnInUse = original.continueOnInUse;
-                this.continueOnMissing = original.continueOnMissing;
                 this.zeroLengthSpecial = original.zeroLengthSpecial;
                 this.beepEnabled = original.beepEnabled;
                 this.traceEnabled = original.traceEnabled;
+
+                this.continueOnUnauthorized = original.continueOnUnauthorized;
+                this.continueOnInUse = original.continueOnInUse;
+                this.continueOnMissing = original.continueOnMissing;
 
                 this.cryptoOption = original.cryptoOption;
                 this.encrypt = original.encrypt;
@@ -1257,13 +1258,6 @@ namespace Backup
 
                 this.faultInjectionTemplateRoot = original.faultInjectionTemplateRoot;
                 this.faultInjectionRoot = original.faultInjectionRoot;
-            }
-
-            public void ClearContinueOnExceptions()
-            {
-                continueOnUnauthorized = false;
-                continueOnInUse = false;
-                continueOnMissing = false;
             }
         }
 
@@ -2742,7 +2736,7 @@ namespace Backup
                 volumes[volumes.Length - 1] = new KeyValuePair<VolumeFlushHelper, bool>(new VolumeFlushHelper(volumePath), true/*dirty*/);
                 if (dirtyCount++ == 0)
                 {
-                    lastDirtyStart = DateTime.Now;
+                    lastDirtyStart = DateTime.UtcNow;
                 }
                 return volumes.Length - 1;
             }
@@ -2758,7 +2752,7 @@ namespace Backup
                 volumes[index] = new KeyValuePair<VolumeFlushHelper, bool>(volumes[index].Key, true/*dirty*/);
                 if (dirtyCount++ == 0)
                 {
-                    lastDirtyStart = DateTime.Now;
+                    lastDirtyStart = DateTime.UtcNow;
                 }
             }
 
@@ -2779,7 +2773,7 @@ namespace Backup
             public bool FlushNeeded()
             {
                 return (dirtyCount >= DirtyCountFlushThreshhold)
-                    || ((dirtyCount > 0) && (lastDirtyStart.AddSeconds(DirtyFlushIntervalSeconds) < DateTime.Now));
+                    || ((dirtyCount > 0) && (lastDirtyStart.AddSeconds(DirtyFlushIntervalSeconds) < DateTime.UtcNow));
             }
 
             public void Flush()
@@ -10529,7 +10523,9 @@ namespace Backup
                         bool originalContinueOnMissing = context.continueOnMissing;
                         if (!(threadCount == 0))
                         {
-                            context.ClearContinueOnExceptions();
+                            context.continueOnUnauthorized = false;
+                            context.continueOnInUse = false;
+                            context.continueOnMissing = false;
                         }
 
                         // Archive modified segments (concurrently)
@@ -10989,7 +10985,7 @@ namespace Backup
                     }
                 }
 
-                if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.Now)
+                if (lastProgressUpdate.AddMilliseconds(WaitInterval - 100) <= DateTime.UtcNow)
                 {
                     lock (progressTrackers)
                     {
@@ -11088,7 +11084,7 @@ namespace Backup
                         progressVisible = true;
                     }
 
-                    lastProgressUpdate = DateTime.Now;
+                    lastProgressUpdate = DateTime.UtcNow;
                 }
             }
         }
