@@ -7,12 +7,12 @@ date-format yyyy-MM-dd
 
 fail-pause on
 
-declare-mutex google-test-account
+declare-exclusive-resource google-test-account
 
 
 module prerequisites
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test ensure remote configured
 date 2014-01-01
@@ -21,7 +21,21 @@ date 2014-01-01
 #   RemoteDriveAuth.exe -auth -refreshtoken yes "" https://drive.google.com
 # then, take the returned string up to the first comma (,) and pass to:
 #   FileUtilityTester.exe -decryptmemory <hex-string>
-# save the resulting output to "resources\GoogleDriveRefreshToken.txt" with no newline at end
+# save the resulting output to "resources\GoogleDriveRefreshToken.txt" with no newline at end.
+# !!!IMPORTANT SECURITY WARNING!!! The value thus saved is a cleartext time-unlimited credential for
+# accessing the web account. It is therefore recommended to use a dedicated test account, in case
+# the credential is leaked, stolen, or otherwise compromised.
+# REMEDIATION: If risk of account access divulgement is unacceptable, the tests can be modified to
+# use user-persistent encryption. After obtaining the token via FileUtilityTester.exe -decryptmemory,
+# take the following additional step to encrypt it under the user's Windows credential:
+#   FileUtilityTester.exe -encryptuserpersistent <decrypted-refresh-token>
+# Save this value in the resource file instead of the unencrypted refresh token.
+# Then, in all test script locations where "encrypt-memory refreshtoken" occurs, insert immediately
+# before it the following command:
+#   decrypt-user-persistent refreshtoken
+# This method has the limitation that the tests will only succeed under the particular Windows user
+# account that has created the user-persistent encrypted token. In a shared test environment, other
+# methods would need to be found for securing the token.
 load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
 encrypt-memory refreshtoken
 # try to get access token to verify client-id and client-secret are configured for
@@ -35,7 +49,7 @@ endoutput
 
 module command - quota
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
@@ -53,7 +67,7 @@ endoutput
 module delete previous data
 # all modules should start with this
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
@@ -72,7 +86,7 @@ endoutput
 
 module upload and download tests - single file
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
@@ -158,7 +172,7 @@ endoutput
 
 module dynpack integration test
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2015-01-01
@@ -288,7 +302,7 @@ exitcode-verify 0
 
 module copy
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2015-01-01
@@ -371,7 +385,7 @@ exitcode-verify 0
 
 module throttle (code coverage)
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2015-01-01

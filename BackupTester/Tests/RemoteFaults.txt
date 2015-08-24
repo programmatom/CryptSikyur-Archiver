@@ -7,13 +7,13 @@ date-format yyyy-MM-dd
 
 fail-pause on
 
-declare-mutex google-test-account
-declare-mutex microsoft-test-account
+declare-exclusive-resource google-test-account
+declare-exclusive-resource microsoft-test-account
 
 
 module prerequisites
 
-use-mutex google-test-account microsoft-test-account
+use-exclusive-resource google-test-account microsoft-test-account
 
 # omitted here;
 # see RemoteGoogleDrive.txt and RemoteMicrosoftOneDrive.txt for prerequisite tests
@@ -21,7 +21,7 @@ use-mutex google-test-account microsoft-test-account
 
 module resumable download test - microsoft
 
-use-mutex microsoft-test-account
+use-exclusive-resource microsoft-test-account
 
 test setup
 date 2014-01-01
@@ -96,7 +96,7 @@ exitcode-verify 0
 
 module resumable download test - google
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
@@ -170,7 +170,7 @@ exitcode-verify 0
 
 module resumable upload - 1: initial POST request - google
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
@@ -254,7 +254,7 @@ exitcode-verify 0
 
 module resumable upload - 2a: initial PUT request - google
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
@@ -361,7 +361,7 @@ exitcode-verify 0
 
 module resumable upload - 2b-1: resume PUT request - google
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
@@ -453,7 +453,7 @@ exitcode-verify 0
 
 module resumable upload - 2b-3: resume PUT request - google
 
-use-mutex google-test-account
+use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01

@@ -259,6 +259,55 @@ namespace Diagnostics
         }
     }
 
+    public class SequentialTimerTable
+    {
+        private Stopwatch stopwatch = new Stopwatch();
+        private List<KeyValuePair<string, double>> intervals = new List<KeyValuePair<string, double>>();
+
+        public SequentialTimerTable()
+        {
+        }
+
+        public void Phase(string name)
+        {
+            Stop();
+            intervals.Add(new KeyValuePair<string, double>(name, -1));
+            stopwatch.Reset();
+            stopwatch.Start();
+        }
+
+        public void Stop()
+        {
+            if ((intervals.Count > 0) && (intervals[intervals.Count - 1].Value < 0))
+            {
+                stopwatch.Stop();
+                intervals[intervals.Count - 1] = new KeyValuePair<string, double>(intervals[intervals.Count - 1].Key, stopwatch.Elapsed.TotalSeconds);
+            }
+        }
+
+        public void Report(TextWriter writer)
+        {
+            if (writer != null)
+            {
+                Stop();
+                int width = 0;
+                foreach (KeyValuePair<string, double> record in intervals)
+                {
+                    width = Math.Max(width, record.Key.Length);
+                }
+
+                string Template = String.Format("{{0,-{0}}} {{1,9:F3}}", width);
+                writer.WriteLine(Template, "section", "seconds");
+                writer.WriteLine(new String('-', String.Format(Template, null, 0).Length));
+                foreach (KeyValuePair<string, double> record in intervals)
+                {
+                    writer.WriteLine(Template, record.Key, record.Value);
+                }
+                writer.WriteLine();
+            }
+        }
+    }
+
 
     ////////////////////////////////////////////////////////////////////////////
     //

@@ -3919,7 +3919,7 @@ namespace Backup
                     {
                         try
                         {
-                            using (FileStream fileStream = File.Open(Path.Combine(archiveFolder, (context.compressionOption == CompressionOption.Compress) ? "checkc.bin" : "check.bin"), FileMode.Open))
+                            using (Stream fileStream = new FileStream(Path.Combine(archiveFolder, (context.compressionOption == CompressionOption.Compress) ? "checkc.bin" : "check.bin"), FileMode.Open))
                             {
                                 EncryptedFileContainerHeader fch = new EncryptedFileContainerHeader(fileStream, true/*peek*/, cryptoContext);
                                 CryptoKeygroup keys;
@@ -3996,7 +3996,7 @@ namespace Backup
                     context.encrypt.algorithm.DeriveNewSessionKeys(entry.MasterKey, out fch.fileSalt, out keys);
 
                     string checkFilePath = Path.Combine(archiveFolder, (context.compressionOption == CompressionOption.Compress) ? "checkc.bin" : "check.bin");
-                    using (FileStream fileStream = File.Open(checkFilePath, FileMode.Create))
+                    using (Stream fileStream = new FileStream(checkFilePath, FileMode.Create))
                     {
                         StreamStack.DoWithStreamStack(
                             fileStream,
@@ -4033,7 +4033,7 @@ namespace Backup
                     if (context.compressionOption == CompressionOption.Compress)
                     {
                         string checkFilePath = Path.Combine(archiveFolder, "nocheckc.bin");
-                        using (FileStream file = File.Open(checkFilePath, FileMode.Create))
+                        using (Stream file = new FileStream(checkFilePath, FileMode.Create))
                         {
                         }
                         File.SetCreationTime(checkFilePath, now);
@@ -5552,7 +5552,7 @@ namespace Backup
 
             byte[] hash;
 
-            using (Stream stream = File.Open(sourceFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (Stream stream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 long length = stream.Length;
 
@@ -5566,7 +5566,7 @@ namespace Backup
                         Debug.Assert(position % size == 0);
                         string destinationFile = String.Concat(destinationTemplate, ".", (position / size).ToString("D" + digits.ToString()));
                         Console.WriteLine("Generating {0}", destinationFile);
-                        using (Stream destinationStream = File.Open(destinationFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                        using (Stream destinationStream = new FileStream(destinationFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                         {
                             byte[] buffer = new byte[Constants.BufferSize];
                             long toReadOne = Math.Min(size, length - position);
@@ -5594,7 +5594,7 @@ namespace Backup
 
             string destinationFileHash = String.Concat(destinationTemplate, ".sha512");
             Console.WriteLine("Generating {0}", destinationFileHash);
-            using (Stream destinationStreamHash = File.Open(destinationFileHash, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (Stream destinationStreamHash = new FileStream(destinationFileHash, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 using (TextWriter writer = new StreamWriter(destinationStreamHash))
                 {
@@ -5620,7 +5620,7 @@ namespace Backup
             byte[] hash;
             string sha512OriginalHashText = null;
 
-            using (Stream stream = File.Open(destinationFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (Stream stream = new FileStream(destinationFile, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 using (CheckedWriteStream checkedStream = new CheckedWriteStream(stream, new CryptoPrimitiveHashCheckValueGeneratorSHA2_512()))
                 {
@@ -5634,7 +5634,7 @@ namespace Backup
 
                         if (extension.StartsWith(".") && Int32.TryParse(extension.Substring(1), out sequence))
                         {
-                            using (Stream segmentStream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                            using (Stream segmentStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
                             {
                                 byte[] buffer = new byte[Constants.BufferSize];
                                 while (true)
@@ -6721,6 +6721,11 @@ namespace Backup
                                 {
                                     int needed = (int)Math.Min(buffer.Length, bytesRemaining);
                                     bytesRead = inputStream.Read(buffer, 0, needed);
+                                    if (bytesRead == 0)
+                                    {
+                                        // Can happen if file size changes while being processed.
+                                        throw new IOException("Stream.Read() unexpectedly returned nothing");
+                                    }
                                 }
                                 catch (Exception exception)
                                 {
@@ -8598,8 +8603,11 @@ namespace Backup
 
             TextWriter traceDynpack = context.traceEnabled ? LogWriter.CreateLogFile(DynPackTraceFilePrefix) : null;
 
+            SequentialTimerTable sequenceTimes = new SequentialTimerTable();
+
 
             // build current file list
+            sequenceTimes.Phase("itemize current files");
             List<FileRecord> currentFiles = new List<FileRecord>();
             ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."), traceDynpack);
             EraseStatusLine();
@@ -8614,6 +8622,7 @@ namespace Backup
                 traceDynpack.WriteLine();
             }
 
+            sequenceTimes.Phase("obtain archive file manager");
             string targetArchiveFileNameTemplate;
             bool remote;
             using (IArchiveFileManager fileManager = GetArchiveFileManager(targetArchivePathTemplate, out targetArchiveFileNameTemplate, out remote, context))
@@ -8663,10 +8672,13 @@ namespace Backup
 
                         CheckedReadStream localSignature = null;
 
+                        sequenceTimes.Phase("download existing manifest");
                         using (ILocalFileCopy fileRef = fileManager.Read(manifestFileNameActual, null/*progressTracker*/, fileManager.GetMasterTrace()))
                         {
                             using (Stream fileStream = fileRef.Read())
                             {
+                                sequenceTimes.Phase("parse existing manifest");
+
                                 CryptoKeygroup keysManifest = null;
                                 EncryptedFileContainerHeader fchManifest = null;
                                 if (context.cryptoOption == EncryptionOption.Encrypt)
@@ -8937,6 +8949,7 @@ namespace Backup
                     int iCurrent;
                     int iPrevious;
 
+                    sequenceTimes.Phase("sort lists");
                     currentFiles.Sort(DynPackPathCompareWithRange);
                     previousFiles.Sort(DynPackPathCompareWithRange); // ensure sorted - do not trust old manifest
                     // detect flaws in comparison algorithm
@@ -8964,6 +8977,7 @@ namespace Backup
                     // Find all ranged files in currentFiles or previousFiles and if the
                     // underlying file has not changed, ensure that the structure from previousFiles
                     // is retained.
+                    sequenceTimes.Phase("suppress gratuitous range-split rearchiving");
                     iCurrent = 0;
                     iPrevious = 0;
                     while ((iCurrent < currentFiles.Count) && (iPrevious < previousFiles.Count))
@@ -9063,6 +9077,7 @@ namespace Backup
                     }
 
                     // main merge occurs here
+                    sequenceTimes.Phase("main merge (incl. digest computation)");
                     using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, traceDynpack))
                     {
                         iCurrent = 0;
@@ -9244,6 +9259,7 @@ namespace Backup
 
                 // Fixup pass for files inserted into the middle of segments (breaking segment
                 // ordering invariants) - see also comment in "Added(1)" clause above.
+                sequenceTimes.Phase("segment boundary fixup");
                 {
                     Dictionary<string, bool> usedSegmentNames = new Dictionary<string, bool>();
                     string currentSegmentName = String.Empty;
@@ -9299,6 +9315,7 @@ namespace Backup
                 }
 
                 // Ensure segment contiguity and uniqueness
+                sequenceTimes.Phase("ensure segment contiguity and uniqueness");
                 {
                     Dictionary<SegmentRecord, bool> usedSegments = new Dictionary<SegmentRecord, bool>();
                     SegmentRecord currentSegment = null;
@@ -9395,6 +9412,7 @@ namespace Backup
                 }
 
                 // First scan (before splitting or merging) - ensure missing segments are dirty
+                sequenceTimes.Phase("mark missing segments dirty");
                 foreach (SegmentRecord segment in segments)
                 {
                     string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
@@ -9405,6 +9423,7 @@ namespace Backup
                 }
 
                 // Split segments too large
+                sequenceTimes.Phase("split too-large segments");
                 for (int i = 0; i < segments.Count; i++)
                 {
                     SegmentRecord segment = segments[i];
@@ -9482,6 +9501,7 @@ namespace Backup
                 }
 
                 // Join (fold) small segments
+                sequenceTimes.Phase("fold small segments");
                 for (int i = 0; i < segments.Count - 1; i++)
                 {
                     if (!segments[i].Dirty.Value && !segments[i + 1].Dirty.Value)
@@ -9532,6 +9552,7 @@ namespace Backup
                 }
 
                 // Rename segments
+                sequenceTimes.Phase("rename segments");
                 {
                     if (segments.Count > 0)
                     {
@@ -9617,6 +9638,7 @@ namespace Backup
                 }
 
                 // program logic test - verify segment naming validity
+                sequenceTimes.Phase("validate correctness");
                 {
                     bool fault1 = false, fault2 = false;
                     Dictionary<string, bool> usedSegmentNames = new Dictionary<string, bool>();
@@ -9668,6 +9690,7 @@ namespace Backup
                 // TODO: rename segments (and rename files) if names have become too long for file system
 
                 // Second scan (after renaming) - ensure missing segments are dirty
+                sequenceTimes.Phase("mark missing segments dirty (2nd pass)");
                 foreach (SegmentRecord segment in segments)
                 {
                     string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
@@ -9678,6 +9701,7 @@ namespace Backup
                 }
 
                 // Compute segment size estimates
+                sequenceTimes.Phase("segment size estimation");
                 for (int i = 0; i < segments.Count; i++)
                 {
                     int start = segments[i].start.Value;
@@ -9690,6 +9714,7 @@ namespace Backup
                 }
 
                 // debug logging - callouts
+                sequenceTimes.Phase("debug logging - callouts");
                 if (traceDynpack != null)
                 {
                     traceDynpack.WriteLine();
@@ -9714,6 +9739,10 @@ namespace Backup
                     }
                     traceDynpack.WriteLine();
                 }
+
+                sequenceTimes.Stop();
+                sequenceTimes.Report(traceDynpack);
+                sequenceTimes = null;
 
 
                 // From this point forward, all concurrency-unsafe updates to data structures should

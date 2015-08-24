@@ -253,7 +253,9 @@ namespace FileUtilityTester
 
         private class TaskQueue
         {
-            private readonly Dictionary<string, bool> mutexes = new Dictionary<string, bool>();
+            private bool[] resourcesInUse = new bool[0];
+            private readonly Dictionary<string, int> resourcesNameToIndex = new Dictionary<string, int>();
+
             private readonly List<Task> queue = new List<Task>();
             private bool adding = true;
             private bool fatal;
@@ -265,7 +267,8 @@ namespace FileUtilityTester
                 public readonly string moduleName;
 
                 public readonly TaskMethod method;
-                public readonly string[] mutexes;
+                public readonly int[] resources;
+                public readonly string[] resourcesNames;
                 public readonly int sequence;
                 public long? messageSequenceNumber;
 
@@ -297,7 +300,7 @@ namespace FileUtilityTester
 
                 public delegate void TaskMethod(TaskContext taskContext);
 
-                public Task(string scriptName, int moduleNumber, string moduleName, TaskMethod method, string[] mutexes)
+                public Task(string scriptName, int moduleNumber, string moduleName, TaskMethod method, string[] resourcesNames)
                 {
                     this.scriptName = scriptName;
                     this.moduleNumber = moduleNumber;
@@ -306,15 +309,16 @@ namespace FileUtilityTester
                     this.method = method;
                     this.sequence = Interlocked.Increment(ref sequenceGenerator);
 
-                    this.mutexes = (string[])mutexes.Clone();
-                    Array.Sort(mutexes);
-                    for (int i = 1; i < mutexes.Length; i++)
+                    this.resourcesNames = (string[])resourcesNames.Clone();
+                    Array.Sort(resourcesNames);
+                    for (int i = 1; i < resourcesNames.Length; i++)
                     {
-                        if (String.Equals(mutexes[i - 1], mutexes[i]))
+                        if (String.Equals(resourcesNames[i - 1], resourcesNames[i]))
                         {
                             Throw(new ArgumentException());
                         }
                     }
+                    this.resources = new int[resourcesNames.Length];
                 }
 
                 public class CompareTasks : IComparer<Task>
@@ -330,11 +334,11 @@ namespace FileUtilityTester
 
                         if (c == 0)
                         {
-                            c = -l.mutexes.Length.CompareTo(r.mutexes.Length);
+                            c = -l.resources.Length.CompareTo(r.resources.Length);
                         }
-                        for (int i = 0; (c == 0) && (i < l.mutexes.Length); i++)
+                        for (int i = 0; (c == 0) && (i < l.resources.Length); i++)
                         {
-                            c = String.Compare(l.mutexes[i], r.mutexes[i]);
+                            c = l.resources[i].CompareTo(r.resources[i]);
                         }
 
                         if (c == 0)
@@ -371,9 +375,17 @@ namespace FileUtilityTester
 
                 foreach (Task task in tasks)
                 {
-                    foreach (string mutex in task.mutexes)
+                    for (int i = 0; i < task.resources.Length; i++)
                     {
-                        mutexes[mutex] = true;
+                        int resource;
+                        if (!resourcesNameToIndex.TryGetValue(task.resourcesNames[i], out resource))
+                        {
+                            resource = resourcesInUse.Length;
+                            Array.Resize(ref resourcesInUse, resourcesInUse.Length + 1);
+
+                            resourcesNameToIndex.Add(task.resourcesNames[i], resource);
+                        }
+                        task.resources[i] = resource;
                     }
                 }
             }
@@ -450,19 +462,19 @@ namespace FileUtilityTester
                         Task candidate = queue[i];
 
                         bool resourcesAvailable = true;
-                        for (int j = 0; j < candidate.mutexes.Length; j++)
+                        for (int j = 0; j < candidate.resources.Length; j++)
                         {
-                            resourcesAvailable = resourcesAvailable && mutexes[candidate.mutexes[j]];
+                            resourcesAvailable = resourcesAvailable && !resourcesInUse[candidate.resources[j]];
                         }
                         if (resourcesAvailable)
                         {
                             task = candidate;
                             queue.RemoveAt(i);
 
-                            for (int j = 0; j < candidate.mutexes.Length; j++)
+                            for (int j = 0; j < candidate.resources.Length; j++)
                             {
-                                Debug.Assert(mutexes[task.mutexes[j]]);
-                                mutexes[candidate.mutexes[j]] = false;
+                                Debug.Assert(!resourcesInUse[task.resources[j]]);
+                                resourcesInUse[candidate.resources[j]] = true;
                             }
 
                             break;
@@ -482,10 +494,10 @@ namespace FileUtilityTester
 
                 lock (this)
                 {
-                    for (int j = 0; j < task.mutexes.Length; j++)
+                    for (int j = 0; j < task.resources.Length; j++)
                     {
-                        Debug.Assert(!mutexes[task.mutexes[j]]);
-                        mutexes[task.mutexes[j]] = true;
+                        Debug.Assert(resourcesInUse[task.resources[j]]);
+                        resourcesInUse[task.resources[j]] = false;
                     }
                 }
             }
@@ -748,7 +760,7 @@ namespace FileUtilityTester
             public Dictionary<string, object> variables = new Dictionary<string, object>();
             public HashDispenser hashes = new HashDispenser();
             public Dictionary<string, Stream> openFiles = new Dictionary<string, Stream>();
-            public Dictionary<string, bool> mutexes = new Dictionary<string, bool>();
+            public Dictionary<string, bool> resources = new Dictionary<string, bool>();
 
             public readonly WorkspaceDispenser workspaceDispenser;
             public Workspace workspace;
@@ -795,7 +807,7 @@ namespace FileUtilityTester
                 //this.variables = new Dictionary<string, object>(); -- redundant
                 //this.hashes = new HashDispenser(); -- redundant
                 //this.openFiles = new Dictionary<string, Stream>(); -- redundant
-                this.mutexes = new Dictionary<string, bool>(original.mutexes);
+                this.resources = new Dictionary<string, bool>(original.resources);
             }
         }
 
@@ -972,7 +984,7 @@ namespace FileUtilityTester
                             }
                             break;
 
-                        case "declare-mutex":
+                        case "declare-exclusive-resource":
                             if ((mode & Mode.GlobalModes) == 0)
                             {
                                 Throw(new ApplicationException());
@@ -985,10 +997,10 @@ namespace FileUtilityTester
                             {
                                 Throw(new ApplicationException());
                             }
-                            context.mutexes.Add(args[0], false);
+                            context.resources.Add(args[0], false);
                             break;
 
-                        case "use-mutex":
+                        case "use-exclusive-resource":
                             if ((mode & Mode.SequentialModes) == 0)
                             {
                                 Throw(new ApplicationException());
@@ -998,17 +1010,17 @@ namespace FileUtilityTester
                                 Throw(new ApplicationException());
                             }
                             Dictionary<string, bool> used = new Dictionary<string, bool>();
-                            foreach (string mutex in args)
+                            foreach (string resource in args)
                             {
-                                if (!context.mutexes.ContainsKey(mutex))
+                                if (!context.resources.ContainsKey(resource))
                                 {
                                     Throw(new ApplicationException());
                                 }
-                                if (used.ContainsKey(mutex))
+                                if (used.ContainsKey(resource))
                                 {
                                     Throw(new ApplicationException());
                                 }
-                                used.Add(mutex, false);
+                                used.Add(resource, false);
                             }
                             break;
 
@@ -1092,8 +1104,12 @@ namespace FileUtilityTester
                             taskHistory.VisitHistory(scriptName, moduleNumber, moduleName);
                             if (startTime.HasValue)
                             {
-                                long duration = (DateTime.UtcNow - startTime.Value).Ticks;
-                                taskHistory.UpdateHistory(scriptName, moduleNumber, moduleName, context.opencover.Count == 0 ? (long?)duration : null, context.testFailed);
+                                long? duration = null;
+                                if (context.opencover.Count == 0)
+                                {
+                                    duration = (DateTime.UtcNow - startTime.Value).Ticks;
+                                }
+                                taskHistory.UpdateHistory(scriptName, moduleNumber, moduleName, duration, context.testFailed);
 
                                 startTime = null;
                             }
@@ -1120,7 +1136,7 @@ namespace FileUtilityTester
 
                             if (mode == Mode.PrepareTasks)
                             {
-                                List<string> mutexes = new List<string>();
+                                List<string> resources = new List<string>();
                                 LineReader peekReader = new LineReader(scriptReader);
                                 int limit = 0;
                                 while ((line = peekReader.ReadLine()) != null)
@@ -1160,11 +1176,11 @@ namespace FileUtilityTester
                                         case "module":
                                             limit--;
                                             goto EndPeek;
-                                        case "use-mutex":
+                                        case "use-exclusive-resource":
                                             string[] args2 = ParseArguments(line.Substring(space2));
                                             foreach (string arg in args2)
                                             {
-                                                mutexes.Add(arg);
+                                                resources.Add(arg);
                                             }
                                             break;
                                     }
@@ -1202,7 +1218,7 @@ namespace FileUtilityTester
                                                 taskContext.status.SetStatus(null, null, 0, DateTime.MinValue);
                                             }
                                         },
-                                        mutexes.ToArray()));
+                                        resources.ToArray()));
                             }
 
                             if (mode != Mode.PrepareTasks)
@@ -1362,7 +1378,17 @@ namespace FileUtilityTester
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
                                 }
                                 consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
-                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, null, context.commandTimeoutSeconds, context.workspace, out lastExitCode, out lastOutput))
+                                if (!Exec(
+                                    context.commands[exe].Key,
+                                    context.opencover.ContainsKey(exe),
+                                    commandArgs,
+                                    null,
+                                    context.commandTimeoutSeconds,
+                                    context.workspace,
+                                    scriptName,
+                                    lineNumber,
+                                    out lastExitCode,
+                                    out lastOutput))
                                 {
                                     currentFailed = true;
                                     context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
@@ -1412,7 +1438,17 @@ namespace FileUtilityTester
                                 }
 
                                 consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
-                                if (!Exec(context.commands[exe].Key, context.opencover.ContainsKey(exe), commandArgs, input, context.commandTimeoutSeconds, context.workspace, out lastExitCode, out lastOutput))
+                                if (!Exec(
+                                    context.commands[exe].Key,
+                                    context.opencover.ContainsKey(exe),
+                                    commandArgs,
+                                    input,
+                                    context.commandTimeoutSeconds,
+                                    context.workspace,
+                                    scriptName,
+                                    lineNumber,
+                                    out lastExitCode,
+                                    out lastOutput))
                                 {
                                     currentFailed = true;
                                     context.resultMatrix.Failed(context.scriptNumber, context.moduleNumber, context.testNumber, lineNumber);
@@ -2207,9 +2243,52 @@ namespace FileUtilityTester
                             }
                             {
                                 string variable = args[0];
-                                byte[] data = Encoding.UTF8.GetBytes(context.variables[variable].ToString());
-                                byte[] encryptedData = ProtectedDataStorage.EncryptEphemeral(data, 0, data.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
-                                context.variables[variable] = HexUtility.HexEncode(encryptedData);
+                                context.variables[variable] = ProtectedDataStorageHelpers.EncryptMemory(context.variables[variable].ToString());
+                            }
+                            break;
+
+                        case "decrypt-memory":
+                            if (context.testFailed)
+                            {
+                                break;
+                            }
+                            if (args.Length != 1)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            {
+                                string variable = args[0];
+                                context.variables[variable] = ProtectedDataStorageHelpers.DecryptMemory(context.variables[variable].ToString());
+                            }
+                            break;
+
+                        case "encrypt-user-persistent":
+                            if (context.testFailed)
+                            {
+                                break;
+                            }
+                            if (args.Length != 1)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            {
+                                string variable = args[0];
+                                context.variables[variable] = ProtectedDataStorageHelpers.EncryptUserPersistent(context.variables[variable].ToString());
+                            }
+                            break;
+
+                        case "decrypt-user-persistent":
+                            if (context.testFailed)
+                            {
+                                break;
+                            }
+                            if (args.Length != 1)
+                            {
+                                Throw(new ApplicationException());
+                            }
+                            {
+                                string variable = args[0];
+                                context.variables[variable] = ProtectedDataStorageHelpers.DecryptUserPersistent(context.variables[variable].ToString());
                             }
                             break;
 
@@ -2292,7 +2371,11 @@ namespace FileUtilityTester
             {
                 if (startTime.HasValue)
                 {
-                    long duration = (DateTime.UtcNow - startTime.Value).Ticks;
+                    long? duration = null;
+                    if (context.opencover.Count == 0)
+                    {
+                        duration = (DateTime.UtcNow - startTime.Value).Ticks;
+                    }
                     taskHistory.UpdateHistory(scriptName, context.moduleNumber, context.moduleName, duration, context.testFailed);
 
                     startTime = null;
@@ -2836,41 +2919,57 @@ namespace FileUtilityTester
             }
         }
 
+        private static Object openCoverLock; // created in Main()
         private static string coverageReportsPath;
         private static int coverageResultsCounter;
         private static string openCoverExe;
-        private static bool Exec(string program, bool opencover, string arguments, string input, int? commandTimeoutSeconds, Workspace workspace, out int exitCode, out string output)
+        private static TextWriter openCoverFileMapLog;
+
+        private static bool Exec(string program, bool opencover, string arguments, string input, int? commandTimeoutSeconds, Workspace workspace, string scriptName, int lineNumber, out int exitCode, out string output)
         {
             if (opencover)
             {
-                if (openCoverExe == null)
+                lock (openCoverLock)
                 {
-                    string[] paths = new string[]
+                    if (openCoverExe == null)
                     {
-                        Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles"), "OpenCover"),
-                        Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles(x86)"), "OpenCover"),
-                        Path.Combine(Environment.GetEnvironmentVariable("USERPROFILE"), @"Local Settings\Application Data\Apps\OpenCover"),
-                    };
-                    foreach (string openCoverHome in paths)
-                    {
-                        string openCoverExeCandidate = Path.Combine(openCoverHome, "OpenCover.Console.exe");
-                        if (Directory.Exists(openCoverHome) && File.Exists(program))
+                        string[] paths = new string[]
                         {
-                            openCoverExe = openCoverExeCandidate;
-                            goto FoundOpenCover;
+                            Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles"), "OpenCover"),
+                            Path.Combine(Environment.GetEnvironmentVariable("ProgramFiles(x86)"), "OpenCover"),
+                            Path.Combine(Environment.GetEnvironmentVariable("USERPROFILE"), @"Local Settings\Application Data\Apps\OpenCover"),
+                        };
+                        foreach (string openCoverHome in paths)
+                        {
+                            string openCoverExeCandidate = Path.Combine(openCoverHome, "OpenCover.Console.exe");
+                            if (Directory.Exists(openCoverHome) && File.Exists(program))
+                            {
+                                openCoverExe = openCoverExeCandidate;
+                                goto FoundOpenCover;
+                            }
                         }
+                        Throw(new ApplicationException("Could not find OpenCover in the usual places - make sure it is installed"));
+                    FoundOpenCover:
+                        ;
                     }
-                    Throw(new ApplicationException("Could not find OpenCover in the usual places - make sure it is installed"));
-                FoundOpenCover:
-                    ;
+
+                    int coverageResultsIndex = Interlocked.Increment(ref coverageResultsCounter);
+
+                    arguments = arguments.Replace("\"", "\\\"");
+                    string resultsFile = String.Format("result{0:0000000000}.xml", coverageResultsIndex);
+                    arguments = String.Format("-register \"-target:{0}\" \"-targetargs:{1}\" \"-output:{2}\" -returntargetcode -log:Off", program, arguments, Path.Combine(coverageReportsPath, resultsFile));
+
+                    if (openCoverFileMapLog == null)
+                    {
+                        openCoverFileMapLog = TextWriter.Synchronized(new StreamWriter(Path.Combine(Path.GetTempPath(), "opencovermap.log")));
+                        openCoverFileMapLog.WriteLine("Map from OpenCover results file name to script file and line number of invoking command:");
+                        openCoverFileMapLog.WriteLine();
+                    }
+                    openCoverFileMapLog.WriteLine("\"{0}\" --> \"{1}\", line {2}", resultsFile, scriptName, lineNumber);
+                    openCoverFileMapLog.Flush();
+
+                    program = openCoverExe;
                 }
-
-                int coverageResultsIndex = Interlocked.Increment(ref coverageResultsCounter);
-
-                arguments = arguments.Replace("\"", "\\\"");
-                arguments = String.Format("-register \"-target:{0}\" \"-targetargs:{1}\" \"-output:{2}\" -returntargetcode -log:Off", program, arguments, Path.Combine(coverageReportsPath, String.Format("result{0:0000000000}.xml", coverageResultsIndex)));
-
-                program = openCoverExe;
             }
 
             bool killed = false;
@@ -3473,6 +3572,54 @@ namespace FileUtilityTester
             }
         }
 
+        private static class ProtectedDataStorageHelpers
+        {
+            public static string EncryptMemory(string plaintext)
+            {
+                byte[] data = Encoding.UTF8.GetBytes(plaintext);
+                byte[] encryptedData = ProtectedDataStorage.EncryptEphemeral(data, 0, data.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
+                return HexUtility.HexEncode(encryptedData);
+            }
+
+            public static string DecryptMemory(string ciphertext)
+            {
+                byte[] encryptedData = HexUtility.HexDecode(ciphertext);
+                using (ProtectedArray<byte> data = ProtectedDataStorage.DecryptEphemeral(encryptedData, 0, encryptedData.Length, ProtectedDataStorage.EphemeralScope.SameLogon))
+                {
+                    data.Reveal();
+                    return Encoding.UTF8.GetString(data.ExposeArray());
+                }
+            }
+
+            private const int PersistentEncryptionSecondaryEntropyLength = 32;
+
+            public static string EncryptUserPersistent(string plaintext)
+            {
+                byte[] data = Encoding.UTF8.GetBytes(plaintext);
+                byte[] entropy = new byte[PersistentEncryptionSecondaryEntropyLength];
+                RNGCryptoServiceProvider.Create().GetBytes(entropy);
+                byte[] encryptedData = ProtectedDataStorage.EncryptPersistent(data, 0, data.Length, entropy);
+                Array.Resize(ref encryptedData, encryptedData.Length + PersistentEncryptionSecondaryEntropyLength);
+                Array.Copy(encryptedData, 0, encryptedData, PersistentEncryptionSecondaryEntropyLength, encryptedData.Length - PersistentEncryptionSecondaryEntropyLength);
+                Array.Copy(entropy, 0, encryptedData, 0, PersistentEncryptionSecondaryEntropyLength);
+                return HexUtility.HexEncode(encryptedData);
+            }
+
+            public static string DecryptUserPersistent(string ciphertext)
+            {
+                byte[] encryptedData = HexUtility.HexDecode(ciphertext);
+                byte[] entropy = new byte[PersistentEncryptionSecondaryEntropyLength];
+                Array.Copy(encryptedData, 0, entropy, 0, PersistentEncryptionSecondaryEntropyLength);
+                Array.Copy(encryptedData, PersistentEncryptionSecondaryEntropyLength, encryptedData, 0, encryptedData.Length - PersistentEncryptionSecondaryEntropyLength);
+                Array.Resize(ref encryptedData, encryptedData.Length - PersistentEncryptionSecondaryEntropyLength);
+                using (ProtectedArray<byte> data = ProtectedDataStorage.DecryptPersistent(encryptedData, 0, encryptedData.Length, entropy))
+                {
+                    data.Reveal();
+                    return Encoding.UTF8.GetString(data.ExposeArray());
+                }
+            }
+        }
+
         static void Main(string[] args)
         {
             // special hacks
@@ -3488,19 +3635,22 @@ namespace FileUtilityTester
             }
             else if ((args.Length >= 2) && (args[0] == "-decryptmemory"))
             {
-                byte[] encryptedData = HexUtility.HexDecode(args[1]);
-                using (ProtectedArray<byte> data = ProtectedDataStorage.DecryptEphemeral(encryptedData, 0, encryptedData.Length, ProtectedDataStorage.EphemeralScope.SameLogon))
-                {
-                    data.Reveal();
-                    Console.WriteLine(Encoding.UTF8.GetString(data.ExposeArray()));
-                }
+                Console.WriteLine(ProtectedDataStorageHelpers.DecryptMemory(args[1]));
+                return;
+            }
+            else if ((args.Length >= 2) && (args[0] == "-decryptuserpersistent"))
+            {
+                Console.WriteLine(ProtectedDataStorageHelpers.DecryptUserPersistent(args[1]));
                 return;
             }
             else if ((args.Length >= 2) && (args[0] == "-encryptmemory"))
             {
-                byte[] data = Encoding.UTF8.GetBytes(args[1]);
-                byte[] encryptedData = ProtectedDataStorage.EncryptEphemeral(data, 0, data.Length, ProtectedDataStorage.EphemeralScope.SameLogon);
-                Console.WriteLine(HexUtility.HexEncode(encryptedData));
+                Console.WriteLine(ProtectedDataStorageHelpers.EncryptMemory(args[1]));
+                return;
+            }
+            else if ((args.Length >= 2) && (args[0] == "-encryptuserpersistent"))
+            {
+                Console.WriteLine(ProtectedDataStorageHelpers.EncryptUserPersistent(args[1]));
                 return;
             }
 
@@ -3562,6 +3712,8 @@ namespace FileUtilityTester
 
             Environment.ExitCode = 2;
 
+            openCoverLock = new Object();
+
             WorkspaceDispenser workspaceDispenser = new WorkspaceDispenser();
 
             coverageReportsPath = Path.Combine(Path.GetTempPath(), CodeCoverageReports);
@@ -3589,6 +3741,7 @@ namespace FileUtilityTester
             foreach (string manifest in args)
             {
                 string manifestPath = Path.GetFullPath(manifest);
+                Console.WriteLine("Manifest: \"{0}\"", manifestPath);
                 if (File.Exists(manifestPath))
                 {
                     using (TextReader reader = new StreamReader(manifestPath))
@@ -3632,6 +3785,7 @@ namespace FileUtilityTester
                     Throw(new ApplicationException(String.Format("{0} does not exist", manifestPath)));
                 }
             }
+            Console.WriteLine();
 
             Environment.CurrentDirectory = Path.GetTempPath(); // try to fail uses of relative paths
 
@@ -3855,6 +4009,10 @@ namespace FileUtilityTester
             if (taskHistoryPath != null)
             {
                 taskHistory.Save(taskHistoryPath);
+            }
+            if (openCoverFileMapLog != null)
+            {
+                openCoverFileMapLog.Close();
             }
 
             if (Debugger.IsAttached)
