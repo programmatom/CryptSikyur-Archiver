@@ -11324,7 +11324,7 @@ namespace Backup
                 CheckSimpleName(nameTemp);
                 string pathTemp = Path.Combine(root, nameTemp);
 
-                using (Stream tempStream = new FileStream(pathTemp, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (Stream tempStream = new FileStream(pathTemp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     using (Stream localStream = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
@@ -12726,6 +12726,7 @@ namespace Backup
                                                 throw new IOException(String.Format("File exists: remote:{0}", sourceName));
                                             }
                                         }
+                                        Random rnd = new Random();
                                         foreach (string nameEnum in names)
                                         {
                                             if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
@@ -12749,12 +12750,14 @@ namespace Backup
                                                             try
                                                             {
                                                                 messages.WriteLine("upload {0}", name);
-                                                                Random rnd = new Random();
                                                                 string nameTemp = null;
                                                                 ILocalFileCopy fileRef = null;
                                                                 while (fileRef == null)
                                                                 {
-                                                                    nameTemp = rnd.Next().ToString();
+                                                                    lock (rnd)
+                                                                    {
+                                                                        nameTemp = rnd.Next().ToString();
+                                                                    }
                                                                     try
                                                                     {
                                                                         fileRef = fileManager.GetTempExisting(Path.Combine(directory, name), nameTemp, threadTrace);
