@@ -620,6 +620,45 @@ namespace RemoteDriveAuth
 
             return bReturn;
         }
+
+        // Disable saving cookies for current session
+        // http://stackoverflow.com/questions/912741/how-to-delete-cookies-from-windows-form
+        // https://msdn.microsoft.com/en-us/library/windows/desktop/aa385114%28v=vs.85%29.aspx
+        // https://msdn.microsoft.com/en-us/library/windows/desktop/aa385328%28v=vs.85%29.aspx
+        public static void SetCookiesPolicy()
+        {
+            IntPtr hInternet = InternetOpen(applicationName, INTERNET_OPEN_TYPE_DIRECT, null, null, 0);
+
+            const int INTERNET_OPTION_SUPPRESS_BEHAVIOR = 81;
+
+            const int INTERNET_SUPPRESS_COOKIE_POLICY = 1;
+            const int INTERNET_SUPPRESS_COOKIE_PERSIST = 3;
+
+            Int32[] option = new Int32[1];
+            GCHandle optionsH = GCHandle.Alloc(option, GCHandleType.Pinned);
+            try
+            {
+                option[0] = INTERNET_SUPPRESS_COOKIE_POLICY;
+                bool result = InternetSetOption(hInternet, (INTERNET_OPTION)INTERNET_OPTION_SUPPRESS_BEHAVIOR, optionsH.AddrOfPinnedObject(), sizeof(Int32) * option.Length);
+                int error = Marshal.GetLastWin32Error();
+                if (!result)
+                {
+                    throw new ApplicationException(String.Format("SetCookiesPolicy: ::InternetSetOption() failed with error {0}", error)); // search WinInet.h for INTERNET_ERROR_BASE
+                }
+
+                option[0] = INTERNET_SUPPRESS_COOKIE_PERSIST;
+                result = InternetSetOption(hInternet, (INTERNET_OPTION)INTERNET_OPTION_SUPPRESS_BEHAVIOR, optionsH.AddrOfPinnedObject(), sizeof(Int32) * option.Length);
+                error = Marshal.GetLastWin32Error();
+                if (!result)
+                {
+                    throw new ApplicationException(String.Format("SetCookiesPolicy: ::InternetSetOption() failed with error {0}", error)); // search WinInet.h for INTERNET_ERROR_BASE
+                }
+            }
+            finally
+            {
+                optionsH.Free();
+            }
+        }
     }
     #endregion
 
@@ -640,6 +679,9 @@ namespace RemoteDriveAuth
             {
                 WinInetInterop.SetConnectionProxy(String.Format("socks={0}:{1}", socks5Address, socks5Port));
             }
+
+            // Enable cookies, but disable persisting cookies, for this process only
+            WinInetInterop.SetCookiesPolicy();
 
             this.authService = authService;
 
