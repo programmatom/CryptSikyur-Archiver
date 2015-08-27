@@ -1061,5 +1061,585 @@ endlist
 rmdir output2
 
 
+module file deleted (after manifest scan, before -ignoreunchanged hashing)
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call-with-input backup -concurrency 1 -injectfault synch:%syncpoint% /DynamicPack/SetDigest[count:1] dynpack source archive\archive 60000 -ignoreunchanged
+# first for SetDigest failure
+.r
+.c
+# next, overall [concurrent] failure for pack archive failure, since error persists
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Computing any needed file hashes for -ignoreunchanged
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'.
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'.
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'.
+.Error archiving archive.m.dynpack: Could not find file '%WORKSPACE%\source\b'.
+.q)uit or c)ontinue: 
+.
+.
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify not 0
+lastoutput-verify
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Skipping archive.m.dynpack: file does not exist
+.Unpacking archive.s.dynpack
+.Segment m: missing segment (referenced in manifest, serial number 2)
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
+
+test update
+date + 1
+call backup -concurrency 1 dynpack source archive\archive 60000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [7]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [7]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D output2\
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output2
+
+
+module file deleted (after manifest scan, before -ignoreunchanged hashing), with -ignoredeleted
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call backup -ignoredeleted -concurrency 1 -injectfault synch:%syncpoint% /DynamicPack/SetDigest[count:1] dynpack source archive\archive 60000 -ignoreunchanged
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Computing any needed file hashes for -ignoreunchanged
+.EXCEPTION - ignored: Could not find file '%WORKSPACE%\source\b'.
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.EXCEPTION - ignored: Could not find file '%WORKSPACE%\source\b'.
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+# segment m is empty
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
+
+test update
+date + 1
+call backup -concurrency 1 dynpack source archive\archive 60000 -ignoreunchanged
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output2\
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output2
+
+
+module file deleted (during segment archiving), non-concurrent
+# non-concurrent (strictly single-threaded) allows prompting for user to fix problem and retry
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call-with-input backup -concurrency 0 -injectfault synch:%syncpoint% /DynamicPack/Stage[stringequal:'7-write-segment-files'] dynpack source archive\archive 60000
+.r
+.c
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'.
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'.
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+.Writing: archive.m.dynpack
+.Error archiving archive.m.dynpack: Unable to open file for inclusion in package
+.q)uit or c)ontinue: 
+.
+.
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify not 0
+lastoutput-verify
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Skipping archive.m.dynpack: file does not exist
+.Unpacking archive.s.dynpack
+.Segment m: missing segment (referenced in manifest, serial number 2)
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
+
+test allow user to recreate file and retry
+date + 1
+create source\b -size 50000
+date + 1
+qlist .
+defer syncpoint1
+.delete source\b
+enddefer
+defer syncpoint2
+.create source\b -size 50000
+enddefer
+call-with-input backup -concurrency 0 -injectfault synch:%syncpoint1% /DynamicPack/Stage[stringequal:'7-write-segment-files'] -injectfault synch:%syncpoint2% /DoRetryable/PromptUser[count:1] dynpack source archive\archive 60000
+.r
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Reading: archive.0.dynpack
+.Copying: archive.0.dynpack to archive.-0.dynpack
+.Writing: archive.0.dynpack
+# out of order because status output uses MessageLog and error uses console directly
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'.
+.r)etry, q)uit, or c)ontinue: 
+.Writing: archive.m.dynpack
+.Marking (uncreated segment barrier): archive.-m.dynpack
+.Deleting (backup file): archive.-0.dynpack
+.Deleting (backup file): archive.-m.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-04 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-04          2015-01-04 -A---- archive\archive.m.dynpack [9]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-04          2015-01-04 -A---- source\b [10]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-04 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-04          2015-01-04 -A---- archive\archive.m.dynpack [9]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D output2\
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-04          2015-01-04 -A---- output2\b [10]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-04          2015-01-04 -A---- source\b [10]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output2
+
+
+module file deleted (during segment archiving), non-concurrent, with -ignoredeleted
+# non-concurrent (strictly single-threaded) allows prompting for user to fix problem and retry
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call backup -ignoredeleted -concurrency 0 -injectfault synch:%syncpoint% /DynamicPack/Stage[stringequal:'7-write-segment-files'] dynpack source archive\archive 60000
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.EXCEPTION - ignored: Could not find file '%WORKSPACE%\source\b'.
+.Writing: archive.m.dynpack
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+# this segment is empty
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
+
+test rerun and validate
+date + 1
+call backup -concurrency 0 dynpack source archive\archive 60000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output2\
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output2
+
+
+module file deleted (during segment archiving), concurrent
+# concurrent (multi-threaded) can't prompt user, so that segment fails
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call-with-input backup -concurrency 1 -injectfault synch:%syncpoint% /DynamicPack/Stage[stringequal:'7-write-segment-files'] dynpack source archive\archive 60000
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'.
+.Error archiving archive.m.dynpack: Could not find file '%WORKSPACE%\source\b'.
+.q)uit or c)ontinue: 
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify not 0
+lastoutput-verify
+.Reading archive.0.dynpack
+.Unpacking archive.a.dynpack
+.Skipping archive.m.dynpack: file does not exist
+.Unpacking archive.s.dynpack
+.Segment m: missing segment (referenced in manifest, serial number 2)
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
+
+test rerun and validate
+date + 1
+qlist .
+call backup -concurrency 1 dynpack source archive\archive 60000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [7]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [7]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [6]
+.                                         -----D output2\
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output2
+
+
+module file deleted (during segment archiving), concurrent, with -ignoredeleted
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a -size 50000
+create source\b -size 50000
+create source\c -size 50000
+mkdir archive
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call backup -ignoredeleted -concurrency 1 -injectfault synch:%syncpoint% /DynamicPack/Stage[stringequal:'7-write-segment-files'] dynpack source archive\archive 60000
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.Writing: archive.0.dynpack
+.Writing: archive.a.dynpack
+.Writing: archive.m.dynpack
+.EXCEPTION - ignored: Could not find file '%WORKSPACE%\source\b'.
+.Writing: archive.s.dynpack
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+# segment m is empty
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output1
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-02 -A---- archive\archive.0.dynpack [4]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.m.dynpack [6]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output1\
+.          2015-01-01          2015-01-01 -A---- output1\a [1]
+.          2015-01-01          2015-01-01 -A---- output1\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output1
+
+test rerun and validate
+date + 1
+qlist .
+call backup -concurrency 1 dynpack source archive\archive 60000
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+call backup dynunpack archive\archive output2
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.          2015-01-02          2015-01-03 -A---- archive\archive.0.dynpack [8]
+.          2015-01-02          2015-01-02 -A---- archive\archive.a.dynpack [5]
+.          2015-01-02          2015-01-02 -A---- archive\archive.s.dynpack [7]
+.                                         -----D output2\
+.          2015-01-01          2015-01-01 -A---- output2\a [1]
+.          2015-01-01          2015-01-01 -A---- output2\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+rmdir output2
+
+
 # TODO: test -ignoreunauthorized (requires administrator for test tool and enhancements to set permissions)
-# TODO: test -ignoredeleted

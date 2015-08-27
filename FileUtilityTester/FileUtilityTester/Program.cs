@@ -174,7 +174,7 @@ namespace FileUtilityTester
                 }
             }
 
-            public static string FormatIdentifier(string scriptName, int moduleNumber, string moduleName)
+            private static string FormatIdentifier(string scriptName, int moduleNumber, string moduleName)
             {
                 return String.Format("{0}:{1}:{2}", scriptName, moduleNumber, moduleName);
             }
@@ -184,7 +184,7 @@ namespace FileUtilityTester
                 UpdateHistory(FormatIdentifier(scriptName, moduleNumber, moduleName), duration, failed);
             }
 
-            public void UpdateHistory(string identifier, long? duration, bool failed)
+            private void UpdateHistory(string identifier, long? duration, bool failed)
             {
                 lock (this)
                 {
@@ -199,7 +199,7 @@ namespace FileUtilityTester
                     else
                     {
                         durations = new long[0];
-                        failures = 0;
+                        failures = (1 << FailuresHistory) - 1; // treat new tests as often failed so they are run earlier
                     }
 
                     if (duration.HasValue)
@@ -224,7 +224,7 @@ namespace FileUtilityTester
                 return QueryHistory(FormatIdentifier(scriptName, moduleNumber, moduleName), out record);
             }
 
-            public bool QueryHistory(string identifier, out Record record)
+            private bool QueryHistory(string identifier, out Record record)
             {
                 lock (this)
                 {
@@ -237,7 +237,7 @@ namespace FileUtilityTester
                 VisitHistory(FormatIdentifier(scriptName, moduleNumber, moduleName));
             }
 
-            public void VisitHistory(string identifier)
+            private void VisitHistory(string identifier)
             {
                 lock (this)
                 {
@@ -3656,6 +3656,25 @@ namespace FileUtilityTester
 
 
             // program switches
+
+            if ((args.Length >= 1) && (args[0] == "-argsfromfile"))
+            {
+                string[] insertArgs;
+                using (TextReader reader = new StreamReader(args[1]))
+                {
+                    string line = reader.ReadLine();
+                    if (!line.StartsWith("#"))
+                    {
+                        throw new ApplicationException();
+                    }
+                    insertArgs = ParseArguments(line.Substring(1));
+                }
+
+                List<string> args2 = new List<string>();
+                args2.AddRange(insertArgs);
+                args2.AddRange(new List<string>(args).GetRange(1, args.Length - 1));
+                args = args2.ToArray();
+            }
 
             int concurrency = 0;
             if ((args.Length >= 2) && (args[0] == "-concurrency"))

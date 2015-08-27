@@ -161,5 +161,140 @@ list-verify scenario
 endlist
 
 
+module file deleted
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\left
+mkdir scenario\right
+create scenario\left\a
+create scenario\left\b
+create scenario\left\c
+mkdir control
+qlist .
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-01 -A---- left\a [1]
+.          2015-01-01          2015-01-01 -A---- left\b [2]
+.          2015-01-01          2015-01-01 -A---- left\c [3]
+.                                         -----D right\
+.          2015-01-01          2015-01-01 -A---- right\a [1]
+.          2015-01-01          2015-01-01 -A---- right\b [2]
+.          2015-01-01          2015-01-01 -A---- right\c [3]
+endlist
+
+test prompt on file deleted
+date + 1
+edit scenario\left\a
+edit scenario\left\b
+edit scenario\left\c
+qlist .
+date + 1
+defer syncpoint
+.delete scenario\left\b
+enddefer
+call-with-input backup -injectfault synch:%syncpoint% /Sync/Iteration/left[stringendswith:'\\scenario\\left\\b']/right[stringendswith:'\\scenario\\right\\b']/SyncChange[count:1]/copy sync scenario\left scenario\right control
+.r
+endinput
+# upon retry, the file is found missing, and therefore deleted in the other side. No subsequent 'continue' applies.
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION at "b": Could not find file '%WORKSPACE%\scenario\left\b'.
+.EXCEPTION: Could not find file '%WORKSPACE%\scenario\left\b'.
+.r)etry, q)uit, or c)ontinue: 
+.
+endoutput
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+test final run
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+
+module file deleted, with -ignoredeleted
+
+test setup
+date 2015-01-01
+mkdir scenario
+mkdir scenario\left
+mkdir scenario\right
+create scenario\left\a
+create scenario\left\b
+create scenario\left\c
+mkdir control
+qlist .
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-01 -A---- left\a [1]
+.          2015-01-01          2015-01-01 -A---- left\b [2]
+.          2015-01-01          2015-01-01 -A---- left\c [3]
+.                                         -----D right\
+.          2015-01-01          2015-01-01 -A---- right\a [1]
+.          2015-01-01          2015-01-01 -A---- right\b [2]
+.          2015-01-01          2015-01-01 -A---- right\c [3]
+endlist
+
+test ignore file deleted
+date + 1
+edit scenario\left\a
+edit scenario\left\b
+edit scenario\left\c
+qlist .
+date + 1
+defer syncpoint
+.delete scenario\left\b
+enddefer
+call backup -ignoredeleted -injectfault synch:%syncpoint% /Sync/Iteration/left[stringendswith:'\\scenario\\left\\b']/right[stringendswith:'\\scenario\\right\\b']/SyncChange[count:1]/copy sync scenario\left scenario\right control
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.EXCEPTION at "b": Could not find file '%WORKSPACE%\scenario\left\b'.
+.EXCEPTION - ignored: Could not find file '%WORKSPACE%\scenario\left\b'.
+.
+endoutput
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+test final run
+date + 1
+call backup sync scenario\left scenario\right control
+exitcode-verify 0
+list-verify scenario
+.                                         -----D left\
+.          2015-01-01          2015-01-03 -A---- left\a [5]
+.          2015-01-01          2015-01-03 -A---- left\c [7]
+.                                         -----D right\
+.          2015-01-01          2015-01-03 -A---- right\a [5]
+.          2015-01-01          2015-01-03 -A---- right\c [7]
+endlist
+
+
 # TODO: test -ignoreunauthorized (requires administrator for test tool and enhancements to set permissions)
-# TODO: test -ignoredeleted

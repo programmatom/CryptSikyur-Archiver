@@ -132,6 +132,126 @@ list-verify .
 endlist
 
 
+module file deleted
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a
+create source\b
+create source\c
+mkdir archive
+qlist .
+date + 1
+call backup backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2015-01-02T00+00+00\
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\a [1]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\b [2]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+
+test prompt on file deleted
+date + 1
+edit source\a
+edit source\b
+edit source\c
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call-with-input backup -injectfault synch:%syncpoint% /BackupDecremental/Enter[stringequal:'source']/File[stringequal:'b']/Checkpoint/Copy backup source archive
+.r
+.c
+endinput
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'. (%WORKSPACE%\source\b)
+.r)etry, q)uit, or c)ontinue: 
+.EXCEPTION: Could not find file '%WORKSPACE%\source\b'. (%WORKSPACE%\source\b)
+.r)etry, q)uit, or c)ontinue: 
+.
+.
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2015-01-02T00+00+00\
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\a [1]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\b [2]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\c [3]
+.                                         -----D archive\2015-01-04T00+00+00\
+.          2015-01-01          2015-01-03 -A---- archive\2015-01-04T00+00+00\a [4]
+.          2015-01-01          2015-01-03 -A---- archive\2015-01-04T00+00+00\c [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\a [4]
+.          2015-01-01          2015-01-03 -A---- source\c [6]
+endlist
+
+
+module file deleted, with -ignoredeleted
+
+
+test setup
+date 2015-01-01
+mkdir source
+create source\a
+create source\b
+create source\c
+mkdir archive
+qlist .
+date + 1
+call backup backup source archive
+exitcode-verify 0
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2015-01-02T00+00+00\
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\a [1]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\b [2]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\c [3]
+.                                         -----D source\
+.          2015-01-01          2015-01-01 -A---- source\a [1]
+.          2015-01-01          2015-01-01 -A---- source\b [2]
+.          2015-01-01          2015-01-01 -A---- source\c [3]
+endlist
+
+test prompt on file deleted
+date + 1
+edit source\a
+edit source\b
+edit source\c
+qlist .
+date + 1
+defer syncpoint
+.delete source\b
+enddefer
+call backup -ignoredeleted -injectfault synch:%syncpoint% /BackupDecremental/Enter[stringequal:'source']/File[stringequal:'b']/Checkpoint/Copy backup source archive
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+.%WORKSPACE%\source
+.EXCEPTION - ignored: Could not find file '%WORKSPACE%\source\b'. (%WORKSPACE%\source\b)
+endoutput
+list-verify .
+.                                         -----D archive\
+.                                         -----D archive\2015-01-02T00+00+00\
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\a [1]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\b [2]
+.          2015-01-01          2015-01-01 -A---- archive\2015-01-02T00+00+00\c [3]
+.                                         -----D archive\2015-01-04T00+00+00\
+.          2015-01-01          2015-01-03 -A---- archive\2015-01-04T00+00+00\a [4]
+.          2015-01-01          2015-01-03 -A---- archive\2015-01-04T00+00+00\c [6]
+.                                         -----D source\
+.          2015-01-01          2015-01-03 -A---- source\a [4]
+.          2015-01-01          2015-01-03 -A---- source\c [6]
+endlist
+
+
 # TODO: test -ignoreunauthorized (requires administrator for test tool and enhancements to set permissions)
-# TODO: test -ignoredeleted
 # TODO: add automatic handling of path too long

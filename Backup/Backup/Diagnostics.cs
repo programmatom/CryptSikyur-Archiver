@@ -531,6 +531,46 @@ namespace Diagnostics
             }
         }
 
+        public class StringEndsWithFaultPredicate : IFaultPredicate
+        {
+            private readonly string endsWith;
+
+            public StringEndsWithFaultPredicate(string match)
+            {
+                this.endsWith = match;
+            }
+
+            public StringEndsWithFaultPredicate(StringEndsWithFaultPredicate original)
+            {
+                this.endsWith = original.endsWith;
+            }
+
+            public IFaultPredicate Clone()
+            {
+                return new StringEndsWithFaultPredicate(this);
+            }
+
+            public bool Test()
+            {
+                return false;
+            }
+
+            public bool Test(long l)
+            {
+                return Test(l.ToString());
+            }
+
+            public bool Test(string s)
+            {
+                return (s != null ? s : String.Empty).EndsWith(endsWith);
+            }
+
+            public override string ToString()
+            {
+                return String.Format("[stringendswith:{0}]", endsWith);
+            }
+        }
+
         public class StringMatchFaultPredicate : IFaultPredicate
         {
             private readonly string pattern;
@@ -1416,6 +1456,9 @@ namespace Diagnostics
                             break;
                         case "stringequal":
                             predicate = new FaultInstanceNode.StringEqualFaultPredicate(operand);
+                            break;
+                        case "stringendswith":
+                            predicate = new FaultInstanceNode.StringEndsWithFaultPredicate(operand);
                             break;
                         case "regex":
                             predicate = new FaultInstanceNode.StringMatchFaultPredicate(operand);

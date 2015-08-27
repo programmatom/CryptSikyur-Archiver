@@ -699,7 +699,10 @@ namespace Backup
         private static bool IsPermissionDeniedException(Exception exception)
         {
             // permission denied
-            if (exception is UnauthorizedAccessException)
+
+            // Some callers wrap underlying exceptions to add informative messages. Others don't. Check for both.
+            if ((exception is UnauthorizedAccessException)
+                || (exception.InnerException is UnauthorizedAccessException))
             {
                 return true;
             }
@@ -710,9 +713,9 @@ namespace Backup
         private static bool IsInUseException(Exception exception)
         {
             // file in use
+
+            // Some callers wrap underlying exceptions to add informative messages. Others don't. Check for both.
             const int E_SHARING_VIOLATION = unchecked((int)0x80070020);
-            // It's unclear when this started putting the IOException as an inner exception to a generic Exception
-            // classed object. It's also unclear if/when it won't. Therefore, check both.
             if (((exception is IOException) && (Marshal.GetHRForException(exception) == E_SHARING_VIOLATION))
                 || ((exception.InnerException is IOException) && (Marshal.GetHRForException(exception.InnerException) == E_SHARING_VIOLATION)))
             {
@@ -725,7 +728,10 @@ namespace Backup
         private static bool IsMissingException(Exception exception)
         {
             // file was deleted after detection but before archiving
-            if (exception is FileNotFoundException)
+
+            // Some callers wrap underlying exceptions to add informative messages. Others don't. Check for both.
+            if ((exception is FileNotFoundException)
+                || (exception.InnerException is FileNotFoundException))
             {
                 return true;
             }
@@ -2417,6 +2423,8 @@ namespace Backup
 
         private static void SyncChange(string sourceRoot, string targetRoot, string path, int codePath, TextWriter log, bool l2r, IVolumeFlushHelperCollection volumeFlushHelperCollection, IFaultInstance faultContext)
         {
+            IFaultInstance faultSyncChange = faultContext.Select("SyncChange", codePath.ToString());
+
             try
             {
                 if (log != null)
@@ -2440,7 +2448,7 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "del", String.Empty, targetPath);
                     }
-                    faultContext.Select("del", targetPath);
+                    faultSyncChange.Select("del", targetPath);
                     File.SetAttributes(targetPath, File.GetAttributes(targetPath) & ~FileAttributes.ReadOnly);
                     File.Delete(targetPath);
                 }
@@ -2450,7 +2458,7 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "rmdir /s", String.Empty, targetPath);
                     }
-                    faultContext.Select("rmdir", targetPath);
+                    faultSyncChange.Select("rmdir", targetPath);
                     bool retry = false;
                     try
                     {
@@ -2481,7 +2489,7 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "copy", "to", targetPath);
                     }
-                    faultContext.Select("copy", targetPath);
+                    faultSyncChange.Select("copy", targetPath);
                     try
                     {
                         File.Copy(sourcePath, targetPath);
@@ -2506,7 +2514,7 @@ namespace Backup
                     {
                         log.WriteLine("  {0,-8} {1,-3} \"{2}\"", "mkdir", String.Empty, targetPath);
                     }
-                    faultContext.Select("mkdir", targetPath);
+                    faultSyncChange.Select("mkdir", targetPath);
                     try
                     {
                         Directory.CreateDirectory(targetPath);
@@ -2533,6 +2541,8 @@ namespace Backup
 
         private static void SyncChangeDirectoryCaseChangeOnly(string sourceRoot, string targetRoot, string path, int codePath, TextWriter log, bool l2r, IVolumeFlushHelperCollection volumeFlushHelperCollection, IFaultInstance faultContext)
         {
+            IFaultInstance faultSyncChange = faultContext.Select("SyncChangeDirectoryCaseChangeOnly", codePath.ToString());
+
             try
             {
                 if (log != null)
@@ -2608,8 +2618,10 @@ namespace Backup
 
         private const FileAttributes SyncPropagatedAttributes = FileAttributes.ReadOnly | FileAttributes.Directory;
 
-        private static bool SyncSubdirChanged(string root, EnumerateHierarchy currentEntries, EnumerateFile previousEntries, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems)
+        private static bool SyncSubdirChanged(string root, EnumerateHierarchy currentEntries, EnumerateFile previousEntries, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, IFaultInstance faultContext)
         {
+            IFaultInstance faultSyncSubdirChanged = faultContext.Select("SyncSubdirChanged");
+
             currentEntries = new EnumerateHierarchy(currentEntries);
             using (previousEntries = new EnumerateFile(previousEntries))
             {
@@ -3205,9 +3217,7 @@ namespace Backup
                         volumeFlushHelperCollection.Flush();
                     }
 
-                    IFaultInstance faultInstanceIteration = faultInstanceSync.Select("Iteration");
-                    IFaultInstance faultInstanceLeftEntry = faultInstanceIteration.Select("LeftEntry", currentEntriesL.Valid ? currentEntriesL.CurrentFullPath : null);
-                    IFaultInstance faultInstanceRightEntry = faultInstanceIteration.Select("RightEntry", currentEntriesR.Valid ? currentEntriesR.CurrentFullPath : null);
+                    IFaultInstance faultInstanceIteration = faultInstanceSync.Select("Iteration").Select("left", currentEntriesL.Valid ? currentEntriesL.CurrentFullPath : null).Select("right", currentEntriesR.Valid ? currentEntriesR.CurrentFullPath : null);
 
                     int codePath = -1;
 
@@ -3289,7 +3299,7 @@ namespace Backup
 
                             if (!changedL && previousRExisted && Directory.Exists(Path.Combine(rootL, selected)))
                             {
-                                changedL = SyncSubdirChanged(selected, currentEntriesL, previousEntriesL, excludedExtensions, excludedItems);
+                                changedL = SyncSubdirChanged(selected, currentEntriesL, previousEntriesL, excludedExtensions, excludedItems, faultInstanceIteration);
                             }
 
                         Conflict100Restart:
@@ -3396,7 +3406,7 @@ namespace Backup
 
                             if (!changedR && previousLExisted && Directory.Exists(Path.Combine(rootR, selected)))
                             {
-                                changedR = SyncSubdirChanged(selected, currentEntriesR, previousEntriesR, excludedExtensions, excludedItems);
+                                changedR = SyncSubdirChanged(selected, currentEntriesR, previousEntriesR, excludedExtensions, excludedItems, faultInstanceIteration);
                             }
 
                         Conflict200Restart:
@@ -3520,11 +3530,11 @@ namespace Backup
 
                             if (!changedL && previousRExisted && Directory.Exists(Path.Combine(rootL, selected)) && File.Exists(Path.Combine(rootR, selected)))
                             {
-                                changedL = SyncSubdirChanged(selected, currentEntriesL, previousEntriesL, excludedExtensions, excludedItems);
+                                changedL = SyncSubdirChanged(selected, currentEntriesL, previousEntriesL, excludedExtensions, excludedItems, faultInstanceIteration);
                             }
                             if (!changedR && previousLExisted && Directory.Exists(Path.Combine(rootR, selected)) && File.Exists(Path.Combine(rootL, selected)))
                             {
-                                changedR = SyncSubdirChanged(selected, currentEntriesR, previousEntriesR, excludedExtensions, excludedItems);
+                                changedR = SyncSubdirChanged(selected, currentEntriesR, previousEntriesR, excludedExtensions, excludedItems, faultInstanceIteration);
                             }
 
                         Conflict300Restart:
@@ -4529,8 +4539,11 @@ namespace Backup
             }
         }
 
-        internal static void BackupRecursive(string source, string previous, string current, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, TextWriter log, bool deepRollback)
+        internal static void BackupRecursive(string source, string previous, string current, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, TextWriter log, bool deepRollback, IFaultInstance faultBackup)
         {
+            IFaultInstance faultEnter = faultBackup.Select("Enter", Path.GetFileName(source));
+            faultEnter.Select("Starting");
+
             Debug.Assert(Directory.Exists(source) == !deepRollback);
 
             WriteStatusLine(source);
@@ -4627,8 +4640,12 @@ namespace Backup
                 }
             }
 
+            faultEnter.Select("Enumerated");
+
             foreach (TriEntry entry in combined)
             {
+                IFaultInstance faultFile;
+
                 string sourcePath, currentPath, previousPath;
                 {
                     string canonical = (entry.source != null) ? entry.source : (entry.current != null) ? entry.current : entry.previous;
@@ -4636,7 +4653,12 @@ namespace Backup
                     sourcePath = Path.Combine(source, entry.source != null ? entry.source : canonical);
                     currentPath = Path.Combine(current, entry.current != null ? entry.current : canonical);
                     previousPath = Path.Combine(previous, entry.previous != null ? entry.previous : canonical);
+
+                    faultFile = faultEnter.Select("File", canonical);
                 }
+
+                faultFile.Select("Starting");
+                faultFile.Select("Rollback");
 
                 // roll back anything found already in checkpoint
                 if (File.Exists(previousPath) && (GetFileLengthRetryable(previousPath, context, null/*trace*/) == 0))
@@ -4668,7 +4690,8 @@ namespace Backup
                             excludedExtensions,
                             excludedItems,
                             log,
-                            true/*deepRollback*/);
+                            true/*deepRollback*/,
+                            faultEnter);
 
                         Directory.Delete(currentPath, true/*recursive*/);
                     }
@@ -4677,6 +4700,8 @@ namespace Backup
                 // create checkpoint of source
                 if (!deepRollback)
                 {
+                    IFaultInstance faultCheckpoint = faultFile.Select("Checkpoint");
+
                     // filename case handling: make current take on case of source
                     try
                     {
@@ -4739,7 +4764,8 @@ namespace Backup
                                 excludedExtensions,
                                 excludedItems,
                                 log,
-                                false/*deepRollback*/);
+                                false/*deepRollback*/,
+                                faultEnter);
                         }
                     }
                     else if (File.Exists(sourcePath) && (entry.source != null/*not excluded*/))
@@ -4757,6 +4783,8 @@ namespace Backup
 
                             if (unchanged)
                             {
+                                faultCheckpoint.Select("Move");
+
                                 MoveFile(previousPath, currentPath, context);
                                 CreateZeroLengthFile(previousPath, context);
 
@@ -4771,6 +4799,7 @@ namespace Backup
                             }
                             else
                             {
+                                faultCheckpoint.Select("Copy");
                                 if (log != null)
                                 {
                                     log.WriteLine("modified {0}", sourcePath);
@@ -4780,6 +4809,7 @@ namespace Backup
                         }
                         else
                         {
+                            faultCheckpoint.Select("Copy");
                             if (log != null)
                             {
                                 log.WriteLine("added {0}", sourcePath);
@@ -4802,14 +4832,16 @@ namespace Backup
             }
         }
 
-        private static void BackupProcess(string source, string previous, string current, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, TextWriter log)
+        private static void BackupProcess(string source, string previous, string current, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, TextWriter log, IFaultInstance faultBackup)
         {
-            BackupRecursive(source, previous, current, context, excludedExtensions, excludedItems, log, false/*deepRollback*/);
+            BackupRecursive(source, previous, current, context, excludedExtensions, excludedItems, log, false/*deepRollback*/, faultBackup);
         }
 #endif
 
         internal static void BackupDecremental(string source, string archiveFolder, Context context, string[] args)
         {
+            IFaultInstance faultBackup = context.faultInjectionRoot.Select("BackupDecremental");
+
             if (!Directory.Exists(source))
             {
                 Console.WriteLine("source directory \"{0}\" does not exist", source);
@@ -4893,7 +4925,8 @@ namespace Backup
                 context,
                 excludedExtensions,
                 excludedItems,
-                log);
+                log,
+                faultBackup);
 
             if (fakeMostRecentArchivePoint)
             {
@@ -6662,7 +6695,7 @@ namespace Backup
             {
                 if ((inputStream == null) && !enableContinue && !directory)
                 {
-                    throw new ApplicationException("Unable to open file for inclusion in package");
+                    throw new ApplicationException("Unable to open file for inclusion in package", new FileNotFoundException(null, file));
                 }
 
                 if ((inputStream != null) || directory)
@@ -10554,7 +10587,7 @@ namespace Backup
                         {
                             context.continueOnUnauthorized = false;
                             context.continueOnInUse = false;
-                            context.continueOnMissing = false;
+                            //context.continueOnMissing = false; -- this one is recoverable in concurrent mode since manifest will correctly reflect deletion upon next run
                         }
 
                         // Archive modified segments (concurrently)
@@ -10759,10 +10792,14 @@ namespace Backup
                                                                                     catch (Exception exception)
                                                                                     {
                                                                                         if ((originalContinueOnInUse && IsInUseException(exception))
-                                                                                            || (originalContinueOnUnauthorized && IsPermissionDeniedException(exception))
-                                                                                            || (originalContinueOnMissing && IsMissingException(exception)))
+                                                                                            || (originalContinueOnUnauthorized && IsPermissionDeniedException(exception)))
                                                                                         {
                                                                                             willSucceed = false;
+                                                                                        }
+                                                                                        else if (originalContinueOnMissing && IsMissingException(exception))
+                                                                                        {
+                                                                                            // this can be safely recovered from automatically
+                                                                                            Debug.Assert(willSucceed);
                                                                                         }
                                                                                         else
                                                                                         {
