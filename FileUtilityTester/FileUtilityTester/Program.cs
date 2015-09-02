@@ -735,6 +735,139 @@ namespace FileUtilityTester
             }
         }
 
+        private class SharedContext
+        {
+            private List<Substitution> substitutions = new List<Substitution>();
+
+            private class Substitution
+            {
+                public readonly UniqueLocation Location;
+                public readonly string Name;
+                public string Value;
+
+                public Substitution(UniqueLocation location, string name)
+                {
+                    this.Location = location;
+                    this.Name = name;
+                }
+
+                public override string ToString()
+                {
+                    return String.Format("{{{0} ({1}) --> {2}}}", Name, Location, Value != null ? String.Concat("\"", Value, "\"") : "not set");
+                }
+            }
+
+            private class UniqueLocation
+            {
+                public readonly string Script;
+                public readonly int LineNumber;
+                public readonly string VariableName;
+
+                public UniqueLocation(string script, int lineNumber, string variableName)
+                {
+                    this.Script = script;
+                    this.LineNumber = lineNumber;
+                    this.VariableName = variableName;
+                }
+
+                public override bool Equals(object obj)
+                {
+                    UniqueLocation other = obj as UniqueLocation;
+                    if (other == null)
+                    {
+                        return false;
+                    }
+
+                    return String.Equals(this.Script, other.Script)
+                        && (this.LineNumber == other.LineNumber)
+                        && String.Equals(this.VariableName, other.VariableName);
+                }
+
+#if false
+                public override int GetHashCode()
+                {
+                    return unchecked(Script.GetHashCode() ^ LineNumber.GetHashCode() ^ VariableName.GetHashCode());
+                }
+#endif
+
+                public override string ToString()
+                {
+                    return string.Format("[{0}:{1}:{2}]", Script, LineNumber, VariableName);
+                }
+            }
+
+            public SharedContext()
+            {
+            }
+
+            public void EnsureOutputValueSubstitution(string script, int lineNumber, string variableName)
+            {
+                lock (this)
+                {
+                    UniqueLocation location = new UniqueLocation(script, lineNumber, variableName);
+                    int i = substitutions.FindIndex(delegate(Substitution substitution) { return location.Equals(substitution.Location); });
+                    if (i >= 0)
+                    {
+                        return;
+                    }
+
+                    int extra = 0;
+                    while (true)
+                    {
+                        string name = String.Format(extra == 0 ? "{0}:{1}" : "{0}-{2}:{1}", Path.GetFileNameWithoutExtension(script), variableName, extra);
+                        if (substitutions.FindIndex(delegate(Substitution substitution) { return String.Equals(name, substitution.Name); }) < 0)
+                        {
+                            substitutions.Add(new Substitution(location, name));
+                            return;
+                        }
+                        extra++;
+                    }
+                }
+            }
+
+            public void SetOutputValueSubstitution(string script, int lineNumber, string variableName, string value)
+            {
+                lock (this)
+                {
+                    UniqueLocation location = new UniqueLocation(script, lineNumber, variableName);
+                    int i = substitutions.FindIndex(delegate(Substitution substitution) { return location.Equals(substitution.Location); });
+                    if (i < 0)
+                    {
+                        Throw(new ApplicationException());
+                    }
+                    substitutions[i].Value = value;
+                }
+            }
+
+#if false
+            public string QueryOutputValueSubstitution(string script, int lineNumber, string variableName)
+            {
+                lock (this)
+                {
+                    UniqueLocation location = new UniqueLocation(script, lineNumber, variableName);
+                    int i = substitutions.FindIndex(delegate(Substitution substitution) { return location.Equals(substitution.Location); });
+                    if (i < 0)
+                    {
+                        Throw(new ApplicationException());
+                    }
+                    return substitutions[i].Value;
+                }
+            }
+#endif
+
+            public string ReplaceOutputValueSubstitutions(string arguments)
+            {
+                foreach (Substitution substitution in substitutions)
+                {
+                    if (substitution.Value != null)
+                    {
+                        arguments = arguments.Replace(substitution.Value, String.Concat("%", substitution.Name, "%"));
+                    }
+                }
+                return arguments;
+            }
+        }
+
         private class Context
         {
             readonly public int scriptNumber;
@@ -804,7 +937,7 @@ namespace FileUtilityTester
 
                 this.commands = new Dictionary<string, KeyValuePair<string, string>>(original.commands);
                 this.opencover = new Dictionary<string, bool>(original.opencover);
-                //this.variables = new Dictionary<string, object>(); -- redundant
+                this.variables = new Dictionary<string, object>(original.variables);
                 //this.hashes = new HashDispenser(); -- redundant
                 //this.openFiles = new Dictionary<string, Stream>(); -- redundant
                 this.resources = new Dictionary<string, bool>(original.resources);
@@ -825,7 +958,7 @@ namespace FileUtilityTester
             SequentialModes = Unrestricted | PrepareTasks | Module,
         }
 
-        private static List<TaskQueue.Task> Eval(LineReader scriptReader, int initialLineNumber, string scriptName, Context contextBase, Mode mode, TextWriter consoleWriter, TaskHistory taskHistory)
+        private static List<TaskQueue.Task> Eval(LineReader scriptReader, int initialLineNumber, string scriptName, Context contextBase, Mode mode, TextWriter consoleWriter, TaskHistory taskHistory, SharedContext sharedContext)
         {
             List<TaskQueue.Task> tasks = null;
 
@@ -1206,7 +1339,8 @@ namespace FileUtilityTester
                                                     localContext,
                                                     Mode.Module,
                                                     taskContext.ConsoleWriter,
-                                                    taskHistory);
+                                                    taskHistory,
+                                                    sharedContext);
                                             }
                                             catch (Exception exception)
                                             {
@@ -1377,7 +1511,7 @@ namespace FileUtilityTester
                                 {
                                     commandArgs = commandArgs.Replace(String.Concat("%", variable.Key, "%"), variable.Value.ToString());
                                 }
-                                consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
+                                consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, sharedContext.ReplaceOutputValueSubstitutions(commandArgs));
                                 if (!Exec(
                                     context.commands[exe].Key,
                                     context.opencover.ContainsKey(exe),
@@ -1437,7 +1571,7 @@ namespace FileUtilityTester
                                     break;
                                 }
 
-                                consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, commandArgs);
+                                consoleWriter.WriteLine("{0} {1}", context.commands[exe].Key, sharedContext.ReplaceOutputValueSubstitutions(commandArgs));
                                 if (!Exec(
                                     context.commands[exe].Key,
                                     context.opencover.ContainsKey(exe),
@@ -2217,7 +2351,7 @@ namespace FileUtilityTester
                             break;
 
                         case "load-resource":
-                            if (context.testFailed)
+                            if (context.testFailed && !(mode == Mode.PrepareTasks)) // permit during parallel task preparation
                             {
                                 break;
                             }
@@ -2233,17 +2367,25 @@ namespace FileUtilityTester
                             break;
 
                         case "encrypt-memory":
-                            if (context.testFailed)
-                            {
-                                break;
-                            }
                             if (args.Length != 1)
                             {
                                 Throw(new ApplicationException());
                             }
                             {
                                 string variable = args[0];
-                                context.variables[variable] = ProtectedDataStorageHelpers.EncryptMemory(context.variables[variable].ToString());
+                                if ((mode & Mode.GlobalModes) != 0)
+                                {
+                                    sharedContext.EnsureOutputValueSubstitution(scriptName, lineNumber, variable);
+                                }
+
+                                if (context.testFailed && !(mode == Mode.PrepareTasks)) // permit during parallel task preparation
+                                {
+                                    break;
+                                }
+
+                                string value = ProtectedDataStorageHelpers.EncryptMemory(context.variables[variable].ToString());
+                                context.variables[variable] = value;
+                                sharedContext.SetOutputValueSubstitution(scriptName, lineNumber, variable, value);
                             }
                             break;
 
@@ -2263,17 +2405,25 @@ namespace FileUtilityTester
                             break;
 
                         case "encrypt-user-persistent":
-                            if (context.testFailed)
-                            {
-                                break;
-                            }
                             if (args.Length != 1)
                             {
                                 Throw(new ApplicationException());
                             }
                             {
                                 string variable = args[0];
-                                context.variables[variable] = ProtectedDataStorageHelpers.EncryptUserPersistent(context.variables[variable].ToString());
+                                if ((mode & Mode.GlobalModes) != 0)
+                                {
+                                    sharedContext.EnsureOutputValueSubstitution(scriptName, lineNumber, variable);
+                                }
+
+                                if (context.testFailed && !(mode == Mode.PrepareTasks)) // permit during parallel task preparation
+                                {
+                                    break;
+                                }
+
+                                string value = ProtectedDataStorageHelpers.EncryptUserPersistent(context.variables[variable].ToString());
+                                context.variables[variable] = value;
+                                sharedContext.SetOutputValueSubstitution(scriptName, lineNumber, variable, value);
                             }
                             break;
 
@@ -2302,7 +2452,13 @@ namespace FileUtilityTester
                                 Throw(new ApplicationException());
                             }
                             {
-                                string name = args[0];
+                                string variableName = args[0];
+                                int startLineNumber = lineNumber;
+                                if ((mode & Mode.GlobalModes) != 0)
+                                {
+                                    sharedContext.EnsureOutputValueSubstitution(scriptName, startLineNumber, variableName);
+                                }
+
                                 string linePrefix = ".";
                                 for (int i = 1; i < args.Length; i++)
                                 {
@@ -2317,13 +2473,16 @@ namespace FileUtilityTester
                                     }
                                 }
 
-                                string task = ReadInlineContent(scriptReader, linePrefix, "enddefer", ref lineNumber, null);
+                                string taskCode = ReadInlineContent(scriptReader, linePrefix, "enddefer", ref lineNumber, null);
                                 if (context.testFailed)
                                 {
                                     break;
                                 }
 
-                                context.variables.Add(args[0], new DeferredTask(task, scriptName, lineNumber, context, consoleWriter));
+                                DeferredTask deferredTask = new DeferredTask(taskCode, scriptName, lineNumber, context, consoleWriter, sharedContext);
+                                context.variables.Add(variableName, deferredTask);
+                                sharedContext.SetOutputValueSubstitution(scriptName, startLineNumber, variableName, deferredTask.ToString());
+                                deferredTask.Start();
                             }
                             break;
                     }
@@ -2446,25 +2605,27 @@ namespace FileUtilityTester
             private readonly string scriptName;
             private readonly int originatingLineNumber;
             private readonly Context context;
+            private readonly SharedContext sharedContext;
             private readonly TextWriter consoleWriter;
-            private readonly string taskScript;
+            private readonly string taskCode;
 
             public string TriggerEventName { get { return EventNamePrefix + triggerEventName; } }
             public string ResumeEventName { get { return EventNamePrefix + resumeEventName; } }
 
             public bool Active { get { return active; } }
 
-            public DeferredTask(string taskScript, string scriptName, int originatingLineNumber, Context context, TextWriter consoleWriter)
-                : this(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), taskScript, scriptName, originatingLineNumber, context, consoleWriter)
+            public DeferredTask(string taskCode, string scriptName, int originatingLineNumber, Context context, TextWriter consoleWriter, SharedContext sharedContext)
+                : this(Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("D"), taskCode, scriptName, originatingLineNumber, context, consoleWriter, sharedContext)
             {
             }
 
-            public DeferredTask(string triggerEventName, string resumeEventName, string taskScript, string scriptName, int originatingLineNumber, Context context, TextWriter consoleWriter)
+            public DeferredTask(string triggerEventName, string resumeEventName, string taskCode, string scriptName, int originatingLineNumber, Context context, TextWriter consoleWriter, SharedContext sharedContext)
             {
                 this.scriptName = scriptName;
                 this.originatingLineNumber = originatingLineNumber;
-                this.taskScript = taskScript;
+                this.taskCode = taskCode;
                 this.context = context;
+                this.sharedContext = sharedContext;
                 this.consoleWriter = consoleWriter;
 
                 this.triggerEventName = triggerEventName;
@@ -2472,9 +2633,13 @@ namespace FileUtilityTester
                 this.triggerEvent = new EventWaitHandle(false, EventResetMode.AutoReset, TriggerEventName);
                 this.resumeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ResumeEventName);
 
-                this.active = true;
                 this.thread = new Thread(StaticThreadMain);
-                this.thread.Start(this);
+            }
+
+            public void Start()
+            {
+                active = true;
+                thread.Start(this);
             }
 
             private static void StaticThreadMain(object o)
@@ -2495,13 +2660,14 @@ namespace FileUtilityTester
                 try
                 {
                     Eval(
-                        new LineReader(taskScript.Split(new string[] { Environment.NewLine }, StringSplitOptions.None)),
+                        new LineReader(taskCode.Split(new string[] { Environment.NewLine }, StringSplitOptions.None)),
                         originatingLineNumber,
                         String.Format("{0}-defer{1}", scriptName, originatingLineNumber),
                         context,
                         Mode.Callback,
                         consoleWriter,
-                        null/*taskHistory*/);
+                        null/*taskHistory*/,
+                        sharedContext);
                 }
                 catch (Exception)
                 {
@@ -2515,7 +2681,7 @@ namespace FileUtilityTester
             public void Dispose()
             {
                 active = false;
-                thread.Abort();
+                thread.Abort(); // thread will have already exited in normal cases - aborts waiting thread only in error cases
                 if (resumeEvent != null)
                 {
                     resumeEvent.Close();
@@ -2919,7 +3085,7 @@ namespace FileUtilityTester
             }
         }
 
-        private static Object openCoverLock; // created in Main()
+        private static Object openCoverLock; // created in Main() to avoid issues with deferred static construction
         private static string coverageReportsPath;
         private static int coverageResultsCounter;
         private static string openCoverExe;
@@ -3830,6 +3996,7 @@ namespace FileUtilityTester
             Console.WriteLine(programStartTime.ToLocalTime());
             Console.WriteLine();
             Console.WriteLine();
+            SharedContext sharedContext = new SharedContext();
             if (concurrency == 0)
             {
                 for (int i = 0; i < scripts.Count; i++)
@@ -3853,7 +4020,8 @@ namespace FileUtilityTester
                         new Context(i + 1, resultMatrix, workspaceDispenser),
                         Mode.Unrestricted,
                         Console.Out,
-                        taskHistory);
+                        taskHistory,
+                        sharedContext);
                 }
             }
             else
@@ -3873,7 +4041,8 @@ namespace FileUtilityTester
                                 new Context(i + 1, resultMatrix, workspaceDispenser),
                                 Mode.PrepareTasks,
                                 null/*consoleWriter*/,
-                                taskHistory);
+                                taskHistory,
+                                sharedContext);
                             taskQueue.Add(tasks);
                         }
 

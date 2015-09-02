@@ -9,6 +9,9 @@ fail-pause on
 
 declare-exclusive-resource google-test-account
 
+load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+encrypt-memory refreshtoken
+
 
 module prerequisites
 
@@ -36,8 +39,8 @@ date 2014-01-01
 # This method has the limitation that the tests will only succeed under the particular Windows user
 # account that has created the user-persistent encrypted token. In a shared test environment, other
 # methods would need to be found for securing the token.
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtoken
 # try to get access token to verify client-id and client-secret are configured for
 # Google Drive and that there is network connectivity
 call remotedriveauth -auth -refreshtoken yes %refreshtoken% https://drive.google.com
@@ -53,8 +56,8 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtoken
 
 test quota
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ quota
@@ -71,8 +74,8 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtoken
 
 test clean remote
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
@@ -90,8 +93,8 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtoken
 
 test clean remote
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
@@ -176,8 +179,8 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2015-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtoken
 
 test create scenario
 mkdir local
@@ -306,8 +309,8 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2015-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtoken
 
 test clean server
 call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
@@ -389,8 +392,8 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2015-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtoken
 
 test clean server
 call backup -refreshtoken %refreshtoken% -throttle 1 remote https://drive.google.com/ del *

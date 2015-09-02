@@ -67,6 +67,9 @@ namespace Backup
 
         public static class ThreadSafeRandom
         {
+            // For absolute correctness, ensure that this constructor is triggered at the beginning of Main(), otherwise
+            // if construction is deferred until multithreaded access, multiple threads may temporarily receive the
+            // same random value.
             private static readonly Random random = new Random();
 
             public static int Next(int limit)
@@ -13257,6 +13260,9 @@ namespace Backup
             context.faultInjectionTemplateRoot = new FaultTemplateNode();
 
 
+
+            // forced global initializations
+            ThreadSafeRandom.Next(); // force creation of global state before threading starts
 
             // implementation validations
             {

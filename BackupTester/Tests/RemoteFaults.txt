@@ -10,6 +10,12 @@ fail-pause on
 declare-exclusive-resource google-test-account
 declare-exclusive-resource microsoft-test-account
 
+load-resource refreshtokenmicrosoft resources\MicrosoftOneDriveRefreshToken.txt
+encrypt-memory refreshtokenmicrosoft
+
+load-resource refreshtokengoogle resources\GoogleDriveRefreshToken.txt
+encrypt-memory refreshtokengoogle
+
 
 module prerequisites
 
@@ -25,13 +31,13 @@ use-exclusive-resource microsoft-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\MicrosoftOneDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtokenmicrosoft resources\MicrosoftOneDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtokenmicrosoft
 
 test clean remote
-call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del *
+call backup -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.com/ del *
 exitcode-verify 0
-call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
+call backup -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
@@ -45,7 +51,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
 .                                         -----D proofs\
 endlist
-call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ upload localfile remotefile
+call backup -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.com/ upload localfile remotefile
 exitcode-verify 0
 
 # Read/SocketHttpRequest[count:1] = initial request by file ID (redirected)
@@ -53,7 +59,7 @@ exitcode-verify 0
 
 test download file - fatal interruption
 # prove that injection point is functioning correctly (i.e. is not a no-op)
-call backup -injectfault proof:.\proofs\kill kill /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtoken% remote https://onedrive.live.com/ download remotefile newlocalfile
+call backup -injectfault proof:.\proofs\kill kill /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.com/ download remotefile newlocalfile
 exitcode-verify not 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -63,7 +69,7 @@ list-verify .
 endlist
 
 test download file - simulate dropped connection to trigger resume code
-call backup -trace -injectfault proof:.\proofs\drop custom:web=3 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtoken% remote https://onedrive.live.com/ download remotefile newlocalfile1
+call backup -trace -injectfault proof:.\proofs\drop custom:web=3 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.com/ download remotefile newlocalfile1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -76,7 +82,7 @@ endlist
 delete newlocalfile1
 
 test download file - simulate 500 internal server error to trigger resume code
-call backup -trace -injectfault proof:.\proofs\500err custom:status=500 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtoken% remote https://onedrive.live.com/ download remotefile newlocalfile2
+call backup -trace -injectfault proof:.\proofs\500err custom:status=500 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.com/ download remotefile newlocalfile2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -90,7 +96,7 @@ endlist
 delete newlocalfile2
 
 test cleanup remote file
-call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ del remotefile
+call backup -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.com/ del remotefile
 exitcode-verify 0
 
 
@@ -100,13 +106,13 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtokengoogle resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtokengoogle
 
 test clean remote
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del *
 exitcode-verify 0
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
@@ -119,7 +125,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
 .                                         -----D proofs\
 endlist
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile
 exitcode-verify 0
 
 # Read/SocketHttpRequest[count:1] = initial request by file ID (redirected)
@@ -127,7 +133,7 @@ exitcode-verify 0
 
 test download file - fatal interruption
 # prove that injection point is functioning correctly (i.e. is not a no-op)
-call backup -injectfault proof:.\proofs\kill kill /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtoken% remote https://drive.google.com/ download remotefile newlocalfile
+call backup -injectfault proof:.\proofs\kill kill /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ download remotefile newlocalfile
 exitcode-verify not 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -137,7 +143,7 @@ list-verify .
 endlist
 
 test download file - simulate dropped connection to trigger resume code
-call backup -trace -injectfault proof:.\proofs\drop custom:web=3 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtoken% remote https://drive.google.com/ download remotefile newlocalfile1
+call backup -trace -injectfault proof:.\proofs\drop custom:web=3 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ download remotefile newlocalfile1
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -150,7 +156,7 @@ endlist
 delete newlocalfile1
 
 test download file - simulate 500 internal server error to trigger resume code
-call backup -trace -injectfault proof:.\proofs\500err custom:status=500 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtoken% remote https://drive.google.com/ download remotefile newlocalfile2
+call backup -trace -injectfault proof:.\proofs\500err custom:status=500 /RemoteArchiveFileManager/Read/SocketHttpRequest[count:2]/ResponseBodyBytes[limit:200000] -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ download remotefile newlocalfile2
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -164,7 +170,7 @@ endlist
 delete newlocalfile2
 
 test cleanup remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile
 exitcode-verify 0
 
 
@@ -174,13 +180,13 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtokengoogle resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtokengoogle
 
 test clean remote
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del *
 exitcode-verify 0
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
@@ -194,7 +200,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
 .                                         -----D proofs\
 endlist
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:1 and stringequal:'1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile1
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:1 and stringequal:'1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile1
 exitcode-verify not 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -202,14 +208,14 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[2\]
 endlist
 # verify file isn't uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 endoutput
 
 test upload file - simulate 404 error - should retry and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:1 and stringequal:'1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile3
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:1 and stringequal:'1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -218,17 +224,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[2\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+300000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile3
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile3
 
 test upload file - simulate dropped connection - should retry and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:1 and stringequal:'1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile4
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:1 and stringequal:'1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile4
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -238,17 +244,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[2\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+300000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile4
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile4
 
 test cleanup remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile*
 exitcode-verify 0
 
 
@@ -258,13 +264,13 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtokengoogle resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtokengoogle
 
 test clean remote
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del *
 exitcode-verify 0
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
@@ -280,7 +286,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
 .                                         -----D proofs\
 endlist
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile1
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile1
 exitcode-verify not 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -288,14 +294,14 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[2\]
 endlist
 # verify file isn't uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 endoutput
 
 test upload file - simulate 404 error - should restart and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile3
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -304,17 +310,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[2\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile3
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile3
 
 test upload file - simulate dropped connection (no data transferred) - should retry and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile4
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile4
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -324,17 +330,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[2\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile4
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile4
 
 test upload file - simulate dropped connection (partial data transferred) - should retry and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile5
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile5
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -345,17 +351,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[2\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile5$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile5
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile5
 
 test cleanup remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile*
 exitcode-verify 0
 
 
@@ -365,13 +371,13 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtokengoogle resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtokengoogle
 
 test clean remote
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del *
 exitcode-verify 0
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
@@ -387,7 +393,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
 .                                         -----D proofs\
 endlist
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-1 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:3 and stringequal:'2b-1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile1
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-1 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:3 and stringequal:'2b-1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile1
 exitcode-verify not 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -396,14 +402,14 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[3\]
 endlist
 # verify file isn't uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 endoutput
 
 test upload file - simulate 404 error - should restart and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:3 and stringequal:'2b-1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile3
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:3 and stringequal:'2b-1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -414,17 +420,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[3\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile3
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile3
 
 test upload file - simulate dropped connection (no data transferred) - should retry and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-3 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\drop2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:3 and stringequal:'2b-1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile4
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-3 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\drop2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:3 and stringequal:'2b-1']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile4
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -437,17 +443,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[3\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1000000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile4
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile4
 
 test cleanup remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile*
 exitcode-verify 0
 
 
@@ -457,13 +463,13 @@ use-exclusive-resource google-test-account
 
 test setup
 date 2014-01-01
-load-resource refreshtoken resources\GoogleDriveRefreshToken.txt
-encrypt-memory refreshtoken
+#[done above in prologue]load-resource refreshtokengoogle resources\GoogleDriveRefreshToken.txt
+#[done above in prologue]encrypt-memory refreshtokengoogle
 
 test clean remote
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del *
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del *
 exitcode-verify 0
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
@@ -479,7 +485,7 @@ list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
 .                                         -----D proofs\
 endlist
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-1 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile1
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-1 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\kill kill "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile1
 exitcode-verify not 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -488,14 +494,14 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[3\]
 endlist
 # verify file isn't uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 endoutput
 
 test upload file - simulate 404 error - should restart and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile3
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\404err custom:status=404 "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile3
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -506,17 +512,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[3\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1500000\s+[0-9a-zA-Z]* remotefile3$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile3
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile3
 
 test upload file - simulate dropped connection (no data transferred) - should retry and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-3 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\drop2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile4
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-3 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\drop2 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile4
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -529,17 +535,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[3\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1500000\s+[0-9a-zA-Z]* remotefile4$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile4
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile4
 
 test upload file - simulate dropped connection (partial data transferred) - should retry and succeed
-call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-4 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\drop2b custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:500000]" -refreshtoken %refreshtoken% remote https://drive.google.com/ upload localfile remotefile5
+call backup -tracefaultpoints -trace -injectfault proof:.\proofs\drop1-4 custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:2 and stringequal:'2a']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:700000]" -injectfault proof:.\proofs\drop2b custom:web=3 "/RemoteArchiveFileManager/Commit/UploadFile[count:4 and stringequal:'2b-3']/SocketHttpRequest[count:1]/RequestBodyBytes[limit:500000]" -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ upload localfile remotefile5
 exitcode-verify 0
 list-verify .
 .          2014-01-01          2014-01-01 -A---- localfile [1]
@@ -554,17 +560,17 @@ list-verify .
 *          [0-9-]+          [0-9-]+ -A---- proofs\\kill \[3\]
 endlist
 # verify file is uploaded
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ list
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://drive.google.com/*
 *[-: 0-9]*\s+[-: 0-9]*\s+1500000\s+[0-9a-zA-Z]* remotefile5$
 endoutput
 # remove
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile5
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile5
 
 test cleanup remote file
-call backup -refreshtoken %refreshtoken% remote https://drive.google.com/ del remotefile*
+call backup -refreshtoken %refreshtokengoogle% remote https://drive.google.com/ del remotefile*
 exitcode-verify 0
 
 
