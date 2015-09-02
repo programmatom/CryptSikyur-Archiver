@@ -759,7 +759,7 @@ enddefer
 defer syncpoint2
 .close-all
 enddefer
-call-with-input backup -concurrency 0 -injectfault synch:%syncpoint1% /DynamicPack/Stage[stringequal:'7-write-segment-files'] -injectfault synch:%syncpoint2% /DoRetryable/PromptUser[count:1] dynpack source archive\archive 60000
+call-with-input backup -tracefaultpoints -concurrency 0 -injectfault synch:%syncpoint1% /DynamicPack/Stage[stringequal:'7-write-segment-files'] -injectfault synch:%syncpoint2% /DynamicPack/Stage[stringequal:'7-write-segment-files']/DoRetryable/PromptUser[count:1] dynpack source archive\archive 60000
 .r
 endinput
 exitcode-verify 0
@@ -1332,7 +1332,7 @@ enddefer
 defer syncpoint2
 .create source\b -size 50000
 enddefer
-call-with-input backup -concurrency 0 -injectfault synch:%syncpoint1% /DynamicPack/Stage[stringequal:'7-write-segment-files'] -injectfault synch:%syncpoint2% /DoRetryable/PromptUser[count:1] dynpack source archive\archive 60000
+call-with-input backup -tracefaultpoints -concurrency 0 -injectfault synch:%syncpoint1% /DynamicPack/Stage[stringequal:'7-write-segment-files'] -injectfault synch:%syncpoint2% /DynamicPack/Stage[stringequal:'7-write-segment-files']/DoRetryable/PromptUser[count:1] dynpack source archive\archive 60000
 .r
 endinput
 exitcode-verify 0

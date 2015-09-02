@@ -50,7 +50,6 @@ namespace Backup
     public static class RetryHelper
     {
         private static int maxRetries = 5;
-        private static readonly Random random = new Random();
 
         public static int MaxRetries
         {
@@ -65,20 +64,12 @@ namespace Backup
             maxRetries = newMaxRetries;
         }
 
-        public static int ThreadsafeRandomNext(int limit)
-        {
-            lock (random)
-            {
-                return random.Next(limit);
-            }
-        }
-
         public static void WaitExponentialBackoff(int retry, TextWriter trace)
         {
             if (retry > 0)
             {
                 int w = 500 * (1 << retry);
-                int delay = w + ThreadsafeRandomNext(w);
+                int delay = w + Core.ThreadSafeRandom.Next(w);
 
                 if (trace != null)
                 {
@@ -1649,7 +1640,7 @@ namespace Backup
                 }
                 // create dispersion in fragmentSize to reduce parallel request synchronizing on fast networks with slow
                 // to respond remote servers: range [1..1.5)
-                float fragmentSizeRandomDispersion = 1 + (float)RetryHelper.ThreadsafeRandomNext(128) / 256;
+                float fragmentSizeRandomDispersion = 1 + (float)Core.ThreadSafeRandom.Next(128) / 256;
                 if (trace != null)
                 {
                     trace.WriteLine(" Fragment size: random factor for dispersion: {0}", fragmentSizeRandomDispersion);

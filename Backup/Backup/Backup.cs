@@ -65,6 +65,26 @@ namespace Backup
             internal const int ConcurrencyForNetworkBound = 3;
         }
 
+        public static class ThreadSafeRandom
+        {
+            private static readonly Random random = new Random();
+
+            public static int Next(int limit)
+            {
+                lock (random)
+                {
+                    return random.Next(limit);
+                }
+            }
+
+            public static int Next()
+            {
+                lock (random)
+                {
+                    return random.Next();
+                }
+            }
+        }
 
         ////////////////////////////////////////////////////////////////////////////
         //
@@ -601,14 +621,15 @@ namespace Backup
             }
         }
 
-        internal static long GetFileLengthRetryable(string path, Context context, TextWriter trace)
+        internal static long GetFileLengthRetryable(string path, Context context, TextWriter trace, IFaultInstance faultContext)
         {
             return DoRetryable<long>(
                 delegate { return GetFileLength(path); },
                 delegate { return -1; },
                 null,
                 context,
-                trace);
+                trace,
+                faultContext);
         }
 
         internal static long GetFileLengthNoError(string path)
@@ -742,9 +763,9 @@ namespace Backup
         internal delegate ResultType TryFunctionType<ResultType>();
         internal delegate void ResetFunctionType();
         internal delegate void ConsoleWriteLine(string line, params string[] args);
-        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enableUserInteraction, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace)
+        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, bool enableUserInteraction, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace, IFaultInstance faultContext)
         {
-            IFaultInstance faultDoRetryable = context.faultInjectionRoot.Select("DoRetryable");
+            IFaultInstance faultDoRetryable = faultContext.Select("DoRetryable");
 
             bool tried = false;
             while (true)
@@ -850,9 +871,9 @@ namespace Backup
             }
         }
 
-        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, Context context, TextWriter trace)
+        internal static ResultType DoRetryable<ResultType>(TryFunctionType<ResultType> tryFunction, TryFunctionType<ResultType> continueFunction, ResetFunctionType resetFunction, Context context, TextWriter trace, IFaultInstance faultContext)
         {
-            return DoRetryable(tryFunction, continueFunction, resetFunction, true/*enableUserInteraction*/, Console.WriteLine, context, trace);
+            return DoRetryable(tryFunction, continueFunction, resetFunction, true/*enableUserInteraction*/, Console.WriteLine, context, trace, faultContext);
         }
 
         internal static void GetExclusionArguments(string[] args, out InvariantStringSet excludedExtensions, bool relative, out InvariantStringSet excludedItems)
@@ -1508,7 +1529,7 @@ namespace Backup
                 });
         }
 
-        internal static void CopyFile(string source, string target, Context context)
+        internal static void CopyFile(string source, string target, Context context, IFaultInstance faultContext)
         {
             DoRetryable<int>(
                 delegate
@@ -1605,7 +1626,8 @@ namespace Backup
                     }
                 },
                 context,
-                null/*trace*/);
+                null/*trace*/,
+                faultContext);
 
             try
             {
@@ -1809,11 +1831,11 @@ namespace Backup
 
             List<string> subdirectories = new List<string>();
             bool driveRoot = IsDriveRoot(sourceRootDirectory);
-            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/))
+            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/, context.faultInjectionRoot))
             {
                 if (!driveRoot || !IsExcludedDriveRootItem(file))
                 {
-                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
+                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/, context.faultInjectionRoot);
                     if ((fileAttributes & FileAttributes.Directory) != 0)
                     {
                         subdirectories.Add(file);
@@ -1825,7 +1847,7 @@ namespace Backup
                             if (!excludedItems.Contains(file.ToLowerInvariant()) &&
                                 !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                             {
-                                CopyFile(file, Path.Combine(targetRootDirectory, Path.GetFileName(file)), context);
+                                CopyFile(file, Path.Combine(targetRootDirectory, Path.GetFileName(file)), context, context.faultInjectionRoot);
                             }
                             else
                             {
@@ -1866,7 +1888,7 @@ namespace Backup
             InvariantStringSet excludedItems;
             GetExclusionArguments(args, out excludedExtensions, false/*relative*/, out excludedItems);
 
-            FileAttributes sourceAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(source); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
+            FileAttributes sourceAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(source); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/, context.faultInjectionRoot);
             if ((sourceAttributes & FileAttributes.Directory) == 0)
             {
                 CopyFile(
@@ -1874,7 +1896,8 @@ namespace Backup
                     Directory.Exists(target)
                         ? Path.Combine(target, Path.GetFileName(source))
                         : target,
-                    context);
+                    context,
+                    context.faultInjectionRoot);
             }
             else
             {
@@ -3380,7 +3403,7 @@ namespace Backup
                                 {
                                     codePath = 101;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -3390,7 +3413,7 @@ namespace Backup
                             else if (changedR)
                             {
                                 codePath = 102;
-                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
+                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration);
                                 currentEntriesL.MoveNext();
                             }
                             else
@@ -3487,7 +3510,7 @@ namespace Backup
                                 {
                                     codePath = 201;
                                 }
-                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/);
+                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration);
                                 currentEntriesR.MoveNext();
                             }
                             else if (changedR)
@@ -3496,7 +3519,7 @@ namespace Backup
                                 {
                                     codePath = 202;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3635,7 +3658,7 @@ namespace Backup
                                     codePath = 301;
                                 }
                                 bool dirR = currentEntriesR.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -3657,7 +3680,7 @@ namespace Backup
                                     codePath = 302;
                                 }
                                 bool dirL = currentEntriesL.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3690,7 +3713,7 @@ namespace Backup
                                 if (changedLDirCaseChangeOnly && !changedRDirCaseChangeOnly)
                                 {
                                     bool dirR = currentEntriesR.CurrentIsDirectory;
-                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
                                     {
                                         currentEntriesR_Current = currentEntriesL_Current;
                                     }
@@ -3699,7 +3722,7 @@ namespace Backup
                                 else if (changedRDirCaseChangeOnly && !changedLDirCaseChangeOnly)
                                 {
                                     bool dirL = currentEntriesL.CurrentIsDirectory;
-                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/))
+                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
                                     {
                                         currentEntriesL_Current = currentEntriesR_Current;
                                     }
@@ -3801,7 +3824,7 @@ namespace Backup
         //
         ////////////////////////////////////////////////////////////////////////////
 
-        private static void CreateZeroLengthFile(string path, Context context)
+        private static void CreateZeroLengthFile(string path, Context context, IFaultInstance faultContext)
         {
             DoRetryable<int>(
                 delegate
@@ -3823,10 +3846,11 @@ namespace Backup
                     }
                 },
                 context,
-                null/*trace*/);
+                null/*trace*/,
+                faultContext);
         }
 
-        private static void DeleteFile(string path, Context context)
+        private static void DeleteFile(string path, Context context, IFaultInstance faultContext)
         {
             DoRetryable<int>(
                 delegate
@@ -3838,10 +3862,11 @@ namespace Backup
                 delegate { return 0; },
                 null,
                 context,
-                null/*trace*/);
+                null/*trace*/,
+                faultContext);
         }
 
-        private static void MoveFile(string sourcePath, string targetPath, Context context)
+        private static void MoveFile(string sourcePath, string targetPath, Context context, IFaultInstance faultContext)
         {
             DoRetryable<int>(
                 delegate
@@ -3856,7 +3881,8 @@ namespace Backup
                 delegate { return 0; },
                 null,
                 context,
-                null/*trace*/);
+                null/*trace*/,
+                faultContext);
         }
 
         private static string FormatArchivePointName(DateTime timestamp)
@@ -4542,7 +4568,7 @@ namespace Backup
         internal static void BackupRecursive(string source, string previous, string current, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, TextWriter log, bool deepRollback, IFaultInstance faultBackup)
         {
             IFaultInstance faultEnter = faultBackup.Select("Enter", Path.GetFileName(source));
-            faultEnter.Select("Starting");
+            IFaultInstance faultStarting = faultEnter.Select("Starting");
 
             Debug.Assert(Directory.Exists(source) == !deepRollback);
 
@@ -4640,7 +4666,7 @@ namespace Backup
                 }
             }
 
-            faultEnter.Select("Enumerated");
+            IFaultInstance faultEnumerated = faultEnter.Select("Enumerated");
 
             foreach (TriEntry entry in combined)
             {
@@ -4657,24 +4683,24 @@ namespace Backup
                     faultFile = faultEnter.Select("File", canonical);
                 }
 
-                faultFile.Select("Starting");
-                faultFile.Select("Rollback");
+                IFaultInstance faultFileStarting = faultFile.Select("Starting");
+                IFaultInstance faultFileRollback = faultFile.Select("Rollback");
 
                 // roll back anything found already in checkpoint
-                if (File.Exists(previousPath) && (GetFileLengthRetryable(previousPath, context, null/*trace*/) == 0))
+                if (File.Exists(previousPath) && (GetFileLengthRetryable(previousPath, context, null/*trace*/, faultFileRollback) == 0))
                 {
                     if (File.Exists(currentPath))
                     {
                         // previous item was carried to current during prior incompleted pass - move it back.
-                        DeleteFile(previousPath, context);
-                        MoveFile(currentPath, previousPath, context);
+                        DeleteFile(previousPath, context, faultFileRollback);
+                        MoveFile(currentPath, previousPath, context, faultFileRollback);
                     }
                     // else item is missing in current and really was zero length
                 }
                 else if (File.Exists(currentPath))
                 {
                     // item added/modified during prior incompleted pass - remove
-                    DeleteFile(currentPath, context);
+                    DeleteFile(currentPath, context, faultFileRollback);
                 }
                 else if (Directory.Exists(currentPath))
                 {
@@ -4754,7 +4780,8 @@ namespace Backup
                             delegate() { return false; },
                             delegate() { },
                             context,
-                            null/*trace*/))
+                            null/*trace*/,
+                            faultCheckpoint))
                         {
                             BackupRecursive(
                                 Path.Combine(source, entry.source),
@@ -4774,19 +4801,19 @@ namespace Backup
                         {
                             bool unchanged = true;
 
-                            DateTime sourceItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context, null/*trace*/);
-                            DateTime previousItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context, null/*trace*/);
+                            DateTime sourceItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context, null/*trace*/, faultCheckpoint);
+                            DateTime previousItemCreationTime = DoRetryable<DateTime>(delegate { return File.GetCreationTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context, null/*trace*/, faultCheckpoint);
                             unchanged = unchanged && (sourceItemCreationTime == previousItemCreationTime);
-                            DateTime sourceItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context, null/*trace*/);
-                            DateTime previousItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context, null/*trace*/);
+                            DateTime sourceItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(sourcePath); }, delegate { return DateTime.MaxValue; }, null, context, null/*trace*/, faultCheckpoint);
+                            DateTime previousItemLastWriteTime = DoRetryable<DateTime>(delegate { return File.GetLastWriteTime(previousPath); }, delegate { return DateTime.MinValue; }, null, context, null/*trace*/, faultCheckpoint);
                             unchanged = unchanged && (sourceItemLastWriteTime == previousItemLastWriteTime);
 
                             if (unchanged)
                             {
                                 faultCheckpoint.Select("Move");
 
-                                MoveFile(previousPath, currentPath, context);
-                                CreateZeroLengthFile(previousPath, context);
+                                MoveFile(previousPath, currentPath, context, faultCheckpoint);
+                                CreateZeroLengthFile(previousPath, context, faultCheckpoint);
 
                                 try
                                 {
@@ -4804,7 +4831,7 @@ namespace Backup
                                 {
                                     log.WriteLine("modified {0}", sourcePath);
                                 }
-                                CopyFile(sourcePath, currentPath, context);
+                                CopyFile(sourcePath, currentPath, context, faultCheckpoint);
                             }
                         }
                         else
@@ -4814,7 +4841,7 @@ namespace Backup
                             {
                                 log.WriteLine("added {0}", sourcePath);
                             }
-                            CopyFile(sourcePath, currentPath, context);
+                            CopyFile(sourcePath, currentPath, context, faultCheckpoint);
                         }
                     }
                     else
@@ -5120,7 +5147,8 @@ namespace Backup
                     delegate { return -1; },
                     null,
                     context,
-                    null/*trace*/);
+                    null/*trace*/,
+                    context.faultInjectionRoot);
                 long latePurgeLength = DoRetryable<long>(
                     delegate
                     {
@@ -5137,7 +5165,8 @@ namespace Backup
                     delegate { return -1; },
                     null,
                     context,
-                    null/*trace*/);
+                    null/*trace*/,
+                    context.faultInjectionRoot);
 
                 if (earlySaveLength != 0)
                 {
@@ -5174,7 +5203,8 @@ namespace Backup
                             delegate { return 0; },
                             null,
                             context,
-                            null/*trace*/);
+                            null/*trace*/,
+                            context.faultInjectionRoot);
                         DoRetryable<int>(
                             delegate
                             {
@@ -5184,7 +5214,8 @@ namespace Backup
                             delegate { return 0; },
                             null,
                             context,
-                            null/*trace*/);
+                            null/*trace*/,
+                            context.faultInjectionRoot);
                     }
                 }
             }
@@ -5481,7 +5512,7 @@ namespace Backup
 
             string sourceFilePath = Path.Combine(Path.Combine(Path.Combine(archiveRoot, checkpointTerminal), checkpointPart), checkpointPartName);
             string targetFilePath = target; // directory restore caller needs to do this (because it may not always be appropriate): Path.Combine(target, checkpointPartName);
-            CopyFile(sourceFilePath, target, context);
+            CopyFile(sourceFilePath, target, context, context.faultInjectionRoot);
         }
 
         private static void RestoreRecursive(string archiveRoot, string checkpointPart, string target, string[] checkpoints, Context context)
@@ -6498,7 +6529,7 @@ namespace Backup
                 }
             }
 
-            internal void SetDigest(ConcurrentTasks concurrent, string root, Context context, TextWriter trace)
+            internal void SetDigest(ConcurrentTasks concurrent, string root, Context context, TextWriter trace, IFaultInstance faultContext)
             {
                 digest = null;
 
@@ -6518,7 +6549,8 @@ namespace Backup
                     true/*enableUserInteraction*/, // OK as long as file enumeration loop is done on main thread
                     Console.WriteLine,
                     context,
-                    trace))
+                    trace,
+                    faultContext))
                 {
                     // failure case
                     if (controlStream == null)
@@ -6664,7 +6696,7 @@ namespace Backup
             }
         }
 
-        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableUserInteraction, bool enableContinue, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace)
+        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableUserInteraction, bool enableContinue, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace, IFaultInstance faultContext)
         {
             bool directory = false;
 
@@ -6691,7 +6723,8 @@ namespace Backup
                 enableUserInteraction,
                 consoleWriteLine,
                 context,
-                trace))
+                trace,
+                faultContext))
             {
                 if ((inputStream == null) && !enableContinue && !directory)
                 {
@@ -6778,17 +6811,17 @@ namespace Backup
             }
         }
 
-        private static void PackRecursive(string sourceRootDirectory, Stream stream, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, string partialPathPrefix, ref long addedCount)
+        private static void PackRecursive(string sourceRootDirectory, Stream stream, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, string partialPathPrefix, ref long addedCount, IFaultInstance faultContext)
         {
             WriteStatusLine(sourceRootDirectory);
 
             List<string> subdirectories = new List<string>();
             bool driveRoot = IsDriveRoot(sourceRootDirectory);
-            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/))
+            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/, faultContext))
             {
                 if (!driveRoot || !IsExcludedDriveRootItem(file))
                 {
-                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
+                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/, faultContext);
                     if ((fileAttributes & FileAttributes.Directory) != 0)
                     {
                         subdirectories.Add(file);
@@ -6807,7 +6840,8 @@ namespace Backup
                                 true/*enableContinue*/,
                                 Console.WriteLine,
                                 context,
-                                null/*trace*/);
+                                null/*trace*/,
+                                faultContext);
                             addedCount++;
                         }
                         else
@@ -6831,7 +6865,8 @@ namespace Backup
                         excludedExtensions,
                         excludedItems,
                         Path.Combine(partialPathPrefix, Path.GetFileName(subdirectory)),
-                        ref addedCount);
+                        ref addedCount,
+                        faultContext);
 
                     // for subdirectories, only if it is empty add it explicitly
                     if (addedCount == initialAddedCount)
@@ -6845,7 +6880,8 @@ namespace Backup
                             true/*enableContinue*/,
                             Console.WriteLine,
                             context,
-                            null/*trace*/);
+                            null/*trace*/,
+                            faultContext);
                         addedCount++;
                     }
                 }
@@ -6959,7 +6995,8 @@ namespace Backup
                             excludedExtensions,
                             excludedItems,
                             ".",
-                            ref addedCount);
+                            ref addedCount,
+                            context.faultInjectionRoot);
 
                         PackedFileHeaderRecord.WriteNullHeader(stream);
                     });
@@ -8221,9 +8258,9 @@ namespace Backup
                 }
             }
 
-            internal void SetDigest(ConcurrentTasks concurrent, string root, Context context, TextWriter trace)
+            internal void SetDigest(ConcurrentTasks concurrent, string root, Context context, TextWriter trace, IFaultInstance faultContext)
             {
-                header.SetDigest(concurrent, root, context, trace);
+                header.SetDigest(concurrent, root, context, trace, faultContext);
 
                 headerOverhead = null; // digests computed later, on demand; reset overhead as length may have changed
             }
@@ -8250,17 +8287,17 @@ namespace Backup
             }
         }
 
-        private static void ItemizeFilesRecursive(List<FileRecord> files, string sourceRootDirectory, long? largeFileSegmentSize, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, FilePath partialPathPrefix, TextWriter trace)
+        private static void ItemizeFilesRecursive(List<FileRecord> files, string sourceRootDirectory, long? largeFileSegmentSize, Context context, InvariantStringSet excludedExtensions, InvariantStringSet excludedItems, FilePath partialPathPrefix, TextWriter trace, IFaultInstance faultContext)
         {
             WriteStatusLine(sourceRootDirectory);
 
             List<string> subdirectories = new List<string>();
             bool driveRoot = IsDriveRoot(sourceRootDirectory);
-            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/))
+            foreach (string file in DoRetryable<string[]>(delegate { return Directory.GetFileSystemEntries(sourceRootDirectory); }, delegate { return new string[0]; }, null, context, null/*trace*/, faultContext))
             {
                 if (!driveRoot || !IsExcludedDriveRootItem(file))
                 {
-                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/);
+                    FileAttributes fileAttributes = DoRetryable<FileAttributes>(delegate { return File.GetAttributes(file); }, delegate { return FileAttributes.Normal; }, null, context, null/*trace*/, faultContext);
                     if ((fileAttributes & FileAttributes.Directory) != 0)
                     {
                         subdirectories.Add(file);
@@ -8270,7 +8307,7 @@ namespace Backup
                         if (!excludedItems.Contains(file.ToLowerInvariant())
                             && !excludedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
                         {
-                            long inputStreamLength = GetFileLengthRetryable(file, context, trace);
+                            long inputStreamLength = GetFileLengthRetryable(file, context, trace, faultContext);
                             if (inputStreamLength >= 0)
                             {
                                 FilePath partialPath = FilePathItem.Create(partialPathPrefix, Path.GetFileName(file));
@@ -8327,7 +8364,7 @@ namespace Backup
                 {
                     int initialFilesCount = files.Count;
 
-                    ItemizeFilesRecursive(files, subdirectory, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)), trace);
+                    ItemizeFilesRecursive(files, subdirectory, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create(partialPathPrefix, Path.GetFileName(subdirectory)), trace, faultContext);
 
                     // for subdirectories, only if it is empty add it explicitly
                     if (initialFilesCount == files.Count)
@@ -8640,13 +8677,16 @@ namespace Backup
 
 
             // build current file list
-            sequenceTimes.Phase("itemize current files");
+            sequenceTimes.Phase("preparation: itemize current files");
             List<FileRecord> currentFiles = new List<FileRecord>();
-            ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."), traceDynpack);
+            {
+                IFaultInstance faultEnumerate = faultDynamicPack.Select("Enumerate");
+                ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."), traceDynpack, faultEnumerate);
+            }
             EraseStatusLine();
             if (traceDynpack != null)
             {
-                traceDynpack.WriteLine("Current Files:");
+                traceDynpack.WriteLine("Current Files [{0}]:", currentFiles.Count);
                 for (int i = 0; i < currentFiles.Count; i++)
                 {
                     FileRecord record = currentFiles[i];
@@ -8655,7 +8695,7 @@ namespace Backup
                 traceDynpack.WriteLine();
             }
 
-            sequenceTimes.Phase("obtain archive file manager");
+            sequenceTimes.Phase("preparation: obtain archive file manager");
             string targetArchiveFileNameTemplate;
             bool remote;
             using (IArchiveFileManager fileManager = GetArchiveFileManager(targetArchivePathTemplate, out targetArchiveFileNameTemplate, out remote, context))
@@ -8705,12 +8745,12 @@ namespace Backup
 
                         CheckedReadStream localSignature = null;
 
-                        sequenceTimes.Phase("download existing manifest");
+                        sequenceTimes.Phase("preparation: download existing manifest");
                         using (ILocalFileCopy fileRef = fileManager.Read(manifestFileNameActual, null/*progressTracker*/, fileManager.GetMasterTrace()))
                         {
                             using (Stream fileStream = fileRef.Read())
                             {
-                                sequenceTimes.Phase("parse existing manifest");
+                                sequenceTimes.Phase("preparation: parse existing manifest");
 
                                 CryptoKeygroup keysManifest = null;
                                 EncryptedFileContainerHeader fchManifest = null;
@@ -8967,7 +9007,7 @@ namespace Backup
                 }
                 if (traceDynpack != null)
                 {
-                    traceDynpack.WriteLine("Previous Files:");
+                    traceDynpack.WriteLine("Previous Files [{0}]:", previousFiles.Count);
                     for (int i = 0; i < previousFiles.Count; i++)
                     {
                         FileRecord record = previousFiles[i];
@@ -8977,12 +9017,13 @@ namespace Backup
                 }
 
                 // Sort and merge
+                IFaultInstance faultMerge = faultDynamicPack.Select("Merge");
                 List<FileRecord> mergedFiles = new List<FileRecord>();
                 {
                     int iCurrent;
                     int iPrevious;
 
-                    sequenceTimes.Phase("sort lists");
+                    sequenceTimes.Phase("preparation: sort lists");
                     currentFiles.Sort(DynPackPathCompareWithRange);
                     previousFiles.Sort(DynPackPathCompareWithRange); // ensure sorted - do not trust old manifest
                     // detect flaws in comparison algorithm
@@ -9010,7 +9051,7 @@ namespace Backup
                     // Find all ranged files in currentFiles or previousFiles and if the
                     // underlying file has not changed, ensure that the structure from previousFiles
                     // is retained.
-                    sequenceTimes.Phase("suppress gratuitous range-split rearchiving");
+                    sequenceTimes.Phase("preparation: suppress gratuitous range-split rearchiving");
                     iCurrent = 0;
                     iPrevious = 0;
                     while ((iCurrent < currentFiles.Count) && (iPrevious < previousFiles.Count))
@@ -9110,7 +9151,7 @@ namespace Backup
                     }
 
                     // main merge occurs here
-                    sequenceTimes.Phase("main merge (incl. digest computation)");
+                    sequenceTimes.Phase(String.Concat("preparation: main merge", ignoreUnchangedFiles ? " (incl. digest computation)" : null));
                     using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, traceDynpack))
                     {
                         iCurrent = 0;
@@ -9148,7 +9189,7 @@ namespace Backup
                                     && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                                 {
                                     faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                    currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack);
+                                    currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack, faultMerge);
                                 }
 
                                 mergedFiles.Add(currentFiles[iCurrent]);
@@ -9171,7 +9212,7 @@ namespace Backup
                                         && ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0)))
                                     {
                                         faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                        currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack);
+                                        currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack, faultMerge);
                                     }
 
                                     mergedFiles.Add(currentFiles[iCurrent]);
@@ -9203,7 +9244,7 @@ namespace Backup
                                         if ((currentFiles[iCurrent].Range == null) || (currentFiles[iCurrent].Range.Start == 0))
                                         {
                                             faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
-                                            currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack);
+                                            currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack, faultMerge);
                                             currentDigest = currentFiles[iCurrent].Digest;
                                         }
                                         else
@@ -9292,7 +9333,7 @@ namespace Backup
 
                 // Fixup pass for files inserted into the middle of segments (breaking segment
                 // ordering invariants) - see also comment in "Added(1)" clause above.
-                sequenceTimes.Phase("segment boundary fixup");
+                sequenceTimes.Phase("preparation: segment boundary fixup");
                 {
                     Dictionary<string, bool> usedSegmentNames = new Dictionary<string, bool>();
                     string currentSegmentName = String.Empty;
@@ -9348,7 +9389,7 @@ namespace Backup
                 }
 
                 // Ensure segment contiguity and uniqueness
-                sequenceTimes.Phase("ensure segment contiguity and uniqueness");
+                sequenceTimes.Phase("preparation: ensure segment contiguity and uniqueness");
                 {
                     Dictionary<SegmentRecord, bool> usedSegments = new Dictionary<SegmentRecord, bool>();
                     SegmentRecord currentSegment = null;
@@ -9445,7 +9486,7 @@ namespace Backup
                 }
 
                 // First scan (before splitting or merging) - ensure missing segments are dirty
-                sequenceTimes.Phase("mark missing segments dirty");
+                sequenceTimes.Phase("preparation: mark missing segments dirty");
                 foreach (SegmentRecord segment in segments)
                 {
                     string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
@@ -9456,7 +9497,7 @@ namespace Backup
                 }
 
                 // Split segments too large
-                sequenceTimes.Phase("split too-large segments");
+                sequenceTimes.Phase("preparation: split too-large segments");
                 for (int i = 0; i < segments.Count; i++)
                 {
                     SegmentRecord segment = segments[i];
@@ -9534,7 +9575,7 @@ namespace Backup
                 }
 
                 // Join (fold) small segments
-                sequenceTimes.Phase("fold small segments");
+                sequenceTimes.Phase("preparation: fold small segments");
                 for (int i = 0; i < segments.Count - 1; i++)
                 {
                     if (!segments[i].Dirty.Value && !segments[i + 1].Dirty.Value)
@@ -9585,7 +9626,7 @@ namespace Backup
                 }
 
                 // Rename segments
-                sequenceTimes.Phase("rename segments");
+                sequenceTimes.Phase("preparation: rename segments");
                 {
                     if (segments.Count > 0)
                     {
@@ -9671,7 +9712,7 @@ namespace Backup
                 }
 
                 // program logic test - verify segment naming validity
-                sequenceTimes.Phase("validate correctness");
+                sequenceTimes.Phase("preparation: validate correctness");
                 {
                     bool fault1 = false, fault2 = false;
                     Dictionary<string, bool> usedSegmentNames = new Dictionary<string, bool>();
@@ -9723,7 +9764,7 @@ namespace Backup
                 // TODO: rename segments (and rename files) if names have become too long for file system
 
                 // Second scan (after renaming) - ensure missing segments are dirty
-                sequenceTimes.Phase("mark missing segments dirty (2nd pass)");
+                sequenceTimes.Phase("preparation: mark missing segments dirty (2nd pass)");
                 foreach (SegmentRecord segment in segments)
                 {
                     string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
@@ -9734,7 +9775,7 @@ namespace Backup
                 }
 
                 // Compute segment size estimates
-                sequenceTimes.Phase("segment size estimation");
+                sequenceTimes.Phase("preparation: segment size estimation");
                 for (int i = 0; i < segments.Count; i++)
                 {
                     int start = segments[i].start.Value;
@@ -9747,7 +9788,7 @@ namespace Backup
                 }
 
                 // debug logging - callouts
-                sequenceTimes.Phase("debug logging - callouts");
+                sequenceTimes.Phase("preparation: debug logging - callouts");
                 if (traceDynpack != null)
                 {
                     traceDynpack.WriteLine();
@@ -9773,10 +9814,6 @@ namespace Backup
                     traceDynpack.WriteLine();
                 }
 
-                sequenceTimes.Stop();
-                sequenceTimes.Report(traceDynpack);
-                sequenceTimes = null;
-
 
                 // From this point forward, all concurrency-unsafe updates to data structures should
                 // be finished. Some safe updates (such as setting dirty flags or changing serial
@@ -9798,6 +9835,7 @@ namespace Backup
 
 
                         // remove abandoned temp files
+                        sequenceTimes.Phase("archiving: remove temporary files");
                         faultDynamicPackStage = faultDynamicPack.Select("Stage", "2-remove-temporary-files");
                         fatal = 0;
                         {
@@ -9871,6 +9909,7 @@ namespace Backup
                         List<string> badSegments = new List<string>(); // multi-threaded: lock this!
                         if (verifyNonDirtyMetadata)
                         {
+                            sequenceTimes.Phase("archiving: validate non-dirty segment files");
                             for (int iEnum = 0; iEnum < segments.Count; iEnum++)
                             {
                                 concurrent.WaitQueueNotFull();
@@ -10123,6 +10162,7 @@ namespace Backup
                         }
 
                         // Assign new serial numbers for dirty segments
+                        sequenceTimes.Phase("archiving: update dirty segment serial numbers");
                         segmentSerialNumbering++; // do not reuse manifest serial number
                         foreach (SegmentRecord segment in segments)
                         {
@@ -10133,6 +10173,7 @@ namespace Backup
                         }
 
                         // Backup (or remove if !safe) dirty segments
+                        sequenceTimes.Phase("archiving: rename dirty segments to backup");
                         faultDynamicPackStage = faultDynamicPack.Select("Stage", "4-backup-dirty-segment-files");
                         fatal = 0;
                         {
@@ -10302,6 +10343,7 @@ namespace Backup
                         // Save manifest and diagnostic file
                         // these tasks are done synchronously since they represent a small fraction of
                         // run time for a large job.
+                        sequenceTimes.Phase("archiving: write diagnostic file");
                         {
                             faultDynamicPackStage = faultDynamicPack.Select("Stage", "5-write-diagnostic-file");
                             if (diagnosticPath != null)
@@ -10414,6 +10456,7 @@ namespace Backup
 
 
                             // Write actual archive manifest
+                            sequenceTimes.Phase("archiving: write manifest");
                             faultDynamicPackStage = faultDynamicPack.Select("Stage", "6-write-manifest-file");
                             if (traceDynpack != null)
                             {
@@ -10591,6 +10634,7 @@ namespace Backup
                         }
 
                         // Archive modified segments (concurrently)
+                        sequenceTimes.Phase("archiving: write segment files");
                         faultDynamicPackStage = faultDynamicPack.Select("Stage", "7-write-segment-files");
                         long sharedSequenceNumber = messagesLog.GetSequenceNumber();
                         using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sharedSequenceNumber))
@@ -10787,7 +10831,8 @@ namespace Backup
                                                                                             false/*enableContinue*/,
                                                                                             messages.WriteLine,
                                                                                             context,
-                                                                                            threadTraceDynPack);
+                                                                                            threadTraceDynPack,
+                                                                                            faultDynamicPackStage);
                                                                                     }
                                                                                     catch (Exception exception)
                                                                                     {
@@ -10922,6 +10967,7 @@ namespace Backup
 
 
                         // upon successful completion - delete unreferenced items (backups and abandoned segments)
+                        sequenceTimes.Phase("archiving: remove backup files");
                         faultDynamicPackStage = faultDynamicPack.Select("Stage", "9-remove-backup-files");
                         fatal = 0;
                         {
@@ -11009,6 +11055,9 @@ namespace Backup
                     }
                 }
             }
+
+            sequenceTimes.Stop();
+            sequenceTimes.Report("Elapsed times (performance)", traceDynpack);
 
             if (traceDynpack != null)
             {
@@ -12712,12 +12761,11 @@ namespace Backup
                                         string localFileToUpload = args[1];
                                         string targetName = args[2];
                                         Console.WriteLine("upload {0} to {1}", localFileToUpload, targetName);
-                                        Random rnd = new Random();
                                         string nameTemp = null;
                                         ILocalFileCopy fileRef = null;
                                         while (fileRef == null)
                                         {
-                                            nameTemp = rnd.Next().ToString();
+                                            nameTemp = String.Concat(Core.ThreadSafeRandom.Next().ToString(), ".tmp");
                                             try
                                             {
                                                 fileRef = fileManager.GetTempExisting(localFileToUpload, nameTemp, fileManager.GetMasterTrace());
@@ -12763,7 +12811,6 @@ namespace Backup
                                                 throw new IOException(String.Format("File exists: remote:{0}", sourceName));
                                             }
                                         }
-                                        Random rnd = new Random();
                                         foreach (string nameEnum in names)
                                         {
                                             if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
@@ -12791,10 +12838,7 @@ namespace Backup
                                                                 ILocalFileCopy fileRef = null;
                                                                 while (fileRef == null)
                                                                 {
-                                                                    lock (rnd)
-                                                                    {
-                                                                        nameTemp = rnd.Next().ToString();
-                                                                    }
+                                                                    nameTemp = String.Concat(Core.ThreadSafeRandom.Next().ToString(), ".tmp");
                                                                     try
                                                                     {
                                                                         fileRef = fileManager.GetTempExisting(Path.Combine(directory, name), nameTemp, threadTrace);

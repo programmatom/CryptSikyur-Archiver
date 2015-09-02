@@ -1,4 +1,4 @@
-# -concurrency * -log C:\Users\tomlaw\Desktop\test.log -orderedoutput -history C:\Users\tomlaw\AppData\Roaming\BackupTester\history.xml
+# -concurrency * -log "%USERPROFILE%\Desktop\test.log" -orderedoutput -history "%APPDATA%\BackupTester\history.xml"
 # Backup tool test scripts
 
 RemoteBasic.txt

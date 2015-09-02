@@ -285,11 +285,14 @@ namespace Diagnostics
             }
         }
 
-        public void Report(TextWriter writer)
+        public void Report(string heading, TextWriter writer)
         {
+            Stop();
             if (writer != null)
             {
-                Stop();
+                writer.WriteLine();
+                writer.WriteLine(heading);
+
                 int width = 0;
                 foreach (KeyValuePair<string, double> record in intervals)
                 {

@@ -2961,7 +2961,7 @@ namespace FileUtilityTester
 
                     if (openCoverFileMapLog == null)
                     {
-                        openCoverFileMapLog = TextWriter.Synchronized(new StreamWriter(Path.Combine(Path.GetTempPath(), "opencovermap.log")));
+                        openCoverFileMapLog = TextWriter.Synchronized(new StreamWriter(Path.Combine(coverageReportsPath, "opencovermap.log")));
                         openCoverFileMapLog.WriteLine("Map from OpenCover results file name to script file and line number of invoking command:");
                         openCoverFileMapLog.WriteLine();
                     }
@@ -3667,7 +3667,7 @@ namespace FileUtilityTester
                     {
                         throw new ApplicationException();
                     }
-                    insertArgs = ParseArguments(line.Substring(1));
+                    insertArgs = ParseArguments(Environment.ExpandEnvironmentVariables(line.Substring(1)));
                 }
 
                 List<string> args2 = new List<string>();
