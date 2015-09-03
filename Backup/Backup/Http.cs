@@ -967,7 +967,7 @@ namespace Http
             return Array.FindIndex(ForbiddenHeaders, delegate(string candidate) { return String.Equals(candidate, header, StringComparison.OrdinalIgnoreCase); }) >= 0;
         }
 
-        public static WebExceptionStatus SocketHttpRequest(Uri uriInitial, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
+        public static WebExceptionStatus SocketHttpRequest(Uri uriInitial, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings, bool? autoRedirect)
         {
             Uri uri = uriInitial;
 
@@ -1138,7 +1138,7 @@ namespace Http
                 DecompressStreamInPlace(responseBodyDestination, ref responseBodyDestinationStart, ref responseBodyDestinationEnd, ref responseBodyBytesReceived, responseHeaders, true/*updateHeaders*/);
             }
 
-            if (settings.AutoRedirect && ((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307)))
+            if ((autoRedirect.HasValue ? autoRedirect.Value : settings.AutoRedirect) && ((httpStatus >= (HttpStatusCode)300) && (httpStatus <= (HttpStatusCode)307)))
             {
                 int locationHeaderIndex = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Location", StringComparison.OrdinalIgnoreCase); });
                 if (locationHeaderIndex >= 0)

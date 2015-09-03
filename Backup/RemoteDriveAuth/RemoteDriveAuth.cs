@@ -1233,7 +1233,8 @@ namespace RemoteDriveAuth
                 null,
                 null,
                 Diagnostics.FaultInstanceNode.Null,
-                settings);
+                settings,
+                null/*autoRedirect*/);
             if ((result != WebExceptionStatus.Success) || (httpStatus != HttpStatusCode.OK))
             {
                 throw new MyWebException(result, httpStatus);

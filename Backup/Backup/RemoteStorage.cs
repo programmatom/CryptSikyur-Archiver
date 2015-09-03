@@ -478,10 +478,9 @@ namespace Backup
 
     public interface IWebMethods
     {
-        RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext);
-        RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext);
+        RemoteFileSystemEntry[] OpenFolder(string remoteDirectory, TextWriter trace, IFaultInstance faultInstanceContext);
         void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext);
-        RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext);
+        RemoteFileSystemEntry UploadFile(string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext);
         void DeleteFile(string fileId, TextWriter trace, IFaultInstance faultInstanceContext);
         RemoteFileSystemEntry RenameFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext);
         RemoteFileSystemEntry CopyFile(string fileId, string newName, TextWriter trace, IFaultInstance faultInstanceContext); // overwrite behavior undefined
@@ -539,7 +538,7 @@ namespace Backup
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
         private static readonly string[] SupportedVerbs = new string[] { "GET", "PUT", "POST", "DELETE", "PATCH" };
         private static readonly string[] ForbiddenRequestHeaders = new string[] { "Host", /*"Content-Length",*/ "Accept-Encoding", "Expect", "Authorization" };
-        protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
+        protected bool DoWebActionOnce(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, ProgressTracker progressTrackerDownload, string accessTokenOverride, bool? autoRedirect, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (requestHeaders == null)
             {
@@ -768,7 +767,8 @@ namespace Backup
                 progressTrackerDownload,
                 trace,
                 faultInstanceContext,
-                settings);
+                settings,
+                autoRedirect);
 
             for (int i = 0; i < responseHeadersOut.Length; i++)
             {
@@ -833,7 +833,7 @@ namespace Backup
 
         // Throws exceptions for program defects and unrecoverable errors
         // Returns false + (WebExceptionStatus, HttpStatusCode) for potentially recoverable errors
-        protected bool DoWebActionWithRetry(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, string accessTokenOverride, TextWriter trace, IFaultInstance faultInstanceContext)
+        protected bool DoWebActionWithRetry(string url, string verb, Stream requestBodySource, Stream responseBodyDestination, KeyValuePair<string, string>[] requestHeaders, KeyValuePair<string, string>[] responseHeadersOut, out WebExceptionStatus webStatusCodeOut, out HttpStatusCode httpStatusCodeOut, ProgressTracker progressTrackerUpload, string accessTokenOverride, bool? autoRedirect, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
@@ -847,7 +847,21 @@ namespace Backup
             int networkErrorRetries = 0;
         Retry:
 
-            DoWebActionOnce(url, verb, requestBodySource, responseBodyDestination, requestHeaders, responseHeadersOut, out webStatusCodeOut, out httpStatusCodeOut, progressTrackerUpload, null/*progressTrackerDownload*/, accessTokenOverride, trace, faultInstanceContext);
+            DoWebActionOnce(
+                url,
+                verb,
+                requestBodySource,
+                responseBodyDestination,
+                requestHeaders,
+                responseHeadersOut,
+                out webStatusCodeOut,
+                out httpStatusCodeOut,
+                progressTrackerUpload,
+                null/*progressTrackerDownload*/,
+                accessTokenOverride,
+                autoRedirect,
+                trace,
+                faultInstanceContext);
 
             if ((webStatusCodeOut != WebExceptionStatus.Success) ||
                 (httpStatusCodeOut == RateLimitStatusCode) ||
@@ -927,6 +941,7 @@ namespace Backup
                     null/*progressTrackerUpload*/,
                     null/*progressTrackerDownload*/,
                     accessTokenOverride,
+                    null/*autoRedirect*/,
                     trace,
                     faultInstanceContext);
             }
@@ -967,12 +982,18 @@ namespace Backup
                         out httpStatusCodeOut,
                         null/*progressTracker*/,
                         null/*accessTokenOverride*/,
+                        null/*autoRedirect*/,
                         trace,
                         faultInstanceContext);
 
                     jsonResponseBody = null;
                     if (String.Equals(responseHeadersExtra[0].Value, "application/json; charset=UTF-8", StringComparison.OrdinalIgnoreCase)) // Google: UTF-8  Microsoft: utf-8
                     {
+                        jsonResponseBody = Encoding.UTF8.GetString(responseStream.ToArray());
+                    }
+                    else if (String.Equals(responseHeadersExtra[0].Value, "application/json; odata.metadata=minimal", StringComparison.OrdinalIgnoreCase)) // Google: UTF-8  Microsoft: utf-8
+                    {
+                        // Microsoft OneDrive
                         jsonResponseBody = Encoding.UTF8.GetString(responseStream.ToArray());
                     }
                     else
@@ -1012,6 +1033,7 @@ namespace Backup
                     null/*progressTrackerUpload*/,
                     progressTrackerDownload,
                     null/*accessTokenOverride*/,
+                    null/*autoRedirect*/,
                     trace,
                     faultInstanceContext);
                 return result;
@@ -1121,8 +1143,9 @@ namespace Backup
     class MicrosoftOneDriveWebMethods : WebMethodsBase, IWebMethods
     {
         // Desktop application tutorial: http://msdn.microsoft.com/en-us/library/dn631817.aspx
-        // REST API - Files: http://msdn.microsoft.com/en-us/library/dn631834.aspx
-        // REST API - Folders: http://msdn.microsoft.com/en-us/library/dn631836.aspx
+        // [deprecated] REST API - Files: http://msdn.microsoft.com/en-us/library/dn631834.aspx
+        // [deprecated] REST API - Folders: http://msdn.microsoft.com/en-us/library/dn631836.aspx
+        // OneDrive API: https://dev.onedrive.com/README.htm
 
         public MicrosoftOneDriveWebMethods(RemoteAccessControl remoteAccessControl, IPAddress socks5Address, int socks5Port, TextWriter trace, IFaultInstance faultInstanceContext)
             : base(remoteAccessControl, false/*enableResumableUploads*/, socks5Address, socks5Port, null/*certificatePinning*/)
@@ -1136,71 +1159,62 @@ namespace Backup
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)420; } }
         public override string RateLimitRetryAfterHeader { get { return "Retry-After"; } }
 
-        private const string UploadLocationUrlPrefix = "https://apis.live.net/v5.0/";
-        private const string UploadLocationContentUrlSuffix = "/content/";
-        private const string UploadLocationFilesUrlSuffix = "/files/";
-
-        private static string FileIdToUploadLocation(string fileId, bool content)
-        {
-            if (String.IsNullOrEmpty(fileId))
-            {
-                if (content)
-                {
-                    throw new ArgumentException();
-                }
-                return "https://apis.live.net/v5.0/me/skydrive/files/"; // root folder alias
-            }
-            else
-            {
-                return String.Concat(UploadLocationUrlPrefix, fileId, content ? UploadLocationContentUrlSuffix : UploadLocationFilesUrlSuffix);
-            }
-        }
-
-        private static string UploadLocationToFileId(string uploadLocation)
-        {
-            // only supports file content UploadLocation - don't use with folder files listing
-            if (!uploadLocation.StartsWith(UploadLocationUrlPrefix)
-                || !uploadLocation.EndsWith(UploadLocationContentUrlSuffix))
-            {
-                throw new InvalidDataException();
-            }
-            string fileId = uploadLocation.Substring(UploadLocationUrlPrefix.Length, uploadLocation.Length - UploadLocationUrlPrefix.Length - UploadLocationContentUrlSuffix.Length);
-            if (fileId.IndexOfAny(new char[] { '/', '?', '&' }) >= 0)
-            {
-                throw new InvalidDataException();
-            }
-            return fileId;
-        }
+        private string navigatedPath; // url-encoded, always ends with /
+        private string folderId_new;
 
         private static RemoteFileSystemEntry FileSystemEntryFromJSON(JSONDictionary json)
         {
-            string id, name, type, created_time, updated_time;
+            string id, name, createdDateTime, lastModifiedDateTime;
             long size;
             if (!json.TryGetValueAs("id", out id)
                 || !json.TryGetValueAs("name", out name)
-                || !json.TryGetValueAs("type", out type) // "folder" or "file"
-                || !json.TryGetValueAs("created_time", out created_time)
-                || !json.TryGetValueAs("updated_time", out updated_time)
+                || !json.TryGetValueAs("createdDateTime", out createdDateTime)
+                || !json.TryGetValueAs("lastModifiedDateTime", out lastModifiedDateTime)
                 || !json.TryGetValueAs("size", out size))
             {
                 throw new InvalidDataException();
             }
-            return new RemoteFileSystemEntry(id, name, type == "folder", DateTime.Parse(created_time), DateTime.Parse(updated_time), size);
+            object folderObject;
+            bool folder = json.TryGetValue("folder", out folderObject);
+            return new RemoteFileSystemEntry(id, name, folder, DateTime.Parse(createdDateTime), DateTime.Parse(lastModifiedDateTime), size);
         }
 
-#if true // HACKHACK
-        private string navigatedPath;
-#endif
+        // see https://dev.onedrive.com/misc/path-encoding.htm
+        private static readonly char[] ForbiddenChars = { '/', '\\', '*', '<', '>', '?', ':', '|', /*'#', '%'*/ }; // include '#' and '%'?
+        private static string UrlEncodePath(string path)
+        {
+            string[] parts = path.Split('/');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (parts[i].IndexOfAny(ForbiddenChars) >= 0)
+                {
+                    throw new ArgumentException();
+                }
+                parts[i] = HttpUtility.UrlEncode(parts[i]);
+            }
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < parts.Length; i++)
+            {
+                sb.Append(parts[i]);
+                sb.Append('/');
+            }
+            return sb.ToString();
+        }
 
-
-        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
+        public RemoteFileSystemEntry[] OpenFolder(string remoteDirectory, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
-                trace.WriteLine("+RemoteGetFileSystemEntries(folderId={0})", folderId);
+                trace.WriteLine("+OpenFolder(remoteDirectory={0})", remoteDirectory);
             }
 
-            string url = String.Format("{0}?pretty=false", FileIdToUploadLocation(folderId, false/*content*/));
+            navigatedPath = UrlEncodePath(remoteDirectory);
+            Debug.Assert(navigatedPath.EndsWith("/"));
+
+            // https://dev.onedrive.com/items/get.htm - getting metadata
+            string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}", navigatedPath);
+            // https://dev.onedrive.com/odata/optional-query-parameters.htm - restrict results
+            url = url + "?expand=children(select=id,name,createdDateTime,lastModifiedDateTime,size,folder)";
 
             string response;
             WebExceptionStatus webStatusCode;
@@ -1213,19 +1227,25 @@ namespace Backup
                 out webStatusCode,
                 out httpStatusCode,
                 trace,
-                faultInstanceContext);
+                faultInstanceContext.Select("OpenFolder"));
+
             if (!result)
             {
                 if (trace != null)
                 {
-                    trace.WriteLine("-RemoteGetFileSystemEntries result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
+                    trace.WriteLine(" OpenFolder failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, response);
                 }
                 throw new ApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary json = new JSONDictionary(response);
+            if (!json.TryGetValueAs("id", out folderId_new))
+            {
+                throw new InvalidDataException();
+            }
+
             JSONDictionary[] entries;
-            if (!json.TryGetValueAs("data", out entries))
+            if (!json.TryGetValueAs("children", out entries))
             {
                 throw new InvalidDataException();
             }
@@ -1242,50 +1262,11 @@ namespace Backup
                 {
                     trace.WriteLine("  [{0}]: {1}", i, items[i]);
                 }
-                trace.WriteLine("-RemoteGetFileSystemEntries");
+                trace.WriteLine("-OpenFolder");
                 trace.WriteLine();
             }
 
             return items;
-        }
-
-        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext)
-        {
-            if (trace != null)
-            {
-                trace.WriteLine("+NavigateRemotePath(remotePath={0}, includeLast={1})", remotePath, includeLast);
-            }
-
-#if true // HACKHACK
-            navigatedPath = remotePath;
-#endif
-
-            if (!(String.IsNullOrEmpty(remotePath) || remotePath.StartsWith("/")))
-            {
-                throw new ArgumentException();
-            }
-
-            if (remotePath == "/")
-            {
-                remotePath = String.Empty;
-            }
-
-            string[] remotePathParts = remotePath.Split(new char[] { '/' });
-            int remotePathPartsLength = remotePathParts.Length + (includeLast ? 0 : -1);
-
-            RemoteFileSystemEntry currentDirectory = new RemoteFileSystemEntry(String.Empty, null, true, default(DateTime), default(DateTime), -1);
-            for (int i = 1; i < remotePathPartsLength; i++)
-            {
-                string remotePathPart = remotePathParts[i];
-                RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace, faultInstanceContext);
-                int index = Array.FindIndex(entries, delegate(RemoteFileSystemEntry candidate) { return candidate.Name.Equals(remotePathPart); });
-                if (index < 0)
-                {
-                    throw new FileNotFoundException(String.Format("remote:{0}", remotePathPart));
-                }
-                currentDirectory = entries[index];
-            }
-            return currentDirectory;
         }
 
         public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
@@ -1295,7 +1276,47 @@ namespace Backup
                 trace.WriteLine("+DownloadFile(fileId={0})", fileId);
             }
 
-            string url = String.Format("{0}?pretty=false", FileIdToUploadLocation(fileId, true/*content*/));
+            // https://dev.onedrive.com/items/download.htm
+            string url = String.Format("https://api.onedrive.com/v1.0/drive/items/{0}/content", fileId);
+
+            KeyValuePair<string, string>[] responseHeadersExtraOut = new KeyValuePair<string, string>[]
+            {
+                new KeyValuePair<string, string>("Location", null),
+            };
+            WebExceptionStatus webStatusCode;
+            HttpStatusCode httpStatusCode;
+            using (MemoryStream responseBody = new MemoryStream())
+            {
+                bool result = DoWebActionWithRetry(
+                    url,
+                    "GET",
+                    null/*requestBodySource*/,
+                    responseBody,
+                    null/*requestHeaders*/,
+                    responseHeadersExtraOut,
+                    out webStatusCode,
+                    out httpStatusCode,
+                    null/*progressTrackeerUpload*/,
+                    null/*accessTokenOverride*/,
+                    false/*autoRedirect*/,
+                    trace,
+                    faultInstanceContext);
+
+                if (httpStatusCode != HttpStatusCode.Redirect/*302*/)
+                {
+                    if (trace != null)
+                    {
+                        trace.WriteLine(" DownloadFile failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, LogWriter.ToString(responseBody));
+                    }
+                    throw new ApplicationException("Failure occurred accessing remote service");
+                }
+            }
+
+            url = responseHeadersExtraOut[0].Value;
+            if (trace != null)
+            {
+                trace.WriteLine(" DownloadFile redirected to {0}", url);
+            }
 
             if (!DownloadFileWithResume(url, streamDownloadInto, null/*expectedFileSize*/, progressTracker, trace, faultInstanceContext))
             {
@@ -1312,11 +1333,11 @@ namespace Backup
             }
         }
 
-        private RemoteFileSystemEntry UploadFile_Simple(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
+        private RemoteFileSystemEntry UploadFile_Simple(string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
-                trace.WriteLine("+UploadFile_Simple(folderId={0}, name={1})", folderId, remoteName);
+                trace.WriteLine("+UploadFile_Simple(navigatedPath={0}, name={1})", navigatedPath, remoteName);
             }
 
             if (progressTracker != null)
@@ -1326,9 +1347,11 @@ namespace Backup
 
             string response;
 
-            // http://msdn.microsoft.com/en-us/library/dn659726.aspx
+            // https://dev.onedrive.com/items/upload_put.htm
+            string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}{1}:/content", navigatedPath, HttpUtility.UrlEncode(remoteName));
+            // https://dev.onedrive.com/items/create.htm - Create item - see for @name.conflictBehavior possible values
+            url = url + "?@name.conflictBehavior=replace";
 
-            string url = String.Format("{0}{1}?pretty=false", FileIdToUploadLocation(folderId, false/*content*/), remoteName);
             WebExceptionStatus webStatusCode;
             HttpStatusCode httpStatusCode;
             KeyValuePair<string, string>[] responseHeaders = new KeyValuePair<string, string>[]
@@ -1348,6 +1371,7 @@ namespace Backup
                     out httpStatusCode,
                     progressTracker,
                     null/*accessTokenOverride*/,
+                    null/*autoRedirect*/,
                     trace,
                     faultInstanceContext);
                 if (!result)
@@ -1365,7 +1389,7 @@ namespace Backup
                     throw new ApplicationException("Failure occurred accessing remote service");
                 }
 
-                if (responseHeaders[0].Value == "application/json; charset=UTF-8")
+                if (responseHeaders[0].Value == "application/json; odata.metadata=minimal")
                 {
                     response = Encoding.UTF8.GetString(responseStream.ToArray());
                 }
@@ -1376,16 +1400,8 @@ namespace Backup
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
-            string fileId, name;
-            if (!metadata.TryGetValueAs("id", out fileId)
-                || !metadata.TryGetValueAs("name", out name))
-            {
-                throw new InvalidDataException();
-            }
-            Debug.Assert(name == remoteName); // if fails then TODO handle remote auto name adjustment
-
-            RemoteFileSystemEntry entry = GetFileMetadata(fileId, trace, faultInstanceContext);
-            Debug.Assert(entry.Name == remoteName); // if fails then TODO handle remote auto name adjustment
+            RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
+            Debug.Assert(entry.Name == remoteName);
 
             if (trace != null)
             {
@@ -1402,11 +1418,11 @@ namespace Backup
         private static readonly long ResumableUploadDefaultFragmentSize = ((5L * 1024 * 1024 + FragmentSizeMultiple - 1) / FragmentSizeMultiple) * FragmentSizeMultiple;
         // Maximum of 60MB, per https://dev.onedrive.com/items/upload_large_files.htm
         private const long MaximumUploadFragmentSize = (60L * 1024 * 1024 / FragmentSizeMultiple) * FragmentSizeMultiple;
-        private RemoteFileSystemEntry UploadFile_Resumable(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
+        private RemoteFileSystemEntry UploadFile_Resumable(string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (trace != null)
             {
-                trace.WriteLine("+UploadFile_Resumable(folderId={0}, name={1})", folderId, remoteName);
+                trace.WriteLine("+UploadFile_Resumable(navigatedPath={0}, name={1})", navigatedPath, remoteName);
             }
 
             if (progressTracker != null)
@@ -1480,11 +1496,8 @@ namespace Backup
             // POST /drive/root:/{path_to_item}:/upload.createSession
             // POST /drive/items/{parent_item_id}:/{filename}:/upload.createSession
             // without body
-            // NOTE: MSFT has changed the way items are referenced in the new "api.onedrive.com/v1.0" - old folderId doesn't work anymore
-            // items may have IDs but they appear to have completely changed. Otherwise, items may be referred to using
-            // conventional paths (be sure to url-encode weird characters).
             {
-                string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}/{1}:/upload.createSession", navigatedPath/*TODO: encode*/, remoteName);
+                string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}{1}:/upload.createSession", navigatedPath, remoteName);
                 string message = String.Format("{{\"item\":{{\"@name.conflictBehavior\":\"{0}\"}}}}", "replace");
                 new JSONDictionary(message); // sanity check message format
                 using (MemoryStream responseStream = new MemoryStream())
@@ -1695,6 +1708,7 @@ namespace Backup
                         progressTracker/*progressTrackerUpload*/,
                         null/*progressTrackerDownload*/,
                         null/*accessTokenOverride*/,
+                        null/*autoRedirect*/,
                         trace,
                         faultInstanceContext.Select("UploadFile_Resumable", "3"));
 
@@ -1741,8 +1755,17 @@ namespace Backup
 
                 using (MemoryStream responseStream = new MemoryStream())
                 {
-                    string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}/{1}:/upload.createSession", navigatedPath/*TODO: encode*/, remoteName);
-                    string message = String.Format("{{\"name\":\"{0}\",\"description\":\"\",\"@name.conflictBehavior\":\"replace\",\"@content.sourceUrl\":\"{1}\"}}", remoteName, uploadUrl);
+                    string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}{1}:/upload.createSession", navigatedPath, remoteName);
+                    string message =
+                        "{" +
+                        String.Format("\"{0}\":\"{1}\"", "name", remoteName) +
+                        "," +
+                        String.Format("\"{0}\":\"{1}\"", "description", String.Empty) +
+                        "," +
+                        String.Format("\"{0}\":\"{1}\"", "@name.conflictBehavior", "replace") +
+                        "," +
+                        String.Format("\"{0}\":\"{1}\"", "@content.sourceUrl", uploadUrl) +
+                        "}";
                     new JSONDictionary(message); // sanity check message format
                     result = DoWebActionJSON2JSONWithRetry(
                         url,
@@ -1778,24 +1801,7 @@ namespace Backup
 
             JSONDictionary metadata = new JSONDictionary(response);
             RemoteFileSystemEntry entry;
-#if false
-            entry = FileSystemEntryFromJSON(metadata); // old live API format - doesn't work here
-#else
-            {
-                string id, name, createdDateTime, lastModifiedDateTime;
-                long size;
-                if (!metadata.TryGetValueAs("id", out id)
-                    || !metadata.TryGetValueAs("name", out name)
-                    || !metadata.TryGetValueAs("createdDateTime", out createdDateTime)
-                    || !metadata.TryGetValueAs("lastModifiedDateTime", out lastModifiedDateTime)
-                    || !metadata.TryGetValueAs("size", out size))
-                {
-                    throw new InvalidDataException();
-                }
-                id = String.Concat("file.", id.Substring(0, id.IndexOf('!')), ".", id); // reconstruct old id format
-                entry = new RemoteFileSystemEntry(id, name, false/*folder*/, DateTime.Parse(createdDateTime), DateTime.Parse(lastModifiedDateTime), size);
-            }
-#endif
+            entry = FileSystemEntryFromJSON(metadata);
             Debug.Assert(entry.Name == remoteName); // if fails then TODO handle remote auto name adjustment
 
             {
@@ -1844,59 +1850,16 @@ namespace Backup
             return entry;
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
+        public RemoteFileSystemEntry UploadFile(string remoteName, Stream streamUploadFrom, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (streamUploadFrom.Length <= ResumableUploadDefaultFragmentSize)
             {
-                return UploadFile_Simple(folderId, remoteName, streamUploadFrom, progressTracker, trace, faultInstanceContext);
+                return UploadFile_Simple(remoteName, streamUploadFrom, progressTracker, trace, faultInstanceContext);
             }
             else
             {
-                return UploadFile_Resumable(folderId, remoteName, streamUploadFrom, progressTracker, trace, faultInstanceContext);
+                return UploadFile_Resumable(remoteName, streamUploadFrom, progressTracker, trace, faultInstanceContext);
             }
-        }
-
-        private RemoteFileSystemEntry GetFileMetadata(string fileId, TextWriter trace, IFaultInstance faultInstanceContext)
-        {
-            if (trace != null)
-            {
-                trace.WriteLine("+GetFileMetadata(id={0})", fileId);
-            }
-
-            string url = String.Format("https://apis.live.net/v5.0/{0}?pretty=false", fileId);
-
-            string response;
-
-            WebExceptionStatus webStatusCode;
-            HttpStatusCode httpStatusCode;
-            bool result = DoWebActionJSON2JSONWithRetry(
-                url,
-                "GET",
-                null/*jsonRequestBody*/,
-                out response,
-                out webStatusCode,
-                out httpStatusCode,
-                trace,
-                faultInstanceContext);
-            if (!result)
-            {
-                if (trace != null)
-                {
-                    trace.WriteLine("-GetFileMetadata result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
-                }
-                throw new ApplicationException("Failure occurred accessing remote service");
-            }
-
-            JSONDictionary metadata = new JSONDictionary(response);
-            RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
-
-            if (trace != null)
-            {
-                trace.WriteLine("-GetFileMetadata returns {0}", entry);
-                trace.WriteLine();
-            }
-
-            return entry;
         }
 
         public void DeleteFile(string fileId, TextWriter trace, IFaultInstance faultInstanceContext)
@@ -1906,9 +1869,8 @@ namespace Backup
                 trace.WriteLine("+DeleteFile(id={0})", fileId);
             }
 
-            // http://msdn.microsoft.com/en-us/library/dn659743.aspx#delete_a_file
-
-            string url = String.Format("https://apis.live.net/v5.0/{0}", fileId);
+            // https://dev.onedrive.com/items/delete.htm
+            string url = String.Format("https://api.onedrive.com/v1.0/drive/items/{0}", fileId);
 
             WebExceptionStatus webStatusCode;
             HttpStatusCode httpStatusCode;
@@ -1923,6 +1885,7 @@ namespace Backup
                 out httpStatusCode,
                 null/*progressTracker*/,
                 null/*accessTokenOverride*/,
+                null/*autoRedirect*/,
                 trace,
                 faultInstanceContext);
             if (!result)
@@ -1953,10 +1916,13 @@ namespace Backup
                 throw new ArgumentException();
             }
 
-            string url = String.Format("https://apis.live.net/v5.0/{0}?pretty=false", fileId);
+            // https://dev.onedrive.com/items/update.htm
+            string url = String.Format("https://api.onedrive.com/v1.0/drive/items/{0}", fileId);
             string requestBody =
                 "{" +
                 String.Format("\"{0}\":\"{1}\"", "name", newName) +
+                "," +
+                String.Format("\"{0}\":\"{1}\"", "@name.conflictBehavior", "replace") +
                 "}";
             new JSONDictionary(requestBody); // sanity check
 
@@ -1965,7 +1931,7 @@ namespace Backup
             HttpStatusCode httpStatusCode;
             bool result = DoWebActionJSON2JSONWithRetry(
                 url,
-                "PUT",
+                "PATCH",
                 requestBody,
                 out response,
                 out webStatusCode,
@@ -2006,16 +1972,15 @@ namespace Backup
             }
 
             // https://dev.onedrive.com/items/copy.htm
-            // NOTE: MSFT has changed the way items are referenced in the new "api.onedrive.com/v1.0" - old folderId doesn't work anymore
-            string fileIdNew = fileId.Substring(fileId.LastIndexOf('.') + 1);
-            string url = String.Format("https://api.onedrive.com/v1.0/drive/items/{0}/action.copy", fileIdNew);
+            string url = String.Format("https://api.onedrive.com/v1.0/drive/items/{0}/action.copy", fileId);
             string requestBody =
                 "{" +
                 String.Format("\"{0}\":\"{1}\"", "name", newName) +
+                "," +
+                String.Format("\"{0}\":\"{1}\"", "@name.conflictBehavior", "replace") +
                 "}";
             new JSONDictionary(requestBody); // sanity check
 
-            string response;
             WebExceptionStatus webStatusCode;
             HttpStatusCode httpStatusCode;
             int networkErrorRetries = 0;
@@ -2097,6 +2062,7 @@ namespace Backup
                     null/*progressTrackerUpload*/,
                     null/*progressTrackerDownload*/,
                     null/*accessOverrideToken*/,
+                    null/*autoRedirect*/,
                     trace,
                     faultInstanceContext);
 
@@ -2137,25 +2103,7 @@ namespace Backup
             }
 
             JSONDictionary metadata = new JSONDictionary(jsonMetadata);
-            RemoteFileSystemEntry entry;
-#if false
-            RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata); // old live API format - doesn't work here
-#else
-            {
-                string id, name, createdDateTime, lastModifiedDateTime;
-                long size;
-                if (!metadata.TryGetValueAs("id", out id)
-                    || !metadata.TryGetValueAs("name", out name)
-                    || !metadata.TryGetValueAs("createdDateTime", out createdDateTime)
-                    || !metadata.TryGetValueAs("lastModifiedDateTime", out lastModifiedDateTime)
-                    || !metadata.TryGetValueAs("size", out size))
-                {
-                    throw new InvalidDataException();
-                }
-                id = String.Concat("file.", id.Substring(0, id.IndexOf('!')), ".", id); // reconstruct old id format
-                entry = new RemoteFileSystemEntry(id, name, false/*folder*/, DateTime.Parse(createdDateTime), DateTime.Parse(lastModifiedDateTime), size);
-            }
-#endif
+            RemoteFileSystemEntry entry = FileSystemEntryFromJSON(metadata);
             Debug.Assert(entry.Name == newName); // if fails then TODO handle remote auto name adjustment
             if (trace != null)
             {
@@ -2232,6 +2180,9 @@ namespace Backup
         public override HttpStatusCode RateLimitStatusCode { get { return (HttpStatusCode)403; } }
         public override string RateLimitRetryAfterHeader { get { return null; } }
 
+        private string navigatedPath;
+        private string folderId;
+
         private const string SelfLinkUrlPrefix = "https://www.googleapis.com/drive/v2/files/";
 
         private static string FileIdToSelfLink(string fileId)
@@ -2257,7 +2208,23 @@ namespace Backup
             return new RemoteFileSystemEntry(id, title, mimeType == "application/vnd.google-apps.folder", DateTime.Parse(createdDate), DateTime.Parse(modifiedDate), Int64.Parse(fileSize));
         }
 
-        public RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
+
+        public RemoteFileSystemEntry[] OpenFolder(string remoteDirectory, TextWriter trace, IFaultInstance faultInstanceContext)
+        {
+            navigatedPath = remoteDirectory;
+
+            RemoteFileSystemEntry remoteDirectoryEntry = NavigateRemotePath(remoteDirectory, true/*includeLast*/, trace, faultInstanceContext);
+            if (trace != null)
+            {
+                trace.WriteLine("Remote directory entry: {0}", remoteDirectoryEntry);
+                trace.WriteLine();
+            }
+
+            folderId = remoteDirectoryEntry.Id;
+            return RemoteGetFileSystemEntries(folderId, trace, faultInstanceContext);
+        }
+
+        private RemoteFileSystemEntry[] RemoteGetFileSystemEntries(string folderId, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             List<RemoteFileSystemEntry> aggregateItems = new List<RemoteFileSystemEntry>();
 
@@ -2363,7 +2330,7 @@ namespace Backup
             return aggregateItems.ToArray();
         }
 
-        public RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext)
+        private RemoteFileSystemEntry NavigateRemotePath(string remotePath, bool includeLast, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (!(String.IsNullOrEmpty(remotePath) || remotePath.StartsWith("/")))
             {
@@ -2459,7 +2426,7 @@ namespace Backup
             }
         }
 
-        public RemoteFileSystemEntry UploadFile(string folderId, string remoteName, Stream streamUploadFrom, ProgressTracker progressTrackerUpload, TextWriter trace, IFaultInstance faultInstanceContext)
+        public RemoteFileSystemEntry UploadFile(string remoteName, Stream streamUploadFrom, ProgressTracker progressTrackerUpload, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             if (remoteName.IndexOf('"') >= 0)
             {
@@ -2626,6 +2593,7 @@ namespace Backup
                             progressTrackerUpload,
                             null/*progressTrackerDownload*/,
                             accessTokenOverride,
+                            null/*autoRedirect*/,
                             trace,
                             faultInstanceContext.Select("UploadFile", "2a"));
 
@@ -2698,6 +2666,7 @@ namespace Backup
                         null/*progressTrackerUpload*/,
                         null/*progressTrackerDownload*/,
                         accessTokenOverride,
+                        null/*autoRedirect*/,
                         trace,
                         faultInstanceContext.Select("UploadFile", "2b-1"));
 
@@ -2836,6 +2805,7 @@ namespace Backup
                             progressTrackerUpload,
                             null/*progressTrackerDownload*/,
                             accessTokenOverride,
+                            null/*autoRedirect*/,
                             trace,
                             faultInstanceContext.Select("UploadFile", "2b-3"));
                         response = Encoding.UTF8.GetString(responseStream.ToArray());
@@ -2947,6 +2917,7 @@ namespace Backup
                 out httpStatusCode,
                 null/*progressTracker*/,
                 null/*accessTokenOverride*/,
+                null/*autoRedirect*/,
                 trace,
                 faultInstanceContext);
             if (!result)
@@ -3127,7 +3098,6 @@ namespace Backup
         // all members should be threadsafe or read-only
         private Core.Context context;
         private RemoteAccessControl remoteAccessControl;
-        private RemoteFileSystemEntry remoteDirectoryEntry; // for the folder we're writing into
         private RemoteDirectoryCache remoteDirectoryCache;
         private UncommittedList uncommittedLocalTempFiles = new UncommittedList();
         private IWebMethods remoteWebMethods;
@@ -3306,14 +3276,7 @@ namespace Backup
 
                 remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl, context.socks5Address, context.socks5Port, masterTrace, faultInstanceRoot);
 
-                remoteDirectoryEntry = remoteWebMethods.NavigateRemotePath(remoteDirectory, true/*includeLast*/, masterTrace, faultInstanceRoot);
-                if (masterTrace != null)
-                {
-                    masterTrace.WriteLine("Remote directory entry: {0}", remoteDirectoryEntry);
-                    masterTrace.WriteLine();
-                }
-
-                remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.RemoteGetFileSystemEntries(remoteDirectoryEntry.Id, masterTrace, faultInstanceRoot));
+                remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.OpenFolder(remoteDirectory, masterTrace, faultInstanceRoot));
             }
             catch (Exception exception)
             {
@@ -3350,7 +3313,6 @@ namespace Backup
                     uncommittedLocalTempFiles = null;
                 }
 
-                remoteDirectoryEntry = null;
                 remoteDirectoryCache = null;
             }
             catch (Exception exception)
@@ -3478,11 +3440,10 @@ namespace Backup
                 uncommittedLocalTempFiles.Remove(nameTemp); // transfer ownership to using()
                 using (uncommitted) // refcount-- at end of scope
                 {
-
                     RemoteFileSystemEntry entry;
                     using (Stream stream = uncommitted.Read())
                     {
-                        entry = remoteWebMethods.UploadFile(remoteDirectoryEntry.Id, nameTemp, stream, progressTracker, trace, faultInstanceMethod);
+                        entry = remoteWebMethods.UploadFile(nameTemp, stream, progressTracker, trace, faultInstanceMethod);
                     }
                     remoteDirectoryCache.Update(entry);
 

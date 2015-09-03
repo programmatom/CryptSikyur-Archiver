@@ -84,7 +84,7 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z!.]+ Documents$
 endoutput
 
 
@@ -104,7 +104,7 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z!.]+ Documents$
 endoutput
 
 test upload one file
@@ -121,8 +121,8 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
-*[-: 0-9]*\s+[-: 0-9]*\s+1023456\s+file\.[0-9a-fA-F!.]* remotefile$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z!.]+ Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+1023456\s+[0-9a-zA-Z!.]+ remotefile$
 endoutput
 
 test download one file
@@ -152,8 +152,8 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
-*[-: 0-9]*\s+[-: 0-9]*\s+654321\s+file\.[0-9a-fA-F!.]* remotefile$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z!.]+ Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+654321\s+[0-9a-zA-Z!.]+ remotefile$
 endoutput
 
 test download one (overwritten) file
@@ -206,7 +206,7 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z!.]+ Documents$
 endoutput
 
 test initial archiving
@@ -221,7 +221,7 @@ lastoutput-verify
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.a.dynpack$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.m.dynpack$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.s.dynpack$
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z!.]+ Documents$
 endoutput
 
 test extract initial archive
@@ -263,7 +263,7 @@ lastoutput-verify
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.a.dynpack$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.s.dynpack$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+archive.v.dynpack$
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-zA-Z!.]+ Documents$
 endoutput
 
 test validate and dump archive
@@ -326,7 +326,7 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-fA-F!.]+\s+Documents$
 endoutput
 
 test upload test files
@@ -344,7 +344,7 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-fA-F!.]+\s+Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
 endoutput
@@ -357,7 +357,7 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-fA-F!.]+\s+Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+filecopy$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$
@@ -378,7 +378,7 @@ call backup -refreshtoken %refreshtoken% remote https://onedrive.live.com/ list
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]+\s+Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-fA-F!.]+\s+Documents$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+filecopy$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+one$
 *[-: 0-9]*\s+[-: 0-9]*\s+[0-9]+\s+[0-9a-zA-Z!.]+\s+two$

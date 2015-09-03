@@ -41,7 +41,7 @@ call backup -refreshtoken %refreshtokenmicrosoft% remote https://onedrive.live.c
 exitcode-verify 0
 lastoutput-verify
 .list https://onedrive.live.com/*
-*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+folder\.[0-9a-fA-F!.]* Documents$
+*[-: 0-9]*\s+[-: 0-9]*\s+\<DIR\>\s+[0-9a-fA-F!.]+ Documents$
 endoutput
 
 test upload file

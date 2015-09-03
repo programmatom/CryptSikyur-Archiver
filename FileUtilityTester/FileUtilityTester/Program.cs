@@ -970,6 +970,7 @@ namespace FileUtilityTester
             string lastOutput = null;
 
             string skipToModule = null;
+            string skipToTest = null;
 
             int moduleNumber = 0;
             string moduleName = null;
@@ -1109,6 +1110,11 @@ namespace FileUtilityTester
                             if (args[0].Equals("module", StringComparison.OrdinalIgnoreCase))
                             {
                                 skipToModule = Combine(args, 1, args.Length - 1, " ", false/*quoteWhitespace*/);
+                                context.testFailed = true;
+                            }
+                            else if (args[0].Equals("test", StringComparison.OrdinalIgnoreCase))
+                            {
+                                skipToTest = Combine(args, 1, args.Length - 1, " ", false/*quoteWhitespace*/);
                                 context.testFailed = true;
                             }
                             else
@@ -1367,14 +1373,6 @@ namespace FileUtilityTester
                             {
                                 Throw(new ApplicationException());
                             }
-                            if (context.testFailed)
-                            {
-                                if (mode != Mode.PrepareTasks)
-                                {
-                                    context.resultMatrix.Skipped();
-                                }
-                                break;
-                            }
                             VerifyDeferredClear(
                                 true/*forceClose*/,
                                 context.variables,
@@ -1387,7 +1385,31 @@ namespace FileUtilityTester
                                 consoleWriter);
                             context.testNumber++;
                             context.testName = Combine(args, 0, args.Length, " ", false/*quoteWhitespace*/);
+
+                            if (skipToTest != null)
+                            {
+                                if (!String.Equals(skipToTest, context.testName))
+                                {
+                                    context.testFailed = true;
+                                }
+                                else
+                                {
+                                    skipToTest = null;
+                                    context.testFailed = false;
+                                }
+                            }
+
+                            if (context.testFailed)
+                            {
+                                if (mode != Mode.PrepareTasks)
+                                {
+                                    context.resultMatrix.Skipped();
+                                }
+                                break;
+                            }
+
                             context.resultMatrix.InitTest(context.scriptNumber, scriptName, context.moduleNumber, context.moduleName, context.testNumber, context.testName);
+
                             consoleWriter.WriteLine();
                             consoleWriter.WriteLine("TEST {0} ({1})", context.testName, context.testNumber);
                             break;
