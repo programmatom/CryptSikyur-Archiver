@@ -1160,7 +1160,6 @@ namespace Backup
         public override string RateLimitRetryAfterHeader { get { return "Retry-After"; } }
 
         private string navigatedPath; // url-encoded, always ends with /
-        private string folderId_new;
 
         private static RemoteFileSystemEntry FileSystemEntryFromJSON(JSONDictionary json)
         {
@@ -1203,6 +1202,8 @@ namespace Backup
 
         public RemoteFileSystemEntry[] OpenFolder(string remoteDirectory, TextWriter trace, IFaultInstance faultInstanceContext)
         {
+            List<RemoteFileSystemEntry> items = new List<RemoteFileSystemEntry>();
+
             if (trace != null)
             {
                 trace.WriteLine("+OpenFolder(remoteDirectory={0})", remoteDirectory);
@@ -1212,10 +1213,12 @@ namespace Backup
             Debug.Assert(navigatedPath.EndsWith("/"));
 
             // https://dev.onedrive.com/items/get.htm - getting metadata
+            // https://dev.onedrive.com/items/list.htm - listing children (see for paging)
             string url = String.Format("https://api.onedrive.com/v1.0/drive/root:{0}", navigatedPath);
-            // https://dev.onedrive.com/odata/optional-query-parameters.htm - restrict results
-            url = url + "?expand=children(select=id,name,createdDateTime,lastModifiedDateTime,size,folder)";
+            // https://dev.onedrive.com/odata/optional-query-parameters.htm - restrict results, page size
+            url = url + "?expand=children(select=id,name,createdDateTime,lastModifiedDateTime,size,folder;$top=1000)";
 
+        NextPage:
             string response;
             WebExceptionStatus webStatusCode;
             HttpStatusCode httpStatusCode;
@@ -1239,26 +1242,31 @@ namespace Backup
             }
 
             JSONDictionary json = new JSONDictionary(response);
-            if (!json.TryGetValueAs("id", out folderId_new))
-            {
-                throw new InvalidDataException();
-            }
 
             JSONDictionary[] entries;
-            if (!json.TryGetValueAs("children", out entries))
+            if (!json.TryGetValueAs("children", out entries) // initial response
+                && !json.TryGetValueAs("value", out entries)) // "next page" responses
             {
                 throw new InvalidDataException();
             }
-            RemoteFileSystemEntry[] items = new RemoteFileSystemEntry[entries.Length];
             for (int i = 0; i < entries.Length; i++)
             {
-                items[i] = FileSystemEntryFromJSON(entries[i]);
+                items.Add(FileSystemEntryFromJSON(entries[i]));
             }
+
+            string nextPageUrl;
+            if (json.TryGetValueAs("children@odata.nextLink", out nextPageUrl) // initial response
+                || json.TryGetValueAs("@odata.nextLink", out nextPageUrl)) // "next page" responses
+            {
+                url = nextPageUrl;
+                goto NextPage;
+            }
+
 
             if (trace != null)
             {
-                trace.WriteLine("  return {0} items", items.Length);
-                for (int i = 0; i < items.Length; i++)
+                trace.WriteLine("  return {0} items", items.Count);
+                for (int i = 0; i < items.Count; i++)
                 {
                     trace.WriteLine("  [{0}]: {1}", i, items[i]);
                 }
@@ -1266,7 +1274,7 @@ namespace Backup
                 trace.WriteLine();
             }
 
-            return items;
+            return items.ToArray();
         }
 
         public void DownloadFile(string fileId, Stream streamDownloadInto, ProgressTracker progressTracker, TextWriter trace, IFaultInstance faultInstanceContext)
