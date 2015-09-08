@@ -13077,29 +13077,33 @@ namespace Backup
             }
             else if (index == parts.Length - 1)
             {
-                path = Path.Combine(path, parts[index]);
-                if (Directory.Exists(path) || File.Exists(path))
+                if (Directory.Exists(path))
                 {
-                    StringBuilder output = new StringBuilder();
-                    using (StringWriter writer = new StringWriter(output))
+                    string[] entries = Directory.GetFileSystemEntries(path, parts[index]);
+                    if (entries.Length != 0)
                     {
-                        using (Process process = new Process())
+                        path = Path.Combine(path, parts[index]);
+                        StringBuilder output = new StringBuilder();
+                        using (StringWriter writer = new StringWriter(output))
                         {
-                            process.StartInfo.FileName = "cmd.exe";
-                            process.StartInfo.Arguments = String.Format("/C dir \"{0}\"", path);
-                            process.StartInfo.CreateNoWindow = true;
-                            process.StartInfo.RedirectStandardOutput = true;
-                            process.StartInfo.RedirectStandardError = true;
-                            process.StartInfo.UseShellExecute = false;
-                            process.StartInfo.WorkingDirectory = Path.GetTempPath();
-                            process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
-                            process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
-                            process.Start();
-                            process.BeginOutputReadLine();
-                            process.WaitForExit();
+                            using (Process process = new Process())
+                            {
+                                process.StartInfo.FileName = "cmd.exe";
+                                process.StartInfo.Arguments = String.Format("/C dir \"{0}\"", path);
+                                process.StartInfo.CreateNoWindow = true;
+                                process.StartInfo.RedirectStandardOutput = true;
+                                process.StartInfo.RedirectStandardError = true;
+                                process.StartInfo.UseShellExecute = false;
+                                process.StartInfo.WorkingDirectory = Path.GetTempPath();
+                                process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
+                                process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
+                                process.Start();
+                                process.BeginOutputReadLine();
+                                process.WaitForExit();
+                            }
                         }
+                        Console.Write(output.ToString());
                     }
-                    Console.Write(output.ToString());
                 }
             }
             else if (0 <= parts[index].IndexOf('*'))

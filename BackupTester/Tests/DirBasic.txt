@@ -154,3 +154,68 @@ lastoutput-verify -workspacepathhack
 *               1 File\(s\).* bytes$
 *               0 Dir\(s\).*$
 endoutput
+
+
+module wildcarded tail
+
+test 1
+date 2015-01-01
+mkdir L\2013-01-01\D\P\Bar1
+create L\2013-01-01\D\P\Bar1\foo.txt
+create L\2013-01-01\D\P\Bar2.txt
+mkdir L\2014-01-01\D\P\Experimental1
+create L\2014-01-01\D\P\Experimental1\foo.txt
+create L\2014-01-01\D\P\Experimental2.txt
+mkdir L\2015-02-02\D\P\Stuff1
+create L\2015-02-02\D\P\Stuff1\foo.txt
+create L\2015-02-02\D\P\Stuff2.txt
+call backup dir L\*\D\P\*experimental*
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+* Volume in .*$
+* Volume Serial Number is .*$
+.
+. Directory of %WORKSPACE%\L\2014-01-01\D\P
+.
+*[0-9/]+\s+[0-9A-Z:]+\s+\<DIR\>\s+Experimental1$
+*[0-9/]+\s+[0-9A-Z:]+\s+[0-9,]+\s+Experimental2.txt$
+*               1 File\(s\).* bytes$
+*               1 Dir\(s\).*$
+endoutput
+
+
+module wildcarded tail 2
+
+test 1
+date 2015-01-01
+mkdir L\2013-01-01\D\P\Bar1
+create L\2013-01-01\D\P\Bar1\foo.txt
+create L\2013-01-01\D\P\Bar2.txt
+create L\2013-01-01\D\P\Experimental3.txt
+mkdir L\2014-01-01\D\P\Experimental1
+create L\2014-01-01\D\P\Experimental1\foo.txt
+create L\2014-01-01\D\P\Experimental2.txt
+mkdir L\2015-02-02\D\P\Stuff1
+create L\2015-02-02\D\P\Stuff1\foo.txt
+create L\2015-02-02\D\P\Stuff2.txt
+call backup dir L\*\D\P\*experimental*
+exitcode-verify 0
+lastoutput-verify -workspacepathhack
+* Volume in .*$
+* Volume Serial Number is .*$
+.
+. Directory of %WORKSPACE%\L\2013-01-01\D\P
+.
+*[0-9/]+\s+[0-9A-Z:]+\s+[0-9,]+\s+Experimental3.txt$
+*               1 File\(s\).* bytes$
+*               0 Dir\(s\).*$
+* Volume in .*$
+* Volume Serial Number is .*$
+.
+. Directory of %WORKSPACE%\L\2014-01-01\D\P
+.
+*[0-9/]+\s+[0-9A-Z:]+\s+\<DIR\>\s+Experimental1$
+*[0-9/]+\s+[0-9A-Z:]+\s+[0-9,]+\s+Experimental2.txt$
+*               1 File\(s\).* bytes$
+*               1 Dir\(s\).*$
+endoutput
