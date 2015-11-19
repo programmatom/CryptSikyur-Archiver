@@ -987,13 +987,8 @@ namespace Backup
                         faultInstanceContext);
 
                     jsonResponseBody = null;
-                    if (String.Equals(responseHeadersExtra[0].Value, "application/json; charset=UTF-8", StringComparison.OrdinalIgnoreCase)) // Google: UTF-8  Microsoft: utf-8
+                    if ((responseHeadersExtra[0].Value != null) && responseHeadersExtra[0].Value.StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
                     {
-                        jsonResponseBody = Encoding.UTF8.GetString(responseStream.ToArray());
-                    }
-                    else if (String.Equals(responseHeadersExtra[0].Value, "application/json; odata.metadata=minimal", StringComparison.OrdinalIgnoreCase)) // Google: UTF-8  Microsoft: utf-8
-                    {
-                        // Microsoft OneDrive
                         jsonResponseBody = Encoding.UTF8.GetString(responseStream.ToArray());
                     }
                     else
