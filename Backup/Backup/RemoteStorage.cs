@@ -715,7 +715,7 @@ namespace Backup
             rateLimitHelper.Wait(trace); // do not make request if rate limit epoch is in effect
 
             Uri uri = new Uri(url);
-            IPAddress hostAddress = null;
+            IPAddress[] hostAddress = null;
             if (settings.Socks5Address == null)
             {
                 // Only resolve remote host address if not using socks5, to avoid DNS leaks

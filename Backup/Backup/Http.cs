@@ -449,7 +449,7 @@ namespace Http
             return sb.ToString();
         }
 
-        private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, long requestContentLength, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
+        private static WebExceptionStatus SocketRequest(Uri uriInitial, Uri uri, string verb, IPAddress[] hostAddress, bool twoStageRequest, byte[] requestHeaderBytes, Stream requestBodySource, long requestContentLength, out HttpStatusCode httpStatus, out string[] responseHeaders, Stream responseBodyDestinationNormal, Stream responseBodyDestinationExceptional, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings)
         {
             byte[] buffer = new byte[Math.Min(HttpGlobalControl.NetworkThrottleIn.BufferSize, HttpGlobalControl.NetworkThrottleOut.BufferSize)];
 
@@ -463,7 +463,7 @@ namespace Http
                 IFaultInstance faultInstanceMethod = faultInstanceContext.Select("SocketHttpRequest", String.Format("{0}|{1}", verb, uri));
 
                 bool useSocks5 = settings.Socks5Address != null;
-                IPAddress connectionAddress = useSocks5 ? settings.Socks5Address : hostAddress;
+                IPAddress[] connectionAddress = useSocks5 ? new IPAddress[] { settings.Socks5Address } : hostAddress;
                 int connectionPort = useSocks5 ? settings.Socks5Port : uri.Port;
                 if (useSocks5 && (hostAddress != null))
                 {
@@ -967,7 +967,7 @@ namespace Http
             return Array.FindIndex(ForbiddenHeaders, delegate(string candidate) { return String.Equals(candidate, header, StringComparison.OrdinalIgnoreCase); }) >= 0;
         }
 
-        public static WebExceptionStatus SocketHttpRequest(Uri uriInitial, IPAddress hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings, bool? autoRedirect)
+        public static WebExceptionStatus SocketHttpRequest(Uri uriInitial, IPAddress[] hostAddress, string verb, KeyValuePair<string, string>[] requestHeaders, Stream requestBodySource, out HttpStatusCode httpStatus, out KeyValuePair<string, string>[] responseHeaders, Stream responseBodyDestination, out string finalUrl, IProgressTracker progressTrackerUpload, IProgressTracker progressTrackerDownload, TextWriter trace, IFaultInstance faultInstanceContext, HttpSettings settings, bool? autoRedirect)
         {
             Uri uri = uriInitial;
 
@@ -1257,7 +1257,7 @@ namespace Http
             DecompressStreamInPlace(responseBodyDestination, ref responseBodyDestinationStart, ref responseBodyDestinationEnd, ref responseBodyBytesReceived, responseHeaders, updateHeaders);
         }
 
-        public static WebExceptionStatus DNSLookupName(string hostName, out IPAddress hostAddress, TextWriter trace, IFaultInstance faultInstanceContext)
+        public static WebExceptionStatus DNSLookupName(string hostName, out IPAddress[] hostAddress, TextWriter trace, IFaultInstance faultInstanceContext)
         {
             hostAddress = null;
             try
@@ -1267,7 +1267,7 @@ namespace Http
                 {
                     return WebExceptionStatus.NameResolutionFailure;
                 }
-                hostAddress = hostInfo.AddressList[0];
+                hostAddress = hostInfo.AddressList;
                 return WebExceptionStatus.Success;
             }
             catch (Exception exception)

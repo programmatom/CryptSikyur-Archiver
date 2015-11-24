@@ -1203,7 +1203,7 @@ namespace RemoteDriveAuth
 
         private static void DoWebRequest(Uri uri, string verb, byte[] requestStream, string requestStreamContentType, Stream responseBody, IPAddress socks5Address, int socks5Port, ICertificatePinning certificatePinning)
         {
-            IPAddress hostAddress = null;
+            IPAddress[] hostAddress = null;
             if (socks5Address == null)
             {
                 HttpMethods.DNSLookupName(uri.Host, out hostAddress, null, Diagnostics.FaultInstanceNode.Null);
