@@ -2101,6 +2101,7 @@ namespace Backup
                     {
                         trace.WriteLine("-CopyFile failed - waited too long for remote asynchronous operation to finish");
                     }
+                    // Should cancel, but API provides no way to cancel the operation!
                     throw new ApplicationException("Failure occurred accessing remote service");
                 }
             }
