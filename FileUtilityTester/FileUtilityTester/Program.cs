@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2014 Thomas R. Lawrence
+ *  Copyright © 2014-2016 Thomas R. Lawrence
  * 
  *  This file is part of FileUtilityTester
  *
@@ -805,7 +805,7 @@ namespace FileUtilityTester
                 lock (this)
                 {
                     UniqueLocation location = new UniqueLocation(script, lineNumber, variableName);
-                    int i = substitutions.FindIndex(delegate(Substitution substitution) { return location.Equals(substitution.Location); });
+                    int i = substitutions.FindIndex(delegate (Substitution substitution) { return location.Equals(substitution.Location); });
                     if (i >= 0)
                     {
                         return;
@@ -815,7 +815,7 @@ namespace FileUtilityTester
                     while (true)
                     {
                         string name = String.Format(extra == 0 ? "{0}:{1}" : "{0}-{2}:{1}", Path.GetFileNameWithoutExtension(script), variableName, extra);
-                        if (substitutions.FindIndex(delegate(Substitution substitution) { return String.Equals(name, substitution.Name); }) < 0)
+                        if (substitutions.FindIndex(delegate (Substitution substitution) { return String.Equals(name, substitution.Name); }) < 0)
                         {
                             substitutions.Add(new Substitution(location, name));
                             return;
@@ -830,7 +830,7 @@ namespace FileUtilityTester
                 lock (this)
                 {
                     UniqueLocation location = new UniqueLocation(script, lineNumber, variableName);
-                    int i = substitutions.FindIndex(delegate(Substitution substitution) { return location.Equals(substitution.Location); });
+                    int i = substitutions.FindIndex(delegate (Substitution substitution) { return location.Equals(substitution.Location); });
                     if (i < 0)
                     {
                         Throw(new ApplicationException());
@@ -1333,7 +1333,7 @@ namespace FileUtilityTester
                                         scriptName,
                                         moduleNumber,
                                         moduleName,
-                                        delegate(TaskQueue.Task.TaskContext taskContext)
+                                        delegate (TaskQueue.Task.TaskContext taskContext)
                                         {
                                             try
                                             {
@@ -1506,7 +1506,7 @@ namespace FileUtilityTester
                                 "endoutput",
                                 ref lineNumber,
                                 context.defaultDateFormat,
-                                delegate(string dateFormat) { return lastOutput; },
+                                delegate (string dateFormat) { return lastOutput; },
                                 context.testFailed,
                                 ref currentFailed,
                                 context.resultMatrix,
@@ -1894,7 +1894,7 @@ namespace FileUtilityTester
                                     "endfile",
                                     ref lineNumber,
                                     context.defaultDateFormat,
-                                    delegate(string dateFormat) { return File.ReadAllText(file); },
+                                    delegate (string dateFormat) { return File.ReadAllText(file); },
                                     context.testFailed,
                                     ref currentFailed,
                                     context.resultMatrix,
@@ -2247,7 +2247,7 @@ namespace FileUtilityTester
                                     "endlist",
                                     ref lineNumber,
                                     context.defaultDateFormat,
-                                    delegate(string dateFormat) { return List(path, context.hashes, dateFormat, showSizes, showCompressed); },
+                                    delegate (string dateFormat) { return List(path, context.hashes, dateFormat, showSizes, showCompressed); },
                                     context.testFailed,
                                     ref currentFailed,
                                     context.resultMatrix,
@@ -2908,7 +2908,7 @@ namespace FileUtilityTester
                 {
                     sb.Append(separator);
                 }
-                bool quote = quoteWhitespace && (String.IsNullOrEmpty(parts[i]) || Array.Exists(parts[i].ToCharArray(), delegate(char c) { return Char.IsWhiteSpace(c); }));
+                bool quote = quoteWhitespace && (String.IsNullOrEmpty(parts[i]) || Array.Exists(parts[i].ToCharArray(), delegate (char c) { return Char.IsWhiteSpace(c); }));
                 if (quote)
                 {
                     sb.Append('"');
@@ -3180,8 +3180,8 @@ namespace FileUtilityTester
                     }
                     cmd.StartInfo.RedirectStandardOutput = true;
                     cmd.StartInfo.RedirectStandardError = true;
-                    cmd.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
-                    cmd.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
+                    cmd.OutputDataReceived += delegate (object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
+                    cmd.ErrorDataReceived += delegate (object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
 
                     cmd.Start();
                     cmd.BeginOutputReadLine();
@@ -3197,11 +3197,9 @@ namespace FileUtilityTester
                     if (!cmd.HasExited)
                     {
                         cmd.Kill();
-                        cmd.WaitForExit();
                         killed = true;
                     }
-                    cmd.CancelOutputRead();
-                    cmd.CancelErrorRead();
+                    cmd.WaitForExit(); // ensure output buffers flushed (after cmd.WaitForExit(Int32) - per documentation: https://msdn.microsoft.com/en-us/library/fb4aw7b8%28v=vs.110%29.aspx)
                     exitCode = cmd.ExitCode;
                 }
             }
@@ -3474,7 +3472,7 @@ namespace FileUtilityTester
                     deflated = true;
                     continue;
                 }
-                for (int i = 0; i < line.Length; )
+                for (int i = 0; i < line.Length;)
                 {
                     if (Char.IsWhiteSpace(line[i]))
                     {
@@ -4077,7 +4075,7 @@ namespace FileUtilityTester
                         DateTime lastProgressUpdate = default(DateTime);
                         const int WaitInterval = 1000;
                         TaskQueue.Status[] statuses = new TaskQueue.Status[concurrency];
-                        ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
+                        ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate ()
                         {
                             if (progressVisible)
                             {
@@ -4091,11 +4089,11 @@ namespace FileUtilityTester
                                 lastProgressUpdate = default(DateTime);
                             }
                         };
-                        ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
+                        ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate ()
                         {
                             eraseProgress();
                         };
-                        ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
+                        ConcurrentTasks.WaitIntervalMethod showProgress = delegate ()
                         {
                             messagesLog.Flush(prepareConsole);
 
@@ -4180,7 +4178,7 @@ namespace FileUtilityTester
                             TaskQueue.Status status = statuses[i] = new TaskQueue.Status();
                             concurrent.Do(
                                 null,
-                                delegate(ConcurrentTasks.ITaskContext context)
+                                delegate (ConcurrentTasks.ITaskContext context)
                                 {
                                     taskQueue.ThreadMain(messagesLog, status);
                                 });
