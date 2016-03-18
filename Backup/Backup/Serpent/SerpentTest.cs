@@ -57,7 +57,7 @@ namespace Serpent
 
             Console.WriteLine(test.file);
             string file = Path.Combine(testsPath, test.file);
-            using (TextReader reader = new StreamReader(file))
+            using (TextReader reader = new StreamReader(new FileStream(file, FileMode.Open, FileAccess.Read)))
             {
                 int operationCount = 0;
 
@@ -108,7 +108,7 @@ namespace Serpent
                             operationCount++;
                             if (!ArrayEqual(result, expected))
                             {
-                                throw new ApplicationException(String.Format("Serpent test failure: {0}", lastComment));
+                                throw new MyApplicationException(String.Format("Serpent test failure: {0}", lastComment));
                             }
                             last = result;
                         }
@@ -127,7 +127,7 @@ namespace Serpent
                             operationCount++;
                             if (!ArrayEqual(result, expected))
                             {
-                                throw new ApplicationException(String.Format("Serpent test failure: {0}", lastComment));
+                                throw new MyApplicationException(String.Format("Serpent test failure: {0}", lastComment));
                             }
                             last = result;
                         }
@@ -145,7 +145,7 @@ namespace Serpent
                             operationCount++;
                             if (!ArrayEqual(result, expected))
                             {
-                                throw new ApplicationException(String.Format("Serpent test failure: {0}", lastComment));
+                                throw new MyApplicationException(String.Format("Serpent test failure: {0}", lastComment));
                             }
                             last = result;
                         }
@@ -163,7 +163,7 @@ namespace Serpent
                             operationCount++;
                             if (!ArrayEqual(result, expected))
                             {
-                                throw new ApplicationException(String.Format("Serpent test failure: {0}", lastComment));
+                                throw new MyApplicationException(String.Format("Serpent test failure: {0}", lastComment));
                             }
                             last = result;
                         }
@@ -179,7 +179,7 @@ namespace Serpent
                         operationCount++;
                         if (!ArrayEqual(result, expected))
                         {
-                            throw new ApplicationException(String.Format("Serpent test failure: {0}", lastComment));
+                            throw new MyApplicationException(String.Format("Serpent test failure: {0}", lastComment));
                         }
                     }
                     else if (line.StartsWith("           Iterated 1000 times="))
@@ -193,7 +193,7 @@ namespace Serpent
                         operationCount++;
                         if (!ArrayEqual(result, expected))
                         {
-                            throw new ApplicationException(String.Format("Serpent test failure: {0}", lastComment));
+                            throw new MyApplicationException(String.Format("Serpent test failure: {0}", lastComment));
                         }
                     }
                     else
@@ -208,7 +208,7 @@ namespace Serpent
 
                 if (operationCount != test.operationCount)
                 {
-                    throw new ApplicationException(String.Format("Serpent test harness failure: operation count = {0} (expected {1})", operationCount, test.operationCount));
+                    throw new MyApplicationException(String.Format("Serpent test harness failure: operation count = {0} (expected {1})", operationCount, test.operationCount));
                 }
             }
         }

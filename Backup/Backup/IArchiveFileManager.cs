@@ -177,7 +177,7 @@ namespace Backup
             {
                 if (keeper != null)
                 {
-                    keeper.Close();
+                    keeper.Dispose();
                     keeper = null;
                 }
                 if (delete && (localFilePath != null))
@@ -203,7 +203,7 @@ namespace Backup
         {
             string result = localFilePath;
 
-            keeper.Close();
+            keeper.Dispose();
             keeper = null;
             localFilePath = null;
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2014 Thomas R. Lawrence
+ *  Copyright © 2014-2016 Thomas R. Lawrence
  *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
  *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  *    except: "Keccak/*.cs", which are Copyright © 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
@@ -39,6 +39,7 @@ using System.Threading;
 using System.Web;
 using System.Windows.Forms;
 
+using Exceptions;
 using HexUtil;
 using Http;
 using JSON;
@@ -230,7 +231,7 @@ namespace RemoteDriveAuth
         {
             if (File.Exists(path))
             {
-                using (TextReader reader = new StreamReader(path))
+                using (TextReader reader = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read)))
                 {
                     string line;
                     while ((line = reader.ReadLine()) != null)
@@ -248,7 +249,7 @@ namespace RemoteDriveAuth
             RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
 
             Directory.CreateDirectory(Path.GetDirectoryName(path));
-            using (TextWriter writer = new StreamWriter(path))
+            using (TextWriter writer = new StreamWriter(new FileStream(path, FileMode.Create, FileAccess.Write)))
             {
                 foreach (ClientIdentity identity in identities.Values)
                 {
@@ -294,7 +295,7 @@ namespace RemoteDriveAuth
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    public class ExitCodeException : ApplicationException
+    public class ExitCodeException : MyApplicationException
     {
         public enum ExitCodes
         {
@@ -528,7 +529,7 @@ namespace RemoteDriveAuth
             // Throw an exception if this operation failed.
             if (!bReturn)
             {
-                throw new ApplicationException(" Set Internet Option Failed!");
+                throw new MyApplicationException(" Set Internet Option Failed!");
             }
 
             return bReturn;
@@ -579,7 +580,7 @@ namespace RemoteDriveAuth
             bool result = InternetQueryOptionList(IntPtr.Zero, INTERNET_OPTION.INTERNET_OPTION_PER_CONNECTION_OPTION, ref Request, ref size);
             if (!result)
             {
-                throw new ApplicationException(" Set Internet Option Failed! ");
+                throw new MyApplicationException(" Set Internet Option Failed! ");
             }
 
             return Request;
@@ -608,7 +609,7 @@ namespace RemoteDriveAuth
 
             if (!bReturn)
             {
-                throw new ApplicationException(" Set Internet Option Failed! ");
+                throw new MyApplicationException(" Set Internet Option Failed! ");
             }
 
             // Notify the system that the registry settings have been changed and cause
@@ -643,7 +644,7 @@ namespace RemoteDriveAuth
                 int error = Marshal.GetLastWin32Error();
                 if (!result)
                 {
-                    throw new ApplicationException(String.Format("SetCookiesPolicy: ::InternetSetOption() failed with error {0}", error)); // search WinInet.h for INTERNET_ERROR_BASE
+                    throw new MyApplicationException(String.Format("SetCookiesPolicy: ::InternetSetOption() failed with error {0}", error)); // search WinInet.h for INTERNET_ERROR_BASE
                 }
 
                 option[0] = INTERNET_SUPPRESS_COOKIE_PERSIST;
@@ -651,7 +652,7 @@ namespace RemoteDriveAuth
                 error = Marshal.GetLastWin32Error();
                 if (!result)
                 {
-                    throw new ApplicationException(String.Format("SetCookiesPolicy: ::InternetSetOption() failed with error {0}", error)); // search WinInet.h for INTERNET_ERROR_BASE
+                    throw new MyApplicationException(String.Format("SetCookiesPolicy: ::InternetSetOption() failed with error {0}", error)); // search WinInet.h for INTERNET_ERROR_BASE
                 }
             }
             finally
@@ -1184,7 +1185,7 @@ namespace RemoteDriveAuth
             throw new InvalidDataException("Unable to obtain authorization code from login service redirect url");
         }
 
-        private class MyWebException : ApplicationException
+        private class MyWebException : MyApplicationException
         {
             public readonly WebExceptionStatus WebExceptionStatus;
             public readonly HttpStatusCode HttpStatus;
@@ -1328,9 +1329,9 @@ namespace RemoteDriveAuth
         }
 
         [STAThread]
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            Environment.ExitCode = 1;
+            int exitCode = 1;
 
             if ((args.Length > 0) && args[0].Equals("-waitdebugger"))
             {
@@ -1385,7 +1386,7 @@ namespace RemoteDriveAuth
                 {
                     Console.WriteLine("Usage:");
                     Console.WriteLine();
-                    return;
+                    return exitCode;
                 }
 
                 if (args[0].Equals("-memorize"))
@@ -1576,7 +1577,7 @@ namespace RemoteDriveAuth
                         GetTokensByRefresh(authService, clientIdentity, refreshTokenExposed, out tokensJSON, socks5Address, socks5Port);
                         if (String.IsNullOrEmpty(tokensJSON))
                         {
-                            throw new ApplicationException("Unable to convert refresh token to access token");
+                            throw new MyApplicationException("Unable to convert refresh token to access token");
                         }
                         // TODO: fails for now to catch bugs, but ultimlately fall through to log-in case for robustness
                     }
@@ -1599,7 +1600,7 @@ namespace RemoteDriveAuth
                         GetTokensFromAuthCode(authService, clientIdentity, authorizationCode, out tokensJSON, socks5Address, socks5Port);
                         if (String.IsNullOrEmpty(tokensJSON))
                         {
-                            throw new ApplicationException("Unable to convert authorization code to access token");
+                            throw new MyApplicationException("Unable to convert authorization code to access token");
                         }
                     }
 
@@ -1610,7 +1611,7 @@ namespace RemoteDriveAuth
                         string refresh_token;
                         if (!json.TryGetValueAs("refresh_token", out refresh_token))
                         {
-                            throw new ApplicationException("Unable to obtain refresh token");
+                            throw new MyApplicationException("Unable to obtain refresh token");
                         }
 
                         byte[] refreshTokenBytes = Encoding.ASCII.GetBytes(refresh_token);
@@ -1656,26 +1657,26 @@ namespace RemoteDriveAuth
                 }
 
 
-                Environment.ExitCode = 0;
+                exitCode = 0;
             }
             catch (ExitCodeException exception)
             {
                 Console.Error.WriteLine(exception.Message);
-                Environment.ExitCode = exception.ExitCode;
+                exitCode = exception.ExitCode;
             }
             catch (MyWebException exception)
             {
                 Console.Error.WriteLine(exception);
                 if (exception.WebExceptionStatus != WebExceptionStatus.ProtocolError)
                 {
-                    Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
+                    exitCode = (int)ExitCodeException.ExitCodes.RetriableError;
                 }
                 else if (exception.WebExceptionStatus == WebExceptionStatus.ProtocolError)
                 {
                     if ((exception.HttpStatus >= (HttpStatusCode)500)
                         && (exception.HttpStatus < (HttpStatusCode)599))
                     {
-                        Environment.ExitCode = (int)ExitCodeException.ExitCodes.RetriableError;
+                        exitCode = (int)ExitCodeException.ExitCodes.RetriableError;
                     }
                 }
             }
@@ -1683,6 +1684,8 @@ namespace RemoteDriveAuth
             {
                 Console.Error.WriteLine(exception);
             }
+
+            return exitCode;
         }
     }
 }

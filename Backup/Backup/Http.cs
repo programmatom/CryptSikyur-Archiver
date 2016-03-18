@@ -36,6 +36,7 @@ using System.Text;
 using System.Threading;
 
 using Diagnostics;
+using Exceptions;
 
 namespace Http
 {
@@ -54,7 +55,7 @@ namespace Http
         public const int BufferSize = MaxSmallObjectPageDivisibleSize;
     }
 
-    public class InsecureConnectionException : ApplicationException
+    public class InsecureConnectionException : MyApplicationException
     {
         public const string DefaultMessage = "The connection to the remote server is insecure. For your safety, the application must terminate the connection and cannot continue.";
 

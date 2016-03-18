@@ -31,6 +31,7 @@ using System.Threading;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using Exceptions;
 using HexUtil;
 
 namespace Diagnostics
@@ -918,7 +919,7 @@ namespace Diagnostics
             string[] eventNames;
             if ((node.Payload == null) || ((eventNames = node.Payload.Split(',')).Length != 2))
             {
-                throw new ApplicationException("Invalid payload format for FaultMethod.Synch");
+                throw new MyApplicationException("Invalid payload format for FaultMethod.Synch");
             }
             using (EventWaitHandle triggerEvent = EventWaitHandle.OpenExisting(eventNames[0]))
             {
@@ -1301,7 +1302,7 @@ namespace Diagnostics
     // points may not actually be reached during a given program run.
     public class FaultTemplateNode
     {
-        public class FaultInjectionException : ApplicationException
+        public class FaultInjectionException : MyApplicationException
         {
             public FaultInjectionException(string message)
                 : base(message)

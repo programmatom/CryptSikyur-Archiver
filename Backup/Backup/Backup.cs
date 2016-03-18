@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2014 Thomas R. Lawrence
+ *  Copyright © 2014-2016 Thomas R. Lawrence
  *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
  *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  *    except: "Keccak/*.cs", which are Copyright © 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
@@ -37,6 +37,7 @@ using Microsoft.Win32.SafeHandles;
 
 using Concurrent;
 using Diagnostics;
+using Exceptions;
 using HexUtil;
 using Keccak;
 using ProtectedData;
@@ -103,7 +104,7 @@ namespace Backup
             ConditionNotSatisfied = 3, // e.g. CompareFile finds differences
         }
 
-        public class ExitCodeException : ApplicationException
+        public class ExitCodeException : MyApplicationException
         {
             public readonly int ExitCode;
             private readonly string message;
@@ -2179,7 +2180,7 @@ namespace Backup
                 {
                     if (!Valid)
                     {
-                        throw new ApplicationException();
+                        throw new MyApplicationException();
                     }
                     return current;
                 }
@@ -2199,7 +2200,7 @@ namespace Backup
                 {
                     if (!Valid)
                     {
-                        throw new ApplicationException();
+                        throw new MyApplicationException();
                     }
                     if (!currentAttributes.HasValue)
                     {
@@ -2223,7 +2224,7 @@ namespace Backup
                 {
                     if (!Valid)
                     {
-                        throw new ApplicationException();
+                        throw new MyApplicationException();
                     }
                     if (!currentLastWrite.HasValue)
                     {
@@ -2313,7 +2314,7 @@ namespace Backup
                 string line = ReadLineUTF8(stream);
                 if (line == null)
                 {
-                    stream.Close();
+                    stream.Dispose();
                     stream = null;
                     return false;
                 }
@@ -2329,7 +2330,7 @@ namespace Backup
                 {
                     if (!Valid)
                     {
-                        throw new ApplicationException();
+                        throw new MyApplicationException();
                     }
                     return current;
                 }
@@ -2349,7 +2350,7 @@ namespace Backup
                 {
                     if (!Valid)
                     {
-                        throw new ApplicationException();
+                        throw new MyApplicationException();
                     }
                     return currentAttributes;
                 }
@@ -2369,7 +2370,7 @@ namespace Backup
                 {
                     if (!Valid)
                     {
-                        throw new ApplicationException();
+                        throw new MyApplicationException();
                     }
                     return currentLastWrite;
                 }
@@ -2379,7 +2380,7 @@ namespace Backup
             {
                 if (stream != null)
                 {
-                    stream.Close();
+                    stream.Dispose();
                     stream = null;
                 }
             }
@@ -2606,7 +2607,7 @@ namespace Backup
                     }
                     if ((actualSourceName == null) && (actualTargetName == null))
                     {
-                        throw new ApplicationException(String.Format("Directory inconsistency: \"{0}\" or \"{1}\"", sourcePath, targetPath));
+                        throw new MyApplicationException(String.Format("Directory inconsistency: \"{0}\" or \"{1}\"", sourcePath, targetPath));
                     }
                     if ((actualSourceName != null) && (actualTargetName != null)
                         && String.Equals(actualSourceName, actualTargetName, StringComparison.OrdinalIgnoreCase)
@@ -3113,7 +3114,7 @@ namespace Backup
             TextWriter log = null;
             if (diagnosticPath != null)
             {
-                log = new StreamWriter(diagnosticPath, false, Encoding.UTF8);
+                log = new StreamWriter(new FileStream(diagnosticPath, FileMode.Create, FileAccess.Write), Encoding.UTF8);
                 log.WriteLine("Sync log");
                 log.WriteLine();
             }
@@ -3145,7 +3146,7 @@ namespace Backup
                 }
                 catch (UnauthorizedAccessException exception)
                 {
-                    throw new ApplicationException("Option to flush volume buffers (-flushvols) requires administrative privileges", exception);
+                    throw new MyApplicationException("Option to flush volume buffers (-flushvols) requires administrative privileges", exception);
                 }
             }
 
@@ -3200,7 +3201,7 @@ namespace Backup
                 previousEntriesL = new EnumerateFile(rootL, manifestLocalSaved);
             }
             previousEntriesL.MoveNext();
-            TextWriter newEntriesLPermanent = new StreamWriter(manifestLocalNew, false/*append*/, Encoding.UTF8);
+            TextWriter newEntriesLPermanent = new StreamWriter(new FileStream(manifestLocalNew, FileMode.Create, FileAccess.Write), Encoding.UTF8);
 
             EnumerateHierarchy currentEntriesR = new EnumerateHierarchy(rootR);
             currentEntriesR.MoveNext();
@@ -3210,7 +3211,7 @@ namespace Backup
                 previousEntriesR = new EnumerateFile(rootR, manifestRemoteSaved);
             }
             previousEntriesR.MoveNext();
-            TextWriter newEntriesRPermanent = new StreamWriter(manifestRemoteNew, false/*append*/, Encoding.UTF8);
+            TextWriter newEntriesRPermanent = new StreamWriter(new FileStream(manifestRemoteNew, FileMode.Create, FileAccess.Write), Encoding.UTF8);
 
             SyncRollForward(manifestLocalNewRecovery, newEntriesLPermanent, currentEntriesL, previousEntriesL, log, "local");
             SyncRollForward(manifestRemoteNewRecovery, newEntriesRPermanent, currentEntriesR, previousEntriesR, log, "remote");
@@ -3422,7 +3423,7 @@ namespace Backup
                             else
                             {
                                 codePath = 103;
-                                throw new ApplicationException("Differing names does not accord with no changes");
+                                throw new MyApplicationException("Differing names does not accord with no changes");
                             }
                         }
                         else if (c > 0)
@@ -3532,7 +3533,7 @@ namespace Backup
                             else
                             {
                                 codePath = 203;
-                                throw new ApplicationException("Differing names does not accord with no changes");
+                                throw new MyApplicationException("Differing names does not accord with no changes");
                             }
                         }
                         else
@@ -3760,11 +3761,11 @@ namespace Backup
 
                 previousEntriesL.Close();
                 currentEntriesL.Close();
-                newEntriesLPermanent.Close();
+                newEntriesLPermanent.Dispose();
 
                 previousEntriesR.Close();
                 currentEntriesR.Close();
-                newEntriesRPermanent.Close();
+                newEntriesRPermanent.Dispose();
 
                 volumeFlushHelperCollection.MarkDirty(volumeFlushHelperRepository);
                 volumeFlushHelperCollection.Flush();
@@ -3774,7 +3775,7 @@ namespace Backup
                     log.WriteLine();
                     log.WriteLine("Finished");
 
-                    log.Close();
+                    log.Dispose();
                     log = null;
                 }
 
@@ -3898,7 +3899,7 @@ namespace Backup
             DateTime timestamp;
             if (!DateTime.TryParse(name.Replace('+', ':'), out timestamp))
             {
-                throw new ApplicationException(String.Format("Invalid archive point '{0}'", name));
+                throw new MyApplicationException(String.Format("Invalid archive point '{0}'", name));
             }
             return timestamp;
         }
@@ -3931,7 +3932,7 @@ namespace Backup
             {
                 if (checkC != (context.compressionOption == CompressionOption.Compress))
                 {
-                    throw new ApplicationException("Previous backups have compression setting incompatible with current setting");
+                    throw new MyApplicationException("Previous backups have compression setting incompatible with current setting");
                 }
 
                 if (context.cryptoOption != EncryptionOption.None)
@@ -3952,7 +3953,7 @@ namespace Backup
 
                     if (!checkExists)
                     {
-                        throw new ApplicationException("Previous backups prevent encryption from being allowed");
+                        throw new MyApplicationException("Previous backups prevent encryption from being allowed");
                     }
                     else
                     {
@@ -3996,14 +3997,14 @@ namespace Backup
 
                                         if (!ArrayEqual(EncryptionCheckBytes, checkBytes))
                                         {
-                                            throw new ApplicationException("Encryption key does not match key from previous run");
+                                            throw new MyApplicationException("Encryption key does not match key from previous run");
                                         }
                                     });
                             }
                         }
                         catch (ExitCodeException)
                         {
-                            throw new ApplicationException("Encryption key does not match key from previous run");
+                            throw new MyApplicationException("Encryption key does not match key from previous run");
                         }
                     }
                 }
@@ -4011,7 +4012,7 @@ namespace Backup
                 {
                     if (checkExists)
                     {
-                        throw new ApplicationException("Previous backups require encryption to be specified");
+                        throw new MyApplicationException("Previous backups require encryption to be specified");
                     }
                 }
             }
@@ -4019,7 +4020,7 @@ namespace Backup
             {
                 if (checkExists)
                 {
-                    throw new ApplicationException("Check shouldn't exist on first run!");
+                    throw new MyApplicationException("Check shouldn't exist on first run!");
                 }
                 if (context.cryptoOption != EncryptionOption.None)
                 {
@@ -4914,12 +4915,12 @@ namespace Backup
             }
             if ((mostRecentArchivePoint != null) && (mostRecentArchivePointDate.CompareTo(context.now) >= 0))
             {
-                throw new ApplicationException(String.Format("Archive point '{0}' is more recent than now {0}", mostRecentArchivePoint, currentArchivePoint));
+                throw new MyApplicationException(String.Format("Archive point '{0}' is more recent than now {0}", mostRecentArchivePoint, currentArchivePoint));
             }
 
             if (File.Exists(Path.Combine(archiveFolder, currentArchivePoint)))
             {
-                throw new ApplicationException(String.Format("Archive point '{0}' already exists", context.now));
+                throw new MyApplicationException(String.Format("Archive point '{0}' already exists", context.now));
             }
 
             EnsureCheck(archiveFolder, mostRecentArchivePoint == null, context, context.now);
@@ -4930,7 +4931,7 @@ namespace Backup
             TextWriter log = null;
             if (context.logPath != null)
             {
-                log = new StreamWriter(context.logPath, false/*append*/, Encoding.UTF8);
+                log = new StreamWriter(new FileStream(context.logPath, FileMode.Create, FileAccess.Write), Encoding.UTF8);
                 log.WriteLine("Backup of {0} to {1}", source, Path.Combine(archiveFolder, currentArchivePoint));
                 log.WriteLine();
             }
@@ -4944,7 +4945,7 @@ namespace Backup
                 Directory.CreateDirectory(mostRecentArchivePointPath);
                 if (Directory.GetDirectories(mostRecentArchivePointPath).Length > 0)
                 {
-                    throw new ApplicationException(String.Format("Temporary archive workspace \"{0}\" is nonempty!", mostRecentArchivePointPath));
+                    throw new MyApplicationException(String.Format("Temporary archive workspace \"{0}\" is nonempty!", mostRecentArchivePointPath));
                 }
             }
 
@@ -4973,7 +4974,7 @@ namespace Backup
             {
                 log.WriteLine();
                 log.WriteLine("Finished.");
-                log.Close();
+                log.Dispose();
                 log = null;
             }
 
@@ -5100,7 +5101,7 @@ namespace Backup
             }
             if (mostRecentArchivePoint == null)
             {
-                throw new ApplicationException("No archive points found");
+                throw new MyApplicationException("No archive points found");
             }
 
             EnsureCheck(archiveFolder, false, context, context.now);
@@ -5267,25 +5268,25 @@ namespace Backup
         {
             if (!Directory.Exists(Path.Combine(archiveRoot, beginCheckpoint)))
             {
-                throw new ApplicationException(String.Format("Archive point {0} does not exist", beginCheckpoint));
+                throw new MyApplicationException(String.Format("Archive point {0} does not exist", beginCheckpoint));
             }
             if (!Directory.Exists(Path.Combine(archiveRoot, endCheckpoint)))
             {
-                throw new ApplicationException(String.Format("Archive point {0} does not exist", endCheckpoint));
+                throw new MyApplicationException(String.Format("Archive point {0} does not exist", endCheckpoint));
             }
             DateTime beginDate;
             if (!DateTime.TryParse(beginCheckpoint.Replace('+', ':'), out beginDate))
             {
-                throw new ApplicationException(String.Format("Invalid archive point '{0}'", beginCheckpoint));
+                throw new MyApplicationException(String.Format("Invalid archive point '{0}'", beginCheckpoint));
             }
             DateTime endDate;
             if (!DateTime.TryParse(endCheckpoint.Replace('+', ':'), out endDate))
             {
-                throw new ApplicationException(String.Format("Invalid archive point '{0}'", endCheckpoint));
+                throw new MyApplicationException(String.Format("Invalid archive point '{0}'", endCheckpoint));
             }
             if (endDate < beginDate)
             {
-                throw new ApplicationException("End checkpoint is earlier then begin checkpoint");
+                throw new MyApplicationException("End checkpoint is earlier then begin checkpoint");
             }
 
             List<string> toPurge = new List<string>();
@@ -5297,7 +5298,7 @@ namespace Backup
                     DateTime date;
                     if (!DateTime.TryParse(name.Replace('+', ':'), out date))
                     {
-                        throw new ApplicationException(String.Format("Invalid archive point '{0}' found in archive folder", name));
+                        throw new MyApplicationException(String.Format("Invalid archive point '{0}' found in archive folder", name));
                     }
                     if ((date > beginDate) && (date < endDate))
                     {
@@ -5357,7 +5358,7 @@ namespace Backup
                     DateTime date;
                     if (!DateTime.TryParse(name.Replace('+', ':'), out date))
                     {
-                        throw new ApplicationException(String.Format("Invalid archive point '{0}' found in archive folder", name));
+                        throw new MyApplicationException(String.Format("Invalid archive point '{0}' found in archive folder", name));
                     }
                     checkpoints.Add(name);
                 }
@@ -5524,7 +5525,7 @@ namespace Backup
 
             if (File.Exists(target) || Directory.Exists(target))
             {
-                throw new ApplicationException(String.Format("Target {0} already exists", target));
+                throw new MyApplicationException(String.Format("Target {0} already exists", target));
             }
             Directory.CreateDirectory(target);
 
@@ -5556,7 +5557,7 @@ namespace Backup
             DateTime checkpointDate = ParseArchivePointName(checkpoint);
             if (!Directory.Exists(Path.Combine(archiveRoot, checkpoint)))
             {
-                throw new ApplicationException(String.Format("Archive point \"{0}\" does not exist", checkpoint));
+                throw new MyApplicationException(String.Format("Archive point \"{0}\" does not exist", checkpoint));
             }
 
             List<string> checkpoints = new List<string>();
@@ -5578,7 +5579,7 @@ namespace Backup
             {
                 if (File.Exists(Path.Combine(target, Path.GetFileName(checkpointPart))))
                 {
-                    throw new ApplicationException(String.Format("Target \"{0}\" already exists", target));
+                    throw new MyApplicationException(String.Format("Target \"{0}\" already exists", target));
                 }
                 RestoreFile(archiveRoot, Path.GetDirectoryName(checkpointPart), target, checkpoints.ToArray(), context, Path.GetFileName(checkpointPart));
             }
@@ -5586,13 +5587,13 @@ namespace Backup
             {
                 if (File.Exists(target) || Directory.Exists(target))
                 {
-                    throw new ApplicationException(String.Format("Target \"{0}\" already exists", target));
+                    throw new MyApplicationException(String.Format("Target \"{0}\" already exists", target));
                 }
                 RestoreRecursive(archiveRoot, checkpointPart, target, checkpoints.ToArray(), context);
             }
             else
             {
-                throw new ApplicationException(String.Format("Checkpoint \"{0}\" does not exist", Path.Combine(archiveRoot, checkpointPath)));
+                throw new MyApplicationException(String.Format("Checkpoint \"{0}\" does not exist", Path.Combine(archiveRoot, checkpointPath)));
             }
         }
 
@@ -5613,7 +5614,7 @@ namespace Backup
                 }
                 else
                 {
-                    throw new ApplicationException();
+                    throw new MyApplicationException();
                 }
             }
 
@@ -5643,7 +5644,7 @@ namespace Backup
                                 int read = checkedStream.Read(buffer, 0, toRead);
                                 if (read != toRead)
                                 {
-                                    throw new ApplicationException("Read failure");
+                                    throw new MyApplicationException("Read failure");
                                 }
                                 destinationStream.Write(buffer, 0, read);
                                 position += read;
@@ -5654,7 +5655,7 @@ namespace Backup
                         File.SetLastWriteTime(destinationFile, context.now);
                     }
 
-                    checkedStream.Close();
+                    checkedStream.Dispose();
                     hash = checkedStream.CheckValue;
                 }
             }
@@ -5717,7 +5718,7 @@ namespace Backup
                         }
                         else if (extension.Equals(".sha512", StringComparison.OrdinalIgnoreCase))
                         {
-                            using (TextReader reader = new StreamReader(path))
+                            using (TextReader reader = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read)))
                             {
                                 sha512OriginalHashText = reader.ReadLine();
                             }
@@ -5728,7 +5729,7 @@ namespace Backup
                         }
                     }
 
-                    checkedStream.Close();
+                    checkedStream.Dispose();
                     hash = checkedStream.CheckValue;
                 }
             }
@@ -6131,7 +6132,7 @@ namespace Backup
 
                     BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, embeddedStreamLength);
 
-                    checkedStream.Close();
+                    checkedStream.Dispose();
                     checkValue = checkedStream.CheckValue;
                 }
 
@@ -6151,7 +6152,7 @@ namespace Backup
 
                     BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, 0); // file length field
 
-                    checkedStream.Close();
+                    checkedStream.Dispose();
                     checkValue = checkedStream.CheckValue;
                 }
 
@@ -6302,7 +6303,7 @@ namespace Backup
 
                     nullHeader = (count == 0) && (embeddedStreamLength == 0);
 
-                    checkedStream.Close();
+                    checkedStream.Dispose();
                     checkValue = checkedStream.CheckValue;
                 }
 
@@ -6659,7 +6660,7 @@ namespace Backup
                                     {
                                         left.Dispose();
                                         right.Dispose();
-                                        throw new ApplicationException("program defect");
+                                        throw new MyApplicationException("program defect");
                                     }
                                     partial.Push(left);
                                     right.height++;
@@ -6670,7 +6671,7 @@ namespace Backup
                                     Debug.Assert(false);
                                     left.Dispose();
                                     right.Dispose();
-                                    throw new ApplicationException("program defect");
+                                    throw new MyApplicationException("program defect");
                                 }
 
                                 cascade >>= 1;
@@ -6680,7 +6681,7 @@ namespace Backup
                         Debug.Assert(partial.Count == 1);
                         if (!(partial.Count == 1))
                         {
-                            throw new ApplicationException("program defect");
+                            throw new MyApplicationException("program defect");
                         }
                         HashBlock top = partial.Pop();
                         top.completionObject.Wait();
@@ -6731,7 +6732,7 @@ namespace Backup
             {
                 if ((inputStream == null) && !enableContinue && !directory)
                 {
-                    throw new ApplicationException("Unable to open file for inclusion in package", new FileNotFoundException(null, file));
+                    throw new MyApplicationException("Unable to open file for inclusion in package", new FileNotFoundException(null, file));
                 }
 
                 if ((inputStream != null) || directory)
@@ -6805,7 +6806,7 @@ namespace Backup
                             }
                         }
 
-                        checkedStream.Close();
+                        checkedStream.Dispose();
                         fileDataCheckValue = checkedStream.CheckValue;
                     }
 
@@ -7112,7 +7113,7 @@ namespace Backup
             }
         }
 
-        private class RangeSequenceException : ApplicationException
+        private class RangeSequenceException : MyApplicationException
         {
             public RangeSequenceException(string message)
                 : base(message)
@@ -7120,7 +7121,7 @@ namespace Backup
             }
         }
 
-        private class DeferredMultiException : ApplicationException
+        private class DeferredMultiException : MyApplicationException
         {
             private Exception[] innerExceptions = new Exception[0];
 
@@ -7159,9 +7160,9 @@ namespace Backup
             ShowProgress = 1 << 3,
         }
 
-        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, IFaultInstance faultContainer, out ApplicationException[] deferredExceptions, string localSignaturePath)
+        private static UnpackedFileRecord[] UnpackInternal(Stream fileStream, string targetDirectory, Context context, UnpackMode mode, out ulong segmentSerialNumberOut, out byte[] randomArchiveSignatureOut, TextWriter trace, IFaultInstance faultContainer, out MyApplicationException[] deferredExceptions, string localSignaturePath)
         {
-            List<ApplicationException> deferredExceptionsList = new List<ApplicationException>();
+            List<MyApplicationException> deferredExceptionsList = new List<MyApplicationException>();
 
             try
             {
@@ -7458,7 +7459,7 @@ namespace Backup
                             string[] pathParts = header.Subpath.Split(new char[] { '\\' });
                             if (!pathParts[0].Equals("."))
                             {
-                                throw new ApplicationException("Invalid relative path found in stream");
+                                throw new MyApplicationException("Invalid relative path found in stream");
                             }
                             string fullPath = targetDirectory;
                             for (int i = 1; i < pathParts.Length; i++)
@@ -7466,7 +7467,7 @@ namespace Backup
                                 string pathPart = pathParts[i];
                                 if (String.IsNullOrEmpty(pathPart) || (pathPart == ".") || (pathPart == ".."))
                                 {
-                                    throw new ApplicationException("Illegal step found in path");
+                                    throw new MyApplicationException("Illegal step found in path");
                                 }
                                 fullPath = Path.Combine(fullPath, pathPart);
                                 if (i == pathParts.Length - 2) // last directory component
@@ -7632,7 +7633,7 @@ namespace Backup
                                             deferredExceptionsList.Add(new RangeSequenceException(String.Format("Update to file \"{0}\" failed - part of file content is missing", fullPath)));
 
                                             // cancel writing of this file
-                                            output.Close();
+                                            output.Dispose();
                                             output = null;
                                         }
                                     }
@@ -7687,7 +7688,7 @@ namespace Backup
                                         }
                                     }
 
-                                    checkedStream.Close();
+                                    checkedStream.Dispose();
                                     fileDataCheckValue = checkedStream.CheckValue;
                                 }
 
@@ -7761,7 +7762,7 @@ namespace Backup
         {
             ulong segmentSerialNumber;
             byte[] randomArchiveSignature;
-            ApplicationException[] deferredExceptions;
+            MyApplicationException[] deferredExceptions;
             using (Stream fileStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 UnpackInternal(fileStream, targetDirectory, context, UnpackMode.Unpack | UnpackMode.ShowProgress, out segmentSerialNumber, out randomArchiveSignature, null/*trace*/, context.faultInjectionRoot.Select("UnpackInternal"), out deferredExceptions, null/*localSignaturePath*/);
@@ -7811,7 +7812,7 @@ namespace Backup
                     {
                         using (Stream stream = fileRef.Read())
                         {
-                            ApplicationException[] deferredExceptions;
+                            MyApplicationException[] deferredExceptions;
                             files = UnpackInternal(stream, ".", context, UnpackMode.Parse, out serialNumber, out randomArchiveSignature, null/*trace*/, faultDumppack, out deferredExceptions, null/*localSignaturePath*/);
                             if (deferredExceptions != null)
                             {
@@ -8067,10 +8068,12 @@ namespace Backup
                         current.Add(step);
                     }
 
+#if false // this happens if a directory is renamed so that only case is changed (i.e. not actually renamed as far as NTFS is concerned)
                     if (!step.ToString().Equals(path, StringComparison.Ordinal))
                     {
                         throw new InvalidOperationException("Defect in FilePathItem.Factory.Create(string)");
                     }
+#endif
 
                     return step;
                 }
@@ -8461,7 +8464,7 @@ namespace Backup
         {
             if (!(DynPackSegmentNameCompare(l, r) < 0))
             {
-                throw new ApplicationException(String.Format("Segment order error: {0} {1}", l, r));
+                throw new MyApplicationException(String.Format("Segment order error: {0} {1}", l, r));
             }
             while (l.Length < r.Length)
             {
@@ -8509,7 +8512,7 @@ namespace Backup
 
             if (s.Equals(r))
             {
-                throw new ApplicationException(String.Format("Impossible: {0} {1} {2}", l, r, s));
+                throw new MyApplicationException(String.Format("Impossible: {0} {1} {2}", l, r, s));
             }
             if (s.Equals(l))
             {
@@ -8705,7 +8708,7 @@ namespace Backup
             {
                 if (remote && (context.cryptoOption != EncryptionOption.Encrypt) && !context.overrideRemoteSecurityBlock)
                 {
-                    throw new ApplicationException("You have specified storage on a remote service without any encryption. This is regarded as insecure and dangerous and is blocked by default. If you really mean to do this (and if so we suggest you reconsider), use the -overridesecurityblock option to bypass this block.");
+                    throw new MyApplicationException("You have specified storage on a remote service without any encryption. This is regarded as insecure and dangerous and is blocked by default. If you really mean to do this (and if so we suggest you reconsider), use the -overridesecurityblock option to bypass this block.");
                 }
 
                 // Read old manifest (if any)
@@ -8740,7 +8743,7 @@ namespace Backup
                             manifestFileNameActual = manifestFileNameOld;
                             Console.WriteLine("Manifest file {0} does not exist, reading backup copy {1}", manifestFileName, manifestFileNameOld);
 #else
-                            throw new ApplicationException(String.Format("Manifest file \"{0}\" does not exist (backup copy \"{1}\" does exist)! Manual intervention required - may be device connectivity failure. If manifest is indeed missing, archive integrity must be verified.", manifestFileName, manifestFileNameOld));
+                            throw new MyApplicationException(String.Format("Manifest file \"{0}\" does not exist (backup copy \"{1}\" does exist)! Manual intervention required - may be device connectivity failure. If manifest is indeed missing, archive integrity must be verified.", manifestFileName, manifestFileNameOld));
 #endif
                         }
 
@@ -9035,7 +9038,7 @@ namespace Backup
                         if (!(DynPackPathCompareWithRange(currentFiles[i], currentFiles[i + 1]) < 0))
                         {
                             Debugger.Break();
-                            throw new ApplicationException(String.Format("Sort defect: {0} {1}", currentFiles[i].PartialPath, currentFiles[i + 1].PartialPath));
+                            throw new MyApplicationException(String.Format("Sort defect: {0} {1}", currentFiles[i].PartialPath, currentFiles[i + 1].PartialPath));
                         }
                     }
                     for (int i = 0; i < previousFiles.Count - 1; i++)
@@ -9043,7 +9046,7 @@ namespace Backup
                         if (!(DynPackPathCompareWithRange(previousFiles[i], previousFiles[i + 1]) < 0))
                         {
                             Debugger.Break();
-                            throw new ApplicationException(String.Format("Sort defect: {0} {1}", previousFiles[i].PartialPath, previousFiles[i + 1].PartialPath));
+                            throw new MyApplicationException(String.Format("Sort defect: {0} {1}", previousFiles[i].PartialPath, previousFiles[i + 1].PartialPath));
                         }
                     }
 
@@ -9624,7 +9627,7 @@ namespace Backup
                     {
                         Console.WriteLine("DEFECT! Segment overlap!");
                         Debugger.Break();
-                        throw new ApplicationException("DEFECT! Segment overlap!");
+                        throw new MyApplicationException("DEFECT! Segment overlap!");
                     }
                 }
 
@@ -9760,7 +9763,7 @@ namespace Backup
                             message = message + "DEFECT! Segment name used more than once for separated regions!";
                         }
                         Debugger.Break();
-                        throw new ApplicationException(message);
+                        throw new MyApplicationException(message);
                     }
                 }
 
@@ -9979,7 +9982,7 @@ namespace Backup
                                                                 {
                                                                     using (Stream segmentStream = fileRef.Read())
                                                                     {
-                                                                        ApplicationException[] deferredExceptions;
+                                                                        MyApplicationException[] deferredExceptions;
                                                                         archiveFiles = UnpackInternal(segmentStream, source, unpackContext, UnpackMode.Parse, out segmentSerialNumber, out segmentRandomArchiveSignature, threadTraceDynPack, faultDynamicPack.Select("VerifySegment", segmentFileName), out deferredExceptions, null/*localSignaturePath*/);
                                                                         Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                                                                     }
@@ -10160,7 +10163,7 @@ namespace Backup
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
-                                throw new ApplicationException("Unable to continue after last error");
+                                throw new MyApplicationException("Unable to continue after last error");
                             }
                         }
 
@@ -10312,7 +10315,7 @@ namespace Backup
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
-                                throw new ApplicationException("Unable to continue after last error");
+                                throw new MyApplicationException("Unable to continue after last error");
                             }
                         }
 
@@ -10388,7 +10391,7 @@ namespace Backup
                                             BinaryWriteUtils.WriteStringUtf8(checkedStream, record.PartialPath.ToString());
                                         }
 
-                                        checkedStream.Close();
+                                        checkedStream.Dispose();
                                         b = checkedStream.CheckValue;
                                     }
 
@@ -10406,7 +10409,7 @@ namespace Backup
                                     segmentSizes[record.Segment] = segmentSizes[record.Segment] + record.EmbeddedStreamLength + record.HeaderOverhead;
                                 }
 
-                                using (TextWriter writer = new StreamWriter(newDiagnosticFile))
+                                using (TextWriter writer = new StreamWriter(new FileStream(newDiagnosticFile, FileMode.Create, FileAccess.Write)))
                                 {
                                     if (verifyNonDirtyMetadata)
                                     {
@@ -10963,7 +10966,7 @@ namespace Backup
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
-                                throw new ApplicationException("Unable to continue after last error");
+                                throw new MyApplicationException("Unable to continue after last error");
                             }
                         }
                         faultDynamicPackStage = faultDynamicPack.Select("Stage", "8-write-segment-files-completed");
@@ -11047,7 +11050,7 @@ namespace Backup
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
-                                throw new ApplicationException("Unable to continue after last error");
+                                throw new MyApplicationException("Unable to continue after last error");
                             }
                             fatal = 0;
                         }
@@ -11244,7 +11247,7 @@ namespace Backup
                     {
                         string message = String.Format("Local signature \"{0}\" does not match computed signature from manifest! Aborting!", localSignaturePath);
                         ConsoleWriteLineColor(ConsoleColor.Yellow, message);
-                        throw new ApplicationException(message);
+                        throw new MyApplicationException(message);
                     }
                 }
             }
@@ -11301,7 +11304,7 @@ namespace Backup
 
             archiveFileNameTemplate = Path.GetFileName(archivePathTemplate);
             remote = false;
-            return new LocalArchiveFileManager(context, Path.GetDirectoryName(Path.IsPathRooted(archivePathTemplate) ? archivePathTemplate : Path.Combine(Environment.CurrentDirectory, archivePathTemplate)));
+            return new LocalArchiveFileManager(context, Path.GetDirectoryName(Path.IsPathRooted(archivePathTemplate) ? archivePathTemplate : Path.Combine(Directory.GetCurrentDirectory(), archivePathTemplate)));
         }
 
         private class LocalArchiveFileManager : IArchiveFileManager
@@ -11690,7 +11693,7 @@ namespace Backup
             {
                 if (File.Exists(journalPath))
                 {
-                    using (TextReader reader = new StreamReader(journalPath, Encoding.UTF8))
+                    using (TextReader reader = new StreamReader(new FileStream(journalPath, FileMode.Open, FileAccess.Read), Encoding.UTF8))
                     {
                         string line;
 
@@ -11759,7 +11762,7 @@ namespace Backup
                 {
                     using (Stream manifestStream = fileRef.Read())
                     {
-                        ApplicationException[] deferredExceptions;
+                        MyApplicationException[] deferredExceptions;
                         manifestFileList = UnpackInternal(manifestStream, targetDirectory, context, UnpackMode.Parse, out manifestSerialNumber, out randomArchiveSignature, traceDynunpack, faultValidateOrUnpackDynamicInternal.Select("Segment", manifestFileName), out deferredExceptions, localSignaturePath);
                         Debug.Assert(deferredExceptions == null); // load manifest should never generate deferred exceptions
                     }
@@ -11791,7 +11794,7 @@ namespace Backup
                             }
                             else if (key == 'n')
                             {
-                                throw new ApplicationException("The user cancelled the operation");
+                                throw new MyApplicationException("The user cancelled the operation");
                             }
                         }
                     }
@@ -11920,7 +11923,7 @@ namespace Backup
                 }
 
 
-                using (TextWriter journalWriter = journalPath != null ? TextWriter.Synchronized(new StreamWriter(journalPath, false/*append*/, Encoding.UTF8)) : null)
+                using (TextWriter journalWriter = journalPath != null ? TextWriter.Synchronized(new StreamWriter(new FileStream(journalPath, FileMode.Create, FileAccess.Write), Encoding.UTF8)) : null)
                 {
                     if (journalWriter != null)
                     {
@@ -12155,7 +12158,7 @@ namespace Backup
 
                                                                     byte[] segmentRandomArchiveSignature;
 
-                                                                    ApplicationException[] deferredExceptions;
+                                                                    MyApplicationException[] deferredExceptions;
                                                                     UnpackedFileRecord[] segmentFileList;
 
                                                                     UnpackMode firstPassMode;
@@ -12363,7 +12366,7 @@ namespace Backup
 
             if (traceDynunpack != null)
             {
-                traceDynunpack.Close();
+                traceDynunpack.Dispose();
             }
 
             if (completionTable != null)
@@ -12383,7 +12386,7 @@ namespace Backup
             }
             if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
             {
-                throw new ApplicationException();
+                throw new MyApplicationException();
             }
         }
 
@@ -12507,7 +12510,7 @@ namespace Backup
                 string name = Path.GetFileName(serviceUrl);
                 Debug.Assert(String.IsNullOrEmpty(name));
                 path = serviceUrl.Substring(0, serviceUrl.Length - name.Length);
-                string fullPath = Path.GetDirectoryName(Path.IsPathRooted(serviceUrl) ? serviceUrl : Path.Combine(Environment.CurrentDirectory, serviceUrl));
+                string fullPath = Path.GetDirectoryName(Path.IsPathRooted(serviceUrl) ? serviceUrl : Path.Combine(Directory.GetCurrentDirectory(), serviceUrl));
                 serviceUri = new Uri(fullPath);
                 fileManager = new LocalArchiveFileManager(context, fullPath);
             }
@@ -13134,7 +13137,7 @@ namespace Backup
         //
         ////////////////////////////////////////////////////////////////////////////
 
-        public class UsageException : ApplicationException
+        public class UsageException : MyApplicationException
         {
             private string message;
 
@@ -13237,7 +13240,7 @@ namespace Backup
 
         private static string EnsureRootedLocalPath(string path)
         {
-            return Path.IsPathRooted(path) ? path : Path.Combine(Environment.CurrentDirectory, path);
+            return Path.IsPathRooted(path) ? path : Path.Combine(Directory.GetCurrentDirectory(), path);
         }
 
         private static string EnsureRootedRemotablePath(string path)
@@ -13254,10 +13257,10 @@ namespace Backup
             catch (UriFormatException)
             {
             }
-            return Path.IsPathRooted(path) ? path : Path.Combine(Environment.CurrentDirectory, path);
+            return Path.IsPathRooted(path) ? path : Path.Combine(Directory.GetCurrentDirectory(), path);
         }
 
-        private static void Main(string[] args)
+        private static int Main(string[] args)
         {
             int exitCode = (int)ExitCodes.Success;
             Context context = new Context();
@@ -13441,24 +13444,24 @@ namespace Backup
                                     throw new UsageException();
                                 case "-":
                                 case "belownormal":
-                                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+                                    Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal;
                                     break;
                                 case "--":
                                 case "lowest":
-                                    Thread.CurrentThread.Priority = ThreadPriority.Lowest;
+                                    Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Idle;
                                     break;
                                 case "+":
                                 case "abovenormal":
-                                    Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
+                                    Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
                                     break;
                                 case "++":
                                 case "highest":
-                                    Thread.CurrentThread.Priority = ThreadPriority.Highest;
+                                    Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
                                     break;
                                 case "0":
                                 case "n":
                                 case "normal":
-                                    Thread.CurrentThread.Priority = ThreadPriority.Normal;
+                                    Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal;
                                     break;
                             }
                         }
@@ -13622,7 +13625,7 @@ namespace Backup
                                 EnsureRootedLocalPath(args[i]),
                                 i + 1 < args.Length
                                     ? EnsureRootedLocalPath(args[i + 1])
-                                    : Environment.CurrentDirectory,
+                                    : Directory.GetCurrentDirectory(),
                                 context,
                                 argsExtra);
                         }
@@ -13999,7 +14002,7 @@ namespace Backup
                 exitCode = (int)ExitCodes.ProgramFailure;
             }
 
-            Environment.ExitCode = exitCode;
+            return exitCode;
         }
     }
 }

@@ -1,5 +1,6 @@
 # application compilation intermediate files
 
+/Backup/Backup.suo
 /Backup/Backup/obj/*
 /Backup/RemoteDriveAuth/bin/*
 /Backup/RemoteDriveAuth/obj/*
@@ -8,6 +9,7 @@
 
 # test suite compilation intermediate files
 
+/BackupTester/BackupTester.suo
 /BackupTester/FileUtilityTester/bin/*
 /BackupTester/FileUtilityTester/obj/*
 /BackupTester/Tests/bin/*
@@ -34,6 +36,7 @@
 
 # test driver compilation intermediate files
 
+/FileUtilityTester/FileUtilityTester.suo
 /FileUtilityTester/FileUtilityTester/obj/*
 
 

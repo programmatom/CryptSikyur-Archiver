@@ -28,10 +28,11 @@ using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 
+using Exceptions;
+using HexUtil;
+using Keccak;
 using Serpent;
 using SkeinFish;
-using Keccak;
-using HexUtil;
 using ProtectedData;
 
 namespace Backup
@@ -514,14 +515,14 @@ namespace Backup
                 hkdf.Extract(testVector.salt, ikmProtected, out prk);
                 if (!Core.ArrayEqual(prk, testVector.prk))
                 {
-                    throw new ApplicationException("HKDF-SHA2-256 implementation defect");
+                    throw new MyApplicationException("HKDF-SHA2-256 implementation defect");
                 }
 
                 byte[] okm;
                 hkdf.Expand(prk, testVector.info, testVector.l, out okm);
                 if (!Core.ArrayEqual(okm, testVector.okm))
                 {
-                    throw new ApplicationException("HKDF-SHA2-256 implementation defect");
+                    throw new MyApplicationException("HKDF-SHA2-256 implementation defect");
                 }
             }
         }
@@ -581,14 +582,14 @@ namespace Backup
                 hkdf.Extract(testVector.salt, ikmProtected, out prk);
                 if (!Core.ArrayEqual(prk, testVector.prk))
                 {
-                    throw new ApplicationException("HKDF-SHA2-512 implementation defect");
+                    throw new MyApplicationException("HKDF-SHA2-512 implementation defect");
                 }
 
                 byte[] okm;
                 hkdf.Expand(prk, testVector.info, testVector.l, out okm);
                 if (!Core.ArrayEqual(okm, testVector.okm))
                 {
-                    throw new ApplicationException("HKDF-SHA2-512 implementation defect");
+                    throw new MyApplicationException("HKDF-SHA2-512 implementation defect");
                 }
             }
         }
@@ -1035,7 +1036,7 @@ namespace Backup
                     byte[] digest = hmac.Hash;
                     if (!Core.ArrayEqual(digest, testVector.digest))
                     {
-                        throw new ApplicationException("HMAC implementation defect");
+                        throw new MyApplicationException("HMAC implementation defect");
                     }
                 }
             }
@@ -1275,7 +1276,7 @@ namespace Backup
         {
             if (!SkeinTesting.TestHash())
             {
-                throw new ApplicationException("Implementation fault: internal Skein hash test failed");
+                throw new MyApplicationException("Implementation fault: internal Skein hash test failed");
             }
         }
     }
@@ -1377,7 +1378,7 @@ namespace Backup
                     result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
                     if (!Core.ArrayEqual(test.cipherText, result))
                     {
-                        throw new ApplicationException("AES256-ECB implementation defect");
+                        throw new MyApplicationException("AES256-ECB implementation defect");
                     }
                 }
 
@@ -1386,7 +1387,7 @@ namespace Backup
                     result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
                     if (!Core.ArrayEqual(test.plainText, result))
                     {
-                        throw new ApplicationException("AES256-ECB implementation defect");
+                        throw new MyApplicationException("AES256-ECB implementation defect");
                     }
                 }
             }
@@ -1406,7 +1407,7 @@ namespace Backup
                         result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
                         if (!Core.ArrayEqual(test.cipherText, result))
                         {
-                            throw new ApplicationException("AES256-CTR implementation defect");
+                            throw new MyApplicationException("AES256-CTR implementation defect");
                         }
                     }
 
@@ -1415,7 +1416,7 @@ namespace Backup
                         result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
                         if (!Core.ArrayEqual(test.plainText, result))
                         {
-                            throw new ApplicationException("AES256-CTR implementation defect");
+                            throw new MyApplicationException("AES256-CTR implementation defect");
                         }
                     }
                 }
@@ -1534,7 +1535,7 @@ namespace Backup
                     result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
                     if (!Core.ArrayEqual(test.cipherText, result))
                     {
-                        throw new ApplicationException("Serpent-ECB implementation defect");
+                        throw new MyApplicationException("Serpent-ECB implementation defect");
                     }
                 }
 
@@ -1543,7 +1544,7 @@ namespace Backup
                     result = transform.TransformFinalBlock(test.cipherText, 0, test.cipherText.Length);
                     if (!Core.ArrayEqual(test.plainText, result))
                     {
-                        throw new ApplicationException("Serpent-ECB implementation defect");
+                        throw new MyApplicationException("Serpent-ECB implementation defect");
                     }
                 }
 
@@ -1558,7 +1559,7 @@ namespace Backup
                         }
                         if (!Core.ArrayEqual(test.cipherText100, result))
                         {
-                            throw new ApplicationException("Serpent-ECB implementation defect");
+                            throw new MyApplicationException("Serpent-ECB implementation defect");
                         }
                     }
                     if (test.cipherText1000 != null)
@@ -1570,7 +1571,7 @@ namespace Backup
                         }
                         if (!Core.ArrayEqual(test.cipherText1000, result))
                         {
-                            throw new ApplicationException("Serpent-ECB implementation defect");
+                            throw new MyApplicationException("Serpent-ECB implementation defect");
                         }
                     }
                 }
@@ -1658,7 +1659,7 @@ namespace Backup
                 blockCount++;
                 if (blockCount >= blockLimit)
                 {
-                    throw new ApplicationException("Stream to encrypt is too long - CounterModeCryptoTransform counter limit exceeded");
+                    throw new MyApplicationException("Stream to encrypt is too long - CounterModeCryptoTransform counter limit exceeded");
                 }
             }
 
@@ -2206,7 +2207,7 @@ namespace Backup
                     byte[] mac = hmac.GetCheckValueAndClose();
                     if (!Core.ArrayEqual(mac, testVector.mac))
                     {
-                        throw new ApplicationException("HMAC-SHA2-512 implementation defect");
+                        throw new MyApplicationException("HMAC-SHA2-512 implementation defect");
                     }
                 }
             }
@@ -2257,7 +2258,7 @@ namespace Backup
         {
             if (!SkeinTesting.TestHash())
             {
-                throw new ApplicationException("Implementation fault: internal Skein hash test failed");
+                throw new MyApplicationException("Implementation fault: internal Skein hash test failed");
             }
         }
     }

@@ -29,6 +29,8 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 
+using Exceptions;
+
 namespace Backup
 {
     ////////////////////////////////////////////////////////////////////////////
@@ -80,17 +82,22 @@ namespace Backup
 
         public override void Close()
         {
+            CloseInternal();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            CloseInternal();
+        }
+
+        private void CloseInternal()
+        {
             if (inner != null)
             {
                 checkValue = check.GetCheckValueAndClose();
             }
             inner = null;
             check = null;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            Close();
         }
 
         public override void Flush()
@@ -160,17 +167,22 @@ namespace Backup
 
         public override void Close()
         {
+            CloseInternal();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            CloseInternal();
+        }
+
+        private void CloseInternal()
+        {
             if (inner != null)
             {
                 checkValue = check.GetCheckValueAndClose();
             }
             inner = null;
             check = null;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            Close();
         }
 
         public override void Flush()
@@ -218,7 +230,7 @@ namespace Backup
         private byte[] workspace;
         private int index;
 
-        internal class NotEndOfStreamException : ApplicationException
+        internal class NotEndOfStreamException : MyApplicationException
         {
             public NotEndOfStreamException()
             {
@@ -383,10 +395,10 @@ namespace Backup
         {
             if (wrappedInner != null)
             {
-                wrappedInner.Close();
+                wrappedInner.Dispose();
                 byte[] computedCheckValue = wrappedInner.CheckValue;
 
-                holdShortInner.Close();
+                holdShortInner.Dispose();
                 byte[] storedCheckValue = holdShortInner.GetReserved();
 
                 holdShortInner = null;
@@ -407,14 +419,14 @@ namespace Backup
             {
                 ((IAbortable)holdShortInner).Abort();
             }
-            holdShortInner.Close();
+            holdShortInner.Dispose();
             holdShortInner = null;
 
             if (wrappedInner is IAbortable)
             {
                 ((IAbortable)wrappedInner).Abort();
             }
-            wrappedInner.Close();
+            wrappedInner.Dispose();
             wrappedInner = null;
         }
 
@@ -472,7 +484,7 @@ namespace Backup
         {
             if (wrappedInner != null)
             {
-                wrappedInner.Close();
+                wrappedInner.Dispose();
                 byte[] checkValue = wrappedInner.CheckValue;
 
                 underlyingInner.Write(checkValue, 0, checkValue.Length);
@@ -486,7 +498,7 @@ namespace Backup
         {
             if (wrappedInner != null)
             {
-                wrappedInner.Close();
+                wrappedInner.Dispose();
                 // do not write check value
 
                 underlyingInner = null;
@@ -1221,7 +1233,7 @@ namespace Backup
                 }
 
                 outputLength = (int)compressedStream.Position;
-                output = compressedStream.GetBuffer();
+                output = compressedStream.ToArray();
                 optOut = (outputLength >= count);
             }
         }
@@ -1251,7 +1263,7 @@ namespace Backup
                         } while (read > 0);
 
                         outputLength = (int)decompressed.Position;
-                        output = decompressed.GetBuffer();
+                        output = decompressed.ToArray();
                     }
                 }
             }

@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2014 Thomas R. Lawrence
+ *  Copyright © 2014-2016 Thomas R. Lawrence
  *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
  *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  *    except: "Keccak/*.cs", which are Copyright © 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
@@ -34,6 +34,7 @@ using System.Threading;
 using System.Web;
 
 using Diagnostics;
+using Exceptions;
 using HexUtil;
 using Http;
 using JSON;
@@ -303,7 +304,7 @@ namespace Backup
             {
                 if (exitCode == 2)
                 {
-                    throw new ApplicationException(String.Format("Authentication to remote service failed with message: {0}", output));
+                    throw new MyApplicationException(String.Format("Authentication to remote service failed with message: {0}", output));
                 }
                 if (exitCode == 3)
                 {
@@ -314,7 +315,7 @@ namespace Backup
                         goto Retry;
                     }
                 }
-                throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+                throw new MyApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
             }
 
             string oldRefreshTokenProtected = refreshTokenProtected;
@@ -325,7 +326,7 @@ namespace Backup
             string[] outputParts = output.Split(new char[] { ',' });
             if (outputParts.Length != 3)
             {
-                throw new ApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
+                throw new MyApplicationException(String.Format("Unable to authenticate to remote service \"{0}\"", remoteServiceUrl));
             }
             refreshTokenProtected = outputParts[0].Trim();
             using (ProtectedArray<byte> accessTokenDecrypted = ProtectedArray<byte>.DecryptEphemeral(HexUtility.HexDecode(outputParts[1]), ProtectedDataStorage.EphemeralScope.SameLogon))
@@ -380,7 +381,7 @@ namespace Backup
                     cmd.StartInfo.CreateNoWindow = true;
                     cmd.StartInfo.FileName = program;
                     cmd.StartInfo.UseShellExecute = false;
-                    cmd.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
+                    cmd.StartInfo.WorkingDirectory = Directory.GetCurrentDirectory();
                     if (input != null)
                     {
                         cmd.StartInfo.RedirectStandardInput = true;
@@ -947,7 +948,7 @@ namespace Backup
             }
         }
 
-        protected class InvalidContentTypeException : ApplicationException
+        protected class InvalidContentTypeException : MyApplicationException
         {
             public InvalidContentTypeException(string message)
                 : base(message)
@@ -1233,7 +1234,7 @@ namespace Backup
                 {
                     trace.WriteLine(" OpenFolder failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, response);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary json = new JSONDictionary(response);
@@ -1311,7 +1312,7 @@ namespace Backup
                     {
                         trace.WriteLine(" DownloadFile failed: result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4}) \"{5}\"", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode, LogWriter.ToString(responseBody));
                     }
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    throw new MyApplicationException("Failure occurred accessing remote service");
                 }
             }
 
@@ -1327,7 +1328,7 @@ namespace Backup
                 {
                     trace.WriteLine("-DownloadFile throw", fileId);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             if (trace != null)
@@ -1386,10 +1387,10 @@ namespace Backup
 
                     if (httpStatusCode == (HttpStatusCode)413)
                     {
-                        throw new ApplicationException("The file is larger than permitted by the remote service. Reduce the target segment size or turn off the -nosplitlargefiles option if enabled.");
+                        throw new MyApplicationException("The file is larger than permitted by the remote service. Reduce the target segment size or turn off the -nosplitlargefiles option if enabled.");
                     }
 
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    throw new MyApplicationException("Failure occurred accessing remote service");
                 }
 
                 if (responseHeaders[0].Value == "application/json; odata.metadata=minimal")
@@ -1455,7 +1456,7 @@ namespace Backup
                 {
                     trace.WriteLine("-UploadFile_Resumable throws: {0}", SurrenderMessage);
                 }
-                throw new ApplicationException(SurrenderMessage);
+                throw new MyApplicationException(SurrenderMessage);
             }
             else
             {
@@ -1562,7 +1563,7 @@ namespace Backup
                 {
                     trace.WriteLine("-UploadFile_Resumable throws: {0}", SurrenderMessage);
                 }
-                throw new ApplicationException(SurrenderMessage);
+                throw new MyApplicationException(SurrenderMessage);
             }
             else
             {
@@ -1603,7 +1604,7 @@ namespace Backup
                     {
                         goto StartOver;
                     }
-                    throw new ApplicationException("Upload failed"); // since DoWebActionJSON2JSONWithRetry retried, abort with error to caller
+                    throw new MyApplicationException("Upload failed"); // since DoWebActionJSON2JSONWithRetry retried, abort with error to caller
                 }
 
                 JSONDictionary json = new JSONDictionary(response);
@@ -1792,7 +1793,7 @@ namespace Backup
                         {
                             goto StartOver;
                         }
-                        throw new ApplicationException("Upload failed"); // since DoWebActionJSON2JSONWithRetry retried, abort with error to caller
+                        throw new MyApplicationException("Upload failed"); // since DoWebActionJSON2JSONWithRetry retried, abort with error to caller
                     }
                 }
             }
@@ -1897,7 +1898,7 @@ namespace Backup
                 {
                     trace.WriteLine("-DeleteFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             if (trace != null)
@@ -1947,7 +1948,7 @@ namespace Backup
                 {
                     trace.WriteLine("-RenameFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -2012,7 +2013,7 @@ namespace Backup
                     faultInstanceContext);
                 if (!result)
                 {
-                    string responseString = Encoding.UTF8.GetString(responseStream.GetBuffer());
+                    string responseString = Encoding.UTF8.GetString(responseStream.ToArray());
                     if (trace != null)
                     {
                         trace.WriteLine("*CopyFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
@@ -2029,7 +2030,7 @@ namespace Backup
                     {
                         trace.WriteLine("-CopyFile failed - too many retries");
                     }
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    throw new MyApplicationException("Failure occurred accessing remote service");
                 }
 
                 if (httpStatusCode != HttpStatusCode.Accepted/*202*/)
@@ -2038,7 +2039,7 @@ namespace Backup
                     {
                         trace.WriteLine("-CopyFile unexpected response (should be 202): result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    throw new MyApplicationException("Failure occurred accessing remote service");
                 }
                 asyncLocation = responseHeadersExtraOut[0].Value;
             }
@@ -2072,16 +2073,16 @@ namespace Backup
                 if (httpStatusCode == HttpStatusCode.OK/*200*/)
                 {
                     // our HTTP code handles 303 redirect automatically
-                    jsonMetadata = Encoding.UTF8.GetString(responseStream.GetBuffer());
+                    jsonMetadata = Encoding.UTF8.GetString(responseStream.ToArray());
                 }
                 else if (httpStatusCode != HttpStatusCode.Accepted/*202*/)
                 {
                     if (trace != null)
                     {
                         trace.WriteLine("-CopyFile unexpected response (should be 202 or 303/200): result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
-                        trace.WriteLine("   response: {0}", Encoding.UTF8.GetString(responseStream.GetBuffer()));
+                        trace.WriteLine("   response: {0}", Encoding.UTF8.GetString(responseStream.ToArray()));
                     }
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    throw new MyApplicationException("Failure occurred accessing remote service");
                 }
                 else // async status returns HttpStatusCode.Accepted (202) if still in progress
                 {
@@ -2102,7 +2103,7 @@ namespace Backup
                         trace.WriteLine("-CopyFile failed - waited too long for remote asynchronous operation to finish");
                     }
                     // Should cancel, but API provides no way to cancel the operation!
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    throw new MyApplicationException("Failure occurred accessing remote service");
                 }
             }
 
@@ -2145,7 +2146,7 @@ namespace Backup
                 {
                     trace.WriteLine("-GetQuota result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -2285,7 +2286,7 @@ namespace Backup
                     {
                         trace.WriteLine("-GetRemoteFlatFilesList result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                     }
-                    throw new ApplicationException("Failure occurred accessing remote service");
+                    throw new MyApplicationException("Failure occurred accessing remote service");
                 }
 
 
@@ -2391,7 +2392,7 @@ namespace Backup
                 {
                     trace.WriteLine("-DownloadFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -2421,7 +2422,7 @@ namespace Backup
                 {
                     trace.WriteLine("-DownloadFile throw", fileId);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             if (trace != null)
@@ -2470,7 +2471,7 @@ namespace Backup
                 {
                     trace.WriteLine("-UploadFile throws: {0}", SurrenderMessage);
                 }
-                throw new ApplicationException(SurrenderMessage);
+                throw new MyApplicationException(SurrenderMessage);
             }
             else
             {
@@ -2567,7 +2568,7 @@ namespace Backup
                 {
                     trace.WriteLine("-UploadFile throws: {0}", SurrenderMessage);
                 }
-                throw new ApplicationException(SurrenderMessage);
+                throw new MyApplicationException(SurrenderMessage);
             }
             else
             {
@@ -2930,7 +2931,7 @@ namespace Backup
                 {
                     trace.WriteLine("-DeleteFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             if (trace != null)
@@ -2979,7 +2980,7 @@ namespace Backup
                 {
                     trace.WriteLine("-RenameFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -3033,7 +3034,7 @@ namespace Backup
                 {
                     trace.WriteLine("-CopyFile result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary metadata = new JSONDictionary(response);
@@ -3075,7 +3076,7 @@ namespace Backup
                 {
                     trace.WriteLine("-GetQuota result={0}, webStatusCode={1} ({2}), httpStatusCode={3} ({4})", result, (int)webStatusCode, webStatusCode, (int)httpStatusCode, httpStatusCode);
                 }
-                throw new ApplicationException("Failure occurred accessing remote service");
+                throw new MyApplicationException("Failure occurred accessing remote service");
             }
 
             JSONDictionary metadata = new JSONDictionary(response);

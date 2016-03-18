@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2014 Thomas R. Lawrence
+ *  Copyright © 2014-2016 Thomas R. Lawrence
  *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
  *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  *    except: "Keccak/*.cs", which are Copyright © 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
@@ -636,14 +636,14 @@ namespace Concurrent
                 mainThreadBlocked.ExitWaitRegion();
 
                 // release resources
-                waitForTask.Close();
-                waitTermination.Close();
-                waitQueueEmpty.Close();
-                waitQueueNotFull.Close();
-                waitAllIdle.Close();
+                ((IDisposable)waitForTask).Dispose();
+                ((IDisposable)waitTermination).Dispose();
+                ((IDisposable)waitQueueEmpty).Dispose();
+                ((IDisposable)waitQueueNotFull).Dispose();
+                ((IDisposable)waitAllIdle).Dispose();
                 foreach (EventWaitHandle completionHandle in availableCompletionHandles)
                 {
-                    completionHandle.Close();
+                    ((IDisposable)completionHandle).Dispose();
                 }
                 availableCompletionHandles.Clear();
 
@@ -738,7 +738,7 @@ namespace Concurrent
                 else
                 {
                     // otherwise, discard object. signalling code will eat the received exception.
-                    waitCompleted.Close();
+                    ((IDisposable)waitCompleted).Dispose();
                 }
                 waitCompleted = null;
                 GC.SuppressFinalize(this);

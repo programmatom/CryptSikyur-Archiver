@@ -27,6 +27,7 @@ using System.IO;
 using System.Security.Cryptography;
 
 using Backup;
+using Exceptions;
 using HexUtil;
 using Org.BouncyCastle.Crypto.Digests;
 
@@ -156,7 +157,7 @@ namespace Keccak
 
                 foreach (TestFile testFile in TestFiles)
                 {
-                    using (TextReader reader = new StreamReader(Path.Combine(testsPath, testFile.filename)))
+                    using (TextReader reader = new StreamReader(new FileStream(Path.Combine(testsPath, testFile.filename), FileMode.Open, FileAccess.Read)))
                     {
                         string line;
                         while ((line = reader.ReadLine()) != null)
@@ -217,7 +218,7 @@ namespace Keccak
                 byte[] digest = algorithm.ComputeHash(testVector.data, 0, testVector.dataBitLength / 8);
                 if (!Core.ArrayEqual(digest, testVector.digest))
                 {
-                    throw new ApplicationException(String.Format("Keccak implementation defect ({0})", testVector.source));
+                    throw new MyApplicationException(String.Format("Keccak implementation defect ({0})", testVector.source));
                 }
             }
         }
