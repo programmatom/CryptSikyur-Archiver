@@ -1,16 +1,22 @@
 # application compilation intermediate files
 
+/Backup/.vs/*
 /Backup/Backup.suo
+/Backup/Backup/bin/Debug/app.publish
+/Backup/Backup/Backup.csproj.user
 /Backup/Backup/obj/*
 /Backup/RemoteDriveAuth/bin/*
+/Backup/RemoteDriveAuth/RemoteDriveAuth.csproj.user
 /Backup/RemoteDriveAuth/obj/*
 
 
 
 # test suite compilation intermediate files
 
+/BackupTester/.vs/*
 /BackupTester/BackupTester.suo
 /BackupTester/FileUtilityTester/bin/*
+/BackupTester/FileUtilityTester/FileUtilityTester.csproj.user
 /BackupTester/FileUtilityTester/obj/*
 /BackupTester/Tests/bin/*
 /BackupTester/Tests/obj/*
@@ -36,7 +42,9 @@
 
 # test driver compilation intermediate files
 
+/FileUtilityTester/.vs/*
 /FileUtilityTester/FileUtilityTester.suo
+/FileUtilityTester/FileUtilityTester/FileUtilityTester.csproj.user
 /FileUtilityTester/FileUtilityTester/obj/*
 
 
