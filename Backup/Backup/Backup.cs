@@ -708,7 +708,7 @@ namespace Backup
             if (IsDriveRoot(directory))
             {
                 string itemName = Path.GetFileName(file);
-                if (Array.FindIndex(ExcludedDriveRootItems, delegate(KeyValuePair<string, bool> candidate) { return candidate.Key.Equals(itemName, StringComparison.OrdinalIgnoreCase); }) >= 0)
+                if (Array.FindIndex(ExcludedDriveRootItems, delegate (KeyValuePair<string, bool> candidate) { return candidate.Key.Equals(itemName, StringComparison.OrdinalIgnoreCase); }) >= 0)
                 {
                     FileAttributes attributes = File.GetAttributes(file);
                     if (((attributes & FileAttributes.Hidden) != 0) &&
@@ -886,7 +886,7 @@ namespace Backup
             excludedItems = new InvariantStringSet(); // directories and files
             try
             {
-                for (int i = 0; i < args.Length; )
+                for (int i = 0; i < args.Length;)
                 {
                     switch (args[i])
                     {
@@ -980,7 +980,7 @@ namespace Backup
             if (i < args.Length)
             {
                 string name = args[i];
-                algorithm = Array.Find(CryptoSystems.List, delegate(ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
+                algorithm = Array.Find(CryptoSystems.List, delegate (ICryptoSystem candidate) { return candidate.Name.Equals(name, StringComparison.Ordinal); });
                 if (algorithm == null)
                 {
                     throw new UsageException();
@@ -1140,7 +1140,7 @@ namespace Backup
             {
                 lock (this)
                 {
-                    return masterKeys.Find(delegate(CryptoMasterKeyCacheEntry candidate) { return (candidate.Rfc2898Rounds == rfc2898Rounds) && ArrayEqual(candidate.PasswordSalt, passwordSalt); });
+                    return masterKeys.Find(delegate (CryptoMasterKeyCacheEntry candidate) { return (candidate.Rfc2898Rounds == rfc2898Rounds) && ArrayEqual(candidate.PasswordSalt, passwordSalt); });
                 }
             }
 
@@ -1461,7 +1461,7 @@ namespace Backup
                         return null;
                     }
                 },
-                delegate(Stream finalInputStream)
+                delegate (Stream finalInputStream)
                 {
                     CryptoKeygroup outputKeys = null;
                     EncryptedFileContainerHeader fchOutput = null;
@@ -1517,7 +1517,7 @@ namespace Backup
                                 return null;
                             }
                         },
-                        delegate(Stream finalOutputStream)
+                        delegate (Stream finalOutputStream)
                         {
                             byte[] buffer = new byte[Constants.BufferSize];
                             while (true)
@@ -1582,7 +1582,7 @@ namespace Backup
                                                     return new TaggedReadStream(stream, context.decrypt.algorithm.CreateMACGenerator(sourceKeys.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
                                                 },
                                             },
-                                            delegate(Stream stream)
+                                            delegate (Stream stream)
                                             {
                                                 ReadAndDiscardEntireStream(stream);
                                             });
@@ -1715,7 +1715,7 @@ namespace Backup
                             return null;
                         }
                     },
-                    delegate(Stream finalFirstStream)
+                    delegate (Stream finalFirstStream)
                     {
                         StreamStack.DoWithStreamStack(
                             secondStream,
@@ -1765,7 +1765,7 @@ namespace Backup
                                     return null;
                                 }
                             },
-                            delegate(Stream finalSecondStream)
+                            delegate (Stream finalSecondStream)
                             {
                                 byte[] bufferFirst = new byte[Constants.BufferSize];
                                 byte[] bufferSecond = new byte[Constants.BufferSize];
@@ -2240,7 +2240,7 @@ namespace Backup
 
             private string[] GetFileSystemEntries(string path)
             {
-                if (Array.FindIndex(ExcludedDriveRootItems, delegate(KeyValuePair<string, bool> candidate) { return candidate.Value/*isDir*/ && candidate.Key.Equals(path, StringComparison.OrdinalIgnoreCase); }) >= 0)
+                if (Array.FindIndex(ExcludedDriveRootItems, delegate (KeyValuePair<string, bool> candidate) { return candidate.Value/*isDir*/ && candidate.Key.Equals(path, StringComparison.OrdinalIgnoreCase); }) >= 0)
                 {
                     return new string[0];
                 }
@@ -2251,7 +2251,7 @@ namespace Backup
                 {
                     entries[i] = Path.GetFileName(entries[i]);
                 }
-                Array.Sort(entries, delegate(string l, string r) { return SyncPathCompare(l, r); });
+                Array.Sort(entries, delegate (string l, string r) { return SyncPathCompare(l, r); });
                 return entries;
             }
         }
@@ -3110,7 +3110,7 @@ namespace Backup
             bool resolveSkip = false;
 
             string diagnosticPath;
-            GetAdHocArgument(ref args, "-logpath", null/*default*/, delegate(string s) { return s; }, out diagnosticPath);
+            GetAdHocArgument(ref args, "-logpath", null/*default*/, delegate (string s) { return s; }, out diagnosticPath);
             TextWriter log = null;
             if (diagnosticPath != null)
             {
@@ -3407,7 +3407,7 @@ namespace Backup
                                 {
                                     codePath = 101;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
+                                if (DoRetryable<bool>(delegate () { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -3417,7 +3417,7 @@ namespace Backup
                             else if (changedR)
                             {
                                 codePath = 102;
-                                DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration);
+                                DoRetryable<bool>(delegate () { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration);
                                 currentEntriesL.MoveNext();
                             }
                             else
@@ -3514,7 +3514,7 @@ namespace Backup
                                 {
                                     codePath = 201;
                                 }
-                                DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration);
+                                DoRetryable<bool>(delegate () { SyncChange(rootL, rootR, selected, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration);
                                 currentEntriesR.MoveNext();
                             }
                             else if (changedR)
@@ -3523,7 +3523,7 @@ namespace Backup
                                 {
                                     codePath = 202;
                                 }
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
+                                if (DoRetryable<bool>(delegate () { SyncChange(rootR, rootL, selected, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3662,7 +3662,7 @@ namespace Backup
                                     codePath = 301;
                                 }
                                 bool dirR = currentEntriesR.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
+                                if (DoRetryable<bool>(delegate () { SyncChange(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesL.Current, currentEntriesL.CurrentAttributes, currentEntriesL.CurrentLastWrite);
@@ -3684,7 +3684,7 @@ namespace Backup
                                     codePath = 302;
                                 }
                                 bool dirL = currentEntriesL.CurrentIsDirectory;
-                                if (DoRetryable<bool>(delegate() { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
+                                if (DoRetryable<bool>(delegate () { SyncChange(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration))
                                 {
                                     EnumerateFile.WriteLine(newEntriesLTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
                                     EnumerateFile.WriteLine(newEntriesRTemporary, currentEntriesR.Current, currentEntriesR.CurrentAttributes, currentEntriesR.CurrentLastWrite);
@@ -3717,7 +3717,7 @@ namespace Backup
                                 if (changedLDirCaseChangeOnly && !changedRDirCaseChangeOnly)
                                 {
                                     bool dirR = currentEntriesR.CurrentIsDirectory;
-                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
+                                    if (DoRetryable<bool>(delegate () { SyncChangeDirectoryCaseChangeOnly(rootL, rootR, currentEntriesL.Current, codePath, log, true/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration))
                                     {
                                         currentEntriesR_Current = currentEntriesL_Current;
                                     }
@@ -3726,7 +3726,7 @@ namespace Backup
                                 else if (changedRDirCaseChangeOnly && !changedLDirCaseChangeOnly)
                                 {
                                     bool dirL = currentEntriesL.CurrentIsDirectory;
-                                    if (DoRetryable<bool>(delegate() { SyncChangeDirectoryCaseChangeOnly(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate() { return false; }, delegate() { }, context, null/*trace*/, faultInstanceIteration))
+                                    if (DoRetryable<bool>(delegate () { SyncChangeDirectoryCaseChangeOnly(rootR, rootL, currentEntriesR.Current, codePath, log, false/*l2r*/, volumeFlushHelperCollection, faultInstanceIteration); return true; }, delegate () { return false; }, delegate () { }, context, null/*trace*/, faultInstanceIteration))
                                     {
                                         currentEntriesL_Current = currentEntriesR_Current;
                                     }
@@ -3990,7 +3990,7 @@ namespace Backup
                                             return context.encrypt.algorithm.CreateDecryptStream(stream, keys.CipherKey, keys.InitialCounter);
                                         },
                                     },
-                                    delegate(Stream stream)
+                                    delegate (Stream stream)
                                     {
                                         BinaryReadUtils.ReadBytes(stream, EncryptionCheckSaltLength); // check string's salt
                                         byte[] checkBytes = BinaryReadUtils.ReadBytes(stream, EncryptionCheckBytes.Length);
@@ -4059,7 +4059,7 @@ namespace Backup
                                     return context.encrypt.algorithm.CreateEncryptStream(stream, keys.CipherKey, keys.InitialCounter);
                                 },
                             },
-                            delegate(Stream stream)
+                            delegate (Stream stream)
                             {
                                 BinaryWriteUtils.WriteBytes(stream, context.encrypt.algorithm.CreateRandomBytes(EncryptionCheckSaltLength)); // yet more salt before check string
                                 BinaryWriteUtils.WriteBytes(stream, EncryptionCheckBytes);
@@ -4753,7 +4753,7 @@ namespace Backup
                         }
 
                         if (DoRetryable<bool>(
-                            delegate()
+                            delegate ()
                             {
                                 try
                                 {
@@ -4781,8 +4781,8 @@ namespace Backup
                                     throw new PathTooLongException(String.Format("{0} (length={2}, path=\'{1}\')", exception.Message, currentPath, currentPath.Length));
                                 }
                             },
-                            delegate() { return false; },
-                            delegate() { },
+                            delegate () { return false; },
+                            delegate () { },
                             context,
                             null/*trace*/,
                             faultCheckpoint))
@@ -5797,7 +5797,7 @@ namespace Backup
                                             return new TaggedReadStream(stream, context.decrypt.algorithm.CreateMACGenerator(keys.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
                                         },
                                     },
-                                    delegate(Stream stream)
+                                    delegate (Stream stream)
                                     {
                                         ReadAndDiscardEntireStream(stream);
                                     });
@@ -6592,7 +6592,7 @@ namespace Backup
                                     String.Format("merkel-leaf-hash seq={0}", leaf.sequenceNumber),
                                     true/*desireCompletionObject*/,
                                     out leaf.completionObject,
-                                    delegate(ConcurrentTasks.ITaskContext taskContext)
+                                    delegate (ConcurrentTasks.ITaskContext taskContext)
                                     {
                                         using (CryptoPrimitiveHashCheckValueGenerator check = new CryptoPrimitiveHashCheckValueGeneratorSHA2_512())
                                         {
@@ -6633,7 +6633,7 @@ namespace Backup
                                         String.Format("merkel-parent-hash height={1} seq={0}", parent.sequenceNumber, parent.height),
                                         true/*desireCompletionObject*/,
                                         out parent.completionObject,
-                                        delegate(ConcurrentTasks.ITaskContext taskContext)
+                                        delegate (ConcurrentTasks.ITaskContext taskContext)
                                         {
                                             using (CryptoPrimitiveHashCheckValueGenerator check = new CryptoPrimitiveHashCheckValueGeneratorSHA2_512())
                                             {
@@ -6970,7 +6970,7 @@ namespace Backup
                             return new TaggedWriteStream(stream, new CRC32());
                         }
                     },
-                    delegate(Stream stream)
+                    delegate (Stream stream)
                     {
                         BinaryWriteUtils.WriteBytes(stream, new byte[1] { PackArchiveFixedHeaderNumber });
 
@@ -7213,7 +7213,7 @@ namespace Backup
                                 return new TaggedReadStream(stream, context.decrypt.algorithm.CreateMACGenerator(keys.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
                             },
                         },
-                        delegate(Stream stream)
+                        delegate (Stream stream)
                         {
                             ReadAndDiscardEntireStream(stream);
                         });
@@ -7287,7 +7287,7 @@ namespace Backup
                             return new TaggedReadStream(stream, new CRC32(), "File check values do not match - file is damaged");
                         }
                     },
-                    delegate(Stream stream)
+                    delegate (Stream stream)
                     {
                         if (trace != null)
                         {
@@ -8647,7 +8647,7 @@ namespace Backup
                             GetAdHocArgument(ref args, "-verify", false/*default*/, true/*explicit*/, out verifyNonDirtyMetadata);
                             break;
                         case "-logpath":
-                            GetAdHocArgument(ref args, "-logpath", null/*default*/, delegate(string s) { return s; }, out diagnosticPath);
+                            GetAdHocArgument(ref args, "-logpath", null/*default*/, delegate (string s) { return s; }, out diagnosticPath);
                             break;
                         case "-windiff":
                             GetAdHocArgument(ref args, "-windiff", false/*default*/, true/*explicit*/, out windiff);
@@ -8656,7 +8656,7 @@ namespace Backup
                             GetAdHocArgument(ref args, "-ignoreunchanged", false/*default*/, true/*explicit*/, out ignoreUnchangedFiles);
                             break;
                         case "-localsig":
-                            GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate(string s) { return s; }, out localSignaturePath);
+                            GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate (string s) { return s; }, out localSignaturePath);
                             break;
                     }
                 }
@@ -8782,7 +8782,7 @@ namespace Backup
                                                 return new TaggedReadStream(stream, context.encrypt.algorithm.CreateMACGenerator(keysManifest.SigningKey), "File cryptographic signature values do not match - data is either corrupt or tampered with. Do not trust contents!");
                                             },
                                         },
-                                        delegate(Stream stream)
+                                        delegate (Stream stream)
                                         {
                                             ReadAndDiscardEntireStream(stream);
                                         });
@@ -8856,7 +8856,7 @@ namespace Backup
                                             return new TaggedReadStream(stream, new CRC32(), "File check values do not match - file is damaged");
                                         }
                                     },
-                                    delegate(Stream stream)
+                                    delegate (Stream stream)
                                     {
                                         byte[] headerNumber = BinaryReadUtils.ReadBytes(stream, 1);
                                         if (headerNumber[0] != PackArchiveFixedHeaderNumber)
@@ -9478,8 +9478,8 @@ namespace Backup
                         }
                     }
                 }
-                segments.RemoveAll(delegate(SegmentRecord a) { return !a.start.HasValue; });
-                segments.Sort(delegate(SegmentRecord l, SegmentRecord r) { return l.start.Value.CompareTo(r.start.Value); });
+                segments.RemoveAll(delegate (SegmentRecord a) { return !a.start.HasValue; });
+                segments.Sort(delegate (SegmentRecord l, SegmentRecord r) { return l.start.Value.CompareTo(r.start.Value); });
                 if (traceDynpack != null)
                 {
                     traceDynpack.WriteLine();
@@ -9872,7 +9872,7 @@ namespace Backup
                                     long sequenceNumber = messagesLog.GetSequenceNumber();
                                     concurrent.Do(
                                         String.Format("delete-tempfile:{0}", segmentFileName),
-                                        delegate(ConcurrentTasks.ITaskContext taskContext)
+                                        delegate (ConcurrentTasks.ITaskContext taskContext)
                                         {
                                             using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                             {
@@ -9943,7 +9943,7 @@ namespace Backup
                                     long sequenceNumber = messagesLog.GetSequenceNumber();
                                     concurrent.Do(
                                         String.Format("validate-nondirty:{0}", segmentFileName),
-                                        delegate(ConcurrentTasks.ITaskContext taskContext)
+                                        delegate (ConcurrentTasks.ITaskContext taskContext)
                                         {
                                             using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                             {
@@ -10157,7 +10157,7 @@ namespace Backup
                         // turns out that updating segment serial numbers (below) could break
                         // non-dirty segment validation, as the serial number changes out from
                         // under it. therefore, introduce a barrier here.
-                        concurrent.Drain(delegate() { messagesLog.Flush(); }, WaitInterval);
+                        concurrent.Drain(delegate () { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
                         if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
@@ -10203,7 +10203,7 @@ namespace Backup
                                 {
                                     suffix = suffix.Substring(0, suffix.Length - DynPackFileExtension.Length);
                                     if ((suffix != DynPackManifestName)
-                                        && (null == segments.Find(delegate(SegmentRecord a) { return a.Name == suffix; })))
+                                        && (null == segments.Find(delegate (SegmentRecord a) { return a.Name == suffix; })))
                                     {
                                         namesToBackupOrRemove.Add(new KeyValuePair<string, bool>(suffix, true/*unreferenced*/));
                                     }
@@ -10236,7 +10236,7 @@ namespace Backup
                                 long sequenceNumber = messagesLog.GetSequenceNumber();
                                 concurrent.Do(
                                     String.Format("rename-old-segment:{0}", name),
-                                    delegate(ConcurrentTasks.ITaskContext taskContext)
+                                    delegate (ConcurrentTasks.ITaskContext taskContext)
                                     {
                                         using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                         {
@@ -10309,7 +10309,7 @@ namespace Backup
                         // Drain all rename/delete of old segment files so that uploads can be
                         // initiated subsequently without worry of colliding with a file that hasn't
                         // been moved out of the way yet.
-                        concurrent.Drain(delegate() { messagesLog.Flush(); }, WaitInterval);
+                        concurrent.Drain(delegate () { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
                         if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
@@ -10538,7 +10538,7 @@ namespace Backup
                                                 return new TaggedWriteStream(stream, new CRC32());
                                             }
                                         },
-                                        delegate(Stream stream)
+                                        delegate (Stream stream)
                                         {
                                             BinaryWriteUtils.WriteBytes(stream, new byte[1] { PackArchiveFixedHeaderNumber });
 
@@ -10608,15 +10608,15 @@ namespace Backup
                         int maxStatusLines = 0;
                         bool progressVisible = false;
                         DateTime lastProgressUpdate = default(DateTime);
-                        ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
+                        ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate ()
                         {
                             EraseProgress(ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible);
                         };
-                        ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
+                        ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate ()
                         {
                             eraseProgress();
                         };
-                        ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
+                        ConcurrentTasks.WaitIntervalMethod showProgress = delegate ()
                         {
                             ShowProgress(ShowProgressType.Upload, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, Http.HttpGlobalControl.NetworkMeterCombined, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
                         };
@@ -10677,7 +10677,7 @@ namespace Backup
 
                                 concurrent.Do(
                                     String.Format("write-segment:{0}", segmentFileName),
-                                    delegate(ConcurrentTasks.ITaskContext taskContext)
+                                    delegate (ConcurrentTasks.ITaskContext taskContext)
                                     {
                                         using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(sequenceNumber))
                                         {
@@ -10790,7 +10790,7 @@ namespace Backup
                                                                                     return new TaggedWriteStream(stream, new CRC32());
                                                                                 }
                                                                             },
-                                                                            delegate(Stream stream)
+                                                                            delegate (Stream stream)
                                                                             {
                                                                                 BinaryWriteUtils.WriteBytes(stream, new byte[1] { PackArchiveFixedHeaderNumber });
 
@@ -11003,12 +11003,12 @@ namespace Backup
                                 {
                                     suffix = suffix.Substring(0, suffix.Length - DynPackFileExtension.Length);
                                     if ((suffix != DynPackManifestName)
-                                        && (null == segments.Find(delegate(SegmentRecord a) { return a.Name == suffix; })))
+                                        && (null == segments.Find(delegate (SegmentRecord a) { return a.Name == suffix; })))
                                     {
                                         long sequenceNumber = messagesLog.GetSequenceNumber();
                                         concurrent.Do(
                                             String.Format("cleanup:{0}", segmentFileName),
-                                            delegate(ConcurrentTasks.ITaskContext taskContext)
+                                            delegate (ConcurrentTasks.ITaskContext taskContext)
                                             {
                                                 using (TextWriter threadTraceDynPack = TaskLogWriter.Create(traceDynpack))
                                                 {
@@ -11044,7 +11044,7 @@ namespace Backup
                         }
 
                         // final flush of tasks and messages
-                        concurrent.Drain(delegate() { messagesLog.Flush(); }, WaitInterval);
+                        concurrent.Drain(delegate () { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
                         if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
                         {
@@ -11118,7 +11118,7 @@ namespace Backup
                         }
 
                         ProgressTracker[] progressTrackers2 = progressTrackers.ToArray();
-                        Array.Sort(progressTrackers2, delegate(ProgressTracker l, ProgressTracker r) { return l.Tag.CompareTo(r.Tag); });
+                        Array.Sort(progressTrackers2, delegate (ProgressTracker l, ProgressTracker r) { return l.Tag.CompareTo(r.Tag); });
                         for (int i = 0; i < progressTrackers.Count; i++)
                         {
                             ProgressTracker progressTracker = progressTrackers2[i];
@@ -11949,15 +11949,15 @@ namespace Backup
                             bool progressVisible = false;
                             DateTime lastProgressUpdate = default(DateTime);
                             long bytesRemaining = Int64.MinValue; // not used
-                            ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate()
+                            ConcurrentTasks.WaitIntervalMethod eraseProgress = delegate ()
                             {
                                 EraseProgress(ref lastProgressUpdate, progressTrackers, ref maxStatusLines, ref progressVisible);
                             };
-                            ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate()
+                            ConcurrentMessageLog.PrepareConsoleMethod prepareConsole = delegate ()
                             {
                                 eraseProgress();
                             };
-                            ConcurrentTasks.WaitIntervalMethod showProgress = delegate()
+                            ConcurrentTasks.WaitIntervalMethod showProgress = delegate ()
                             {
                                 ShowProgress(ShowProgressType.Download, messagesLog, prepareConsole, WaitInterval, ref lastProgressUpdate, progressTrackers, Http.HttpGlobalControl.NetworkMeterCombined, ref maxStatusLines, ref progressVisible, ref fatal, ref bytesRemaining);
                             };
@@ -12060,7 +12060,7 @@ namespace Backup
                                     String.Format("unpack:{0}", segmentFileName),
                                     needCompletionObject,
                                     out completionObjectReceiver[completionIndex2],
-                                    delegate(ConcurrentTasks.ITaskContext taskContext)
+                                    delegate (ConcurrentTasks.ITaskContext taskContext)
                                     {
                                         using (TextWriter threadTraceDynunpack = TaskLogWriter.Create(traceDynunpack))
                                         {
@@ -12413,10 +12413,10 @@ namespace Backup
                         }
                         break;
                     case "-journal":
-                        GetAdHocArgument(ref args, "-journal", null/*defaultValue*/, delegate(string s) { return s; }, out journalPath);
+                        GetAdHocArgument(ref args, "-journal", null/*defaultValue*/, delegate (string s) { return s; }, out journalPath);
                         break;
                     case "-localsig":
-                        GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate(string s) { return s; }, out localSignaturePath);
+                        GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate (string s) { return s; }, out localSignaturePath);
                         break;
                 }
             }
@@ -12445,7 +12445,7 @@ namespace Backup
                     default:
                         throw new UsageException();
                     case "-localsig":
-                        GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate(string s) { return s; }, out localSignaturePath);
+                        GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate (string s) { return s; }, out localSignaturePath);
                         break;
                 }
             }
@@ -12548,7 +12548,7 @@ namespace Backup
                                     {
                                         Console.WriteLine("list {0}{1}/*", String.Concat(serviceUri.Scheme, "://", serviceUri.Host), path);
                                         string[] names = fileManager.GetFileNames(null, fileManager.GetMasterTrace());
-                                        Array.Sort(names, delegate(string l, string r) { return String.Compare(l, r, StringComparison.OrdinalIgnoreCase); });
+                                        Array.Sort(names, delegate (string l, string r) { return String.Compare(l, r, StringComparison.OrdinalIgnoreCase); });
                                         foreach (string file in names)
                                         {
                                             string id;
@@ -12655,7 +12655,7 @@ namespace Backup
 
                                             concurrent.Do(
                                                 String.Empty,
-                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                delegate (ConcurrentTasks.ITaskContext taskContext)
                                                 {
                                                     using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
@@ -12730,7 +12730,7 @@ namespace Backup
 
                                             concurrent.Do(
                                                 "rename",
-                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                delegate (ConcurrentTasks.ITaskContext taskContext)
                                                 {
                                                     using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
@@ -12831,7 +12831,7 @@ namespace Backup
 
                                             concurrent.Do(
                                                 "upload",
-                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                delegate (ConcurrentTasks.ITaskContext taskContext)
                                                 {
                                                     using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
@@ -12936,7 +12936,7 @@ namespace Backup
 
                                             concurrent.Do(
                                                 "download",
-                                                delegate(ConcurrentTasks.ITaskContext taskContext)
+                                                delegate (ConcurrentTasks.ITaskContext taskContext)
                                                 {
                                                     using (TextWriter threadTrace = TaskLogWriter.Create(fileManager.GetMasterTrace()))
                                                     {
@@ -13098,8 +13098,8 @@ namespace Backup
                                 process.StartInfo.RedirectStandardError = true;
                                 process.StartInfo.UseShellExecute = false;
                                 process.StartInfo.WorkingDirectory = Path.GetTempPath();
-                                process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
-                                process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
+                                process.OutputDataReceived += delegate (object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
+                                process.ErrorDataReceived += delegate (object sender, DataReceivedEventArgs e) { if (e.Data != null) { writer.WriteLine(e.Data); } };
                                 process.Start();
                                 process.BeginOutputReadLine();
                                 process.WaitForExit();

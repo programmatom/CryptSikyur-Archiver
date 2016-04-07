@@ -278,12 +278,13 @@ namespace Backup
 
             int retries = 0;
         Retry:
-            string arg0 = "-auth";
-            string arg1 = "-refreshtoken";
-            string arg2 = enableRefreshToken ? "yes" : "no";
-            string arg3 = enableRefreshToken && !String.IsNullOrEmpty(refreshTokenProtected) ? refreshTokenProtected : "\"\"";
-            string arg4 = remoteServiceUrl;
-            string args = String.Concat(arg0, " ", arg1, " ", arg2, " ", arg3, " ", arg4);
+            string arg0 = trace != null ? "-trace" : null; // propagate tracing to auth process
+            string arg1 = "-auth";
+            string arg2 = "-refreshtoken";
+            string arg3 = enableRefreshToken ? "yes" : "no";
+            string arg4 = enableRefreshToken && !String.IsNullOrEmpty(refreshTokenProtected) ? refreshTokenProtected : "\"\"";
+            string arg5 = remoteServiceUrl;
+            string args = String.Concat(arg0, " ", arg1, " ", arg2, " ", arg3, " ", arg4, " ", arg5);
             int exitCode;
             string output;
             Exec(LoginProgramName, args, null, null/*timeout*/, out exitCode, out output);
@@ -293,7 +294,7 @@ namespace Backup
             }
             if (trace != null)
             {
-                trace.WriteLine("call {0} {1} {2} {3} {4} {5}", LoginProgramName, arg0, arg1, arg2, arg3.Length > 2 ? LogWriter.ScrubSecuritySensitiveValue(arg3) : arg3, arg4);
+                trace.WriteLine("call {0} {1} {2} {3} {4} {5} {6}", LoginProgramName, arg0, arg1, arg2, arg3, arg4.Length > 2 ? LogWriter.ScrubSecuritySensitiveValue(arg4) : arg4, arg5);
                 trace.WriteLine("exit code: {0}", exitCode);
                 trace.WriteLine("output:");
                 trace.WriteLine(exitCode == 0 ? LogWriter.ScrubSecuritySensitiveValue(output) : output);
@@ -388,8 +389,8 @@ namespace Backup
                     }
                     cmd.StartInfo.RedirectStandardOutput = true;
                     cmd.StartInfo.RedirectStandardError = true;
-                    cmd.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
-                    cmd.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
+                    cmd.OutputDataReceived += delegate (object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
+                    cmd.ErrorDataReceived += delegate (object sender, DataReceivedEventArgs e) { if (e.Data != null) { outputWriter.WriteLine(e.Data); } };
 
                     cmd.Start();
                     cmd.BeginOutputReadLine();
@@ -405,9 +406,9 @@ namespace Backup
                     if (!cmd.HasExited)
                     {
                         cmd.Kill();
-                        cmd.WaitForExit();
                         killed = true;
                     }
+                    cmd.WaitForExit(); // ensure output buffers flushed (after cmd.WaitForExit(Int32) - per documentation: https://msdn.microsoft.com/en-us/library/fb4aw7b8%28v=vs.110%29.aspx)
                     cmd.CancelOutputRead();
                     cmd.CancelErrorRead();
                     exitCode = cmd.ExitCode;
@@ -568,7 +569,7 @@ namespace Backup
             {
                 // not empty or not at beginning of stream - is that what caller intended?
 
-                int contentRangeHeaderIndex = Array.FindIndex(requestHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Range"); });
+                int contentRangeHeaderIndex = Array.FindIndex(requestHeaders, delegate (KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Content-Range"); });
                 if (contentRangeHeaderIndex < 0)
                 {
                     throw new InvalidOperationException();
@@ -609,7 +610,7 @@ namespace Backup
                     throw new InvalidOperationException();
                 }
 
-                int rangeHeaderIndex = Array.FindIndex(requestHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Range"); });
+                int rangeHeaderIndex = Array.FindIndex(requestHeaders, delegate (KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, "Range"); });
                 if (rangeHeaderIndex < 0)
                 {
                     throw new InvalidOperationException();
@@ -773,7 +774,7 @@ namespace Backup
 
             for (int i = 0; i < responseHeadersOut.Length; i++)
             {
-                int index = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, responseHeadersOut[i].Key); });
+                int index = Array.FindIndex(responseHeaders, delegate (KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, responseHeadersOut[i].Key); });
                 if (index >= 0)
                 {
                     responseHeadersOut[i] = new KeyValuePair<string, string>(responseHeadersOut[i].Key, responseHeaders[index].Value);
@@ -781,7 +782,7 @@ namespace Backup
             }
             if (RateLimitRetryAfterHeader != null)
             {
-                int index = Array.FindIndex(responseHeaders, delegate(KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, RateLimitRetryAfterHeader); });
+                int index = Array.FindIndex(responseHeaders, delegate (KeyValuePair<string, string> candidate) { return String.Equals(candidate.Key, RateLimitRetryAfterHeader); });
                 if (index >= 0)
                 {
                     retryAfterSeconds = Int32.Parse(responseHeaders[index].Value);
@@ -1570,7 +1571,7 @@ namespace Backup
                 RetryHelper.WaitExponentialBackoff(retry, trace);
             }
 
-            // TODO: implement detection of failure to make forward progress
+        // TODO: implement detection of failure to make forward progress
 
         NextFragment:
             if (resuming)
@@ -2355,7 +2356,7 @@ namespace Backup
             {
                 string remotePathPart = remotePathParts[i];
                 RemoteFileSystemEntry[] entries = RemoteGetFileSystemEntries(currentDirectory.Id, trace, faultInstanceContext);
-                int index = Array.FindIndex(entries, delegate(RemoteFileSystemEntry candidate) { return candidate.Name.Equals(remotePathPart); });
+                int index = Array.FindIndex(entries, delegate (RemoteFileSystemEntry candidate) { return candidate.Name.Equals(remotePathPart); });
                 if (index < 0)
                 {
                     throw new FileNotFoundException(String.Format("remote:{0}", remotePathPart));
@@ -3261,7 +3262,7 @@ namespace Backup
                 {
                     throw new ArgumentException();
                 }
-                int serviceSelector = Array.FindIndex(SupportedServices, delegate(KeyValuePair<string, CreateWebMethodsMethod> candidate) { return serviceUri.Host.Equals(candidate.Key, StringComparison.OrdinalIgnoreCase); });
+                int serviceSelector = Array.FindIndex(SupportedServices, delegate (KeyValuePair<string, CreateWebMethodsMethod> candidate) { return serviceUri.Host.Equals(candidate.Key, StringComparison.OrdinalIgnoreCase); });
                 if (serviceSelector < 0)
                 {
                     throw new NotSupportedException(serviceUri.Host);
@@ -3747,7 +3748,7 @@ namespace Backup
                     }
                 }
 
-                names.Sort(delegate(string l, string r) { return String.Compare(l, r, StringComparison.OrdinalIgnoreCase); });
+                names.Sort(delegate (string l, string r) { return String.Compare(l, r, StringComparison.OrdinalIgnoreCase); });
                 return names.ToArray();
             }
             catch (Exception exception)
@@ -3800,7 +3801,7 @@ namespace Backup
         {
             IFaultInstance faultInstanceMethod = faultInstanceRoot.Select("GetQuota");
 
-            remoteWebMethods.GetQuota(out quotaTotal, out  quotaUsed, trace, faultInstanceMethod);
+            remoteWebMethods.GetQuota(out quotaTotal, out quotaUsed, trace, faultInstanceMethod);
         }
 
         public TextWriter GetMasterTrace() // TextWriter is threadsafe; remains owned - do not Dispose()
