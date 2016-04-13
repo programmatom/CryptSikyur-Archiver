@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2014 Thomas R. Lawrence
+ *  Copyright © 2014-2016 Thomas R. Lawrence
  *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
  *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
  *    except: "Keccak/*.cs", which are Copyright © 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
@@ -79,7 +79,7 @@ namespace Backup
 
         int MACLengthBytes { get; }
         ICheckValueGenerator CreateMACGenerator(byte[] signingKey);
-        int LocalSignagureMACLengthBytes { get; }
+        int LocalSignatureMACLengthBytes { get; }
         ICheckValueGenerator CreateLocalSignatureMACGenerator(byte[] signingKey);
 
         Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter);
@@ -243,7 +243,7 @@ namespace Backup
             return auth.CreateMACGenerator(signingKey);
         }
 
-        public int LocalSignagureMACLengthBytes { get { return localAuth.MACLengthBytes; } }
+        public int LocalSignatureMACLengthBytes { get { return localAuth.MACLengthBytes; } }
 
         public ICheckValueGenerator CreateLocalSignatureMACGenerator(byte[] signingKey)
         {
@@ -329,6 +329,22 @@ namespace Backup
         public override string UniquePersistentCiphersuiteIdentifier { get { return "\x03"; } }
     }
 
+    // AES & Serpent in cascade
+    public class CryptoSystemAES256Serpent256 : CryptoSystemComposable
+    {
+        public CryptoSystemAES256Serpent256()
+            : base(new CryptoSystemDefaultRNG(), new CryptoSystemBlockCipherAES256Serpent256(), new CryptoSystemAuthenticationHMACSHA2_512_256(), new CryptoSystemKeyGenerationRfc2898Rfc5869())
+        {
+        }
+
+        public override string Name { get { return "aes256serpent256"; } }
+        public override string Description { get { return "AES-256 CTR & Serpent-256 CTR, HMAC-SHA2-512-256"; } }
+
+        public override bool Weak { get { return false; } }
+
+        public override string UniquePersistentCiphersuiteIdentifier { get { return "\x05"; } }
+    }
+
     // Threefish is a block cipher underlying Skein, a NIST SHA-3 hash competition
     // finalist. The Skein/ThreeFish information portal is at:
     // https://www.schneier.com/skein.html
@@ -371,6 +387,11 @@ namespace Backup
             // around number of rounds). Therefore, Serpent-256 is included here to provide a
             // conservative fallback option.
             new CryptoSystemSerpent256(),
+
+#if false // TODO: enable once confidence in the cascade implementation is established
+            // Cascade of AES and Serpent
+            new CryptoSystemAES256Serpent256(),
+#endif
 
             // Threefish 1024 is the only very large block size cipher available at this time
             // that (as a SHA3 finalist) has undergone more than cursory scrutiny.
@@ -1300,6 +1321,11 @@ namespace Backup
 
         protected SymmetricAlgorithm GetAlgorithm()
         {
+            return GetAlgorithm(KeyLengthBits);
+        }
+
+        public static SymmetricAlgorithm GetAlgorithm(int KeyLengthBits)
+        {
             // AES is Rijndael with fixed block size and key size (128, 192, or 256)
             Rijndael rijndael = Rijndael.Create();
             rijndael.KeySize = KeyLengthBits;
@@ -1437,6 +1463,11 @@ namespace Backup
 
         protected SymmetricAlgorithm GetAlgorithm()
         {
+            return GetAlgorithm(KeyLengthBits);
+        }
+
+        public static SymmetricAlgorithm GetAlgorithm(int KeyLengthBits)
+        {
             SymmetricAlgorithm serpent = new SerpentAlgorithm();
             serpent.KeySize = KeyLengthBits;
             serpent.BlockSize = BlockLengthBits;
@@ -1573,6 +1604,263 @@ namespace Backup
                         {
                             throw new MyApplicationException("Serpent-ECB implementation defect");
                         }
+                    }
+                }
+            }
+        }
+    }
+
+
+    // Composable module implementing AES and Serpent family of block ciphers in cascade
+    public abstract class CryptoSystemBlockCipherAESSerpent : ICryptoSystemBlockCipher
+    {
+        protected const int BlockLengthBits = 128;
+        protected abstract int KeyLengthBits { get; }
+
+        public int CipherBlockLengthBytes { get { return BlockLengthBits / 8; } }
+        public int CipherKeyLengthBytes { get { return KeyLengthBits / 8; } }
+        public int InitialVectorLengthBytes { get { return CipherBlockLengthBytes; } }
+
+        protected SymmetricAlgorithm GetAlgorithm()
+        {
+            SymmetricAlgorithm cascaded = new AESSerpentCascadeAlgorithm();
+            cascaded.KeySize = KeyLengthBits;
+            cascaded.BlockSize = BlockLengthBits;
+            cascaded.Mode = CipherMode.ECB;
+            cascaded.Padding = PaddingMode.None;
+            return cascaded;
+        }
+
+        private class AESSerpentCascadeAlgorithm : SymmetricAlgorithm
+        {
+            public const int HardcodedPerCipherKeyLengthBits = 256;
+
+            public AESSerpentCascadeAlgorithm()
+            {
+                this.LegalKeySizesValue = new KeySizes[1] { new KeySizes(HardcodedPerCipherKeyLengthBits * 2, HardcodedPerCipherKeyLengthBits * 2, 0) };
+                this.LegalBlockSizesValue = new KeySizes[1] { new KeySizes(128, 128, 0) };
+            }
+
+            private static void SeparateKeys(byte[] rgbKey, out byte[] rgbKeyAES, out byte[] rgbKeySerpent)
+            {
+                rgbKeyAES = new byte[HardcodedPerCipherKeyLengthBits / 8];
+                rgbKeySerpent = new byte[HardcodedPerCipherKeyLengthBits / 8];
+                if (rgbKey.Length != (rgbKeyAES.Length + rgbKeySerpent.Length))
+                {
+                    Debug.Assert(false);
+                    throw new ArgumentException();
+                }
+                Array.Copy(rgbKey, 0, rgbKeyAES, 0, rgbKeyAES.Length);
+                Array.Copy(rgbKey, rgbKeyAES.Length, rgbKeySerpent, 0, rgbKeySerpent.Length);
+            }
+
+            public override ICryptoTransform CreateEncryptor(byte[] rgbKey, byte[] rgbIV)
+            {
+                if (HardcodedPerCipherKeyLengthBits * 2 != this.KeySize)
+                {
+                    Debug.Assert(false);
+                    throw new ArgumentException();
+                }
+                byte[] rgbKeyAES, rgbKeySerpent;
+                SeparateKeys(rgbKey, out rgbKeyAES, out rgbKeySerpent);
+                return new XorEncryptorCombiner(
+                    CryptoSystemBlockCipherAES.GetAlgorithm(HardcodedPerCipherKeyLengthBits /*KeyLengthBits*/).CreateEncryptor(rgbKeyAES, rgbIV),
+                    CryptoSystemBlockCipherSerpent.GetAlgorithm(HardcodedPerCipherKeyLengthBits /*KeyLengthBits*/).CreateEncryptor(rgbKeySerpent, rgbIV));
+            }
+
+            public override ICryptoTransform CreateDecryptor(byte[] rgbKey, byte[] rgbIV)
+            {
+                Debug.Assert(false);
+                throw new NotSupportedException(); // intended for CTR mode - which only uses encryption
+            }
+
+            public override void GenerateIV()
+            {
+                Debug.Assert(false);
+                throw new NotSupportedException();
+            }
+
+            public override void GenerateKey()
+            {
+                Debug.Assert(false);
+                throw new NotSupportedException();
+            }
+        }
+
+        // forward-only encryption that combines via xor the results of independent constituent ciphers
+        // eacch applied to the plaintext.
+        private class XorEncryptorCombiner : ICryptoTransform
+        {
+            private ICryptoTransform[] transforms;
+
+            public XorEncryptorCombiner(ICryptoTransform[] transforms)
+            {
+                for (int i = 1; i < transforms.Length; i++)
+                {
+                    if (/*(transforms[0].CanReuseTransform != transforms[i].CanReuseTransform)
+                        || */(transforms[0].CanTransformMultipleBlocks != transforms[i].CanTransformMultipleBlocks)
+                        || (transforms[0].InputBlockSize != transforms[i].InputBlockSize)
+                        || (transforms[0].OutputBlockSize != transforms[i].OutputBlockSize))
+                    {
+                        Debug.Assert(false);
+                        throw new ArgumentException();
+                    }
+                }
+                this.transforms = transforms;
+            }
+
+            public XorEncryptorCombiner(ICryptoTransform one)
+                : this(new ICryptoTransform[] { one })
+            {
+            }
+
+            public XorEncryptorCombiner(ICryptoTransform one, ICryptoTransform two)
+                : this(new ICryptoTransform[] { one, two })
+            {
+            }
+
+            public bool CanReuseTransform { get { return false/*transforms[0].CanReuseTransform*/; } }
+
+            public bool CanTransformMultipleBlocks { get { return transforms[0].CanTransformMultipleBlocks; } }
+
+            public int InputBlockSize { get { return transforms[0].InputBlockSize; } }
+
+            public int OutputBlockSize { get { return transforms[0].OutputBlockSize; } }
+
+            public void Dispose()
+            {
+                for (int i = 0; i < transforms.Length; i++)
+                {
+                    transforms[i].Dispose();
+                }
+                transforms = null;
+            }
+
+            // Each cipher is run in parallel on the input and the results are combined via exclusive-or.
+            // For the intended use (CTR mode), the input will be the counter sequence. The result is the xor of
+            // the independent (ECB) encryption of the counter sequence for each cipher, which is a conceptual extension
+            // of the encrypted (ECB) counter sequence for a single cipher used in CTR mode. The result is then
+            // intended to be xored with the plaintext. If one of the ciphers is compromised, the inclusion of the
+            // encrypted counter sequence from the other cipher should continue to provide privacy.
+            // The use of the same counter stream for both ciphers raises the question as to if that provides an
+            // attack. It is thought not, since the attacker has only combined ciphertext (and possibly a plaintext
+            // for certain attacks), but not the separated intermediate encrypted counter sequences, so no attack
+            // on one encrypted counter sequence is possible.
+            private byte[] TransformBlockInternal(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset)
+            {
+                if (outputBuffer == null)
+                {
+                    if (outputOffset != 0)
+                    {
+                        Debug.Assert(false);
+                        throw new ArgumentException();
+                    }
+                    outputBuffer = new byte[inputCount];
+                }
+
+                byte[] buffer = new byte[inputCount];
+                for (int i = 0; i < transforms.Length; i++)
+                {
+                    int c = transforms[i].TransformBlock(inputBuffer, inputOffset, inputCount, buffer, 0);
+                    if (c != inputCount)
+                    {
+                        Debug.Assert(false);
+                        throw new InvalidOperationException();
+                    }
+                    for (int j = 0; j < inputCount; j++)
+                    {
+                        outputBuffer[j] ^= buffer[j];
+                    }
+                }
+
+                return outputBuffer;
+            }
+
+            public int TransformBlock(byte[] inputBuffer, int inputOffset, int inputCount, byte[] outputBuffer, int outputOffset)
+            {
+                TransformBlockInternal(inputBuffer, inputOffset, inputCount, outputBuffer, outputOffset);
+                return inputCount;
+            }
+
+            public byte[] TransformFinalBlock(byte[] inputBuffer, int inputOffset, int inputCount)
+            {
+                return TransformBlockInternal(inputBuffer, inputOffset, inputCount, null, 0);
+            }
+        }
+
+        public Stream CreateEncryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter)
+        {
+            return new CryptoPrimitiveCounterModeEncryptStream(stream, this, GetAlgorithm(), cipherKey, initialCounter);
+        }
+
+        public Stream CreateDecryptStream(Stream stream, byte[] cipherKey, byte[] initialCounter)
+        {
+            return new CryptoPrimitiveCounterModeDecryptStream(stream, this, GetAlgorithm(), cipherKey, initialCounter);
+        }
+
+        public virtual void Test()
+        {
+        }
+    }
+
+    // Composable module implementing AES-256 and Serpent-256 block cipher in cascade
+    public sealed class CryptoSystemBlockCipherAES256Serpent256 : CryptoSystemBlockCipherAESSerpent
+    {
+        protected override int KeyLengthBits { get { return 256 + 256; } } // 256 bits separately for each cipher
+
+        private sealed class CipherTestVector
+        {
+            internal readonly byte[] key;
+            internal readonly byte[] iv;
+            internal readonly byte[] plainText;
+            internal readonly byte[] cipherText;
+
+            internal CipherTestVector(byte[] key, byte[] iv, byte[] plainText, byte[] cipherText)
+            {
+                this.key = key;
+                this.iv = iv;
+                this.plainText = plainText;
+                this.cipherText = cipherText;
+            }
+        }
+
+        private readonly static CipherTestVector[] TestVectorsAESSerpentMultiKeylenECB = new CipherTestVector[]
+        {
+            // test case of a vector from http://www.cs.technion.ac.il/~biham/Reports/Serpent/Serpent-256-128.verified.test-vectors
+            // and a vector from http://csrc.nist.gov/groups/STM/cavp/documents/aes/AESAVS.pdf using the keys specified
+            // below and all zero plaintext, to verify that the cascaded cipher is returning the xor of the independent ECB
+            // encryptions of the plaintext with the appropriate key.
+            new CipherTestVector(
+                new byte[] {
+                    // AES part
+                    0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    // Serpent part
+                    0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, },
+                new byte[] { },
+                new byte[] {
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, },
+                new byte[] {
+                    0xe3 ^ 0xEA, 0x5a ^ 0xE1, 0x6d ^ 0xD4, 0xcb ^ 0x05, 0x19 ^ 0x57, 0xb2 ^ 0x01, 0x01 ^ 0x74, 0xa0 ^ 0xDF,
+                    0x1e ^ 0x7D, 0xbc ^ 0xF2, 0xfa ^ 0xF9, 0x8a ^ 0x96, 0xa2 ^ 0x6D, 0x2b ^ 0x50, 0x57 ^ 0x91, 0x59 ^ 0x59, }),
+        };
+
+        public override void Test()
+        {
+            base.Test();
+
+            foreach (CipherTestVector test in TestVectorsAESSerpentMultiKeylenECB)
+            {
+                ICryptoTransform transform;
+                byte[] result;
+
+                using (transform = GetAlgorithm().CreateEncryptor(test.key, test.iv))
+                {
+                    result = transform.TransformFinalBlock(test.plainText, 0, test.plainText.Length);
+                    if (!Core.ArrayEqual(test.cipherText, result))
+                    {
+                        throw new MyApplicationException("AES-Serpent-Cascade implementation defect");
                     }
                 }
             }

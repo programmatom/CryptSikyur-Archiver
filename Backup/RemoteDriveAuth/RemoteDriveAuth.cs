@@ -1403,20 +1403,18 @@ namespace RemoteDriveAuth
             }
         }
 
-        const string LocalApplicationDirectoryName = "Backup-RemoteDriveAuth";
-        static string GetLocalAppDataPath(bool create, bool roaming)
+        private const string SettingsFileName = "client-identities.txt";
+        private const string SettingsDirectoryName = "Backup-RemoteDriveAuth";
+        private static string GetSettingsPath(bool create)
         {
-            string applicationDataPath = Environment.GetEnvironmentVariable(roaming ? "APPDATA" : "LOCALAPPDATA");
-            if (applicationDataPath == null)
+            string root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.None);
+            string dir = Path.Combine(root, SettingsDirectoryName);
+            if (create)
             {
-                applicationDataPath = Environment.ExpandEnvironmentVariables("%USERPROFILE%\\Application Data"); // Windows XP fallback
+                Directory.CreateDirectory(dir);
             }
-            applicationDataPath = Path.Combine(applicationDataPath, LocalApplicationDirectoryName);
-            if (create && !Directory.Exists(applicationDataPath))
-            {
-                Directory.CreateDirectory(applicationDataPath);
-            }
-            return applicationDataPath;
+            string path = Path.Combine(dir, SettingsFileName);
+            return path;
         }
 
         [STAThread]
@@ -1476,8 +1474,7 @@ namespace RemoteDriveAuth
                 Array.Resize(ref args, args.Length - 2);
             }
 
-            string localAppDataPath = GetLocalAppDataPath(false/*create*/, true/*roaming*/);
-            string clientIdentitiesPath = Path.Combine(localAppDataPath, "client-identities.txt");
+            string clientIdentitiesPath = GetSettingsPath(false/*create*/);
             ClientIdentities clientIdentities = new ClientIdentities(clientIdentitiesPath);
 
             try

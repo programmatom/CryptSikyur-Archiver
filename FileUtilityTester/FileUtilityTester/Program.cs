@@ -1164,6 +1164,12 @@ namespace FileUtilityTester
                             break;
 
                         case "reset":
+                            bool resetExplicit = true;
+                            goto ResetExplicit;
+                        Reset:
+                            resetExplicit = false;
+                            goto Reset2;
+                        ResetExplicit:
                             if ((mode & Mode.SequentialModes) == 0)
                             {
                                 Throw(new ApplicationException());
@@ -1176,7 +1182,7 @@ namespace FileUtilityTester
                             {
                                 Throw(new ApplicationException());
                             }
-                        Reset:
+                        Reset2:
                             VerifyDeferredClear(
                                 true/*forceClose*/,
                                 context.variables,
@@ -1199,12 +1205,18 @@ namespace FileUtilityTester
                                 context.workspace = null;
                             }
 
+                            int savedTestNumber = resetExplicit ? context.testNumber : 0;
+                            string savedTestName = resetExplicit ? context.testName : null;
+
                             bool testFailed = context.testFailed; // propagate from previous, not base
                             // One might think this could be omitted for mode==Mode.Module since each module
                             // will have a separate prepared context, but it still needs to be done to preserve
                             // an unpolluted context in order to support the "reset" command.
                             context = new Context(contextBase, moduleNumber, moduleName);
                             context.testFailed = testFailed;
+                            // propagate test info for case of explicit "reset" command within a test
+                            context.testNumber = savedTestNumber;
+                            context.testName = savedTestName;
 
                             // One might think this could be omitted for mode==Mode.PrepareTasks, but paths are
                             // still computed even when execution is suppressed, so the unused workspace needs to

@@ -352,7 +352,7 @@ exitcode-verify not 0
 list-verify archive
 .          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
 .          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
-.          2014-01-01          2014-01-06 -A---- x.0.dynpack [15]
+.          2014-01-01          2014-01-06 -A---- x.0.dynpack [18]
 .          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
 .          2014-01-06          2014-01-06 -A---- x.m.dynpack [16]
 .          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
@@ -364,7 +364,7 @@ date + 1
 call backup -concurrency 0 dynpack source archive\x 30000
 exitcode-verify 0
 list-verify archive
-.          2014-01-01          2014-01-07 -A---- x.0.dynpack [18]
+.          2014-01-01          2014-01-07 -A---- x.0.dynpack [19]
 .          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
 .          2014-01-06          2014-01-06 -A---- x.m.dynpack [16]
 .          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
@@ -381,7 +381,7 @@ copy archive-backup-2 archive
 list-verify archive
 .          2014-01-03          2014-01-03 -A---- x.-0.dynpack [10]
 .          2014-01-03          2014-01-03 -A---- x.-m.dynpack [12]
-.          2014-01-01          2014-01-06 -A---- x.0.dynpack [15]
+.          2014-01-01          2014-01-06 -A---- x.0.dynpack [18]
 .          2014-01-01          2014-01-01 -A---- x.a.dynpack [11]
 .          2014-01-06          2014-01-06 -A---- x.m.dynpack [16]
 .          2014-01-01          2014-01-01 -A---- x.s.dynpack [13]
