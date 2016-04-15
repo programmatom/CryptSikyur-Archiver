@@ -8235,6 +8235,8 @@ namespace Backup
             internal void SetDirty()
             {
                 dirty.Set();
+                // TODO: this ought to be context.now.ToUniversalTime(), but it's annoying to plumb that down here, so we'll
+                // live with live now until a test scenario needs it.
                 lastMetadataVerification = DateTime.UtcNow; // mark as just verified -- since we'll be creating the file anew
             }
 
@@ -8786,7 +8788,7 @@ namespace Backup
             bool verifyNonDirtyMetadata = false;
             int? verifyMaxSeconds = null;
             int? verifyMaxSegments = null;
-            DateTime verifyMaxRecency = DateTime.UtcNow.AddMonths(-1); // by default do not verify if 'recently' verified
+            DateTime verifyMaxRecency = context.now.ToUniversalTime().AddMonths(-1); // by default do not verify if 'recently' verified
             string diagnosticPath = null;
             bool windiff = false;
             bool ignoreUnchangedFiles = false;
@@ -8830,25 +8832,47 @@ namespace Backup
                                     new KeyValuePair<int, KeyValuePair<int?, DateTime?>>(0, new KeyValuePair<int?, DateTime?>(null, null))/*default*/,
                                     delegate (string s)
                                     {
-                                        string one = s;
-                                        string two = null;
-                                        string three = null;
-                                        int comma;
-                                        if ((comma = one.IndexOf(',')) >= 0)
+                                        string[] parts = s.Split(new char[] { ',' });
+
+                                        int maxSeconds = 0;
+                                        try
                                         {
-                                            two = one.Substring(comma + 1);
-                                            one = one.Substring(0, comma);
-                                            if ((comma = two.IndexOf(',')) >= 0)
+                                            maxSeconds = Int32.Parse(parts[0]);
+                                        }
+                                        catch (Exception)
+                                        {
+                                        }
+
+                                        int? maxSegments = null;
+                                        try
+                                        {
+                                            maxSegments = Int32.Parse(parts[1]);
+                                        }
+                                        catch (Exception)
+                                        {
+                                        }
+
+                                        DateTime maxRecency = verifyMaxRecency;
+                                        try
+                                        {
+                                            maxRecency = context.now.ToUniversalTime().AddDays(-Int32.Parse(parts[2]));
+                                        }
+                                        catch (Exception)
+                                        {
+                                            try
                                             {
-                                                three = two.Substring(comma + 1);
-                                                two = two.Substring(0, comma);
+                                                maxRecency = DateTime.Parse(parts[2]).ToUniversalTime();
+                                            }
+                                            catch (Exception)
+                                            {
                                             }
                                         }
+
                                         return new KeyValuePair<int, KeyValuePair<int?, DateTime?>>(
-                                            Int32.Parse(one),
+                                            maxSeconds,
                                             new KeyValuePair<int?, DateTime?>(
-                                                !String.IsNullOrEmpty(two) ? Int32.Parse(two) : (int?)null,
-                                                !String.IsNullOrEmpty(three) ? DateTime.Parse(three) : verifyMaxRecency/*default*/));
+                                                maxSegments,
+                                                maxRecency));
                                     },
                                     out verifyinc);
                                 verifyMaxSeconds = verifyinc.Key;
@@ -10153,11 +10177,11 @@ namespace Backup
                             }
 
                             int verifiedSegmentsCount = 0;
-                            DateTime verficationStarted = DateTime.UtcNow;
+                            DateTime verficationStarted = DateTime.Now;
                             for (int iEnum = 0; iEnum < segmentsVerificationSchedule.Length; iEnum++)
                             {
                                 if (verifyMaxSeconds.HasValue
-                                    && ((DateTime.UtcNow - verficationStarted).TotalSeconds >= verifyMaxSeconds.Value))
+                                    && ((DateTime.Now - verficationStarted).TotalSeconds >= verifyMaxSeconds.Value))
                                 {
                                     break;
                                 }
@@ -10336,7 +10360,7 @@ namespace Backup
                                                                     {
                                                                         string tempFile = Path.GetTempFileName();
                                                                         fileRef.CopyLocal(tempFile, true/*overwrite*/);
-                                                                        string message = String.Format("Copied of corrupt segment \"{0}\" to \"{1}\"", segmentFileName, tempFile);
+                                                                        string message = String.Format("Copied corrupt segment \"{0}\" to \"{1}\"", segmentFileName, tempFile);
                                                                         if (traceDynpack != null)
                                                                         {
                                                                             traceDynpack.WriteLine(message);
@@ -10395,7 +10419,7 @@ namespace Backup
                                                                 }
                                                             }
 
-                                                            segment.LastMetadataVerification = DateTime.UtcNow;
+                                                            segment.LastMetadataVerification = context.now.ToUniversalTime();
                                                         }
                                                     }
                                                 }
@@ -10426,36 +10450,43 @@ namespace Backup
                             using (ConcurrentMessageLog.ThreadMessageLog messages = messagesLog.GetNewMessageLog(messagesLog.GetSequenceNumber()))
                             {
                                 messages.WriteLine("Incremental Verification Completed:");
-                                DateTime now = DateTime.Now;
-                                int week = 0, month = 0, quarter = 0, year = 0, never = 0;
+                                DateTime now = context.now.ToUniversalTime();
+                                DateTime[] bounds = new DateTime[] { now.AddDays(-7), now.AddDays(-31), now.AddDays(-91), now.AddDays(-365), default(DateTime).AddDays(1), default(DateTime) };
+                                int[] counts = new int[bounds.Length];
                                 for (int i = 0; i < segments.Count; i++)
                                 {
-                                    if (now.AddDays(-7) > segments[i].LastMetadataVerification)
+                                    for (int j = 0; j < bounds.Length; j++)
                                     {
-                                        week++;
-                                    }
-                                    if (now.AddMonths(-1) > segments[i].LastMetadataVerification)
-                                    {
-                                        month++;
-                                    }
-                                    if (now.AddMonths(-3) > segments[i].LastMetadataVerification)
-                                    {
-                                        quarter++;
-                                    }
-                                    if (now.AddYears(-1) > segments[i].LastMetadataVerification)
-                                    {
-                                        year++;
-                                    }
-                                    if (default(DateTime) == segments[i].LastMetadataVerification)
-                                    {
-                                        never++;
+                                        if (bounds[j] <= segments[i].LastMetadataVerification)
+                                        {
+                                            counts[j]++;
+                                            break;
+                                        }
                                     }
                                 }
-                                messages.WriteLine("  segments verified within last week:    {0}", segments.Count - week);
-                                messages.WriteLine("  segments verified within last month:   {0}", segments.Count - month);
-                                messages.WriteLine("  segments verified within last quarter: {0}", segments.Count - quarter);
-                                messages.WriteLine("  segments verified within last year:    {0}", segments.Count - year);
-                                messages.WriteLine("  segments never verified:               {0}", never);
+#if DEBUG
+                                int total = 0;
+                                for (int j = 0; j < bounds.Length; j++)
+                                {
+                                    total += counts[j];
+                                }
+                                Debug.Assert(total == segments.Count);
+#endif
+                                for (int j = 0; j < bounds.Length - 2; j++)
+                                {
+                                    messages.WriteLine(
+                                        "  {0,-43} {1}",
+                                        String.Format("segments verified within last {0,3} days:", (now - bounds[j]).TotalDays),
+                                        counts[j]);
+                                }
+                                messages.WriteLine(
+                                    "  {0,-43} {1}",
+                                    String.Format("segments verified longer than {0,3} days ago:", (now - bounds[bounds.Length - 3]).TotalDays),
+                                    counts[bounds.Length - 2]);
+                                messages.WriteLine(
+                                    "  {0,-43} {1}",
+                                    "segments never verified:",
+                                    counts[bounds.Length - 1]);
                             }
                             messagesLog.Flush();
                         }
