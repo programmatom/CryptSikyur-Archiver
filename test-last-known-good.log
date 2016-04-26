@@ -1,6 +1,6 @@
 ﻿Manifest: "D:\Tom\Programming\BackupTester\Tests\TestScripts.txt"
 
-4/13/2016 1:06:50 PM
+4/26/2016 8:54:48 AM
 
 
 
@@ -3363,6 +3363,106 @@ D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2015-01-03T00:00:00 
 D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2015-01-03T00:00:00 dynunpack archive\archive output2
 
 
+[Script "D:\Tom\Programming\BackupTester\Tests\DynpackSegmentNameTrim.txt"]
+MODULE segment name trim (1)
+
+TEST setup (1)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000
+
+TEST segment name trim with no changes, length 1 (2)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+
+TEST segment name trim with no changes, length 4 (3)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 4
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+
+TEST failure 1 - after writing manifest, before renaming (4)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2'] dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive2\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive2\x target2
+
+TEST failure 2 - after writing manifest and one rename (5)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2']/Rename[count:2] dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive2\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive2\x target2
+
+TEST failure 3 - after writing manifest and halfway through rename (6)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2']/Rename[count:30] dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive2\x 10000
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive2\x target2
+
+TEST prevent renaming of files with backup copies to prevent breaking overall rollback 1 (7)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-02T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+
+TEST prevent renaming of files with backup copies to prevent breaking overall rollback 2 (8)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-03T00:00:00 -trace -tracefaultpoints -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2'] dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-04T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-04T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+
+
+[Script "D:\Tom\Programming\BackupTester\Tests\DynpackSegmentNameTrim.txt"]
+MODULE continuous segment name trim (2)
+
+TEST do it (1)
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynpack source archive\x 10000 -trimsegmentnames 1
+D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe -date 2016-01-01T00:00:00 -trace -tracefaultpoints dynunpack archive\x target
+
+
 [Script "D:\Tom\Programming\BackupTester\Tests\ValidateBasic.txt"]
 MODULE validate on basic encrypted large file (1)
 
@@ -3992,7 +4092,7 @@ TEST empty argument usage message (1)
 D:\Tom\Programming\Backup\Backup\bin\Debug\Backup.exe  
 
 
-finished - total run time 0:11:33.5639823
+finished - total run time 0:11:35.9650148
 
 
 SCRIPT "D:\Tom\Programming\BackupTester\Tests\RemoteBasic.txt" (1)
@@ -4967,7 +5067,19 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\DynpackRobust.txt" (32)
   MODULE file deleted (during segment archiving), concurrent, with -ignoredeleted (15)
     passed : TEST setup (1)
     passed : TEST rerun and validate (2)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValidateBasic.txt" (33)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\DynpackSegmentNameTrim.txt" (33)
+  MODULE segment name trim (1)
+    passed : TEST setup (1)
+    passed : TEST segment name trim with no changes, length 1 (2)
+    passed : TEST segment name trim with no changes, length 4 (3)
+    passed : TEST failure 1 - after writing manifest, before renaming (4)
+    passed : TEST failure 2 - after writing manifest and one rename (5)
+    passed : TEST failure 3 - after writing manifest and halfway through rename (6)
+    passed : TEST prevent renaming of files with backup copies to prevent breaking overall rollback 1 (7)
+    passed : TEST prevent renaming of files with backup copies to prevent breaking overall rollback 2 (8)
+  MODULE continuous segment name trim (2)
+    passed : TEST do it (1)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValidateBasic.txt" (34)
   MODULE validate on basic encrypted large file (1)
     passed : TEST create scenario (1)
   MODULE validate pack file (2)
@@ -4984,7 +5096,7 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValidateBasic.txt" (33)
     passed : TEST carry forward (5)
     passed : TEST validate archive successfully (6)
     passed : TEST validate archive with corruption (7)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValidateEncryption.txt" (34)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValidateEncryption.txt" (35)
   MODULE MAC prevalidation on copied files (1)
     passed : TEST set up scenario (1)
     passed : TEST prevalidation with undamaged file (2)
@@ -5011,7 +5123,7 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValidateEncryption.txt" (34)
   MODULE master key cache flush (code coverage) (6)
     passed : TEST create file collection (1)
     passed : TEST encrypt files with forced rekeying (2)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValDynpack.txt" (35)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValDynpack.txt" (36)
   MODULE valdynpack empty test (1)
     passed : TEST empty test (1)
   MODULE valdynpack replay tests (2)
@@ -5028,7 +5140,7 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\ValDynpack.txt" (35)
     passed : TEST set up first archive (1)
     passed : TEST set up second archive (2)
     passed : TEST cross-substitution (3)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\DynpackLocalSignature.txt" (36)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\DynpackLocalSignature.txt" (37)
   MODULE test non-qualified signature path (i.e. in working directory) (1)
     passed : TEST one (1)
   MODULE dynpack with local signature option (2)
@@ -5042,7 +5154,7 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\DynpackLocalSignature.txt" (36)
     passed : TEST restore (8)
     passed : TEST tamper with signature (9)
     passed : TEST restore (10)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\RestoreBasic.txt" (37)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\RestoreBasic.txt" (38)
   MODULE restore (1)
     passed : TEST setup (1)
     passed : TEST restore invalid archive name 1 (2)
@@ -5100,7 +5212,7 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\RestoreBasic.txt" (37)
     passed : TEST verify checkpoints 1 and 3 before purge (5)
     passed : TEST purge 2 and re-verify (6)
     passed : TEST purge 3 (7)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\PurgeBasic.txt" (38)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\PurgeBasic.txt" (39)
   MODULE purge (1)
     passed : TEST initial setup (1)
     passed : TEST first modification (2)
@@ -5122,13 +5234,13 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\PurgeBasic.txt" (38)
     passed : TEST restore remaining (18)
     passed : TEST sanity check - restore all and verify (19)
     passed : TEST restore all (20)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\SplitBasic.txt" (39)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\SplitBasic.txt" (40)
   MODULE degenerate test (1)
     passed : TEST single file test (1)
     passed : TEST cleanup (2)
     passed : TEST two file test (3)
     passed : TEST file tampering (4)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\DirBasic.txt" (40)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\DirBasic.txt" (41)
   MODULE basic (1)
     passed : TEST null test (1)
     passed : TEST add one (2)
@@ -5142,9 +5254,9 @@ SCRIPT "D:\Tom\Programming\BackupTester\Tests\DirBasic.txt" (40)
     passed : TEST 1 (1)
   MODULE wildcarded tail 2 (3)
     passed : TEST 1 (1)
-SCRIPT "D:\Tom\Programming\BackupTester\Tests\UsageBasic.txt" (41)
+SCRIPT "D:\Tom\Programming\BackupTester\Tests\UsageBasic.txt" (42)
   MODULE basic (1)
     passed : TEST empty argument usage message (1)
 
-failed=0 skipped=0 passed=896
+failed=0 skipped=0 passed=905
 

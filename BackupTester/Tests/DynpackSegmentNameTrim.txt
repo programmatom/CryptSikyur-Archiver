@@ -1,0 +1,2665 @@
+﻿command backup ..\..\..\..\Backup\Backup\bin\Debug\Backup.exe -date %DATE% -trace -tracefaultpoints
+#opencover backup
+
+date-format yyyy-MM-dd
+
+fail-pause on
+
+
+module segment name trim
+
+test setup
+date 2016-01-01
+mkdir source
+mkdir archive
+# 0
+create source\000000 -size 9500
+create source\250000 -size 9500
+create source\500000 -size 9500
+create source\750000 -size 9500
+create source\999999 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [1]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 1
+create source\125000 -size 9500
+create source\375000 -size 9500
+create source\625000 -size 9500
+create source\875000 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [7]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 2
+create source\062500 -size 9500
+create source\437500 -size 9500
+create source\562500 -size 9500
+create source\937500 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [12]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 3
+create source\031250 -size 9500
+create source\468750 -size 9500
+create source\531250 -size 9500
+create source\968750 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [17]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 4
+create source\015625 -size 9500
+create source\484375 -size 9500
+create source\515625 -size 9500
+create source\984375 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 5
+create source\007813 -size 9500
+create source\492187 -size 9500
+create source\507813 -size 9500
+create source\992187 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [27]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 6
+create source\003907 -size 9500
+create source\496093 -size 9500
+create source\503907 -size 9500
+create source\996093 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 7
+create source\001954 -size 9500
+create source\498046 -size 9500
+create source\501954 -size 9500
+create source\998046 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [37]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 8
+create source\000977 -size 9500
+create source\499023 -size 9500
+create source\500977 -size 9500
+create source\999023 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 9
+create source\000489 -size 9500
+create source\499511 -size 9500
+create source\500489 -size 9500
+create source\999511 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [47]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 10
+create source\000245 -size 9500
+create source\499755 -size 9500
+create source\500245 -size 9500
+create source\999755 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 11
+create source\000123 -size 9500
+create source\499877 -size 9500
+create source\500123 -size 9500
+create source\999877 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [57]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 12
+create source\000062 -size 9500
+create source\499938 -size 9500
+create source\500062 -size 9500
+create source\999938 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [62]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 13
+create source\000031 -size 9500
+create source\499969 -size 9500
+create source\500031 -size 9500
+create source\999969 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 14
+create source\000016 -size 9500
+create source\499984 -size 9500
+create source\500016 -size 9500
+create source\999984 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [72]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzzm.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 15
+create source\000008 -size 9500
+create source\499992 -size 9500
+create source\500008 -size 9500
+create source\999992 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzzm.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lzzt.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maaam.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 16
+create source\000004 -size 9500
+create source\499996 -size 9500
+create source\500004 -size 9500
+create source\999996 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [82]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaaag.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzzm.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lzzt.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.lzzw.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maaag.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.maaam.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# 17
+create source\000002 -size 9500
+create source\499998 -size 9500
+create source\500002 -size 9500
+create source\999998 -size 9500
+call backup dynpack source archive\x 10000
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaaad.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.aaaag.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzzm.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lzzt.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.lzzw.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.lzzy.dynpack [89]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maaad.dynpack [90]
+.          2016-01-01          2016-01-01 -A---- x.maaag.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.maaam.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.uzzz.dynpack [91]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# save it
+copy archive archive-saved
+rmdir archive
+copy source source-saved
+rmdir source
+
+test segment name trim with no changes, length 1
+copy source-saved source
+copy archive-saved archive
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [92]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.abm.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.adg.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.ae.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.agg.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.ah.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.ak.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.amg.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.an.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ar.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.au.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.ay.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.ld.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.le.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.lh.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lj.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lk.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lmg.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.ln.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lr.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.ltg.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lu.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.lwm.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.lym.dynpack [89]
+.          2016-01-01          2016-01-01 -A---- x.mal.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mbm.dynpack [90]
+.          2016-01-01          2016-01-01 -A---- x.mdg.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.me.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.mgg.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.mh.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.mj.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.mk.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mmg.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mn.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mp.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mr.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.mu.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mw.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.my.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.ub.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ud.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.ue.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uh.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uj.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uk.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.umg.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.un.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.up.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.ur.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.utg.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uu.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uwm.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.uym.dynpack [91]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+rmdir source
+rmdir archive
+
+test segment name trim with no changes, length 4
+copy source-saved source
+copy archive-saved archive
+call backup dynpack source archive\x 10000 -trimsegmentnames 4
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [166]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aadg.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.aae.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aagm.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaj.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aak.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aamm.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aap.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aar.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aat.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aaw.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aay.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzd.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzg.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzj.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzk.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzmm.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzp.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lzr.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.lztm.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.lzwm.dynpack [89]
+.          2016-01-01          2016-01-01 -A---- x.lzym.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maat.dynpack [90]
+.          2016-01-01          2016-01-01 -A---- x.madm.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.magm.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maj.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.mak.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.mamm.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.map.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mar.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mat.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.maw.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.may.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzd.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzg.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzj.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzk.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzmm.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzp.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzr.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uztm.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzwm.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.uzym.dynpack [91]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+rmdir source
+rmdir archive
+
+test failure 1 - after writing manifest, before renaming
+copy source-saved source
+copy archive-saved archive
+# interrupt initial procedure
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2'] dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify not 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.-0.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [92]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaaad.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.aaaag.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzzm.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lzzt.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.lzzw.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.lzzy.dynpack [89]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maaad.dynpack [90]
+.          2016-01-01          2016-01-01 -A---- x.maaag.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.maaam.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.uzzz.dynpack [91]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+delete archive\x.-0.dynpack
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+# rearchive and verify that no further action occurs
+copy archive archive2
+call backup dynpack source archive2\x 10000
+exitcode-verify 0
+call backup dynunpack archive2\x target2
+exitcode-verify 0
+dirs-equal-verify source target2
+# ensure segment names haven't changed
+delete archive2\x.0.dynpack
+delete archive\x.0.dynpack
+dirs-equal-verify archive archive2
+# cleanup
+rmdir target
+rmdir target2
+rmdir source
+rmdir archive
+rmdir archive2
+
+test failure 2 - after writing manifest and one rename
+copy source-saved source
+copy archive-saved archive
+# interrupt initial procedure
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2']/Rename[count:2] dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify not 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.-0.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [92]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaaad.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.aaaag.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+# .ay was .am
+.          2016-01-01          2016-01-01 -A---- x.ay.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzzm.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lzzt.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.lzzw.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.lzzy.dynpack [89]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maaad.dynpack [90]
+.          2016-01-01          2016-01-01 -A---- x.maaag.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.maaam.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.uzzz.dynpack [91]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+delete archive\x.-0.dynpack
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+# rearchive and verify that no further action occurs
+copy archive archive2
+call backup dynpack source archive2\x 10000
+exitcode-verify 0
+call backup dynunpack archive2\x target2
+exitcode-verify 0
+dirs-equal-verify source target2
+# ensure segment names haven't changed
+delete archive2\x.0.dynpack
+delete archive\x.0.dynpack
+dirs-equal-verify archive archive2
+# cleanup
+rmdir target
+rmdir target2
+rmdir source
+rmdir archive
+rmdir archive2
+
+test failure 3 - after writing manifest and halfway through rename
+copy source-saved source
+copy archive-saved archive
+# interrupt initial procedure
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2']/Rename[count:30] dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify not 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.-0.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [92]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+# .abm was .aaaad
+.          2016-01-01          2016-01-01 -A---- x.abm.dynpack [88]
+# .adg was .aaaag
+.          2016-01-01          2016-01-01 -A---- x.adg.dynpack [83]
+# .ae was .aaaam
+.          2016-01-01          2016-01-01 -A---- x.ae.dynpack [78]
+# .agg was .aaab
+.          2016-01-01          2016-01-01 -A---- x.agg.dynpack [73]
+# .ah was .aaad
+.          2016-01-01          2016-01-01 -A---- x.ah.dynpack [68]
+# .aj was .aaag
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [63]
+# .ak was .aaam
+.          2016-01-01          2016-01-01 -A---- x.ak.dynpack [58]
+# .amg was .aab
+.          2016-01-01          2016-01-01 -A---- x.amg.dynpack [53]
+# .an was .aad
+.          2016-01-01          2016-01-01 -A---- x.an.dynpack [48]
+# .ap was .aag
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [43]
+# .ar was .aam
+.          2016-01-01          2016-01-01 -A---- x.ar.dynpack [38]
+# .at was .ab
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [33]
+# .au was .ad
+.          2016-01-01          2016-01-01 -A---- x.au.dynpack [28]
+# .aw was .ag
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [23]
+# .ay was .am
+.          2016-01-01          2016-01-01 -A---- x.ay.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+# .ld was .lm
+.          2016-01-01          2016-01-01 -A---- x.ld.dynpack [24]
+# .le was .lt
+.          2016-01-01          2016-01-01 -A---- x.le.dynpack [29]
+# .lg was .lw
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [34]
+# .lh was .ly
+.          2016-01-01          2016-01-01 -A---- x.lh.dynpack [39]
+# .lj was .lz
+.          2016-01-01          2016-01-01 -A---- x.lj.dynpack [44]
+# .lk was .lzm
+.          2016-01-01          2016-01-01 -A---- x.lk.dynpack [49]
+# .lmg was .lzt
+.          2016-01-01          2016-01-01 -A---- x.lmg.dynpack [54]
+# .ln was .lzw
+.          2016-01-01          2016-01-01 -A---- x.ln.dynpack [59]
+# .lp was .lzy
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [64]
+# .lr was .lzz
+.          2016-01-01          2016-01-01 -A---- x.lr.dynpack [69]
+# .ltg was .lzzm
+.          2016-01-01          2016-01-01 -A---- x.ltg.dynpack [74]
+# .lu was .lzzt
+.          2016-01-01          2016-01-01 -A---- x.lu.dynpack [79]
+# .lwm was .lzzw
+.          2016-01-01          2016-01-01 -A---- x.lwm.dynpack [84]
+# .lym was .lzzy
+.          2016-01-01          2016-01-01 -A---- x.lym.dynpack [89]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maaad.dynpack [90]
+.          2016-01-01          2016-01-01 -A---- x.maaag.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.maaam.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.uzzz.dynpack [91]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+delete archive\x.-0.dynpack
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+# rearchive and verify that no further action occurs
+copy archive archive2
+call backup dynpack source archive2\x 10000
+exitcode-verify 0
+call backup dynunpack archive2\x target2
+exitcode-verify 0
+dirs-equal-verify source target2
+# ensure segment names haven't changed
+delete archive2\x.0.dynpack
+delete archive\x.0.dynpack
+dirs-equal-verify archive archive2
+# cleanup
+rmdir target
+rmdir target2
+rmdir source
+rmdir archive
+rmdir archive2
+
+test prevent renaming of files with backup copies to prevent breaking overall rollback 1
+copy source-saved source
+copy archive-saved archive
+# edit existing files with long names to demonstrate blocking of renaming those brackets
+date + 1
+edit source\000002 -size 9500
+edit source\999998 -size 9500
+# bracket containing source\499998 and source\500002 should still be renamed
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-02 -A---- x.0.dynpack [167]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+# this bracket has not been renamed
+.          2016-01-01          2016-01-02 -A---- x.aaaad.dynpack [168]
+.          2016-01-01          2016-01-01 -A---- x.aaaag.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+# end
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+# this bracket has been renamed
+.          2016-01-02          2016-01-02 -A---- x.ld.dynpack [24]
+.          2016-01-02          2016-01-02 -A---- x.le.dynpack [29]
+.          2016-01-02          2016-01-02 -A---- x.lg.dynpack [34]
+.          2016-01-02          2016-01-02 -A---- x.lh.dynpack [39]
+.          2016-01-02          2016-01-02 -A---- x.lj.dynpack [44]
+.          2016-01-02          2016-01-02 -A---- x.lk.dynpack [49]
+.          2016-01-02          2016-01-02 -A---- x.lmg.dynpack [54]
+.          2016-01-02          2016-01-02 -A---- x.ln.dynpack [59]
+.          2016-01-02          2016-01-02 -A---- x.lp.dynpack [64]
+.          2016-01-02          2016-01-02 -A---- x.lr.dynpack [69]
+.          2016-01-02          2016-01-02 -A---- x.ltg.dynpack [74]
+.          2016-01-02          2016-01-02 -A---- x.lu.dynpack [79]
+.          2016-01-02          2016-01-02 -A---- x.lwm.dynpack [84]
+.          2016-01-02          2016-01-02 -A---- x.lym.dynpack [89]
+.          2016-01-02          2016-01-02 -A---- x.mal.dynpack [4]
+.          2016-01-02          2016-01-02 -A---- x.mbm.dynpack [90]
+.          2016-01-02          2016-01-02 -A---- x.mdg.dynpack [85]
+.          2016-01-02          2016-01-02 -A---- x.me.dynpack [80]
+.          2016-01-02          2016-01-02 -A---- x.mgg.dynpack [75]
+.          2016-01-02          2016-01-02 -A---- x.mh.dynpack [70]
+.          2016-01-02          2016-01-02 -A---- x.mj.dynpack [65]
+.          2016-01-02          2016-01-02 -A---- x.mk.dynpack [60]
+.          2016-01-02          2016-01-02 -A---- x.mmg.dynpack [55]
+.          2016-01-02          2016-01-02 -A---- x.mn.dynpack [50]
+.          2016-01-02          2016-01-02 -A---- x.mp.dynpack [45]
+.          2016-01-02          2016-01-02 -A---- x.mr.dynpack [40]
+.          2016-01-02          2016-01-02 -A---- x.mt.dynpack [35]
+.          2016-01-02          2016-01-02 -A---- x.mu.dynpack [30]
+.          2016-01-02          2016-01-02 -A---- x.mw.dynpack [25]
+.          2016-01-02          2016-01-02 -A---- x.my.dynpack [20]
+# end
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+# this bracket has not been renamed
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-01          2016-01-02 -A---- x.uzzz.dynpack [169]
+# end
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# cleanup
+rmdir source
+rmdir archive
+
+test prevent renaming of files with backup copies to prevent breaking overall rollback 2
+copy source-saved source
+copy archive-saved archive
+# edit existing files with long names to demonstrate blocking of renaming those brackets
+date + 1
+edit source\000002 -size 9500
+edit source\999998 -size 9500
+# kill process first time before new segments are written
+call backup -concurrency 0 -injectfault kill /DynamicPack/Stage[stringequal:'6.5-trim-segment-names-2'] dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify not 0
+list-verify archive
+.          2016-01-03          2016-01-03 -A---- x.-0.dynpack [87]
+.          2016-01-03          2016-01-03 -A---- x.-aaaad.dynpack [88]
+.          2016-01-03          2016-01-03 -A---- x.-uzzz.dynpack [91]
+.          2016-01-01          2016-01-03 -A---- x.0.dynpack [170]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.aaaag.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [29]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.lz.dynpack [44]
+.          2016-01-01          2016-01-01 -A---- x.lzm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.lzt.dynpack [54]
+.          2016-01-01          2016-01-01 -A---- x.lzw.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lzy.dynpack [64]
+.          2016-01-01          2016-01-01 -A---- x.lzz.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.lzzm.dynpack [74]
+.          2016-01-01          2016-01-01 -A---- x.lzzt.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.lzzw.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.lzzy.dynpack [89]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.maaad.dynpack [90]
+.          2016-01-01          2016-01-01 -A---- x.maaag.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.maaam.dynpack [80]
+.          2016-01-01          2016-01-01 -A---- x.maab.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.maad.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.maag.dynpack [65]
+.          2016-01-01          2016-01-01 -A---- x.maam.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mab.dynpack [55]
+.          2016-01-01          2016-01-01 -A---- x.mad.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.mag.dynpack [45]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [35]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [20]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# allow process to complete second time
+date + 1
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+# bracket containing source\499998 and source\500002 should still be renamed
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-04 -A---- x.0.dynpack [171]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+# this bracket has not been renamed
+.          2016-01-04          2016-01-04 -A---- x.aaaad.dynpack [172]
+.          2016-01-01          2016-01-01 -A---- x.aaaag.dynpack [83]
+.          2016-01-01          2016-01-01 -A---- x.aaaam.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.aaab.dynpack [73]
+.          2016-01-01          2016-01-01 -A---- x.aaad.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.aaag.dynpack [63]
+.          2016-01-01          2016-01-01 -A---- x.aaam.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aab.dynpack [53]
+.          2016-01-01          2016-01-01 -A---- x.aad.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.aag.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.aam.dynpack [38]
+.          2016-01-01          2016-01-01 -A---- x.ab.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [28]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [18]
+# end
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [8]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [9]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [19]
+# this bracket has been renamed
+.          2016-01-04          2016-01-04 -A---- x.ld.dynpack [24]
+.          2016-01-04          2016-01-04 -A---- x.le.dynpack [29]
+.          2016-01-04          2016-01-04 -A---- x.lg.dynpack [34]
+.          2016-01-04          2016-01-04 -A---- x.lh.dynpack [39]
+.          2016-01-04          2016-01-04 -A---- x.lj.dynpack [44]
+.          2016-01-04          2016-01-04 -A---- x.lk.dynpack [49]
+.          2016-01-04          2016-01-04 -A---- x.lmg.dynpack [54]
+.          2016-01-04          2016-01-04 -A---- x.ln.dynpack [59]
+.          2016-01-04          2016-01-04 -A---- x.lp.dynpack [64]
+.          2016-01-04          2016-01-04 -A---- x.lr.dynpack [69]
+.          2016-01-04          2016-01-04 -A---- x.ltg.dynpack [74]
+.          2016-01-04          2016-01-04 -A---- x.lu.dynpack [79]
+.          2016-01-04          2016-01-04 -A---- x.lwm.dynpack [84]
+.          2016-01-04          2016-01-04 -A---- x.lym.dynpack [89]
+.          2016-01-04          2016-01-04 -A---- x.mal.dynpack [4]
+.          2016-01-04          2016-01-04 -A---- x.mbm.dynpack [90]
+.          2016-01-04          2016-01-04 -A---- x.mdg.dynpack [85]
+.          2016-01-04          2016-01-04 -A---- x.me.dynpack [80]
+.          2016-01-04          2016-01-04 -A---- x.mgg.dynpack [75]
+.          2016-01-04          2016-01-04 -A---- x.mh.dynpack [70]
+.          2016-01-04          2016-01-04 -A---- x.mj.dynpack [65]
+.          2016-01-04          2016-01-04 -A---- x.mk.dynpack [60]
+.          2016-01-04          2016-01-04 -A---- x.mmg.dynpack [55]
+.          2016-01-04          2016-01-04 -A---- x.mn.dynpack [50]
+.          2016-01-04          2016-01-04 -A---- x.mp.dynpack [45]
+.          2016-01-04          2016-01-04 -A---- x.mr.dynpack [40]
+.          2016-01-04          2016-01-04 -A---- x.mt.dynpack [35]
+.          2016-01-04          2016-01-04 -A---- x.mu.dynpack [30]
+.          2016-01-04          2016-01-04 -A---- x.mw.dynpack [25]
+.          2016-01-04          2016-01-04 -A---- x.my.dynpack [20]
+# end
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [10]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [11]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [16]
+# this bracket has not been renamed
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [26]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [36]
+.          2016-01-01          2016-01-01 -A---- x.uz.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.uzm.dynpack [46]
+.          2016-01-01          2016-01-01 -A---- x.uzt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.uzw.dynpack [56]
+.          2016-01-01          2016-01-01 -A---- x.uzy.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uzz.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.uzzm.dynpack [71]
+.          2016-01-01          2016-01-01 -A---- x.uzzt.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.uzzw.dynpack [81]
+.          2016-01-01          2016-01-01 -A---- x.uzzy.dynpack [86]
+.          2016-01-04          2016-01-04 -A---- x.uzzz.dynpack [173]
+# end
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+# verify
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+# cleanup
+rmdir target
+rmdir source
+rmdir archive
+
+
+module continuous segment name trim
+
+test do it
+date 2016-01-01
+mkdir source
+mkdir archive
+# 0
+create source\000000 -size 9500
+create source\250000 -size 9500
+create source\500000 -size 9500
+create source\750000 -size 9500
+create source\999999 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [1]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 1
+create source\125000 -size 9500
+create source\375000 -size 9500
+create source\625000 -size 9500
+create source\875000 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [12]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 2
+create source\062500 -size 9500
+create source\437500 -size 9500
+create source\562500 -size 9500
+create source\937500 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [21]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 3
+create source\031250 -size 9500
+create source\468750 -size 9500
+create source\531250 -size 9500
+create source\968750 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [30]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mp.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.up.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 4
+create source\015625 -size 9500
+create source\484375 -size 9500
+create source\515625 -size 9500
+create source\984375 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [39]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 5
+create source\007813 -size 9500
+create source\492187 -size 9500
+create source\507813 -size 9500
+create source\992187 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [48]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ah.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.an.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.au.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mn.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mu.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.un.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.uu.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 6
+create source\003907 -size 9500
+create source\496093 -size 9500
+create source\503907 -size 9500
+create source\996093 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [57]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.ln.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lu.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mh.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mw.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.uh.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 7
+create source\001954 -size 9500
+create source\498046 -size 9500
+create source\501954 -size 9500
+create source\998046 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [66]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.agm.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.an.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.atm.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.ax.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.lh.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mj.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mn.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mtm.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mx.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.uj.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.un.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.utm.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.ux.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 8
+create source\000977 -size 9500
+create source\499023 -size 9500
+create source\500977 -size 9500
+create source\999023 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [75]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.ajm.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lj.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.ln.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.ltm.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lx.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.mb.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mgm.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mjm.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mp.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mw.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ugm.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ujm.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.up.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 9
+create source\000489 -size 9500
+create source\499511 -size 9500
+create source\500489 -size 9500
+create source\999511 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [84]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.adm.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.agm.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.amm.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aq.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.atm.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.ax.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.lgm.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.ljm.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mdm.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mj.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mmm.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mq.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mtm.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mx.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ud.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.uj.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.umm.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uq.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.utm.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.ux.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 10
+create source\000245 -size 9500
+create source\499755 -size 9500
+create source\500245 -size 9500
+create source\999755 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [93]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.ajm.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.ay.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ld.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lj.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lmm.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lq.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.ltm.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.lx.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mgm.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mjm.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mp.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mw.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.my.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.udm.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ugm.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ujm.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.up.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.uym.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 11
+create source\000123 -size 9500
+create source\499877 -size 9500
+create source\500123 -size 9500
+create source\999877 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [102]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.adm.dynpack [103]
+.          2016-01-01          2016-01-01 -A---- x.agm.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.ak.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.amm.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.aq.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.atm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.awm.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.aym.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ldm.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lgm.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.ljm.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.lym.dynpack [104]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mdm.dynpack [105]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mj.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mk.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mmm.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mq.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mtm.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mwm.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mym.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ud.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.uj.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.uk.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.umm.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.uq.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.utm.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.uwm.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [106]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 12
+create source\000062 -size 9500
+create source\499938 -size 9500
+create source\500062 -size 9500
+create source\999938 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [111]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [112]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [103]
+.          2016-01-01          2016-01-01 -A---- x.ajg.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.akm.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.ar.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.ay.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ld.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lj.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lk.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lmm.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lq.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.ltm.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.lwm.dynpack [104]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [113]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [114]
+.          2016-01-01          2016-01-01 -A---- x.mgm.dynpack [105]
+.          2016-01-01          2016-01-01 -A---- x.mjg.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mkm.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mp.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mr.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mw.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.my.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.udm.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ugm.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ujg.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.ukm.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.up.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.ur.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [106]
+.          2016-01-01          2016-01-01 -A---- x.uym.dynpack [115]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 13
+create source\000031 -size 9500
+create source\499969 -size 9500
+create source\500031 -size 9500
+create source\999969 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [120]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.adg.dynpack [121]
+.          2016-01-01          2016-01-01 -A---- x.ae.dynpack [112]
+.          2016-01-01          2016-01-01 -A---- x.agm.dynpack [103]
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.ak.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.amm.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.apm.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.arm.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.atm.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.awm.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.aym.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ldm.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lgm.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.ljg.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lkm.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.lr.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [104]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [113]
+.          2016-01-01          2016-01-01 -A---- x.lym.dynpack [122]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mdg.dynpack [123]
+.          2016-01-01          2016-01-01 -A---- x.me.dynpack [114]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [105]
+.          2016-01-01          2016-01-01 -A---- x.mj.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mk.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mmm.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mpm.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mrm.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mtm.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mwm.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mym.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ud.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ue.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.uj.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uk.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.umm.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.upm.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.urm.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.utm.dynpack [106]
+.          2016-01-01          2016-01-01 -A---- x.uwm.dynpack [115]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [124]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 14
+create source\000016 -size 9500
+create source\499984 -size 9500
+create source\500016 -size 9500
+create source\999984 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [129]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [130]
+.          2016-01-01          2016-01-01 -A---- x.aem.dynpack [121]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [112]
+.          2016-01-01          2016-01-01 -A---- x.ajg.dynpack [103]
+.          2016-01-01          2016-01-01 -A---- x.akm.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.ar.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.au.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.ay.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ld.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.le.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lj.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lk.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lmm.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.lpm.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.lrm.dynpack [104]
+.          2016-01-01          2016-01-01 -A---- x.ltm.dynpack [113]
+.          2016-01-01          2016-01-01 -A---- x.lwm.dynpack [122]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [131]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [132]
+.          2016-01-01          2016-01-01 -A---- x.mem.dynpack [123]
+.          2016-01-01          2016-01-01 -A---- x.mgm.dynpack [114]
+.          2016-01-01          2016-01-01 -A---- x.mjg.dynpack [105]
+.          2016-01-01          2016-01-01 -A---- x.mkm.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mp.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mr.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mu.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mw.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.my.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.udg.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.uem.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ugm.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.ujg.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.ukm.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.up.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.ur.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [106]
+.          2016-01-01          2016-01-01 -A---- x.uu.dynpack [115]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [124]
+.          2016-01-01          2016-01-01 -A---- x.uym.dynpack [133]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 15
+create source\000008 -size 9500
+create source\499992 -size 9500
+create source\500008 -size 9500
+create source\999992 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [138]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.adg.dynpack [139]
+.          2016-01-01          2016-01-01 -A---- x.ae.dynpack [130]
+.          2016-01-01          2016-01-01 -A---- x.agg.dynpack [121]
+.          2016-01-01          2016-01-01 -A---- x.ah.dynpack [112]
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [103]
+.          2016-01-01          2016-01-01 -A---- x.ak.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.amm.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.apm.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.arm.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.atg.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aum.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.awm.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.aym.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ldg.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lem.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lgm.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.ljg.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lkm.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.lr.dynpack [104]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [113]
+.          2016-01-01          2016-01-01 -A---- x.lu.dynpack [122]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [131]
+.          2016-01-01          2016-01-01 -A---- x.lym.dynpack [140]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mdg.dynpack [141]
+.          2016-01-01          2016-01-01 -A---- x.me.dynpack [132]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [123]
+.          2016-01-01          2016-01-01 -A---- x.mh.dynpack [114]
+.          2016-01-01          2016-01-01 -A---- x.mj.dynpack [105]
+.          2016-01-01          2016-01-01 -A---- x.mk.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mmm.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mpm.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mrm.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mtg.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mum.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mwm.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mym.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ud.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ue.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.uh.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uj.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.uk.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.umm.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.upm.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.urm.dynpack [106]
+.          2016-01-01          2016-01-01 -A---- x.utg.dynpack [115]
+.          2016-01-01          2016-01-01 -A---- x.uum.dynpack [124]
+.          2016-01-01          2016-01-01 -A---- x.uwm.dynpack [133]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [142]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 16
+create source\000004 -size 9500
+create source\499996 -size 9500
+create source\500004 -size 9500
+create source\999996 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [147]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.ad.dynpack [148]
+.          2016-01-01          2016-01-01 -A---- x.aem.dynpack [139]
+.          2016-01-01          2016-01-01 -A---- x.ag.dynpack [130]
+.          2016-01-01          2016-01-01 -A---- x.ahm.dynpack [121]
+.          2016-01-01          2016-01-01 -A---- x.ajg.dynpack [112]
+.          2016-01-01          2016-01-01 -A---- x.akm.dynpack [103]
+.          2016-01-01          2016-01-01 -A---- x.am.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.an.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.ap.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.ar.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.at.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.au.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.aw.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.ay.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ld.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.le.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lg.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lh.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.lj.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lk.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.lmm.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.lpm.dynpack [104]
+.          2016-01-01          2016-01-01 -A---- x.lrm.dynpack [113]
+.          2016-01-01          2016-01-01 -A---- x.ltg.dynpack [122]
+.          2016-01-01          2016-01-01 -A---- x.lum.dynpack [131]
+.          2016-01-01          2016-01-01 -A---- x.lwm.dynpack [140]
+.          2016-01-01          2016-01-01 -A---- x.ly.dynpack [149]
+.          2016-01-01          2016-01-01 -A---- x.mam.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.md.dynpack [150]
+.          2016-01-01          2016-01-01 -A---- x.mem.dynpack [141]
+.          2016-01-01          2016-01-01 -A---- x.mgg.dynpack [132]
+.          2016-01-01          2016-01-01 -A---- x.mhm.dynpack [123]
+.          2016-01-01          2016-01-01 -A---- x.mjg.dynpack [114]
+.          2016-01-01          2016-01-01 -A---- x.mkm.dynpack [105]
+.          2016-01-01          2016-01-01 -A---- x.mm.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mn.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mp.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mr.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mt.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mu.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mw.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.my.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.udg.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.uem.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ugg.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.uhm.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.ujg.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.ukm.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.um.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.un.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.up.dynpack [106]
+.          2016-01-01          2016-01-01 -A---- x.ur.dynpack [115]
+.          2016-01-01          2016-01-01 -A---- x.ut.dynpack [124]
+.          2016-01-01          2016-01-01 -A---- x.uu.dynpack [133]
+.          2016-01-01          2016-01-01 -A---- x.uw.dynpack [142]
+.          2016-01-01          2016-01-01 -A---- x.uym.dynpack [151]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target
+# 17
+create source\000002 -size 9500
+create source\499998 -size 9500
+create source\500002 -size 9500
+create source\999998 -size 9500
+call backup dynpack source archive\x 10000 -trimsegmentnames 1
+exitcode-verify 0
+list-verify archive
+.          2016-01-01          2016-01-01 -A---- x.0.dynpack [156]
+.          2016-01-01          2016-01-01 -A---- x.a.dynpack [2]
+.          2016-01-01          2016-01-01 -A---- x.abm.dynpack [157]
+.          2016-01-01          2016-01-01 -A---- x.adg.dynpack [148]
+.          2016-01-01          2016-01-01 -A---- x.ae.dynpack [139]
+.          2016-01-01          2016-01-01 -A---- x.agg.dynpack [130]
+.          2016-01-01          2016-01-01 -A---- x.ah.dynpack [121]
+.          2016-01-01          2016-01-01 -A---- x.aj.dynpack [112]
+.          2016-01-01          2016-01-01 -A---- x.ak.dynpack [103]
+.          2016-01-01          2016-01-01 -A---- x.amg.dynpack [94]
+.          2016-01-01          2016-01-01 -A---- x.anm.dynpack [85]
+.          2016-01-01          2016-01-01 -A---- x.apm.dynpack [76]
+.          2016-01-01          2016-01-01 -A---- x.arm.dynpack [67]
+.          2016-01-01          2016-01-01 -A---- x.atg.dynpack [58]
+.          2016-01-01          2016-01-01 -A---- x.aum.dynpack [49]
+.          2016-01-01          2016-01-01 -A---- x.awm.dynpack [40]
+.          2016-01-01          2016-01-01 -A---- x.aym.dynpack [31]
+.          2016-01-01          2016-01-01 -A---- x.b.dynpack [22]
+.          2016-01-01          2016-01-01 -A---- x.d.dynpack [13]
+.          2016-01-01          2016-01-01 -A---- x.g.dynpack [3]
+.          2016-01-01          2016-01-01 -A---- x.j.dynpack [14]
+.          2016-01-01          2016-01-01 -A---- x.k.dynpack [23]
+.          2016-01-01          2016-01-01 -A---- x.l.dynpack [32]
+.          2016-01-01          2016-01-01 -A---- x.ldg.dynpack [41]
+.          2016-01-01          2016-01-01 -A---- x.lem.dynpack [50]
+.          2016-01-01          2016-01-01 -A---- x.lgg.dynpack [59]
+.          2016-01-01          2016-01-01 -A---- x.lhm.dynpack [68]
+.          2016-01-01          2016-01-01 -A---- x.ljg.dynpack [77]
+.          2016-01-01          2016-01-01 -A---- x.lkm.dynpack [86]
+.          2016-01-01          2016-01-01 -A---- x.lm.dynpack [95]
+.          2016-01-01          2016-01-01 -A---- x.ln.dynpack [104]
+.          2016-01-01          2016-01-01 -A---- x.lp.dynpack [113]
+.          2016-01-01          2016-01-01 -A---- x.lr.dynpack [122]
+.          2016-01-01          2016-01-01 -A---- x.lt.dynpack [131]
+.          2016-01-01          2016-01-01 -A---- x.lu.dynpack [140]
+.          2016-01-01          2016-01-01 -A---- x.lw.dynpack [149]
+.          2016-01-01          2016-01-01 -A---- x.lym.dynpack [158]
+.          2016-01-01          2016-01-01 -A---- x.m.dynpack [4]
+.          2016-01-01          2016-01-01 -A---- x.mbm.dynpack [159]
+.          2016-01-01          2016-01-01 -A---- x.mdg.dynpack [150]
+.          2016-01-01          2016-01-01 -A---- x.me.dynpack [141]
+.          2016-01-01          2016-01-01 -A---- x.mg.dynpack [132]
+.          2016-01-01          2016-01-01 -A---- x.mh.dynpack [123]
+.          2016-01-01          2016-01-01 -A---- x.mj.dynpack [114]
+.          2016-01-01          2016-01-01 -A---- x.mk.dynpack [105]
+.          2016-01-01          2016-01-01 -A---- x.mmg.dynpack [96]
+.          2016-01-01          2016-01-01 -A---- x.mnm.dynpack [87]
+.          2016-01-01          2016-01-01 -A---- x.mpm.dynpack [78]
+.          2016-01-01          2016-01-01 -A---- x.mrm.dynpack [69]
+.          2016-01-01          2016-01-01 -A---- x.mtg.dynpack [60]
+.          2016-01-01          2016-01-01 -A---- x.mum.dynpack [51]
+.          2016-01-01          2016-01-01 -A---- x.mwm.dynpack [42]
+.          2016-01-01          2016-01-01 -A---- x.mym.dynpack [33]
+.          2016-01-01          2016-01-01 -A---- x.n.dynpack [24]
+.          2016-01-01          2016-01-01 -A---- x.p.dynpack [15]
+.          2016-01-01          2016-01-01 -A---- x.s.dynpack [5]
+.          2016-01-01          2016-01-01 -A---- x.t.dynpack [16]
+.          2016-01-01          2016-01-01 -A---- x.u.dynpack [25]
+.          2016-01-01          2016-01-01 -A---- x.ub.dynpack [34]
+.          2016-01-01          2016-01-01 -A---- x.ud.dynpack [43]
+.          2016-01-01          2016-01-01 -A---- x.ue.dynpack [52]
+.          2016-01-01          2016-01-01 -A---- x.ug.dynpack [61]
+.          2016-01-01          2016-01-01 -A---- x.uh.dynpack [70]
+.          2016-01-01          2016-01-01 -A---- x.uj.dynpack [79]
+.          2016-01-01          2016-01-01 -A---- x.uk.dynpack [88]
+.          2016-01-01          2016-01-01 -A---- x.umg.dynpack [97]
+.          2016-01-01          2016-01-01 -A---- x.unm.dynpack [106]
+.          2016-01-01          2016-01-01 -A---- x.upm.dynpack [115]
+.          2016-01-01          2016-01-01 -A---- x.urm.dynpack [124]
+.          2016-01-01          2016-01-01 -A---- x.utg.dynpack [133]
+.          2016-01-01          2016-01-01 -A---- x.uum.dynpack [142]
+.          2016-01-01          2016-01-01 -A---- x.uwm.dynpack [151]
+.          2016-01-01          2016-01-01 -A---- x.uy.dynpack [160]
+.          2016-01-01          2016-01-01 -A---- x.v.dynpack [6]
+endlist
+call backup dynunpack archive\x target
+exitcode-verify 0
+dirs-equal-verify source target
+rmdir target

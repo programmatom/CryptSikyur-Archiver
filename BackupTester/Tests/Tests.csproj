@@ -65,6 +65,7 @@
     <Content Include="DynpackLogging.txt" />
     <Content Include="DynpackRangeFaults.txt" />
     <Content Include="DynpackRobust.txt" />
+    <Content Include="DynpackSegmentNameTrim.txt" />
     <Content Include="DynpackTransactionality.txt" />
     <Content Include="PackAttributes.txt" />
     <Content Include="PackBasic.txt" />

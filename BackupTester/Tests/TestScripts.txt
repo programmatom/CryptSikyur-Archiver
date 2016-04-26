@@ -39,6 +39,7 @@ DynpackRangeFaults.txt
 DynpackIgnoreUnchanged.txt
 DynpackTransactionality.txt
 DynpackRobust.txt
+DynpackSegmentNameTrim.txt
 # TODO: dynpack case sensitivity disambiguation
 # TODO: segment name insertion algorithm
 # TODO: dynunpack with journalling and resumability

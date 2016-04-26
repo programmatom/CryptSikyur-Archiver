@@ -5876,7 +5876,7 @@ namespace Backup
                 LastWriteTimeUtc = 4,
                 Attributes = 5,
 
-                // these fields used only for manifest; 
+                // these fields used only for manifest:
                 // - these fields must occur both or neither
                 // - if present, no other fields may be set and data stream must be zero length
                 // - if present implies PackArchiveStructureTypeManifest, if absent implies PackArchiveStructureTypeFiles
@@ -5888,7 +5888,11 @@ namespace Backup
 
                 Digest = 9, // field id 9 will always be a Merkel tree hash SHA2-512 blocksize=65536, base-64 encoded
 
+                // used only for manifest
                 LastMetadataVerification = 10, // optional = never verified
+
+                // used only for manifest
+                AlternateSegmentName = 11, // optional = no alternate name
             }
 
             internal const int SupportedVersionNumber = 1;
@@ -6011,6 +6015,8 @@ namespace Backup
 
             private DateTime lastMetadataVerification; // segment only, optional: default(DateTime) == never verified
 
+            private string alternateSegmentName; // segment only, optional: null == no alternate name
+
             private PackedFileHeaderRecord()
             {
             }
@@ -6025,7 +6031,8 @@ namespace Backup
                 ulong segmentSerialNumber,
                 RangeRecord range,
                 byte[] digest,
-                DateTime lastMetadataVerification)
+                DateTime lastMetadataVerification,
+                string alternateSegmentName)
             {
                 if (range != null)
                 {
@@ -6049,6 +6056,8 @@ namespace Backup
                 this.digest = digest;
 
                 this.lastMetadataVerification = lastMetadataVerification;
+
+                this.alternateSegmentName = alternateSegmentName;
             }
 
             // this constructor is used for segment records
@@ -6060,7 +6069,8 @@ namespace Backup
                 long embeddedStreamLength,
                 string segmentName,
                 ulong segmentSerialNumber,
-                DateTime lastMetadataVerification)
+                DateTime lastMetadataVerification,
+                string alternateSegmentName)
                 : this(
                       subpath,
                       creationTimeUtc,
@@ -6071,7 +6081,8 @@ namespace Backup
                       segmentSerialNumber,
                       null/*range*/,
                       null/*digest*/,
-                      lastMetadataVerification)
+                      lastMetadataVerification,
+                      alternateSegmentName)
             {
             }
 
@@ -6093,7 +6104,8 @@ namespace Backup
                       0/*segmentSerialNumber*/,
                       range,
                       digest,
-                      default(DateTime)/*lastMetadataVerification*/)
+                      default(DateTime)/*lastMetadataVerification*/,
+                      null/*alternateSegmentName*/)
             {
             }
 
@@ -6181,6 +6193,12 @@ namespace Backup
                     {
                         BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.LastMetadataVerification);
                         BinaryWriteUtils.WriteStringUtf8(checkedStream, FormatDateTime(lastMetadataVerification));
+                    }
+
+                    if (alternateSegmentName != null)
+                    {
+                        BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.AlternateSegmentName);
+                        BinaryWriteUtils.WriteStringUtf8(checkedStream, alternateSegmentName);
                     }
 
                     BinaryWriteUtils.WriteVariableLengthQuantity(checkedStream, (int)Fields.Terminator);
@@ -6367,6 +6385,21 @@ namespace Backup
                                     }
                                 }
                                 break;
+
+                            case Fields.AlternateSegmentName:
+                                if (String.IsNullOrEmpty(value))
+                                {
+                                    throw new InvalidDataException();
+                                }
+                                foreach (char c in value)
+                                {
+                                    if (!Char.IsLetter(c))
+                                    {
+                                        throw new InvalidDataException();
+                                    }
+                                }
+                                alternateSegmentName = value;
+                                break;
                         }
                     }
 
@@ -6410,7 +6443,8 @@ namespace Backup
                         && (embeddedStreamLength == 0)
                         && (segmentName == null)
                         && (segmentSerialNumber == 0)
-                        && (lastMetadataVerification == default(DateTime))))
+                        && (lastMetadataVerification == default(DateTime))
+                        && (alternateSegmentName == null)))
                     {
                         throw new InvalidOperationException();
                     }
@@ -6782,9 +6816,31 @@ namespace Backup
                     lastMetadataVerification = value;
                 }
             }
+
+            internal string AlternateSegmentName
+            {
+                get
+                {
+                    return alternateSegmentName;
+                }
+                set
+                {
+                    alternateSegmentName = value;
+                }
+            }
         }
 
-        private static void PackOne(string file, Stream stream, string partialPathPrefix, PackedFileHeaderRecord.RangeRecord range, bool enableUserInteraction, bool enableContinue, ConsoleWriteLine consoleWriteLine, Context context, TextWriter trace, IFaultInstance faultContext)
+        private static void PackOne(
+            string file,
+            Stream stream,
+            string partialPathPrefix,
+            PackedFileHeaderRecord.RangeRecord range,
+            bool enableUserInteraction,
+            bool enableContinue,
+            ConsoleWriteLine consoleWriteLine,
+            Context context,
+            TextWriter trace,
+            IFaultInstance faultContext)
         {
             bool directory = false;
 
@@ -7182,6 +7238,10 @@ namespace Backup
                 {
                     return header.SegmentName;
                 }
+                set
+                {
+                    header.SegmentName = value;
+                }
             }
 
             internal ulong SegmentSerialNumber
@@ -7213,6 +7273,18 @@ namespace Backup
                 get
                 {
                     return header.TotalFileLength;
+                }
+            }
+
+            internal string AlternateSegmentName
+            {
+                get
+                {
+                    return header.AlternateSegmentName;
+                }
+                set
+                {
+                    header.AlternateSegmentName = value;
                 }
             }
         }
@@ -7471,6 +7543,7 @@ namespace Backup
                         bool fileDataOmitted = false;
                         string currentSegmentName = null;
                         ulong currentSegmentSerialNumber = 0;
+                        string currentAlternateSegmentName = null;
                         bool firstHeader = true;
                         bool firstHeaderWasSegment = false;
                         string currentDisplayDirectory = null;
@@ -7532,6 +7605,7 @@ namespace Backup
 
                                 currentSegmentName = header.SegmentName;
                                 currentSegmentSerialNumber = header.SegmentSerialNumber;
+                                currentAlternateSegmentName = header.AlternateSegmentName;
 
                                 continue;
                             }
@@ -7550,6 +7624,7 @@ namespace Backup
                             // annotated with the segment name and serial number.
                             header.SegmentName = currentSegmentName;
                             header.SegmentSerialNumber = currentSegmentSerialNumber;
+                            header.AlternateSegmentName = currentAlternateSegmentName;
 
                             string[] pathParts = header.Subpath.Split(new char[] { '\\' });
                             if (!pathParts[0].Equals("."))
@@ -8179,13 +8254,14 @@ namespace Backup
 
         private class SegmentRecord
         {
-            private string name;
+            private string segmentName;
             private readonly OneWaySwitch dirty = new OneWaySwitch();
             internal int? start;
             private readonly int diagnosticSerialNumber = Interlocked.Increment(ref dynpackDiagnosticSerialNumberGenerator);
             private ulong serialNumber;
             internal long estimatedDataLengthInformationalOnly; // for status display - not to be relied upon for correctness
             private DateTime lastMetadataVerification; // default(DateTime) == never verified
+            private string alternateSegmentName; // null == no alternate name
 
             // for new segments
             internal SegmentRecord()
@@ -8195,23 +8271,28 @@ namespace Backup
             }
 
             // for segment descriptors loaded from manifest
-            internal SegmentRecord(string Name, ulong serialNumber, DateTime lastMetadataVerification)
+            internal SegmentRecord(
+                string segmentName,
+                ulong serialNumber,
+                DateTime lastMetadataVerification,
+                string alternateSegmentName)
             {
-                this.name = Name;
+                this.segmentName = segmentName;
                 this.serialNumber = serialNumber;
                 this.lastMetadataVerification = lastMetadataVerification;
+                this.alternateSegmentName = alternateSegmentName;
             }
 
             internal string Name
             {
                 get
                 {
-                    return name;
+                    return segmentName;
                 }
 
                 set
                 {
-                    name = value;
+                    segmentName = value;
                     dirty.Set();
                 }
             }
@@ -8236,7 +8317,7 @@ namespace Backup
             {
                 dirty.Set();
                 // TODO: this ought to be context.now.ToUniversalTime(), but it's annoying to plumb that down here, so we'll
-                // live with live now until a test scenario needs it.
+                // live with it for now until a test scenario needs it.
                 lastMetadataVerification = DateTime.UtcNow; // mark as just verified -- since we'll be creating the file anew
             }
 
@@ -8269,6 +8350,18 @@ namespace Backup
                 }
             }
 
+            internal string AlternateName
+            {
+                get
+                {
+                    return alternateSegmentName;
+                }
+                set
+                {
+                    alternateSegmentName = value;
+                }
+            }
+
             internal string DiagnosticSerialNumber
             {
                 get
@@ -8279,6 +8372,20 @@ namespace Backup
                     four[2] = (byte)(diagnosticSerialNumber >> 8);
                     four[3] = (byte)diagnosticSerialNumber;
                     return String.Concat("seg0x", HexUtility.HexEncode(four));
+                }
+            }
+
+            internal void SetNamesForTrim(string name, string alternateName)
+            {
+                this.segmentName = name;
+                this.alternateSegmentName = alternateName;
+            }
+
+            internal string AlternateNameOrName // AlternateName, if null then fallback to Name
+            {
+                get
+                {
+                    return alternateSegmentName != null ? alternateSegmentName : segmentName;
                 }
             }
         }
@@ -8434,10 +8541,23 @@ namespace Backup
                 }
             }
 
+            internal string AlternateSegmentName
+            {
+                get
+                {
+                    return header.AlternateSegmentName;
+                }
+                set
+                {
+                    header.AlternateSegmentName = value;
+                }
+            }
+
             internal void WriteHeader(Stream stream)
             {
                 header.SegmentName = null;
                 header.SegmentSerialNumber = 0;
+                header.AlternateSegmentName = null;
 
                 header.Write(stream);
             }
@@ -8792,6 +8912,7 @@ namespace Backup
             string diagnosticPath = null;
             bool windiff = false;
             bool ignoreUnchangedFiles = false;
+            int? trimSegmentNames = null;
             string localSignaturePath = null;
             {
                 bool parsed = true;
@@ -8895,6 +9016,9 @@ namespace Backup
                             break;
                         case "-localsig":
                             GetAdHocArgument(ref args, "-localsig", null/*default*/, delegate (string s) { return s; }, out localSignaturePath);
+                            break;
+                        case "-trimsegmentnames":
+                            GetAdHocArgument(ref args, "-trimsegmentnames", null/*default*/, delegate (string s) { return Int32.Parse(s); }, out trimSegmentNames);
                             break;
                     }
                 }
@@ -9131,6 +9255,7 @@ namespace Backup
                                         string currentSegmentName = null;
                                         ulong currentSegmentSerialNumber = 0;
                                         DateTime currentSegmentLastMetadataVerification = default(DateTime);
+                                        string currentAlternateSegmentName = null;
                                         bool firstHeader = true;
                                         bool firstHeaderWasSegment = false;
                                         while (true)
@@ -9170,6 +9295,7 @@ namespace Backup
                                                 currentSegmentName = header.SegmentName;
                                                 currentSegmentSerialNumber = header.SegmentSerialNumber;
                                                 currentSegmentLastMetadataVerification = header.LastMetadataVerification;
+                                                currentAlternateSegmentName = header.AlternateSegmentName;
 
                                                 continue;
                                             }
@@ -9181,6 +9307,7 @@ namespace Backup
                                             // annotated with the segment name and serial number.
                                             header.SegmentName = currentSegmentName;
                                             header.SegmentSerialNumber = currentSegmentSerialNumber;
+                                            header.AlternateSegmentName = currentAlternateSegmentName;
 
                                             const string ExpectedPathPrefix = @".\";
                                             if (!header.Subpath.StartsWith(ExpectedPathPrefix))
@@ -9207,7 +9334,11 @@ namespace Backup
                                             SegmentRecord segment;
                                             if (!segmentMap.TryGetValue(segmentName, out segment))
                                             {
-                                                segment = new SegmentRecord(segmentName, segmentSerialNumber, currentSegmentLastMetadataVerification);
+                                                segment = new SegmentRecord(
+                                                    segmentName,
+                                                    segmentSerialNumber,
+                                                    currentSegmentLastMetadataVerification,
+                                                    currentAlternateSegmentName);
                                                 segments.Add(segment);
                                                 segmentMap.Add(segmentName, segment);
                                             }
@@ -9216,7 +9347,16 @@ namespace Backup
                                                 throw new InvalidDataException("Segment serial number inconsistent");
                                             }
 
-                                            previousFiles.Add(new FileRecord(segment, pathFactory.Create(header.Subpath), header.CreationTimeUtc, header.LastWriteTimeUtc, header.Attributes, header.EmbeddedStreamLength, header.Range, header.Digest));
+                                            previousFiles.Add(
+                                                new FileRecord(
+                                                    segment,
+                                                    pathFactory.Create(header.Subpath),
+                                                    header.CreationTimeUtc,
+                                                    header.LastWriteTimeUtc,
+                                                    header.Attributes,
+                                                    header.EmbeddedStreamLength,
+                                                    header.Range,
+                                                    header.Digest));
                                         }
 
                                         BinaryReadUtils.RequireAtEOF(stream);
@@ -9242,13 +9382,37 @@ namespace Backup
                     traceDynpack.WriteLine();
                 }
 
+                // Reconcile alternate segment name
+                // If a rename was initiated (the manifest with new names got written) but did not complete (at least one
+                // of the segments retains the old name), then this operation effectively cancels it, accepting the renames
+                // and resetting the ones that didn't rename.
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    if (segments[i].AlternateName != null)
+                    {
+                        string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", segments[i].Name, DynPackFileExtension);
+                        string alternateSegmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", segments[i].AlternateName, DynPackFileExtension);
+                        if (fileManager.Exists(alternateSegmentFileName, fileManager.GetMasterTrace()))
+                        {
+                            // This happens if a segment batch rename operation was initiated but never completed. This case
+                            // is where the actual segment file never got renamed.
+
+                            // this would be 1) a bug involving name collision, or 2) someone tampering with the archive
+                            Debug.Assert(!fileManager.Exists(segmentFileName, fileManager.GetMasterTrace())); // TODO: throw?
+
+                            segments[i].SetNamesForTrim(segments[i].AlternateName/*Name*/, null/*AlternateName*/);
+                        }
+                        else
+                        {
+                            segments[i].SetNamesForTrim(segments[i].Name/*Name*/, null/*AlternateName*/);
+                        }
+                    }
+                }
+
                 // Sort and merge
                 IFaultInstance faultMerge = faultDynamicPack.Select("Merge");
                 List<FileRecord> mergedFiles = new List<FileRecord>();
                 {
-                    int iCurrent;
-                    int iPrevious;
-
                     sequenceTimes.Phase("preparation: sort lists");
                     currentFiles.Sort(DynPackPathCompareWithRange);
                     previousFiles.Sort(DynPackPathCompareWithRange); // ensure sorted - do not trust old manifest
@@ -9278,8 +9442,8 @@ namespace Backup
                     // underlying file has not changed, ensure that the structure from previousFiles
                     // is retained.
                     sequenceTimes.Phase("preparation: suppress gratuitous range-split rearchiving");
-                    iCurrent = 0;
-                    iPrevious = 0;
+                    int iCurrent = 0;
+                    int iPrevious = 0;
                     while ((iCurrent < currentFiles.Count) && (iPrevious < previousFiles.Count))
                     {
                         int c = DynPackPathComparePartialPathOnly(currentFiles[iCurrent], previousFiles[iPrevious]);
@@ -9987,8 +10151,6 @@ namespace Backup
                     }
                 }
 
-                // TODO: rename segments (and rename files) if names have become too long for file system
-
                 // Second scan (after renaming) - ensure missing segments are dirty
                 sequenceTimes.Phase("preparation: mark missing segments dirty (2nd pass)");
                 foreach (SegmentRecord segment in segments)
@@ -10212,7 +10374,7 @@ namespace Backup
                                 {
                                     verifiedSegmentsCount++;
 
-                                    string segmentFileName = targetArchiveFileNameTemplate + "." + segment.Name + DynPackFileExtension;
+                                    string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", segment.Name, DynPackFileExtension);
 
                                     IFaultInstance faultDynamicPackFileOperation = faultDynamicPackStage.Select("Validate", segmentFileName);
                                     long sequenceNumber = messagesLog.GetSequenceNumber();
@@ -10236,6 +10398,10 @@ namespace Backup
                                                                 threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.DiagnosticSerialNumber, segment.Name);
                                                             }
                                                             messages.WriteLine("Validating non-dirty segment: {0}", segment.Name);
+
+#if false // TODO: remove
+                                                            throw new ApplicationException("Forced failure");
+#endif
 
                                                             using (ILocalFileCopy fileRef = fileManager.Read(segmentFileName, null/*progressTracker*/, threadTraceFileManager))
                                                             {
@@ -10643,6 +10809,256 @@ namespace Backup
                             }
                         }
 
+                        // Rename segments if segment names have gotten too long (Part 1)
+                        if (trimSegmentNames.HasValue)
+                        {
+                            if (traceDynpack != null)
+                            {
+                                traceDynpack.WriteLine("Trim segment names (1)");
+                            }
+
+                            sequenceTimes.Phase("archiving: trim segment names 1");
+                            faultDynamicPackStage = faultDynamicPack.Select("Stage", "4.5-trim-segment-names-1");
+
+                            int maxLen = trimSegmentNames.Value;
+                            while (maxLen > 0)
+                            {
+                                if (traceDynpack != null)
+                                {
+                                    traceDynpack.WriteLine("Trim segment names (1); target length = {0}", maxLen);
+                                }
+
+                                int currentMaxLen = 0;
+                                byte[] marks = new byte[segments.Count];
+                                for (int i = 0; i < segments.Count; i++)
+                                {
+                                    currentMaxLen = Math.Max(currentMaxLen, segments[i].Name.Length);
+                                    if (segments[i].Name.Length > maxLen)
+                                    {
+                                        marks[i] |= 1;
+                                    }
+                                }
+                                if (currentMaxLen <= trimSegmentNames.Value)
+                                {
+                                    if (traceDynpack != null)
+                                    {
+                                        traceDynpack.WriteLine("Trim segment names (1) length satisfied; ending");
+                                    }
+                                    break;
+                                }
+
+                                for (int i = 0; i < marks.Length; i++)
+                                {
+                                    if ((i + 1 < marks.Length) && ((marks[i + 1] & 1) != 0))
+                                    {
+                                        marks[i] |= 2;
+                                    }
+                                }
+
+                                // To prevent breaking rollback capability for the main archiving feature, any already existing
+                                // segments that are backed up must not be eligible for renaming. Because breaking groups in the
+                                // middle generally prevents name shortening during reassignment, the entire group is zeroed.
+                                // (Test includes files that were backed up and archived during a previous run that did not
+                                // complete - therefore the remote archive is actually inspected rather than generating the table
+                                // from Stage 4 of this invocation.)
+                                int currentStart = 0;
+                                for (int i = 0; i < marks.Length; i++)
+                                {
+                                    if (marks[i] != 0)
+                                    {
+                                        string segmentBackupFileName = String.Concat(targetArchiveFileNameTemplate, ".", DynPackBackupPrefix, segments[i].Name, DynPackFileExtension);
+                                        if (fileManager.Exists(segmentBackupFileName, fileManager.GetMasterTrace()))
+                                        {
+                                            int savedCurrentStart = currentStart;
+                                            for (; (currentStart < marks.Length) && (marks[currentStart] != 0); currentStart++)
+                                            {
+                                                marks[currentStart] = 0;
+                                            }
+                                            i = currentStart; // marks[currentStart] always zero or nonexistent at this point
+                                            if (traceDynpack != null)
+                                            {
+                                                traceDynpack.WriteLine("Bracket {0}..{1} contains segment with extant backup {2} - marking ineligible", segments[savedCurrentStart].Name, i < marks.Length ? segments[i].Name : "z", segmentBackupFileName);
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        currentStart = i + 1;
+                                    }
+                                }
+
+                                Dictionary<string, bool> usedNames = new Dictionary<string, bool>();
+                                Dictionary<SegmentRecord, string> originalNames = new Dictionary<SegmentRecord, string>();
+                                for (int i = 0; i < segments.Count; i++)
+                                {
+                                    usedNames.Add(segments[i].AlternateNameOrName, false);
+                                    originalNames.Add(segments[i], segments[i].Name);
+                                }
+
+                                for (int i = 0; i < marks.Length; i++)
+                                {
+                                    if (marks[i] != 0)
+                                    {
+                                        int start = i;
+                                        int end = i;
+                                        while ((end < marks.Length) && (marks[end] != 0))
+                                        {
+                                            end++;
+                                        }
+
+                                        string bracketStart = segments[start].Name;
+                                        string bracketEnd = end < segments.Count ? segments[end].Name : "z";
+                                        if (traceDynpack != null)
+                                        {
+                                            traceDynpack.WriteLine("Bracket: {0} .. {1}", bracketStart, bracketEnd);
+                                            traceDynpack.WriteLine("  initial names:");
+                                            for (int j = start; j < Math.Min(end + 1, segments.Count); j++)
+                                            {
+                                                traceDynpack.WriteLine("    {0}", segments[j].Name);
+                                            }
+                                        }
+                                        string[] newNames = DynPackMakeSegmentNamesBetween(bracketStart, bracketEnd, end - start - 1);
+                                        for (int j = 0; j < newNames.Length; j++)
+                                        {
+                                            bool chained = false;
+                                            while (usedNames.ContainsKey(newNames[j]))
+                                            {
+                                                string replacement = DynPackMakeSegmentNameBetween(newNames[j], DynPackMakeSegmentNameBetween(newNames[j], j + 1 < newNames.Length ? newNames[j + 1] : bracketEnd));
+                                                if (traceDynpack != null)
+                                                {
+                                                    traceDynpack.WriteLine("  {2,3}collision {0} --> {1}", newNames[j], replacement, chained ? "..." : String.Empty);
+                                                }
+                                                newNames[j] = replacement;
+                                                chained = true;
+                                            }
+                                        }
+                                        for (int j = start + 1; j <= end - 1; j++)
+                                        {
+                                            string name = newNames[j - (start + 1)];
+                                            string alternateName = segments[j].AlternateName;
+
+                                            if (!segments[j].IsDirty && (segments[j].AlternateName == null))
+                                            {
+                                                alternateName = segments[j].Name;
+                                            }
+
+                                            segments[j].SetNamesForTrim(name, alternateName);
+                                        }
+                                        if (traceDynpack != null)
+                                        {
+                                            traceDynpack.WriteLine("  new names:");
+                                            for (int j = start; j < Math.Min(end + 1, segments.Count); j++)
+                                            {
+                                                traceDynpack.WriteLine("    {0}", segments[j].Name);
+                                            }
+                                        }
+
+                                        // validate segment ordering invariant
+                                        for (int j = 1; j < segments.Count; j++)
+                                        {
+                                            bool one = false;
+                                            if (!(one = (DynPackSegmentNameCompare(segments[j - 1].Name, segments[j].Name) < 0))
+                                                || !(DynPackSegmentNameCompare(originalNames[segments[j - 1]], originalNames[segments[j]]) < 0))
+                                            {
+                                                if (traceDynpack != null)
+                                                {
+                                                    if (one)
+                                                    {
+                                                        traceDynpack.WriteLine("Program defect: segment name sequence violation:  !({0} < {2})  [{1},{3}]", segments[j - 1].Name, segments[j - 1].DiagnosticSerialNumber, segments[j].Name, segments[j].DiagnosticSerialNumber);
+                                                    }
+                                                    else
+                                                    {
+                                                        traceDynpack.WriteLine("Program defect: segment name sequence violation:  !({0} < {2})  [{1},{3}]", originalNames[segments[j - 1]], segments[j - 1].DiagnosticSerialNumber, originalNames[segments[j]], segments[j].DiagnosticSerialNumber);
+                                                    }
+                                                    for (int k = 0; k < segments.Count; k++)
+                                                    {
+                                                        traceDynpack.Write("  {0} ({1})", segments[k].Name, originalNames[segments[k]]);
+                                                        if (k > 0)
+                                                        {
+                                                            if (!(DynPackSegmentNameCompare(segments[k - 1].Name, segments[k].Name) < 0)
+                                                                || !(DynPackSegmentNameCompare(originalNames[segments[k - 1]], originalNames[segments[k]]) < 0))
+                                                            {
+                                                                traceDynpack.Write(" * FAIL");
+                                                            }
+                                                        }
+                                                        traceDynpack.WriteLine();
+                                                    }
+                                                }
+                                                Debugger.Break();
+                                                throw new InvalidOperationException("DEFECT! Segment name sequence violation! ");
+                                            }
+                                        }
+
+                                        i = end; // marks[end] always zero or nonexistent
+                                    }
+                                }
+
+                                if (traceDynpack != null)
+                                {
+                                    List<KeyValuePair<string, int>> names = new List<KeyValuePair<string, int>>();
+                                    int ll = 0;
+                                    for (int i = 0; i < segments.Count; i++)
+                                    {
+                                        names.Add(new KeyValuePair<string, int>(segments[i].Name, -i));
+                                        if (segments[i].AlternateName != null)
+                                        {
+                                            names.Add(new KeyValuePair<string, int>(segments[i].AlternateName, i));
+                                        }
+                                        ll = Math.Max(ll, segments[i].Name.Length);
+                                    }
+                                    names.Sort(delegate (KeyValuePair<string, int> l, KeyValuePair<string, int> r) { return DynPackSegmentNameCompare(l.Key, r.Key); });
+
+                                    traceDynpack.WriteLine("Original Names:");
+                                    for (int i = 0; i < segments.Count; i++)
+                                    {
+                                        traceDynpack.WriteLine(String.Format("  {{0,-{0}}} {{1,-{0}}} {{2}}", ll), segments[i].Name, originalNames[segments[i]], segments[i].IsDirty ? "dirty" : null);
+                                    }
+
+                                    traceDynpack.WriteLine("Plan:");
+                                    for (int i = 0; i < segments.Count; i++)
+                                    {
+                                        if (segments[i].AlternateName == null)
+                                        {
+                                            traceDynpack.WriteLine(String.Format("  {{0,-{0}}}{{1}}", ll), segments[i].Name, segments[i].IsDirty ? String.Concat("(", originalNames[segments[i]], ")") : null);
+                                        }
+                                        else
+                                        {
+                                            traceDynpack.WriteLine(String.Format("  {{0,-{0}}} <-- {{1}}", ll), segments[i].Name, segments[i].AlternateName);
+                                        }
+                                    }
+
+                                    traceDynpack.WriteLine("Plan [filtered]:");
+                                    for (int i = 0; i < segments.Count; i++)
+                                    {
+                                        if (segments[i].AlternateName != null)
+                                        {
+                                            traceDynpack.WriteLine(String.Format("  {{0,-{0}}} <-- {{1}}", ll), segments[i].Name, segments[i].AlternateName);
+                                        }
+                                    }
+
+                                    traceDynpack.WriteLine("Plan [sorted]:");
+                                    for (int i = 0; i < names.Count; i++)
+                                    {
+                                        if (names[i].Value < 0)
+                                        {
+                                            traceDynpack.WriteLine("  {0} ({1})", segments[-names[i].Value].Name, segments[-names[i].Value].AlternateName);
+                                        }
+                                        else
+                                        {
+                                            traceDynpack.WriteLine(String.Format("  {{0,-{0}}} --> {{1}} ({{2}})", ll), String.Empty, segments[names[i].Value].Name, segments[names[i].Value].AlternateName);
+                                        }
+                                    }
+                                }
+
+                                maxLen--;
+                            }
+
+                            if (traceDynpack != null)
+                            {
+                                traceDynpack.WriteLine("Trim segment names (1) complete");
+                            }
+                        }
+
 
                         // From this point forward, ALL UPDATES (threadsafe or not) should be completed.
                         // Structures should be regarded as immutable/read-only
@@ -10885,12 +11301,14 @@ namespace Backup
 
                                             string currentSegmentName = null;
                                             ulong currentSegmentSerialNumber = 0;
+                                            string currentAlternateSegmentName = null;
                                             foreach (FileRecord record in mergedFiles)
                                             {
                                                 if (!String.Equals(currentSegmentName, record.Segment.Name))
                                                 {
                                                     currentSegmentName = record.Segment.Name;
                                                     currentSegmentSerialNumber = record.Segment.SerialNumber;
+                                                    currentAlternateSegmentName = record.Segment.AlternateName;
 
                                                     PackedFileHeaderRecord segmentHeader = new PackedFileHeaderRecord(
                                                         null,
@@ -10900,7 +11318,8 @@ namespace Backup
                                                         0,
                                                         record.Segment.Name,
                                                         record.Segment.SerialNumber,
-                                                        record.Segment.LastMetadataVerification);
+                                                        record.Segment.LastMetadataVerification,
+                                                        record.Segment.AlternateName);
                                                     segmentHeader.Write(stream);
                                                 }
 
@@ -10923,6 +11342,128 @@ namespace Backup
                                     Directory.CreateDirectory(directory);
                                 }
                                 File.WriteAllBytes(localSignaturePath, localSignature.CheckValue);
+                            }
+                        }
+
+                        // Rename segments if segment names have gotten too long (Part 2)
+                        // Walk through segments and rename actual file. This can't be done concurrently because the
+                        // name ordering invariant must be preserved at all times, in case the operation is interrupted.
+                        if (trimSegmentNames.HasValue)
+                        {
+                            if (traceDynpack != null)
+                            {
+                                traceDynpack.WriteLine("Trim segment names (2) enactment");
+                            }
+                            sequenceTimes.Phase("archiving: trim segment names 2");
+                            faultDynamicPackStage = faultDynamicPack.Select("Stage", "6.5-trim-segment-names-2");
+
+                            Console.WriteLine("Segment name trim:");
+
+                            List<SegmentRecord> selectedSegments = new List<SegmentRecord>();
+                            List<SegmentRecord> nonDirtySegments = new List<SegmentRecord>();
+                            for (int i = 0; i < segments.Count; i++)
+                            {
+                                if (segments[i].AlternateName != null)
+                                {
+                                    selectedSegments.Add(segments[i]);
+                                }
+                                if (!segments[i].IsDirty)
+                                {
+                                    nonDirtySegments.Add(segments[i]);
+                                }
+                            }
+
+                            // TODO: This algorithm uses O(N^2) visits to elements to be renamed. Should be able to do improve on this:
+                            // For example, see https://www.cs.cmu.edu/~sleator/papers/maintaining-order.pdf
+                            // (The number of expensive rename operations remains N)
+                            int count = selectedSegments.Count;
+                            int start = 0;
+                            while (count > 0)
+                            {
+                                bool acted = false;
+                                bool prefix = true;
+                                for (int i = start; i < selectedSegments.Count; i++)
+                                {
+                                    Debug.Assert(!selectedSegments[i].IsDirty);
+
+                                    if (selectedSegments[i].AlternateName == null)
+                                    {
+                                        if (prefix && (start < i))
+                                        {
+                                            start = i;
+                                        }
+                                        continue;
+                                    }
+                                    prefix = false;
+
+                                    // find segment that can be renamed without breaking the invariant
+                                    if (((DynPackSegmentNameCompare(selectedSegments[i].Name, selectedSegments[i].AlternateName) < 0) // moving earlier
+                                        && ((i == 0) || (DynPackSegmentNameCompare(selectedSegments[i - 1].AlternateNameOrName, selectedSegments[i].Name) < 0)))
+                                        ||
+                                        ((DynPackSegmentNameCompare(selectedSegments[i].Name, selectedSegments[i].AlternateName) > 0) // moving later
+                                        && ((i == selectedSegments.Count - 1) || (DynPackSegmentNameCompare(selectedSegments[i + 1].AlternateNameOrName, selectedSegments[i].Name) > 0))))
+                                    {
+                                        count--;
+                                        acted = true;
+
+                                        IFaultInstance faultDynamicPackRename = faultDynamicPackStage.Select("Rename", selectedSegments[i].AlternateName);
+
+                                        string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", selectedSegments[i].Name, DynPackFileExtension);
+                                        string alternateSegmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", selectedSegments[i].AlternateName, DynPackFileExtension);
+
+                                        if (traceDynpack != null)
+                                        {
+                                            traceDynpack.WriteLine("  Segment rename: {0} --> {1}", selectedSegments[i].AlternateName, selectedSegments[i].Name);
+                                        }
+                                        Console.WriteLine("  {0} --> {1}", alternateSegmentFileName, segmentFileName);
+
+                                        selectedSegments[i].SetNamesForTrim(selectedSegments[i].Name, null/*AlternateName*/);
+
+                                        // validate segment ordering invariant
+                                        for (int j = 1; j < nonDirtySegments.Count; j++)
+                                        {
+                                            if (!(DynPackSegmentNameCompare(nonDirtySegments[j - 1].AlternateNameOrName, nonDirtySegments[j].AlternateNameOrName) < 0))
+                                            {
+                                                if (traceDynpack != null)
+                                                {
+                                                    traceDynpack.WriteLine("Program defect: segment name sequence violation:  !({0} < {2})  [{1},{3}]", nonDirtySegments[j - 1].AlternateNameOrName, nonDirtySegments[j - 1].DiagnosticSerialNumber, nonDirtySegments[j].AlternateNameOrName, nonDirtySegments[j].DiagnosticSerialNumber);
+                                                    for (int k = 0; k < nonDirtySegments.Count; k++)
+                                                    {
+                                                        traceDynpack.Write("  {0}", nonDirtySegments[k].AlternateNameOrName);
+                                                        if (k > 0)
+                                                        {
+                                                            if (!(DynPackSegmentNameCompare(nonDirtySegments[k - 1].AlternateNameOrName, nonDirtySegments[k].AlternateNameOrName) < 0))
+                                                            {
+                                                                traceDynpack.Write(" * FAIL");
+                                                            }
+                                                        }
+                                                        traceDynpack.WriteLine();
+                                                    }
+                                                }
+                                                Debugger.Break();
+                                                throw new InvalidOperationException("DEFECT! Segment name sequence violation! ");
+                                            }
+                                        }
+
+                                        fileManager.Rename(alternateSegmentFileName, segmentFileName, fileManager.GetMasterTrace());
+
+                                        break;
+                                    }
+                                }
+                                if (!acted)
+                                {
+                                    if (traceDynpack != null)
+                                    {
+                                        traceDynpack.WriteLine("  Program defect: segment rename deadlock - unable to find candidate");
+                                    }
+                                    Debugger.Break();
+                                    throw new InvalidOperationException("Program defect: segment rename deadlock - unable to complete rename operation");
+                                }
+                            }
+
+                            if (traceDynpack != null)
+                            {
+                                traceDynpack.WriteLine("Trim segment names (2) enactment finished");
                             }
                         }
 
@@ -12139,8 +12680,32 @@ namespace Backup
                 // process manifest contents
                 Dictionary<string, ulong> serialNumberMapping = new Dictionary<string, ulong>();
                 List<string> segmentNameList = new List<string>();
-                foreach (UnpackedFileRecord file in manifestFileList)
+                for (int i = 0; i < manifestFileList.Length; i++)
                 {
+                    UnpackedFileRecord file = manifestFileList[i];
+
+                    // Reconcile alternate segment name
+                    // If a rename was initiated (the manifest with new names got written) but did not complete (at least one
+                    // of the segments retains the old name), then this operation effectively cancels it, accepting the renames
+                    // and resetting the ones that didn't rename.
+                    if (file.AlternateSegmentName != null)
+                    {
+                        string segmentFileName = String.Concat(targetFileNamePrefix, file.SegmentName, DynPackFileExtension);
+                        string alternateSegmentFileName = String.Concat(targetFileNamePrefix, file.AlternateSegmentName, DynPackFileExtension);
+                        if (fileManager.Exists(alternateSegmentFileName, fileManager.GetMasterTrace()))
+                        {
+                            // This happens if a segment batch rename operation was initiated but never completed. This case
+                            // is where the actual segment file never got renamed.
+
+                            // this would be 1) a bug involving name collision, or 2) someone tampering with the archive
+                            Debug.Assert(!fileManager.Exists(segmentFileName, fileManager.GetMasterTrace())); // TODO: throw?
+
+                            file.SegmentName = file.AlternateSegmentName;
+                            file.AlternateSegmentName = null;
+                            manifestFileList[i] = file; // update struct
+                        }
+                    }
+
                     string segmentName = file.SegmentName;
                     ulong segmentSerialNumber = file.SegmentSerialNumber;
                     if ((segmentSerialNumber == 0) || (segmentSerialNumber >= manifestSerialNumber))
