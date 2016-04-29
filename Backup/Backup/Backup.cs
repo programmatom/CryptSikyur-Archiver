@@ -10231,7 +10231,7 @@ namespace Backup
                             foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
                                 concurrent.WaitQueueNotFull();
-                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                if (Thread.VolatileRead(ref fatal) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
@@ -10276,7 +10276,7 @@ namespace Backup
                                                         }
                                                         messages.WriteLine("Error deleting {0}: {1}", segmentFileName, exception.Message);
 
-                                                        Interlocked.Exchange(ref fatal, 1);
+                                                        Thread.VolatileWrite(ref fatal, 1);
                                                         throw;
                                                     }
                                                 }
@@ -10354,7 +10354,7 @@ namespace Backup
                                 }
 
                                 concurrent.WaitQueueNotFull();
-                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                if (Thread.VolatileRead(ref fatal) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
@@ -10398,10 +10398,6 @@ namespace Backup
                                                                 threadTraceDynPack.WriteLine("Validating non-dirty segment: {0} {1}", segment.DiagnosticSerialNumber, segment.Name);
                                                             }
                                                             messages.WriteLine("Validating non-dirty segment: {0}", segment.Name);
-
-#if false // TODO: remove
-                                                            throw new ApplicationException("Forced failure");
-#endif
 
                                                             using (ILocalFileCopy fileRef = fileManager.Read(segmentFileName, null/*progressTracker*/, threadTraceFileManager))
                                                             {
@@ -10543,7 +10539,7 @@ namespace Backup
                                                                         uint hr = (uint)Marshal.GetHRForException(exception);
                                                                         if (hr != 0x80070070/*out of disk space*/)
                                                                         {
-                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            Thread.VolatileWrite(ref fatal, 1);
                                                                             throw;
                                                                         }
                                                                         // running out of disk space saving the invalid segment was regarded as non-fatal
@@ -10569,7 +10565,7 @@ namespace Backup
                                                             // renamed but new manifest is written, then program fails before writing
                                                             // new versions of the segments - old segment will remain while manifest
                                                             // will claim it is the new one, resulting in serial number inconsistency)
-                                                            Interlocked.Exchange(ref fatal, 1);
+                                                            Thread.VolatileWrite(ref fatal, 1);
                                                             throw;
                                                         }
                                                         finally
@@ -10602,7 +10598,7 @@ namespace Backup
                         // under it. therefore, introduce a barrier here.
                         concurrent.Drain(delegate () { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
-                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                        if (Thread.VolatileRead(ref fatal) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
@@ -10703,7 +10699,7 @@ namespace Backup
                             foreach (KeyValuePair<string, bool> nameEnum in namesToBackupOrRemove)
                             {
                                 concurrent.WaitQueueNotFull();
-                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                if (Thread.VolatileRead(ref fatal) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
@@ -10785,7 +10781,7 @@ namespace Backup
                                                     // renamed but new manifest is written, then program fails before writing
                                                     // new versions of the segments - old segment will remain while manifest
                                                     // will claim it is the new one, resulting in serial number inconsistency)
-                                                    Interlocked.Exchange(ref fatal, 1);
+                                                    Thread.VolatileWrite(ref fatal, 1);
                                                     throw;
                                                 }
                                             }
@@ -10801,7 +10797,7 @@ namespace Backup
                         // been moved out of the way yet.
                         concurrent.Drain(delegate () { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
-                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                        if (Thread.VolatileRead(ref fatal) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
@@ -11524,7 +11520,7 @@ namespace Backup
                         for (int iEnum = 0; iEnum < segments.Count; iEnum++)
                         {
                             concurrent.WaitQueueNotFull(showProgress, WaitInterval);
-                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                            if (Thread.VolatileRead(ref fatal) != 0)
                             {
                                 if (abort || !FatalPromptContinue(concurrent, messagesLog, showProgress, WaitInterval, prepareConsole))
                                 {
@@ -11805,7 +11801,7 @@ namespace Backup
                                                             }
                                                             messages.WriteLine("Error archiving {0}: {1}", segmentFileName, exception.Message);
 
-                                                            Interlocked.Exchange(ref fatal, 1);
+                                                            Thread.VolatileWrite(ref fatal, 1);
                                                             throw;
                                                         }
                                                     }
@@ -11835,7 +11831,7 @@ namespace Backup
                         concurrent.Drain(showProgress, WaitInterval);
                         messagesLog.Flush(prepareConsole);
                         eraseProgress();
-                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                        if (Thread.VolatileRead(ref fatal) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
@@ -11854,7 +11850,7 @@ namespace Backup
                             foreach (string segmentFileNameEnum in fileManager.GetFileNames(targetFileNamePrefix, fileManager.GetMasterTrace()))
                             {
                                 concurrent.WaitQueueNotFull(showProgress, WaitInterval);
-                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                if (Thread.VolatileRead(ref fatal) != 0)
                                 {
                                     if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                                     {
@@ -11903,7 +11899,7 @@ namespace Backup
                                                             }
                                                             messages.WriteLine("Exception deleting {0}: {1}", segmentFileName, exception);
 
-                                                            Interlocked.Exchange(ref fatal, 1);
+                                                            Thread.VolatileWrite(ref fatal, 1);
                                                             throw;
                                                         }
                                                     }
@@ -11919,7 +11915,7 @@ namespace Backup
                         // final flush of tasks and messages
                         concurrent.Drain(delegate () { messagesLog.Flush(); }, WaitInterval);
                         messagesLog.Flush();
-                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                        if (Thread.VolatileRead(ref fatal) != 0)
                         {
                             if (abort || !FatalPromptContinue(concurrent, messagesLog, null, -1, null))
                             {
@@ -11975,7 +11971,11 @@ namespace Backup
                     }
                     else if (key.KeyChar == 'q')
                     {
-                        Interlocked.Exchange(ref fatal, 1);
+                        Thread.VolatileWrite(ref fatal, 1);
+                    }
+                    else if (key.KeyChar == 'c')
+                    {
+                        Thread.VolatileWrite(ref fatal, 0);
                     }
                 }
 
@@ -11985,7 +11985,7 @@ namespace Backup
                     {
                         List<KeyValuePair<string, ConsoleColor?>> lines = new List<KeyValuePair<string, ConsoleColor?>>();
 
-                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                        if (Thread.VolatileRead(ref fatal) != 0)
                         {
                             lines.Add(new KeyValuePair<string, ConsoleColor?>("  [fatal error pending]", ConsoleColor.Yellow));
                         }
@@ -12870,7 +12870,7 @@ namespace Backup
                             foreach (String segmentNameEnum in segmentNameList)
                             {
                                 concurrent.WaitQueueNotFull(showProgress, WaitInterval);
-                                if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                if (Thread.VolatileRead(ref fatal) != 0)
                                 {
                                     break;
                                 }
@@ -13014,7 +13014,7 @@ namespace Backup
                                                                             {
                                                                                 threadTraceDynunpack.WriteLine("  completion object missing for required dependency {0}", dependentOnName);
                                                                             }
-                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            Thread.VolatileWrite(ref fatal, 1);
                                                                             localValid = false;
                                                                             throw new InvalidOperationException();
                                                                         }
@@ -13026,7 +13026,7 @@ namespace Backup
                                                                             {
                                                                                 threadTraceDynunpack.WriteLine("  completion object null for index={0}", completionIndex);
                                                                             }
-                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            Thread.VolatileWrite(ref fatal, 1);
                                                                             localValid = false;
                                                                             throw new InvalidOperationException();
                                                                         }
@@ -13044,7 +13044,7 @@ namespace Backup
                                                                             {
                                                                                 threadTraceDynunpack.WriteLine("  dependency task failed, aborting");
                                                                             }
-                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            Thread.VolatileWrite(ref fatal, 1);
                                                                             localValid = false;
                                                                             throw new InvalidOperationException();
                                                                         }
@@ -13080,7 +13080,7 @@ namespace Backup
                                                                         localValid = false;
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
-                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            Thread.VolatileWrite(ref fatal, 1);
                                                                             return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                         }
                                                                     }
@@ -13092,7 +13092,7 @@ namespace Backup
                                                                         localValid = false;
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
-                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            Thread.VolatileWrite(ref fatal, 1);
                                                                             return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                         }
                                                                     }
@@ -13107,7 +13107,7 @@ namespace Backup
                                                                             localValid = false;
                                                                             if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                             {
-                                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                                Thread.VolatileWrite(ref fatal, 1);
                                                                                 return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                             }
                                                                         }
@@ -13126,7 +13126,7 @@ namespace Backup
                                                                         localValid = false;
                                                                         if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                                         {
-                                                                            Interlocked.Exchange(ref fatal, 1);
+                                                                            Thread.VolatileWrite(ref fatal, 1);
                                                                             return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                                         }
                                                                     }
@@ -13164,7 +13164,7 @@ namespace Backup
                                                                && !(exception is InvalidDataException))
                                                             {
                                                                 messages.WriteLine("Exception processing {0}: {1}", segmentFileName, exception);
-                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                Thread.VolatileWrite(ref fatal, 1);
                                                                 throw;
                                                             }
 
@@ -13172,7 +13172,7 @@ namespace Backup
                                                             invalid.Set();
                                                             if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                                             {
-                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                Thread.VolatileWrite(ref fatal, 1);
                                                                 return; // if unpacking, abort, otherwise continue to see what else is wrong
                                                             }
                                                             // do nothing further with cryptographically inauthentic segments
@@ -13217,7 +13217,7 @@ namespace Backup
                             concurrent.Drain(showProgress, WaitInterval);
                             messagesLog.Flush(prepareConsole);
                             eraseProgress();
-                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                            if (Thread.VolatileRead(ref fatal) != 0)
                             {
                                 if ((mode & UnpackMode.Unpack) == UnpackMode.Unpack)
                                 {
@@ -13281,7 +13281,7 @@ namespace Backup
             {
                 throw new ExitCodeException((int)ExitCodes.ConditionNotSatisfied);
             }
-            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+            if (Thread.VolatileRead(ref fatal) != 0)
             {
                 throw new MyApplicationException();
             }
@@ -13422,7 +13422,7 @@ namespace Backup
                     {
                         int fatal = 0;
 
-                        while ((args.Length > 0) && (Interlocked.CompareExchange(ref fatal, 1, 1) == 0))
+                        while ((args.Length > 0) && (Thread.VolatileRead(ref fatal) == 0))
                         {
                             int used;
 
@@ -13540,7 +13540,7 @@ namespace Backup
                                         }
                                         foreach (string nameEnum in names)
                                         {
-                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                            if (Thread.VolatileRead(ref fatal) != 0)
                                             {
                                                 break;
                                             }
@@ -13565,7 +13565,7 @@ namespace Backup
                                                             }
                                                             catch (Exception exception)
                                                             {
-                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                Thread.VolatileWrite(ref fatal, 1);
                                                                 messages.WriteLine("Exception: {0}", exception);
                                                             }
                                                         }
@@ -13615,7 +13615,7 @@ namespace Backup
                                         }
                                         for (int iEnum = 0; iEnum < newNames.Length; iEnum++)
                                         {
-                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                            if (Thread.VolatileRead(ref fatal) != 0)
                                             {
                                                 break;
                                             }
@@ -13640,7 +13640,7 @@ namespace Backup
                                                             }
                                                             catch (Exception exception)
                                                             {
-                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                Thread.VolatileWrite(ref fatal, 1);
                                                                 messages.WriteLine("Exception: {0}", exception);
                                                             }
                                                         }
@@ -13716,7 +13716,7 @@ namespace Backup
                                         }
                                         foreach (string nameEnum in names)
                                         {
-                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                            if (Thread.VolatileRead(ref fatal) != 0)
                                             {
                                                 break;
                                             }
@@ -13757,7 +13757,7 @@ namespace Backup
                                                             }
                                                             catch (Exception exception)
                                                             {
-                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                Thread.VolatileWrite(ref fatal, 1);
                                                                 messages.WriteLine("Exception: {0}", exception);
                                                             }
                                                         }
@@ -13821,7 +13821,7 @@ namespace Backup
                                         }
                                         foreach (string nameEnum in names)
                                         {
-                                            if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                                            if (Thread.VolatileRead(ref fatal) != 0)
                                             {
                                                 break;
                                             }
@@ -13852,7 +13852,7 @@ namespace Backup
                                                             }
                                                             catch (Exception exception)
                                                             {
-                                                                Interlocked.Exchange(ref fatal, 1);
+                                                                Thread.VolatileWrite(ref fatal, 1);
                                                                 messages.WriteLine("Exception: {0}", exception);
                                                             }
                                                         }
@@ -13953,7 +13953,7 @@ namespace Backup
                             ArrayRemoveAt(ref args, 0, used);
                         }
 
-                        if (Interlocked.CompareExchange(ref fatal, 1, 1) != 0)
+                        if (Thread.VolatileRead(ref fatal) != 0)
                         {
                             throw new ExitCodeException((int)ExitCodes.ProgramFailure);
                         }
