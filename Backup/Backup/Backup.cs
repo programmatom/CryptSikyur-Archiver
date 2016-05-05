@@ -11353,8 +11353,6 @@ namespace Backup
                             sequenceTimes.Phase("archiving: trim segment names 2");
                             faultDynamicPackStage = faultDynamicPack.Select("Stage", "6.5-trim-segment-names-2");
 
-                            Console.WriteLine("Segment name trim:");
-
                             List<SegmentRecord> selectedSegments = new List<SegmentRecord>();
                             List<SegmentRecord> nonDirtySegments = new List<SegmentRecord>();
                             for (int i = 0; i < segments.Count; i++)
@@ -11367,6 +11365,11 @@ namespace Backup
                                 {
                                     nonDirtySegments.Add(segments[i]);
                                 }
+                            }
+
+                            if (selectedSegments.Count != 0)
+                            {
+                                Console.WriteLine("Segment name trim:");
                             }
 
                             // TODO: This algorithm uses O(N^2) visits to elements to be renamed. Should be able to do improve on this:
