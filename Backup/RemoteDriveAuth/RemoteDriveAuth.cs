@@ -713,30 +713,6 @@ namespace RemoteDriveAuth
         private string authorizationCode;
         internal string AuthorizationCode { get { return authorizationCode; } }
 
-        // Displays the Save dialog box. 
-        private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            webBrowser1.ShowSaveAsDialog();
-        }
-
-        // Displays the Page Setup dialog box. 
-        private void pageSetupToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            webBrowser1.ShowPageSetupDialog();
-        }
-
-        // Displays the Print dialog box. 
-        private void printToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            webBrowser1.ShowPrintDialog();
-        }
-
-        // Displays the Print Preview dialog box. 
-        private void printPreviewToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            webBrowser1.ShowPrintPreviewDialog();
-        }
-
         // Displays the Properties dialog box. 
         private void propertiesToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -924,18 +900,6 @@ namespace RemoteDriveAuth
             webBrowser1.GoHome();
         }
 
-        // Navigates webBrowser1 to the search page of the current user. 
-        private void searchButton_Click(object sender, EventArgs e)
-        {
-            webBrowser1.GoSearch();
-        }
-
-        // Prints the current document using the current print settings. 
-        private void printButton_Click(object sender, EventArgs e)
-        {
-            webBrowser1.Print();
-        }
-
         // Updates the status bar with the current browser status text. 
         private void webBrowser1_StatusTextChanged(object sender, EventArgs e)
         {
@@ -976,12 +940,12 @@ namespace RemoteDriveAuth
         private WebBrowser webBrowser1;
 
         private MenuStrip menuStrip1;
-        private ToolStripMenuItem fileToolStripMenuItem, saveAsToolStripMenuItem, printToolStripMenuItem, printPreviewToolStripMenuItem, exitToolStripMenuItem, pageSetupToolStripMenuItem, propertiesToolStripMenuItem;
-        private ToolStripSeparator toolStripSeparator1, toolStripSeparator2;
+        private ToolStripMenuItem fileToolStripMenuItem, exitToolStripMenuItem, propertiesToolStripMenuItem;
+        private ToolStripSeparator toolStripSeparator1;
 
         private ToolStrip toolStrip1, toolStrip2;
         private ToolStripTextBox toolStripTextBox1;
-        private ToolStripButton goButton, backButton, forwardButton, stopButton, refreshButton, homeButton, searchButton, printButton;
+        private ToolStripButton goButton, backButton, forwardButton, stopButton, refreshButton, homeButton;
 
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel toolStripStatusLabel1;
@@ -997,13 +961,8 @@ namespace RemoteDriveAuth
 
             menuStrip1 = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
-            saveAsToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator1 = new ToolStripSeparator();
-            printToolStripMenuItem = new ToolStripMenuItem();
-            printPreviewToolStripMenuItem = new ToolStripMenuItem();
-            toolStripSeparator2 = new ToolStripSeparator();
             exitToolStripMenuItem = new ToolStripMenuItem();
-            pageSetupToolStripMenuItem = new ToolStripMenuItem();
             propertiesToolStripMenuItem = new ToolStripMenuItem();
 
             toolStrip1 = new ToolStrip();
@@ -1013,8 +972,6 @@ namespace RemoteDriveAuth
             stopButton = new ToolStripButton();
             refreshButton = new ToolStripButton();
             homeButton = new ToolStripButton();
-            searchButton = new ToolStripButton();
-            printButton = new ToolStripButton();
 
             toolStrip2 = new ToolStrip();
             toolStripTextBox1 = new ToolStripTextBox();
@@ -1024,26 +981,16 @@ namespace RemoteDriveAuth
 
             menuStrip1.Items.Add(fileToolStripMenuItem);
 
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { saveAsToolStripMenuItem, toolStripSeparator1, pageSetupToolStripMenuItem, printToolStripMenuItem, printPreviewToolStripMenuItem, toolStripSeparator2, propertiesToolStripMenuItem, exitToolStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { propertiesToolStripMenuItem, toolStripSeparator1, exitToolStripMenuItem });
 
             fileToolStripMenuItem.Text = "&File";
-            saveAsToolStripMenuItem.Text = "Save &As...";
-            pageSetupToolStripMenuItem.Text = "Page Set&up...";
-            printToolStripMenuItem.Text = "&Print...";
-            printPreviewToolStripMenuItem.Text = "Print Pre&view...";
             propertiesToolStripMenuItem.Text = "Properties";
             exitToolStripMenuItem.Text = "E&xit";
 
-            printToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.P;
-
-            saveAsToolStripMenuItem.Click += new EventHandler(saveAsToolStripMenuItem_Click);
-            pageSetupToolStripMenuItem.Click += new EventHandler(pageSetupToolStripMenuItem_Click);
-            printToolStripMenuItem.Click += new EventHandler(printToolStripMenuItem_Click);
-            printPreviewToolStripMenuItem.Click += new EventHandler(printPreviewToolStripMenuItem_Click);
             propertiesToolStripMenuItem.Click += new EventHandler(propertiesToolStripMenuItem_Click);
             exitToolStripMenuItem.Click += new EventHandler(exitToolStripMenuItem_Click);
 
-            toolStrip1.Items.AddRange(new ToolStripItem[] { goButton, backButton, forwardButton, stopButton, refreshButton, homeButton, searchButton, printButton });
+            toolStrip1.Items.AddRange(new ToolStripItem[] { goButton, backButton, forwardButton, stopButton, refreshButton, homeButton });
 
             goButton.Text = "Go";
             backButton.Text = "Back";
@@ -1051,8 +998,6 @@ namespace RemoteDriveAuth
             stopButton.Text = "Stop";
             refreshButton.Text = "Refresh";
             homeButton.Text = "Home";
-            searchButton.Text = "Search";
-            printButton.Text = "Print";
 
             backButton.Enabled = false;
             forwardButton.Enabled = false;
@@ -1063,8 +1008,6 @@ namespace RemoteDriveAuth
             stopButton.Click += new EventHandler(stopButton_Click);
             refreshButton.Click += new EventHandler(refreshButton_Click);
             homeButton.Click += new EventHandler(homeButton_Click);
-            searchButton.Click += new EventHandler(searchButton_Click);
-            printButton.Click += new EventHandler(printButton_Click);
 
             toolStrip2.Items.Add(toolStripTextBox1);
             toolStripTextBox1.Size = new Size(Width - 50, 25); // TODO: magic width???

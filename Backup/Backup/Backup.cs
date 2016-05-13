@@ -9544,6 +9544,10 @@ namespace Backup
                     sequenceTimes.Phase(String.Concat("preparation: main merge", ignoreUnchangedFiles ? " (incl. digest computation)" : null));
                     using (ConcurrentTasks concurrent = new ConcurrentTasks(Constants.ConcurrencyForComputeBound, null, null, traceDynpack))
                     {
+                        long completedHashBytes = 0;
+                        Stopwatch updateHashStatus = Stopwatch.StartNew();
+                        const int HashStatusIntervalMsec = 5000;
+
                         iCurrent = 0;
                         iPrevious = 0;
                         while ((iCurrent < currentFiles.Count) || (iPrevious < previousFiles.Count))
@@ -9580,6 +9584,7 @@ namespace Backup
                                 {
                                     faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
                                     currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack, faultMerge);
+                                    completedHashBytes += currentFiles[iCurrent].EmbeddedStreamLength;
                                 }
 
                                 mergedFiles.Add(currentFiles[iCurrent]);
@@ -9603,6 +9608,7 @@ namespace Backup
                                     {
                                         faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
                                         currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack, faultMerge);
+                                        completedHashBytes += currentFiles[iCurrent].EmbeddedStreamLength;
                                     }
 
                                     mergedFiles.Add(currentFiles[iCurrent]);
@@ -9635,6 +9641,7 @@ namespace Backup
                                         {
                                             faultDynamicPack.Select("SetDigest", currentFiles[iCurrent].PartialPath.ToString());
                                             currentFiles[iCurrent].SetDigest(concurrent, source, context, traceDynpack, faultMerge);
+                                            completedHashBytes += currentFiles[iCurrent].EmbeddedStreamLength;
                                             currentDigest = currentFiles[iCurrent].Digest;
                                         }
                                         else
@@ -9702,8 +9709,18 @@ namespace Backup
                                 }
                             }
 
-                            // ConcurrentTasks.Dispose() will wait until all SetDigest() operations have completed
+                            if (updateHashStatus.ElapsedMilliseconds >= HashStatusIntervalMsec)
+                            {
+                                updateHashStatus.Restart();
+                                if (Interactive())
+                                {
+                                    Console.Write("Hashed: {0}   ", FileSizeString(completedHashBytes));
+                                    Console.CursorLeft = 0;
+                                }
+                            }
                         }
+
+                        // ConcurrentTasks.Dispose() will wait until all SetDigest() operations have completed
                     }
 
                     currentFiles = null;
