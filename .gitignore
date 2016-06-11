@@ -1,25 +1,23 @@
 # application compilation intermediate files
 
-/Backup/.vs/*
-/Backup/Backup.suo
-/Backup/Backup/bin/Debug/app.publish
+/Backup/.vs
+/Backup/Backup/bin
+/Backup/Backup/obj
 /Backup/Backup/Backup.csproj.user
-/Backup/Backup/obj/*
-/Backup/RemoteDriveAuth/bin/*
+/Backup/RemoteDriveAuth/bin
+/Backup/RemoteDriveAuth/obj
 /Backup/RemoteDriveAuth/RemoteDriveAuth.csproj.user
-/Backup/RemoteDriveAuth/obj/*
 
 
 
 # test suite compilation intermediate files
 
-/BackupTester/.vs/*
-/BackupTester/BackupTester.suo
-/BackupTester/FileUtilityTester/bin/*
+/BackupTester/.vs
+/BackupTester/FileUtilityTester/bin
+/BackupTester/FileUtilityTester/obj
 /BackupTester/FileUtilityTester/FileUtilityTester.csproj.user
-/BackupTester/FileUtilityTester/obj/*
-/BackupTester/Tests/bin/*
-/BackupTester/Tests/obj/*
+/BackupTester/Tests/bin
+/BackupTester/Tests/obj
 
 # do not commit user's test refresh tokens (exposes account access)
 #
@@ -36,16 +34,16 @@
 
 # code coverage intermediate files
 
-#/Code Coverage Report/results*.xml
+/Code Coverage Report/results*.xml
 
 
 
 # test driver compilation intermediate files
 
-/FileUtilityTester/.vs/*
-/FileUtilityTester/FileUtilityTester.suo
+/FileUtilityTester/.vs
+/FileUtilityTester/FileUtilityTester/bin
+/FileUtilityTester/FileUtilityTester/obj
 /FileUtilityTester/FileUtilityTester/FileUtilityTester.csproj.user
-/FileUtilityTester/FileUtilityTester/obj/*
 
 
 
