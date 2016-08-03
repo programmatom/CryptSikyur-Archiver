@@ -673,6 +673,9 @@ namespace RemoteDriveAuth
         private readonly OAuth20RemoteService authService;
         private readonly TextWriter trace;
 
+        [DllImport("urlmon.dll", CharSet = CharSet.Ansi)]
+        private static extern int UrlMkSetSessionOption(int dwOption, string pBuffer, int dwBufferLength, int dwReserved);
+
         public WebBrowserHostingForm(
             OAuth20RemoteService authService,
             ClientIdentities.ClientIdentity clientIdentity,
@@ -683,6 +686,12 @@ namespace RemoteDriveAuth
         {
             this.authService = authService;
             this.trace = trace;
+
+            // HACK to defeat Google's gratuitous rejection of WebBrowser's old IE - at least until they start
+            // using browser features newer than what WebBrowser supports.
+            const string UserAgent = "Mozilla/5.0 (Trident/7.0; rv:11.0) like Gecko";
+            const int URLMON_OPTION_USERAGENT = 0x10000001;
+            UrlMkSetSessionOption(URLMON_OPTION_USERAGENT, UserAgent, UserAgent.Length, 0);
 
             // Configure socks5 proxying for WebBrowser control.
             // WARNING: It is believed that the WebBrowser control leaks DNS requests, so if proxying is intended
