@@ -1,8 +1,8 @@
 /*
- *  Copyright © 2014-2016 Thomas R. Lawrence
- *    except: "SkeinFish 0.5.0/*.cs", which are Copyright © 2010 Alberto Fajardo
- *    except: "SerpentEngine.cs", which is Copyright © 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
- *    except: "Keccak/*.cs", which are Copyright © 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
+ *  Copyright ý 2014-2016 Thomas R. Lawrence
+ *    except: "SkeinFish 0.5.0/*.cs", which are Copyright ý 2010 Alberto Fajardo
+ *    except: "SerpentEngine.cs", which is Copyright ý 1997, 1998 Systemics Ltd on behalf of the Cryptix Development Team (but see license discussion at top of that file)
+ *    except: "Keccak/*.cs", which are Copyright ý 2000 - 2011 The Legion of the Bouncy Castle Inc. (http://www.bouncycastle.org)
  * 
  *  GNU General Public License
  * 
@@ -9049,7 +9049,10 @@ namespace Backup
             List<FileRecord> currentFiles = new List<FileRecord>();
             {
                 IFaultInstance faultEnumerate = faultDynamicPack.Select("Enumerate");
-                ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."), traceDynpack, faultEnumerate);
+                if (!excludedItems.Contains(source.ToLowerInvariant()))
+                {
+                    ItemizeFilesRecursive(currentFiles, source, largeFileSegmentSize, context, excludedExtensions, excludedItems, FilePathItem.Create("."), traceDynpack, faultEnumerate);
+                }
             }
             EraseStatusLine();
             if (traceDynpack != null)
@@ -9107,6 +9110,10 @@ namespace Backup
 #else
                             throw new MyApplicationException(String.Format("Manifest file \"{0}\" does not exist (backup copy \"{1}\" does exist)! Manual intervention required - may be device connectivity failure. If manifest is indeed missing, archive integrity must be verified.", manifestFileName, manifestFileNameOld));
 #endif
+                        }
+                        if (fileManager.Duplicated(manifestFileNameActual, fileManager.GetMasterTrace()))
+                        {
+                            throw new MyApplicationException(String.Format("Multiple remote copies of manifest file \"{0}\" exist with same name! Manual intervention required: unable to determine which to use - remove all but the correct one (probably most recent). Archive integrity check is recommended.", manifestFileName));
                         }
 
                         Dictionary<string, SegmentRecord> segmentMap = new Dictionary<string, SegmentRecord>();
@@ -9406,6 +9413,23 @@ namespace Backup
                         {
                             segments[i].SetNamesForTrim(segments[i].Name/*Name*/, null/*AlternateName*/);
                         }
+                    }
+                }
+
+                // Check for duplicate remote files (something went quite wrong if this happens)
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    string segmentFileName = String.Concat(targetArchiveFileNameTemplate, ".", segments[i].Name, DynPackFileExtension);
+                    if (fileManager.Exists(segmentFileName, fileManager.GetMasterTrace())
+                        && fileManager.Duplicated(segmentFileName, fileManager.GetMasterTrace()))
+                    {
+                        string message = String.Format("Multiple remote files with same name (\"{0}\")! Deleting!", segmentFileName);
+                        if (traceDynpack != null)
+                        {
+                            traceDynpack.WriteLine(message);
+                        }
+                        ConsoleWriteLineColor(ConsoleColor.Yellow, message);
+                        fileManager.Delete(segmentFileName, traceDynpack);
                     }
                 }
 
@@ -10823,7 +10847,7 @@ namespace Backup
                         }
 
                         // Rename segments if segment names have gotten too long (Part 1)
-                        if (trimSegmentNames.HasValue)
+                        if (trimSegmentNames.HasValue && false) // TODO: reenable when algorithm is fixed
                         {
                             if (traceDynpack != null)
                             {
@@ -12501,6 +12525,11 @@ namespace Backup
                     files[i] = Path.GetFileName(files[i]);
                 }
                 return files;
+            }
+
+            public bool Duplicated(string name, TextWriter trace)
+            {
+                return false; // local file system never permits multiple files with same name in a directory
             }
 
             public void GetFileInfo(string name, out string id, out bool directory, out DateTime created, out DateTime modified, out long size, TextWriter trace)

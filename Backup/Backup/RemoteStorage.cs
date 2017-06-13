@@ -3167,11 +3167,25 @@ namespace Backup
         {
             private Dictionary<string, RemoteFileSystemEntry> entries = new Dictionary<string, RemoteFileSystemEntry>();
 
-            public RemoteDirectoryCache(RemoteFileSystemEntry[] entries)
+            public RemoteDirectoryCache(RemoteFileSystemEntry[] entries, TextWriter masterTrace)
             {
-                foreach (RemoteFileSystemEntry entry in entries)
+                for (int i = 0; i < entries.Length; i++)
                 {
-                    this.entries.Add(entry.Name, entry);
+                    RemoteFileSystemEntry entry = entries[i];
+
+                    RemoteFileSystemEntry existing;
+                    if (!this.entries.TryGetValue(entry.Name, out existing))
+                    {
+                        this.entries.Add(entry.Name, entry);
+                    }
+                    else
+                    {
+                        existing.Duplicates.Add(entry);
+                        if (masterTrace != null)
+                        {
+                            masterTrace.WriteLine("*RemoteDirectoryCache constructor - \"{0}\" already encountered but not marked as duplicate, adding as duplicate to existing record", entry.Name);
+                        }
+                    }
                 }
             }
 
@@ -3282,7 +3296,7 @@ namespace Backup
 
                 remoteWebMethods = SupportedServices[serviceSelector].Value(remoteAccessControl, context.socks5Address, context.socks5Port, masterTrace, faultInstanceRoot);
 
-                remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.OpenFolder(remoteDirectory, masterTrace, faultInstanceRoot));
+                remoteDirectoryCache = new RemoteDirectoryCache(remoteWebMethods.OpenFolder(remoteDirectory, masterTrace, faultInstanceRoot), masterTrace);
             }
             catch (Exception exception)
             {
@@ -3722,6 +3736,17 @@ namespace Backup
                 }
                 throw;
             }
+        }
+
+        public bool Duplicated(string name, TextWriter trace)
+        {
+            RemoteFileSystemEntry entry;
+            if (!remoteDirectoryCache.TryGetName(name, out entry))
+            {
+                throw new FileNotFoundException(String.Format("remote:{0}", name));
+            }
+
+            return entry.HasDuplicates;
         }
 
         public string[] GetFileNames(string prefix, TextWriter trace)
